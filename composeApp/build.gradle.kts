@@ -10,7 +10,6 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
-    alias(libs.plugins.tiamatDestinations)
 }
 
 kotlin {
@@ -66,6 +65,7 @@ kotlin {
             implementation(libs.lifecycle.viewmodel)
             implementation(libs.compose.lifecycle)
             implementation(libs.compose.viewmodel)
+            implementation(libs.compose.ui.backhandler)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
