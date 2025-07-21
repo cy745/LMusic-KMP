@@ -35,3 +35,4 @@ plugins {
 include(":composeApp")
 include(":common")
 include(":component")
+include(":lmedia")
