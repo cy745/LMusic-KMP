@@ -44,5 +44,10 @@ kotlin {
                 implementation(libs.kotlin.test)
             }
         }
+        val androidMain by getting {
+            dependencies {
+                api("com.blankj:utilcodex:1.31.1")
+            }
+        }
     }
 }

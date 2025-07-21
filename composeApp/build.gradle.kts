@@ -62,10 +62,14 @@ kotlin {
         }
         commonMain.dependencies {
             implementation(project(":component"))
+            implementation(project(":lmedia"))
             implementation(libs.lifecycle.viewmodel)
             implementation(libs.compose.lifecycle)
             implementation(libs.compose.viewmodel)
             implementation(libs.compose.ui.backhandler)
+
+            implementation(libs.filekit.dialogs)
+            implementation(libs.filekit.dialogs.compose)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -117,6 +121,9 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.lalilu.lmusic"
             packageVersion = "1.0.0"
+            linux {
+                modules("jdk.security.auth")
+            }
         }
     }
 }

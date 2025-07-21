@@ -1,5 +1,7 @@
 package com.lalilu.lmedia.source
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import com.lalilu.lmedia.entity.Snapshot
 import kotlinx.coroutines.flow.Flow
 
@@ -15,4 +17,7 @@ interface MediaSource {
      * 媒体数据源的流
      */
     fun source(): Flow<Snapshot>
+
+    @Composable
+    fun Content(modifier: Modifier = Modifier)
 }

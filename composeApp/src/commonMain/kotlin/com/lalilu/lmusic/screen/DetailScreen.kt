@@ -1,17 +1,17 @@
 package com.lalilu.lmusic.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.annotation.Destination
+import com.lalilu.lmedia.source.PlatformMediaSource
 import io.github.hristogochev.vortex.model.ScreenModel
 import io.github.hristogochev.vortex.model.rememberScreenModel
 import io.github.hristogochev.vortex.navigator.LocalNavigator
@@ -34,9 +34,12 @@ data class DetailScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = "Detail Screen: $item")
-            Button(onClick = { vm.doAction() }) {
-                Text(text = " to Extra Screen")
+            PlatformMediaSource.forEach {
+                it.Content(
+                    modifier = Modifier
+                        .widthIn(max = 300.dp)
+                        .fillMaxWidth()
+                )
             }
             Button(onClick = { navigator.pop() }) {
                 Text(text = "back")

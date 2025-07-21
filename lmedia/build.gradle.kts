@@ -7,6 +7,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
+    alias(libs.plugins.composeMultiplatform)
+    alias(libs.plugins.composeCompiler)
     alias(libs.plugins.ksp)
 }
 
@@ -37,10 +39,13 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
+                api(project(":component"))
                 api(libs.koin.core)
                 api(libs.koin.annotations)
                 api(libs.kotlinx.coroutines.core)
                 api(libs.filekit.core)
+                api(libs.filekit.dialogs)
+                api(libs.filekit.dialogs.compose)
             }
         }
         val commonTest by getting {
