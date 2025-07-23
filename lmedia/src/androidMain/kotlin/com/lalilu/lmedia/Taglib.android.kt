@@ -9,6 +9,8 @@ actual object Taglib {
     }
 
     actual fun test(): String {
-        return "Android"
+        return "Android, Taglib version: ${getVersion()}"
     }
+
+    external fun getVersion(): String
 }

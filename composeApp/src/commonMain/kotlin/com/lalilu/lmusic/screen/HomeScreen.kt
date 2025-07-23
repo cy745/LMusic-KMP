@@ -8,7 +8,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.lalilu.krouter.KRouter
@@ -22,10 +22,7 @@ object HomeScreen : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.current
-
-        LaunchedEffect(Unit) {
-            println(Taglib.test())
-        }
+        val text = remember { Taglib.test() }
 
         Column(
             modifier = Modifier.fillMaxSize()
@@ -33,7 +30,7 @@ object HomeScreen : Screen {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = "Home Screen")
+            Text(text = "Home Screen with $text")
             Button(onClick = {
                 KRouter.route<Screen>("/detail", mapOf("item" to "Item 1"))
                     ?.let { navigator?.push(it) }

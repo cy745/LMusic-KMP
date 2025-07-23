@@ -118,6 +118,10 @@ compose.desktop {
     application {
         mainClass = "com.lalilu.lmusic.MainKt"
 
+        buildTypes.release.proguard {
+            configurationFiles.from("proguard.pro")
+        }
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.lalilu.lmusic"
