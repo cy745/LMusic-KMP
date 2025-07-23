@@ -67,6 +67,7 @@ kotlin {
             implementation(libs.compose.lifecycle)
             implementation(libs.compose.viewmodel)
             implementation(libs.compose.ui.backhandler)
+            implementation(compose.components.resources)
 
             implementation(libs.filekit.dialogs)
             implementation(libs.filekit.dialogs.compose)

@@ -8,6 +8,8 @@ plugins {
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
     alias(libs.plugins.androidMultiplatformLibrary) apply false
+    alias(libs.plugins.vanniktech.pulish) apply false
+    alias(libs.plugins.dokka) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.krouter.plugin)
 }
