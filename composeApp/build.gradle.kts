@@ -3,6 +3,8 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
+import java.io.FileInputStream
+import java.util.*
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -82,9 +84,29 @@ kotlin {
     }
 }
 
+val keystoreProps = rootProject.file("keystore.properties")
+    .takeIf { it.exists() }
+    ?.let { Properties().apply { load(FileInputStream(it)) } }
+
 android {
     namespace = "com.lalilu.lmusic"
     compileSdk = libs.versions.android.targetSdk.get().toInt()
+
+    if (keystoreProps != null) {
+        val storeFileValue = keystoreProps["storeFile"]?.toString() ?: ""
+        val storePasswordValue = keystoreProps["storePassword"]?.toString() ?: ""
+        val keyAliasValue = keystoreProps["keyAlias"]?.toString() ?: ""
+        val keyPasswordValue = keystoreProps["keyPassword"]?.toString() ?: ""
+
+        if (storeFileValue.isNotBlank() && file(storeFileValue).exists()) {
+            signingConfigs.create("release") {
+                storeFile(file(storeFileValue))
+                storePassword(storePasswordValue)
+                keyAlias(keyAliasValue)
+                keyPassword(keyPasswordValue)
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.lalilu.lmusic"
@@ -102,6 +124,13 @@ android {
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
+
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard.pro"
+            )
+
+            signingConfig = runCatching { signingConfigs["release"] }.getOrNull()
         }
     }
     compileOptions {
