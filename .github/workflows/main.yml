@@ -67,7 +67,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-msi
-          path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/msi/*.apk
-  
+          path: ${{ github.workspace }}\composeApp\build\compose\binaries\main-release\msi\*.msi
 
       
