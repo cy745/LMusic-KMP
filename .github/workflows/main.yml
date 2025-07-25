@@ -92,7 +92,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-msi
-          path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/msi/*.dmg
+          name: macos-dmg
+          path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/dmg/*.dmg
 
       
