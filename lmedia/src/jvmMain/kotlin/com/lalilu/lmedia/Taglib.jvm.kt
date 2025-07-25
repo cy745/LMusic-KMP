@@ -6,6 +6,7 @@ import org.scijava.nativelib.NativeLoader
 actual object Taglib {
 
     init {
+        NativeLoader.loadLibrary("zlib1")
         NativeLoader.loadLibrary("tag")
     }
 
