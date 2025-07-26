@@ -49,6 +49,12 @@ kotlin {
                         add(rootDirPath)
                         add(projectDirPath)
                     }
+                    client = KotlinWebpackConfig.DevServer.Client(
+                        overlay = KotlinWebpackConfig.DevServer.Client.Overlay(
+                            errors = false,
+                            warnings = false
+                        )
+                    )
                 }
             }
         }

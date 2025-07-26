@@ -56,6 +56,11 @@ kotlin {
                 implementation(libs.native.lib.loader)
             }
         }
+        val wasmJsMain by getting {
+            dependencies {
+                implementation(npm("taglib-wasm", "0.5.4"))
+            }
+        }
     }
 }
 
