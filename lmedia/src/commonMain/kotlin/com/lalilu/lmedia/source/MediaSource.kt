@@ -19,5 +19,6 @@ interface MediaSource {
     fun source(): Flow<Snapshot>
 
     @Composable
-    fun Content(modifier: Modifier = Modifier)
+    fun Content(modifier: Modifier = Modifier) {
+    }
 }

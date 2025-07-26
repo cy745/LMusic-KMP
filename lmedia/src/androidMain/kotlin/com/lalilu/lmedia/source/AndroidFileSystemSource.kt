@@ -1,5 +1,6 @@
 package com.lalilu.lmedia.source
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -9,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.blankj.utilcode.util.Utils
+import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import io.github.vinceglb.filekit.*
@@ -23,7 +26,9 @@ import kotlinx.io.buffered
 object AndroidFileSystemSource : MediaSource {
     override val name: String = "AndroidFileSystemSource"
     private val selectedFile = MutableStateFlow<PlatformFile?>(null)
+    private val context by lazy { Utils.getApp() }
 
+    @SuppressLint("NewApi")
     override fun source(): Flow<Snapshot> {
         val filesFlow = selectedFile.map { root ->
             root?.filterChildren { file ->
@@ -34,16 +39,28 @@ object AndroidFileSystemSource : MediaSource {
                     val low4 = it.readInt()
                     val high4 = it.readInt()
 
-                    println("[${file.absolutePath()}]: ${low4.toHexString()} ${high4.toHexString()}")
                     (low4 == 0x664C6143 && high4 == 0x00000022) || (low4 == 0x4F676753 && high4 == 0x00020000)
                 }
             }
         }
 
         return filesFlow.map { files ->
+            files?.map { it.androidFile }?.mapNotNull { file ->
+                when (file) {
+                    is AndroidFile.FileWrapper -> Taglib.readMetadata(path = file.file.absolutePath)
+                    is AndroidFile.UriWrapper -> context.contentResolver
+                        .openFileDescriptor(file.uri, "r")
+                        ?.use { Taglib.readMetadata(fd = it.detachFd()) }
+                }
+            }
+        }.map { songs ->
             Snapshot(
-                audios = files?.map { LAudio(title = it.name) }
-                    ?: emptyList()
+                audios = songs?.map {
+                    LAudio(
+                        title = it.title,
+                        subtitle = it.artist
+                    )
+                } ?: emptyList()
             )
         }
     }
@@ -68,7 +85,7 @@ object AndroidFileSystemSource : MediaSource {
                     modifier = Modifier.padding(16.dp),
                 ) {
                     source.audios.forEach {
-                        Text(text = it.title)
+                        Text(text = "${it.title} - ${it.subtitle}")
                     }
                 }
 

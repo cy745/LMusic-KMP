@@ -24,7 +24,7 @@ object HomeScreen : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.current
-        val text = remember { Taglib.test() }
+        val text = remember { Taglib.version() }
 
         Column(
             modifier = Modifier.fillMaxSize()

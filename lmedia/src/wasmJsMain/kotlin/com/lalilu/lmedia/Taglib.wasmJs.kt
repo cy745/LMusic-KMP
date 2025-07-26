@@ -3,6 +3,7 @@ package com.lalilu.lmedia
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.lalilu.lmedia.entity.Metadata
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.await
@@ -20,8 +21,12 @@ actual object Taglib {
         }
     }
 
-    actual fun test(): String {
-        return "WASM, version: ${instance?.version()}"
-    }
+    actual fun version(): String = instance?.version()?.toString() ?: ""
+    actual suspend fun readMetadata(fd: Int): Metadata? = null
+    actual suspend fun readMetadata(path: String): Metadata? = null
+    actual suspend fun getLyric(fd: Int): String? = null
+    actual suspend fun getLyric(path: String): String? = null
+    actual suspend fun getPicture(fd: Int): ByteArray? = null
+    actual suspend fun getPicture(path: String): ByteArray? = null
 }
 

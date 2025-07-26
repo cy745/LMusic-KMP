@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import io.github.vinceglb.filekit.*
@@ -34,16 +35,23 @@ object JvmFileSystemSource : MediaSource {
                     val low4 = it.readInt()
                     val high4 = it.readInt()
 
-                    println("[${file.absolutePath()}]: ${low4.toHexString()} ${high4.toHexString()}")
                     (low4 == 0x664C6143 && high4 == 0x00000022) || (low4 == 0x4F676753 && high4 == 0x00020000)
                 }
             }
         }
 
         return filesFlow.map { files ->
+            files?.mapNotNull { file ->
+                Taglib.readMetadata(path = file.absolutePath())
+            }
+        }.map { songs ->
             Snapshot(
-                audios = files?.map { LAudio(title = it.name) }
-                    ?: emptyList()
+                audios = songs?.map {
+                    LAudio(
+                        title = it.title,
+                        subtitle = it.artist
+                    )
+                } ?: emptyList()
             )
         }
     }
@@ -73,7 +81,7 @@ object JvmFileSystemSource : MediaSource {
                     modifier = Modifier.padding(16.dp),
                 ) {
                     source.audios.forEach {
-                        Text(text = it.title)
+                        Text(text = "${it.title} - ${it.subtitle}")
                     }
                 }
 
