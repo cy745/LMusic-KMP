@@ -4,5 +4,10 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+    <!-- 音乐库访问权限描述 -->
+    <key>NSAppleMusicUsageDescription</key>
+    <string>此应用需要访问您的音乐库来显示您的歌曲列表。</string>
+    <key>NSMediaLibraryUsageDescription</key>
+    <string>此应用需要访问您的音乐库来显示您的歌曲列表。</string>
 </dict>
 </plist>

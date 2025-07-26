@@ -13,6 +13,7 @@ plugins {
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
+    id("io.github.ttypic.swiftklib") version "0.6.4"
 }
 
 group = "com.lalilu.lmedia"
@@ -25,9 +26,19 @@ kotlin {
             jvmTarget = JvmTarget.JVM_11
         }
     }
-    iosX64()
-    iosArm64()
-    iosSimulatorArm64()
+    listOf(
+        iosX64(),
+        iosArm64(),
+        iosSimulatorArm64()
+    ).forEach {
+        it.compilations {
+            val main by getting {
+                cinterops {
+                    create("MusicKitWrapper")
+                }
+            }
+        }
+    }
     wasmJs {
         browser()
         binaries.executable()
@@ -61,6 +72,13 @@ kotlin {
                 implementation(npm("taglib-wasm", "0.5.4"))
             }
         }
+    }
+}
+
+swiftklib {
+    create("MusicKitWrapper") {
+        path = file("native/MusicKitWrapper")
+        packageName("com.lalilu.lmedia")
     }
 }
 
