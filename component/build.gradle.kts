@@ -47,6 +47,7 @@ kotlin {
                 api(compose.components.uiToolingPreview)
                 api(libs.vortex)
                 api(libs.vortex.koin)
+                api(libs.bundles.coil)
             }
         }
         val commonTest by getting {

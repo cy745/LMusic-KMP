@@ -21,6 +21,7 @@ vortex = "0.2.5"
 filekit = "0.10.0-beta04"
 koin = "4.1.0"
 koin-ksp = "2.1.0"
+coil = "3.3.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -58,6 +59,11 @@ koin-annotations = { module = "io.insert-koin:koin-annotations", version.ref = "
 koin-compiler = { module = "io.insert-koin:koin-ksp-compiler", version.ref = "koin-ksp" }
 native-lib-loader = { module = "org.scijava:native-lib-loader", version = "2.5.0" }
 
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+coil-gif = { module = "io.coil-kt.coil3:coil-gif", version.ref = "coil" }
+coil-svg = { module = "io.coil-kt.coil3:coil-svg", version.ref = "coil" }
+
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
@@ -70,3 +76,6 @@ krouter-plugin = { id = "io.github.cy745.KRouter.plugin", version.ref = "krouter
 vanniktech-pulish = { id = "com.vanniktech.maven.publish.base", version = "0.34.0" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
+
+[bundles]
+coil = ["coil-compose", "coil-ktor", "coil-svg"]
