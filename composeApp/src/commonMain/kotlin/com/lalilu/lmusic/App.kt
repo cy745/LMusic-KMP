@@ -9,14 +9,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import com.lalilu.component.ProvideWindowSizeClass
 import com.lalilu.krouter.KRouter
-import com.lalilu.krouter.generated.KRouterInjectMap
-import com.lalilu.lmusic.screen.HomeScreen
+import com.lalilu.lmusic.screen.ExceptionScreen
 import io.github.hristogochev.vortex.navigator.Navigator
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -28,20 +27,18 @@ val LocalSharedTransitionScope =
 @Composable
 @Preview
 fun App() {
-    LaunchedEffect(Unit) {
-        KRouter.init(KRouterInjectMap::getMap)
-    }
-
     MaterialTheme {
         SharedTransitionLayout {
-            CompositionLocalProvider(LocalSharedTransitionScope provides this) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Navigator(
-                        screen = KRouter.route("/home") ?: HomeScreen
-                    )
+            ProvideWindowSizeClass {
+                CompositionLocalProvider(LocalSharedTransitionScope provides this) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Navigator(
+                            screen = KRouter.route("/home") ?: ExceptionScreen.SCREEN_NOT_FOUND
+                        )
+                    }
                 }
             }
         }

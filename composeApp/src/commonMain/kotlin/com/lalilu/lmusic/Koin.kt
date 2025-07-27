@@ -1,5 +1,7 @@
 package com.lalilu.lmusic
 
+import com.lalilu.krouter.KRouter
+import com.lalilu.krouter.generated.KRouterInjectMap
 import com.lalilu.lmedia.LMediaModule
 import com.russhwolf.settings.ExperimentalSettingsApi
 import com.russhwolf.settings.ObservableSettings
@@ -10,6 +12,7 @@ import org.koin.dsl.module
 import org.koin.ksp.generated.module
 
 fun KoinApplication.koinSetup() {
+    KRouter.init(KRouterInjectMap::getMap)
     modules(SharedModule)
     modules(LMediaModule.module)
 }

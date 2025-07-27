@@ -12,7 +12,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-group = "com.lalilu.component"
+group = "com.lalilu.lhome"
 version = "1.0.0"
 
 kotlin {
@@ -39,20 +39,10 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                api(project(":common"))
-                api(compose.runtime)
-                api(compose.foundation)
-                api(compose.material3)
-                api(compose.ui)
-                api(compose.components.resources)
-                api(compose.components.uiToolingPreview)
-                api(libs.compose.material3.window.size)
-                api(libs.vortex)
-                api(libs.vortex.koin)
-                api(libs.bundles.coil)
-                api(libs.bundles.settings)
-                api(libs.koin.compose)
-                api(libs.remixicon.kmp)
+                implementation(project(":component"))
+                implementation(project(":lmedia"))
+                implementation(libs.remixicon.kmp)
+                implementation(libs.compose.material3.window.size)
             }
         }
         val commonTest by getting {

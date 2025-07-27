@@ -72,6 +72,7 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":component"))
             implementation(project(":lmedia"))
+            implementation(project(":lhome"))
             implementation(libs.lifecycle.viewmodel)
             implementation(libs.compose.lifecycle)
             implementation(libs.compose.viewmodel)

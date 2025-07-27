@@ -42,6 +42,7 @@ kotlin {
                 api(libs.kotlinx.serialization)
                 api(libs.koin.core)
                 api(libs.koin.annotations)
+                api(libs.kermit)
             }
         }
         val commonTest by getting {

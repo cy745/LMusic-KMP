@@ -6,7 +6,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -29,7 +28,7 @@ data class DetailScreen(
     override fun Content() {
         val navigator = LocalNavigator.current ?: return
         val vm = rememberScreenModel { DetailVM(item, navigator) }
-        val sources = koinInject<PlatformMediaSource>()
+        val platformSource = koinInject<PlatformMediaSource>()
 
         Column(
             modifier = Modifier.fillMaxSize()
@@ -37,10 +36,7 @@ data class DetailScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            SideEffect {
-                println("sources: size ${sources.source.size}")
-            }
-            sources.source.forEach {
+            platformSource.sources.forEach {
                 it.Content(
                     modifier = Modifier
                         .widthIn(max = 300.dp)
