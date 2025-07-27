@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 group = "com.lalilu.component"
@@ -48,6 +49,8 @@ kotlin {
                 api(libs.vortex)
                 api(libs.vortex.koin)
                 api(libs.bundles.coil)
+                api(libs.bundles.settings)
+                api(libs.koin.compose)
             }
         }
         val commonTest by getting {

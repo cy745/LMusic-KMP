@@ -7,6 +7,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 group = "com.lalilu.common"
@@ -37,6 +38,9 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 api(libs.krouter.core)
+                api(libs.kotlinx.serialization)
+                api(libs.koin.core)
+                api(libs.koin.annotations)
             }
         }
         val commonTest by getting {
