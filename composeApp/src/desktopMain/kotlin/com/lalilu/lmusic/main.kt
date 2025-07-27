@@ -13,6 +13,7 @@ fun main() = application {
         onCloseRequest = ::exitApplication,
         title = "LMusic-KMP",
     ) {
+        platformSetupCoil()
         App()
     }
 }

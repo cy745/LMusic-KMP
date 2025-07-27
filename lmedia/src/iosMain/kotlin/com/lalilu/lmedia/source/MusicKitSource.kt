@@ -15,6 +15,7 @@ import com.lalilu.lmedia.MusicKitWrapper
 import com.lalilu.lmedia.SongInfo
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lmedia.entity.SourceItem
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -41,7 +42,8 @@ object MusicKitSource : MediaSource {
                 audios = songs.map {
                     LAudio(
                         title = it.title(),
-                        subtitle = it.artist()
+                        subtitle = it.artist(),
+                        sourceItem = SourceItem.MusicKitItem(it)
                     )
                 }
             )

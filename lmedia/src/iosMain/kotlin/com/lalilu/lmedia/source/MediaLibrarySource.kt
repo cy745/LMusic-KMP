@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lmedia.entity.SourceItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +44,7 @@ object MediaLibrarySource : MediaSource {
                 LAudio(
                     title = it.title ?: "unknown",
                     subtitle = it.assetURL?.toString() ?: "unknownArtist",
+                    sourceItem = SourceItem.MPItem(it)
                 )
             }
 

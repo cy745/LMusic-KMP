@@ -10,6 +10,7 @@ fun main() {
     startKoin { koinSetup() }
 
     ComposeViewport(document.body!!) {
+        platformSetupCoil()
         App()
     }
 }

@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lmedia.entity.SourceItem
 import io.github.vinceglb.filekit.*
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import kotlinx.coroutines.Dispatchers
@@ -48,20 +49,32 @@ class AndroidFileSystemSource(
         return filesFlow.map { files ->
             files?.map { it.androidFile }?.mapNotNull { file ->
                 when (file) {
-                    is AndroidFile.FileWrapper -> Taglib.readMetadata(path = file.file.absolutePath)
-                    is AndroidFile.UriWrapper -> context.contentResolver
-                        .openFileDescriptor(file.uri, "r")
-                        ?.use { Taglib.readMetadata(fd = it.detachFd()) }
+                    is AndroidFile.FileWrapper -> {
+                        val metadata = Taglib.readMetadata(path = file.file.absolutePath)
+                            ?: return@mapNotNull null
+
+                        SourceItem.FileItem(file.file) to metadata
+                    }
+
+                    is AndroidFile.UriWrapper -> {
+                        val metadata = context.contentResolver
+                            .openFileDescriptor(file.uri, "r")
+                            ?.use { Taglib.readMetadata(fd = it.detachFd()) }
+                            ?: return@mapNotNull null
+
+                        SourceItem.UriItem(file.uri) to metadata
+                    }
                 }
-            }
-        }.map { songs ->
+            } ?: emptyList()
+        }.map { result ->
             Snapshot(
-                audios = songs?.map {
+                audios = result.map { (source, metadata) ->
                     LAudio(
-                        title = it.title,
-                        subtitle = it.artist
+                        title = metadata.title,
+                        subtitle = metadata.artist,
+                        sourceItem = source
                     )
-                } ?: emptyList()
+                }
             )
         }
     }

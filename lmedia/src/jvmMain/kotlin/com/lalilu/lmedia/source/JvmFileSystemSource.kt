@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lmedia.entity.SourceItem
 import com.russhwolf.settings.ExperimentalSettingsApi
 import com.russhwolf.settings.ObservableSettings
 import com.russhwolf.settings.coroutines.getStringOrNullFlow
@@ -58,16 +59,18 @@ class JvmFileSystemSource(
 
         return filesFlow.map { files ->
             files?.mapNotNull { file ->
-                Taglib.readMetadata(path = file.absolutePath())
-            }
+                val metadata = Taglib.readMetadata(path = file.absolutePath()) ?: return@mapNotNull null
+                file to metadata
+            } ?: emptyList()
         }.map { songs ->
             Snapshot(
-                audios = songs?.map {
+                audios = songs.map { (file, metadata) ->
                     LAudio(
-                        title = it.title,
-                        subtitle = it.artist
+                        title = metadata.title,
+                        subtitle = metadata.artist,
+                        sourceItem = SourceItem.FileItem(file.file)
                     )
-                } ?: emptyList()
+                }
             )
         }
     }

@@ -60,5 +60,10 @@ kotlin {
                 implementation(libs.kotlin.test)
             }
         }
+        val androidMain by getting {
+            dependencies {
+                api(libs.coil.gif)
+            }
+        }
     }
 }
