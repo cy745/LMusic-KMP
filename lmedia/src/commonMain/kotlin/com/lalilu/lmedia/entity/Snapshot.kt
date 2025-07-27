@@ -16,3 +16,14 @@ data class Snapshot(
         val Empty = Snapshot()
     }
 }
+
+fun Array<Snapshot>.combineToOne(): Snapshot {
+    return Snapshot(
+        audios = map { it.audios }.flatten(),
+        albums = map { it.albums }.flatten(),
+        artists = map { it.artists }.flatten(),
+        folders = map { it.folders }.flatten(),
+        genres = map { it.genres }.flatten(),
+        updateTime = maxOf { it.updateTime }
+    )
+}

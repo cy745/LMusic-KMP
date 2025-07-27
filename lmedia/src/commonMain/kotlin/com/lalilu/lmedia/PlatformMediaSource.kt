@@ -5,7 +5,7 @@ import org.koin.core.annotation.Single
 import org.koin.core.scope.Scope
 
 data class PlatformMediaSource(
-    val source: List<MediaSource>
+    val sources: List<MediaSource>
 ) {
     companion object {
         internal fun provide(vararg source: MediaSource): PlatformMediaSource {
