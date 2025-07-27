@@ -1,5 +1,6 @@
 package com.lalilu.lmedia.source
 
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.lalilu.lmedia.entity.Snapshot
@@ -20,5 +21,6 @@ interface MediaSource {
 
     @Composable
     fun Content(modifier: Modifier = Modifier) {
+        Text("$name not implemented")
     }
 }

@@ -1,6 +1,7 @@
 package com.lalilu.lmedia.source
 
 import android.annotation.SuppressLint
+import android.app.Application
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -10,7 +11,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.blankj.utilcode.util.Utils
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
@@ -23,10 +23,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.io.buffered
 
-object AndroidFileSystemSource : MediaSource {
+class AndroidFileSystemSource(
+    private val context: Application
+) : MediaSource {
     override val name: String = "AndroidFileSystemSource"
     private val selectedFile = MutableStateFlow<PlatformFile?>(null)
-    private val context by lazy { Utils.getApp() }
 
     @SuppressLint("NewApi")
     override fun source(): Flow<Snapshot> {

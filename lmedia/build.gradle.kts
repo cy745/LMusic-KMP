@@ -55,6 +55,7 @@ kotlin {
                 api(libs.filekit.core)
                 api(libs.filekit.dialogs)
                 api(libs.filekit.dialogs.compose)
+                api(libs.bundles.settings)
                 api(compose.components.resources)
             }
         }

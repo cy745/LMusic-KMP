@@ -12,21 +12,37 @@ import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
+import com.russhwolf.settings.ExperimentalSettingsApi
+import com.russhwolf.settings.ObservableSettings
+import com.russhwolf.settings.coroutines.getStringOrNullFlow
 import io.github.vinceglb.filekit.*
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import kotlinx.io.buffered
 
-object JvmFileSystemSource : MediaSource {
+class JvmFileSystemSource(
+    private val settings: ObservableSettings
+) : MediaSource {
+    companion object {
+        private const val KEY_PATH = "path"
+    }
+
     override val name: String = "JvmFileSystemSource"
-    private val selectedFile = MutableStateFlow<PlatformFile?>(null)
+
+    @OptIn(ExperimentalSettingsApi::class, ExperimentalCoroutinesApi::class)
+    private val fileFlow = settings.getStringOrNullFlow(KEY_PATH)
+        .mapLatest { path ->
+            path?.let { PlatformFile(it) }
+                ?.takeIf { it.exists() }
+        }
 
     override fun source(): Flow<Snapshot> {
-        val filesFlow = selectedFile.map { root ->
+        val filesFlow = fileFlow.map { root ->
             root?.filterChildren { file ->
                 if (file.isDirectory()) return@filterChildren false
                 if (file.size() < 10) return@filterChildren false
@@ -59,9 +75,11 @@ object JvmFileSystemSource : MediaSource {
     @Composable
     override fun Content(modifier: Modifier) {
         val scope = rememberCoroutineScope()
-        val path = selectedFile.collectAsState()
+        val path = fileFlow.collectAsState(null)
         val launcher = rememberDirectoryPickerLauncher {
-            scope.launch(Dispatchers.IO) { selectedFile.emit(it) }
+            scope.launch(Dispatchers.IO) {
+                settings.putString(KEY_PATH, it?.absolutePath() ?: "")
+            }
         }
         val source by remember { source() }
             .collectAsState(Snapshot.Empty)
