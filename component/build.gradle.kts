@@ -46,6 +46,7 @@ kotlin {
                 api(compose.ui)
                 api(compose.components.resources)
                 api(compose.components.uiToolingPreview)
+                api(libs.compose.material3.window.size)
                 api(libs.vortex)
                 api(libs.vortex.koin)
                 api(libs.bundles.coil)
