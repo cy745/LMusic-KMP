@@ -37,6 +37,7 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
+                api(libs.kermit)
                 api(libs.krouter.core)
                 api(libs.kotlinx.serialization)
                 api(libs.koin.core)
