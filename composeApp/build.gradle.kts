@@ -13,6 +13,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.ksp)
 }
 
 kotlin {
@@ -149,6 +150,7 @@ android {
 
 dependencies {
     debugImplementation(compose.uiTooling)
+    kspCommonMainMetadata(libs.koin.compiler)
 }
 
 compose.desktop {

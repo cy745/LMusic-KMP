@@ -7,6 +7,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
+    alias(libs.plugins.composeMultiplatform)
+    alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
 }
 
@@ -37,6 +39,7 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
+                api(compose.runtime)
                 api(libs.kermit)
                 api(libs.krouter.core)
                 api(libs.kotlinx.serialization)

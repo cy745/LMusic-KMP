@@ -10,6 +10,7 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.ksp)
 }
 
 group = "com.lalilu.lhome"
@@ -51,4 +52,8 @@ kotlin {
             }
         }
     }
+}
+
+dependencies {
+    kspCommonMainMetadata(libs.koin.compiler)
 }
