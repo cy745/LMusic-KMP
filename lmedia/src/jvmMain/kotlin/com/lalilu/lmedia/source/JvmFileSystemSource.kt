@@ -66,6 +66,7 @@ class JvmFileSystemSource(
             Snapshot(
                 audios = songs.map { (file, metadata) ->
                     LAudio(
+                        id = file.absolutePath(),
                         title = metadata.title,
                         subtitle = metadata.artist,
                         sourceItem = SourceItem.FileItem(file.file)
