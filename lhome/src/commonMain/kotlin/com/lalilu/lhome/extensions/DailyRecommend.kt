@@ -8,7 +8,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import co.touchlab.kermit.Logger
@@ -18,10 +17,11 @@ import com.lalilu.krouter.KRouter
 import com.lalilu.lhome.component.RecommendCard2
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
-import com.lalilu.lmedia.LMedia
-import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lhome.viewmodel.HomeScreenModel
+import com.lalilu.lmedia.entity.LAudio
 import io.github.hristogochev.vortex.navigator.LocalNavigator
 import io.github.hristogochev.vortex.screen.Screen
+import org.koin.compose.koinInject
 
 object DailyRecommend : LazyGridContent {
 
@@ -29,6 +29,7 @@ object DailyRecommend : LazyGridContent {
     override fun register(): LazyGridScope.() -> Unit {
         val windowWidthClass = LocalWindowSizeClass.current.widthSizeClass
         val navigator = LocalNavigator.current
+        val homeVM = koinInject<HomeScreenModel>()
 
         SideEffect {
             Logger.i("windowWidthClass: $windowWidthClass")
@@ -59,7 +60,7 @@ object DailyRecommend : LazyGridContent {
                 }
             }
 
-            dailyRecommendForSideCompat()
+            dailyRecommendForSideCompat(audios = { homeVM.dailyRecommends.value })
 //            when (windowWidthClass) {
 //                WindowWidthSizeClass.Compact -> dailyRecommendForSideCompat()
 //                WindowWidthSizeClass.Medium -> dailyRecommendForSideMedium()
@@ -69,16 +70,16 @@ object DailyRecommend : LazyGridContent {
     }
 }
 
-fun LazyGridScope.dailyRecommendForSideCompat() {
+fun LazyGridScope.dailyRecommendForSideCompat(
+    audios: () -> List<LAudio>
+) {
     item(
         key = "daily_recommend",
         contentType = "daily_recommend",
         span = { GridItemSpan(maxLineSpan) }
     ) {
-        val snapshot = LMedia.library.collectAsState(Snapshot.Empty)
-
         RecommendRow(
-            items = { snapshot.value.audios },
+            items = audios,
             getId = { it.id }
         ) {
             RecommendCard2(

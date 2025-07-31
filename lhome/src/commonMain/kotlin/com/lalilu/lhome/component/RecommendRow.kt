@@ -29,7 +29,7 @@ fun <I> RecommendRow(
     ) {
         items(
             items = items(),
-//            key = getId,
+            key = getId,
             itemContent = itemContent
         )
     }

@@ -1,4 +1,4 @@
-package com.lalilu.lhome
+package com.lalilu.lhome.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
