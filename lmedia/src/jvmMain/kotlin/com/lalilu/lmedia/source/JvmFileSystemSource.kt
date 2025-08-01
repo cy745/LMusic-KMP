@@ -1,14 +1,7 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
@@ -80,38 +73,24 @@ class JvmFileSystemSource(
     override fun Content(modifier: Modifier) {
         val scope = rememberCoroutineScope()
         val path = fileFlow.collectAsState(null)
+        val source by remember { source() }.collectAsState(
+            initial = Snapshot.Empty,
+            context = Dispatchers.IO
+        )
+
         val launcher = rememberDirectoryPickerLauncher {
             scope.launch(Dispatchers.IO) {
                 settings.putString(KEY_PATH, it?.absolutePath() ?: "")
             }
         }
-        val source by remember { source() }
-            .collectAsState(Snapshot.Empty)
 
-        Card(modifier = modifier) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(text = name)
-
-                if (path.value != null) {
-                    Text(text = "${path.value?.name}")
-                }
-
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                ) {
-                    source.audios.forEach {
-                        Text(text = "${it.title} - ${it.subtitle}")
-                    }
-                }
-
-                Button(onClick = { launcher.launch() }) {
-                    Text(text = "Select Directory")
-                }
-            }
-        }
+        JvmFileSystemSourceContent(
+            modifier = modifier,
+            title = name,
+            path = path.value?.name ?: "",
+            itemsCount = source.audios.size,
+            onSelectDirectory = { launcher.launch() }
+        )
     }
 }
 

@@ -72,6 +72,7 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.ktor.server.netty)
+            implementation(compose.preview)
         }
         jvmMain.dependencies {
             implementation(libs.native.lib.loader)
@@ -91,6 +92,7 @@ swiftklib {
 }
 
 dependencies {
+    debugImplementation(libs.compose.ui.tooling)
     kspCommonMainMetadata(libs.koin.compiler)
 }
 

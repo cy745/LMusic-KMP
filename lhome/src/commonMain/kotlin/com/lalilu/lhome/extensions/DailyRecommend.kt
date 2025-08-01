@@ -7,10 +7,8 @@ import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import co.touchlab.kermit.Logger
 import com.lalilu.component.LazyGridContent
 import com.lalilu.component.LocalWindowSizeClass
 import com.lalilu.krouter.KRouter
@@ -30,10 +28,6 @@ object DailyRecommend : LazyGridContent {
         val windowWidthClass = LocalWindowSizeClass.current.widthSizeClass
         val navigator = LocalNavigator.current
         val homeVM = koinInject<HomeScreenModel>()
-
-        SideEffect {
-            Logger.i("windowWidthClass: $windowWidthClass")
-        }
 
         return fun LazyGridScope.() {
             item(
@@ -60,7 +54,7 @@ object DailyRecommend : LazyGridContent {
                 }
             }
 
-            dailyRecommendForSideCompat(audios = { homeVM.dailyRecommends.value })
+            dailyRecommendForSideCompat(audios = { homeVM.recentlyAdded.value })
 //            when (windowWidthClass) {
 //                WindowWidthSizeClass.Compact -> dailyRecommendForSideCompat()
 //                WindowWidthSizeClass.Medium -> dailyRecommendForSideMedium()
