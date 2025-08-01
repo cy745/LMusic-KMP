@@ -14,7 +14,8 @@ plugins {
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
-    id("io.github.ttypic.swiftklib") version "0.6.4"
+    alias(libs.plugins.krpc)
+    alias(libs.plugins.swiftklib)
 }
 
 group = "com.lalilu.lmedia"
@@ -48,6 +49,7 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
+                api(compose.components.resources)
                 api(project(":component"))
                 api(libs.koin.core)
                 api(libs.koin.annotations)
@@ -56,7 +58,8 @@ kotlin {
                 api(libs.filekit.dialogs)
                 api(libs.filekit.dialogs.compose)
                 api(libs.bundles.settings)
-                api(compose.components.resources)
+                api(libs.ktor.server.core)
+                api(libs.bundles.krpc)
             }
         }
         val commonTest by getting {
