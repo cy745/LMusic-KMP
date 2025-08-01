@@ -67,15 +67,18 @@ kotlin {
                 implementation(libs.kotlin.test)
             }
         }
-        val jvmMain by getting {
-            dependencies {
-                implementation(libs.native.lib.loader)
-            }
+        iosMain.dependencies {
+            implementation(libs.ktor.server.cio)
         }
-        val wasmJsMain by getting {
-            dependencies {
-                implementation(npm("taglib-wasm", "0.5.4"))
-            }
+        androidMain.dependencies {
+            implementation(libs.ktor.server.netty)
+        }
+        jvmMain.dependencies {
+            implementation(libs.native.lib.loader)
+            implementation(libs.ktor.server.netty)
+        }
+        wasmJsMain.dependencies {
+            implementation(npm("taglib-wasm", "0.5.4"))
         }
     }
 }
