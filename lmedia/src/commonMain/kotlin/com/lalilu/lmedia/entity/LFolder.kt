@@ -1,5 +1,8 @@
 package com.lalilu.lmedia.entity
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 class LFolder(
     override val id: String,
     override val title: String,
