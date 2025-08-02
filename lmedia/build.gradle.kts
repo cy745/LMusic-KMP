@@ -54,6 +54,7 @@ kotlin {
                 api(libs.koin.core)
                 api(libs.koin.annotations)
                 api(libs.kotlinx.coroutines.core)
+                api(libs.kotlinx.io)
                 api(libs.filekit.core)
                 api(libs.filekit.dialogs)
                 api(libs.filekit.dialogs.compose)

@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.lalilu.component.LocalWindowSizeClass
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.rpc.RemoteServerPanel
 import io.github.hristogochev.vortex.screen.Screen
 import org.koin.compose.koinInject
 
@@ -38,6 +39,9 @@ object MediaSourceScreen : Screen {
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalItemSpacing = 16.dp
         ) {
+            item {
+                RemoteServerPanel(modifier = Modifier.fillMaxWidth())
+            }
             items(
                 items = platformSource.sources,
                 key = { it.name },

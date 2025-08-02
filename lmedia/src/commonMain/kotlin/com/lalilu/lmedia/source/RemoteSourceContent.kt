@@ -1,29 +1,25 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
-fun JvmFileSystemSourceContent(
+fun RemoteSourceContent(
     modifier: Modifier = Modifier,
     title: String,
-    path: String = "",
+    url: MutableState<String>,
+    password: MutableState<String>,
+    enable: MutableState<Boolean>,
     itemsCount: Int = 0,
-    onSelectDirectory: () -> Unit = {}
+    enableUpdateConfig: () -> Boolean = { true },
+    onUpdateConfig: () -> Unit = {}
 ) {
     Card {
         Column(
@@ -40,21 +36,43 @@ fun JvmFileSystemSourceContent(
             )
 
             Button(
-                onClick = onSelectDirectory,
+                onClick = onUpdateConfig,
+                enabled = enableUpdateConfig(),
                 shape = MaterialTheme.shapes.small
             ) {
                 Text(
-                    text = "Select Directory"
+                    text = "Update Config"
                 )
             }
 
-            if (path.isNotBlank()) {
+            Row(
+                modifier = Modifier,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    modifier = Modifier.alpha(0.8f),
-                    text = path,
-                    style = MaterialTheme.typography.bodySmall
+                    text = "总开关",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Switch(
+                    checked = enable.value,
+                    onCheckedChange = { enable.value = it }
                 )
             }
+
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = url.value,
+                onValueChange = { url.value = it },
+                label = { Text(text = "URL") }
+            )
+
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = password.value,
+                onValueChange = { password.value = it },
+                label = { Text(text = "Password") }
+            )
 
             Column(
                 modifier = Modifier.align(Alignment.End)
@@ -77,14 +95,4 @@ fun JvmFileSystemSourceContent(
             }
         }
     }
-}
-
-@Preview
-@Composable
-private fun JvmFileSystemSourceContentPreview() {
-    JvmFileSystemSourceContent(
-        title = "JvmFileSystemSource",
-        itemsCount = 11,
-        path = "/user/qiu/music"
-    )
 }
