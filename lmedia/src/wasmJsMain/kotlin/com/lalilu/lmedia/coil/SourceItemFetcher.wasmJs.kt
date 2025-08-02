@@ -6,7 +6,7 @@ import coil3.request.Options
 import com.lalilu.lmedia.entity.SourceItem
 
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
-actual class SourceItemFetcherFactory : Fetcher.Factory<SourceItem> {
+actual class SourceItemFetcherFactory : SourceItemFetcher {
     actual override fun create(
         data: SourceItem,
         options: Options,

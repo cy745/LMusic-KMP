@@ -14,13 +14,13 @@ import okio.source
 import java.io.FileNotFoundException
 
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
-actual class SourceItemFetcherFactory : Fetcher.Factory<SourceItem> {
+actual class SourceItemFetcherFactory : SourceItemFetcher {
     actual override fun create(
         data: SourceItem,
         options: Options,
         imageLoader: ImageLoader
     ): Fetcher? {
-        return when (data) {
+        return super.create(data, options, imageLoader) ?: when (data) {
             is SourceItem.FileItem -> FileSourceItemFetcher(data, options)
             else -> throw IllegalArgumentException("Unsupported data type: ${data::class.simpleName}")
         }

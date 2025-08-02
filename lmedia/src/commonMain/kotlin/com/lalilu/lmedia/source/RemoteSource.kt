@@ -7,7 +7,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.entity.Remote
 import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.rpc.RemoteMediaSourceService
+import com.lalilu.lmedia.rpc.RemotableMediaSource
 import io.ktor.client.*
 import io.ktor.client.request.*
 import kotlinx.coroutines.*
@@ -90,7 +90,7 @@ class RemoteSource(
      * 远程服务器对象实例
      */
     val remoteServiceFlow = rpcClientFlow
-        .mapLatest { client -> client?.withService<RemoteMediaSourceService>() }
+        .mapLatest { client -> client?.withService<RemotableMediaSource>() }
         .stateIn(this, SharingStarted.Lazily, null)
 
     /**

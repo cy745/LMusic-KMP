@@ -11,7 +11,6 @@ import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.PlatformMediaSource
-import com.lalilu.lmedia.rpc.impl.RemoteMediaSourceServiceImpl
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.response.*
@@ -184,7 +183,7 @@ private fun provideRpcServer(
         routing {
             rpc("/rpc") {
                 rpcConfig { serialization { json() } }
-                registerService<RemoteMediaSourceService> { RemoteMediaSourceServiceImpl(mediaSource) }
+                registerService<RemotableMediaSource> { mediaSource }
             }
             route("/") {
                 get { call.respond("Hello world!") }
