@@ -1,26 +1,26 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import co.touchlab.kermit.Logger
+import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
+import com.lalilu.lmedia.entity.Remote
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.rpc.RemoteMediaSourceService
 import io.ktor.client.*
 import io.ktor.client.request.*
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
+import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
 import kotlinx.rpc.krpc.ktor.client.installKrpc
 import kotlinx.rpc.krpc.ktor.client.rpc
 import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
 import kotlinx.serialization.Serializable
 import org.koin.core.annotation.Single
+import kotlin.coroutines.CoroutineContext
 
 @Serializable
 data class RemoteSourceConfig(
@@ -35,101 +35,105 @@ data class RemoteSourceConfig(
 
 @Suppress("UnusedFlow")
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single
+@Single(binds = [RemoteSource::class])
 class RemoteSource(
     lMediaKV: LMediaKV,
-) : MediaSource {
+) : MediaSource, CoroutineScope {
+    private val TAG = "RemoteSource"
+    override val coroutineContext: CoroutineContext =
+        Dispatchers.io + SupervisorJob() + CoroutineExceptionHandler { context, throwable ->
+            Logger.e(TAG, throwable)
+        }
+
     override val name: String = "RemoteSource"
+
+    /**
+     * 客户端配置参数
+     */
     private val configItem = lMediaKV.obtain<RemoteSourceConfig>(
         key = "REMOTE_CONFIG",
         defaultValue = RemoteSourceConfig.Empty
     )
+
     private val configFlow = configItem.flow()
+
+    /**
+     * 客户端对象，使用Flow封装，当上游配置改变时，会重新创建客户端对象
+     */
     private val rpcClientFlow = configFlow.flatMapLatest { config ->
         if (!config.enable || config.url.isBlank()) {
+            Logger.i(tag = TAG, messageString = "Invalid client config")
             return@flatMapLatest flowOf(null)
         }
 
-        val client = runCatching {
-            HttpClient {
-                installKrpc {
-                    serialization {
-                        json()
-                    }
-                }
-            }.rpc {
-                url("ws://${config.url}/rpc")
+        callbackFlow<KtorRpcClient?> {
+            val client = HttpClient { installKrpc { serialization { json() } } }
+                .rpc { url("ws://${config.url}/rpc") }
+
+            send(client)
+            Logger.i(
+                tag = name,
+                messageString = "New Client instance created: ${client.hashCode()}"
+            )
+
+            awaitClose {
+                client.close()
+                Logger.i(
+                    tag = name,
+                    messageString = "Client instance closed: ${client.hashCode()}"
+                )
             }
-        }.getOrNull()
-
-        flowOf(client)
-            .onCompletion { client?.close("重启Client") }
-    }
-
-    private val rpcServiceFlow = rpcClientFlow.mapLatest { client ->
-        client?.withService<RemoteMediaSourceService>()
-    }
-
-    override fun source(): Flow<Snapshot> {
-        return rpcServiceFlow.flatMapLatest {
-            it?.source() ?: flowOf(Snapshot.Empty)
         }
     }
+
+    /**
+     * 远程服务器对象实例
+     */
+    val remoteServiceFlow = rpcClientFlow
+        .mapLatest { client -> client?.withService<RemoteMediaSourceService>() }
+        .stateIn(this, SharingStarted.Lazily, null)
+
+    /**
+     * 远程获取到的source的Flow，stateIn使其持久化，避免重复请求
+     */
+    val snapshotStateFlow = remoteServiceFlow
+        .flatMapLatest { service ->
+            service?.source()
+                ?.onEach { it.audios.forEach { audio -> audio.sourceItem = Remote(audio.id, "audio") } }
+                ?: flowOf(Snapshot.Empty)
+        }.stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
+
+    override fun source(): Flow<Snapshot> = snapshotStateFlow
 
     @Composable
     override fun Content(modifier: Modifier) {
-        Card(modifier = modifier) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val config by configFlow.collectAsState(RemoteSourceConfig.Empty)
-                val enable = remember(config) { mutableStateOf(config.enable) }
-                val url = remember(config) { mutableStateOf(config.url) }
-                val password = remember(config) { mutableStateOf(config.password) }
-                val edited = remember {
-                    derivedStateOf {
-                        enable.value != config.enable ||
-                                url.value != config.url ||
-                                password.value != config.password
-                    }
-                }
-
-                Text(text = name)
-
-                Row {
-                    Text("Enable")
-                    Switch(
-                        enabled = true,
-                        checked = enable.value,
-                        onCheckedChange = { enable.value = it }
-                    )
-                }
-
-                TextField(
-                    value = url.value,
-                    onValueChange = { url.value = it },
-                    label = { Text(text = "URL") }
-                )
-                TextField(
-                    value = password.value,
-                    onValueChange = { password.value = it },
-                    label = { Text(text = "Password") }
-                )
-
-                Button(
-                    enabled = edited.value,
-                    onClick = {
-                        configItem.value = RemoteSourceConfig(
-                            enable = enable.value,
-                            url = url.value,
-                            password = password.value
-                        )
-                    }
-                ) {
-                    Text(text = "Update Config")
-                }
-            }
+        val config by configFlow.collectAsState(RemoteSourceConfig.Empty)
+        val enable = remember(config) { mutableStateOf(config.enable) }
+        val url = remember(config) { mutableStateOf(config.url) }
+        val password = remember(config) { mutableStateOf(config.password) }
+        val edited = remember(config) {
+            derivedStateOf { enable.value != config.enable || url.value != config.url || password.value != config.password }
         }
+        val source by remember { source() }.collectAsState(
+            initial = Snapshot.Empty,
+            context = Dispatchers.io
+        )
+
+        RemoteSourceContent(
+            modifier = modifier,
+            title = name,
+            url = url,
+            password = password,
+            enable = enable,
+            enableUpdateConfig = { edited.value },
+            itemsCount = source.audios.size,
+            onUpdateConfig = {
+                configItem.value = RemoteSourceConfig(
+                    enable = enable.value,
+                    url = url.value,
+                    password = password.value
+                )
+            }
+        )
     }
 }
