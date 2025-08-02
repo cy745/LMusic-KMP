@@ -10,8 +10,6 @@ import com.lalilu.lmedia.entity.Remote
 import com.lalilu.lmedia.source.RemoteSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import okio.Buffer
 import org.koin.core.component.KoinComponent
 
@@ -20,20 +18,16 @@ class RemoteDataFetcher(
     private val remoteData: Remote,
     private val options: Options
 ) : Fetcher, KoinComponent {
-    val remoteSource
-        get() = getKoin().getOrNull<RemoteSource>()
 
     override suspend fun fetch(): FetchResult? {
-        val remoteServer = remoteSource
+        val remoteServer = RemoteSource.remoteService
         if (remoteServer == null) {
             throw IllegalStateException("[${remoteData.type}: ${remoteData.id}]: Remote server not found")
         }
 
-        val data = remoteServer.remoteServiceFlow
-            .flatMapLatest { service ->
-                service?.requirePictureFlow(remoteData.id, remoteData.type)
-                    ?: flowOf(null)
-            }.firstOrNull()
+        val data = remoteServer
+            .requirePictureFlow(remoteData.id, remoteData.type)
+            .firstOrNull()
 
         if (data == null) {
             throw Exception("[${remoteData.type}: ${remoteData.id}]: Data is null")

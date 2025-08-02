@@ -39,13 +39,18 @@ data class RemoteSourceConfig(
 class RemoteSource(
     lMediaKV: LMediaKV,
 ) : MediaSource, CoroutineScope {
-    private val TAG = "RemoteSource"
+
+    companion object {
+        private const val TAG = "RemoteSource"
+        var remoteService: RemotableMediaSource? = null
+    }
+
     override val coroutineContext: CoroutineContext =
         Dispatchers.io + SupervisorJob() + CoroutineExceptionHandler { context, throwable ->
-            Logger.e(TAG, throwable)
+            Logger.e(tag = TAG, throwable = throwable, messageString = "${throwable.message}")
         }
 
-    override val name: String = "RemoteSource"
+    override val name: String = TAG
 
     /**
      * 客户端配置参数
@@ -61,6 +66,8 @@ class RemoteSource(
      * 客户端对象，使用Flow封装，当上游配置改变时，会重新创建客户端对象
      */
     private val rpcClientFlow = configFlow.flatMapLatest { config ->
+        Logger.i(tag = TAG, messageString = "Config update: $config")
+
         if (!config.enable || config.url.isBlank()) {
             Logger.i(tag = TAG, messageString = "Invalid client config")
             return@flatMapLatest flowOf(null)
@@ -72,14 +79,14 @@ class RemoteSource(
 
             send(client)
             Logger.i(
-                tag = name,
+                tag = TAG,
                 messageString = "New Client instance created: ${client.hashCode()}"
             )
 
             awaitClose {
                 client.close()
                 Logger.i(
-                    tag = name,
+                    tag = TAG,
                     messageString = "Client instance closed: ${client.hashCode()}"
                 )
             }
@@ -87,21 +94,18 @@ class RemoteSource(
     }
 
     /**
-     * 远程服务器对象实例
-     */
-    val remoteServiceFlow = rpcClientFlow
-        .mapLatest { client -> client?.withService<RemotableMediaSource>() }
-        .stateIn(this, SharingStarted.Lazily, null)
-
-    /**
      * 远程获取到的source的Flow，stateIn使其持久化，避免重复请求
      */
-    val snapshotStateFlow = remoteServiceFlow
-        .flatMapLatest { service ->
+    val snapshotStateFlow = rpcClientFlow
+        .flatMapLatest { client ->
+            val service = client?.withService<RemotableMediaSource>()
+            remoteService = service
+
             service?.source()
+                ?.catch { emit(Snapshot.Empty) }
                 ?.onEach { it.audios.forEach { audio -> audio.sourceItem = Remote(audio.id, "audio") } }
                 ?: flowOf(Snapshot.Empty)
-        }.stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
+        }.stateIn(this, SharingStarted.Eagerly, Snapshot.Empty)
 
     override fun source(): Flow<Snapshot> = snapshotStateFlow
 

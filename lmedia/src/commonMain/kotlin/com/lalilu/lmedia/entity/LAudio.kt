@@ -15,12 +15,16 @@ class LAudio(
 ) : LItem
 
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
-expect sealed interface SourceItem
+expect sealed interface SourceItem {
+    val key: String
+}
 
 /**
  * 标记无数据的对象
  */
-object Empty : SourceItem
+object Empty : SourceItem {
+    override val key: String = "${this::class::qualifiedName}"
+}
 
 /**
  * 远程访问使用的标记SourceItem，
@@ -29,4 +33,6 @@ object Empty : SourceItem
 data class Remote(
     val id: String,
     val type: String
-) : SourceItem
+) : SourceItem {
+    override val key: String = "${this::class.qualifiedName}_$id"
+}

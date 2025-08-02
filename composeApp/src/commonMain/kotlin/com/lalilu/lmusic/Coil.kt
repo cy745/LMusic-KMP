@@ -8,6 +8,7 @@ import coil3.serviceLoaderEnabled
 import coil3.util.DebugLogger
 import com.lalilu.lmedia.coil.LAudioMapper
 import com.lalilu.lmedia.coil.SourceItemFetcherFactory
+import com.lalilu.lmedia.coil.SourceItemKeyer
 
 @Composable
 fun platformSetupCoil(
@@ -21,6 +22,7 @@ fun platformSetupCoil(
             .components {
                 add(SourceItemFetcherFactory())
                 add(LAudioMapper())
+                add(SourceItemKeyer())
                 components()
             }
             .block()

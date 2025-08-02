@@ -7,6 +7,13 @@ import platform.MediaPlayer.MPMediaItem
 @OptIn(ExperimentalForeignApi::class)
 @Suppress(names = ["EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING"])
 actual sealed interface SourceItem {
-    data class MPItem(val item: MPMediaItem) : SourceItem
-    data class MusicKitItem(val item: SongInfo) : SourceItem
+    actual val key: String
+
+    data class MPItem(val item: MPMediaItem) : SourceItem {
+        override val key: String = "${this::class::qualifiedName}_${item.persistentID}"
+    }
+
+    data class MusicKitItem(val item: SongInfo) : SourceItem {
+        override val key: String = "${this::class::qualifiedName}_${item.title()}_${item.artist()}"
+    }
 }
