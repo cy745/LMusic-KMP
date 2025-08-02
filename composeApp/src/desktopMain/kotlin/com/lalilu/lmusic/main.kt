@@ -5,15 +5,17 @@ import androidx.compose.ui.window.application
 import io.github.vinceglb.filekit.FileKit
 import org.koin.core.context.startKoin
 
-fun main() = application {
+fun main() {
     FileKit.init(appId = "LMusic")
     startKoin { koinSetup() }
 
-    Window(
-        onCloseRequest = ::exitApplication,
-        title = "LMusic-KMP",
-    ) {
-        platformSetupCoil()
-        App()
+    application {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "LMusic-KMP",
+        ) {
+            platformSetupCoil()
+            App()
+        }
     }
 }
