@@ -1,6 +1,7 @@
 package com.lalilu.lmusic
 
 import androidx.compose.runtime.Composable
+import coil3.ComponentRegistry
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.serviceLoaderEnabled
@@ -9,7 +10,10 @@ import com.lalilu.lmedia.coil.LAudioMapper
 import com.lalilu.lmedia.coil.SourceItemFetcherFactory
 
 @Composable
-fun platformSetupCoil(block: ImageLoader.Builder.() -> ImageLoader.Builder = { this }) {
+fun platformSetupCoil(
+    components: ComponentRegistry.Builder.() -> Unit = {},
+    block: ImageLoader.Builder.() -> ImageLoader.Builder = { this }
+) {
     setSingletonImageLoaderFactory {
         ImageLoader.Builder(it)
             .serviceLoaderEnabled(true)
@@ -17,6 +21,7 @@ fun platformSetupCoil(block: ImageLoader.Builder.() -> ImageLoader.Builder = { t
             .components {
                 add(SourceItemFetcherFactory())
                 add(LAudioMapper())
+                components()
             }
             .block()
             .build()

@@ -19,15 +19,15 @@ class MainActivity : ComponentActivity() {
         FileKit.init(this)
 
         setContent {
-            platformSetupCoil {
-                components {
+            platformSetupCoil(
+                components = {
                     if (Build.VERSION.SDK_INT >= 28) {
                         add(AnimatedImageDecoder.Factory())
                     } else {
                         add(GifDecoder.Factory())
                     }
                 }
-            }
+            )
             App()
         }
     }
