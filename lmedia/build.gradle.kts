@@ -16,6 +16,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.krpc)
     alias(libs.plugins.swiftklib)
+    alias(libs.plugins.osdetector)
 }
 
 group = "com.lalilu.lmedia"

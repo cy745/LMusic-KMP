@@ -117,6 +117,7 @@ krpc = { id = "org.jetbrains.kotlinx.rpc.plugin", version.ref = "krpc" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
 swiftklib = { id = "io.github.ttypic.swiftklib", version = "0.6.4" }
+osdetector = { id = "com.google.osdetector", version = "1.7.3" }
 
 [bundles]
 coil = ["coil-compose", "coil-ktor", "coil-svg"]
