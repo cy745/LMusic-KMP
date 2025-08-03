@@ -8,6 +8,6 @@ class LArtist(
     override val title: String,
     override val subtitle: String,
     override val extra: Map<String, String>,
-    override val items: List<LItem> = emptyList()
+    override val items: List<LAudio> = emptyList()
 ) : LGroupItem {
 }
