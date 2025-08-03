@@ -78,8 +78,17 @@ class RemoteServer(
         val targetMediaSource = remotableMediaSource
             .firstOrNull { it.requireName() == config.selectedSourceKey }
 
-        if (!config.enable || config.port !in 1024..65535 || targetMediaSource == null) {
-            Logger.i(tag = TAG, messageString = "Invalid server config")
+        if (!config.enable) {
+            return@flatMapLatest flowOf(null)
+        }
+
+        if (config.port !in 1024..65535) {
+            Logger.i(tag = TAG, messageString = "Invalid server config: port must be in range [1024, 65535]")
+            return@flatMapLatest flowOf(null)
+        }
+
+        if (targetMediaSource == null) {
+            Logger.i(tag = TAG, messageString = "Invalid server config: targetMediaSource not set")
             return@flatMapLatest flowOf(null)
         }
 

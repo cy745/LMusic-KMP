@@ -21,7 +21,18 @@ interface RemotableMediaSource {
      */
     suspend fun requireName(): String
 
+    /**
+     * 获取歌词
+     */
     fun requireLyricFlow(id: String, type: String): Flow<String?>
+
+    /**
+     * 获取媒体数据
+     */
     fun requireMediaFlow(id: String, type: String): Flow<ByteArray?>
+
+    /**
+     * 获取图片数据
+     */
     fun requirePictureFlow(id: String, type: String): Flow<ByteArray?>
 }
