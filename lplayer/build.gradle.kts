@@ -50,6 +50,7 @@ kotlin {
             dependencies {
                 api(compose.components.resources)
                 api(project(":component"))
+                api(project(":lmedia"))
                 api(libs.koin.core)
                 api(libs.koin.annotations)
                 api(libs.kotlinx.coroutines.core)
@@ -69,6 +70,7 @@ kotlin {
             implementation(compose.preview)
         }
         jvmMain.dependencies {
+            implementation(libs.vlcj)
         }
     }
 }

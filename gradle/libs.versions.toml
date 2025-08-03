@@ -29,6 +29,7 @@ krpc = "0.9.1"
 ktor = "3.1.0"
 kotlinx-io = "0.8.0"
 uiTooling = "1.8.3"
+vlcj = "5.0.0-M4"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -101,6 +102,8 @@ krpc-server = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-server", versio
 krpc-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json", version.ref = "krpc" }
 krpc-ktor-client = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client", version.ref = "krpc" }
 krpc-ktor-server = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server", version.ref = "krpc" }
+
+vlcj = { module = "uk.co.caprica:vlcj", version.ref = "vlcj" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
