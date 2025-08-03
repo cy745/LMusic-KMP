@@ -4,6 +4,7 @@ import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.generated.KRouterInjectMap
 import com.lalilu.lhome.LHomeModule
 import com.lalilu.lmedia.LMediaModule
+import com.lalilu.lplayer.LPlayerModule
 import com.russhwolf.settings.ExperimentalSettingsApi
 import com.russhwolf.settings.ObservableSettings
 import com.russhwolf.settings.Settings
@@ -21,6 +22,7 @@ fun KoinApplication.koinSetup() {
     modules(AppModule.module)
     modules(LMediaModule.module)
     modules(LHomeModule.module)
+    modules(LPlayerModule.module)
 }
 
 private val SharedModule = module {
