@@ -68,6 +68,8 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(compose.preview)
+            implementation(libs.media3.session)
+            implementation(libs.media3.exoplayer)
         }
         jvmMain.dependencies {
             implementation(libs.vlcj)
