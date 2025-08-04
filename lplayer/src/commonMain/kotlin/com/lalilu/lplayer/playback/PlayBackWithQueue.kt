@@ -16,7 +16,6 @@ abstract class PlayBackWithQueue() : Playback, CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io
 
     protected val currentItemIndex = MutableStateFlow(0)
-
     protected val playlistFlow = MutableStateFlow<List<LItem>>(emptyList())
 
     protected val flattenPlaylistFlow = playlistFlow.flatten()
@@ -28,16 +27,11 @@ abstract class PlayBackWithQueue() : Playback, CoroutineScope {
 
     override fun playlist(): Flow<List<LItem>> = playlistFlow
     override fun flattenPlaylist(): StateFlow<List<LAudio>> = flattenPlaylistFlow
+    override fun currentItem(): StateFlow<LAudio?> = currentItemFlow
+    override fun currentItemIndex(): StateFlow<Int> = currentItemIndex
+
     override fun updatePlaylist(playlist: List<LItem>) {
         launch { playlistFlow.emit(playlist) }
-    }
-
-    override fun currentItem(): Flow<Pair<LGroupItem?, LAudio?>> {
-        TODO()
-    }
-
-    override fun currentItemIndex(): Flow<Pair<Int, Int>> {
-        TODO()
     }
 }
 
