@@ -1,7 +1,5 @@
 package com.lalilu.lplayer.player
 
-import co.touchlab.kermit.Logger
-import uk.co.caprica.vlcj.factory.discovery.NativeDiscovery
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.component.CallbackMediaPlayerComponent
 import uk.co.caprica.vlcj.player.component.EmbeddedMediaPlayerComponent
@@ -11,7 +9,7 @@ object VLCPlayer {
     private var mediaPlayer: MediaPlayer? = null
 
     init {
-        System.setProperty("vlcj.log", "DEBUG")
+        VLCPlayerLoader.initialize()
     }
 
     fun getPlayer(): MediaPlayer {
@@ -26,12 +24,6 @@ object VLCPlayer {
     }
 
     private fun initMediaPlayer(): MediaPlayer {
-        try {
-            NativeDiscovery().discover()
-        } catch (e: Exception) {
-            Logger.e(tag = "VLCPlayer", messageString = "Failed to discover native libraries, Retry", throwable = e)
-        }
-
         val component = if (isMacOS()) CallbackMediaPlayerComponent() else EmbeddedMediaPlayerComponent()
         val player = component.mediaPlayerFactory().mediaPlayers().newMediaPlayer()
         requireNotNull(player) { "Media player is null" }
