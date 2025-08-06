@@ -1,10 +1,12 @@
 package com.lalilu.lplayer
 
+import com.lalilu.lplayer.playback.Playback
+import com.lalilu.lplayer.playback.platformPlayback
 import org.koin.core.annotation.Single
 
 
 @Single(createdAtStart = true)
-class LPlayer() {
+class LPlayer() : Playback by platformPlayback() {
 
     init {
         instance = this
