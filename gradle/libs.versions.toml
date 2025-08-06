@@ -29,7 +29,7 @@ krpc = "0.9.1"
 ktor = "3.1.0"
 kotlinx-io = "0.8.0"
 uiTooling = "1.8.3"
-vlcj = "5.0.0-M4"
+vlcj = "4.11.0"
 media3 = "1.8.0"
 
 [libraries]

@@ -1,5 +1,7 @@
 package com.lalilu.lmedia.source
 
+import com.lalilu.common.ext.ReadyState
+import com.lalilu.common.ext.readyStateImpl
 import com.lalilu.lmedia.entity.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -7,7 +9,7 @@ import kotlin.reflect.KClass
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Suppress("UNCHECKED_CAST")
-abstract class Library {
+abstract class Library : ReadyState by readyStateImpl() {
     val coroutineScope = CoroutineScope(Dispatchers.Default) + SupervisorJob()
 
     protected abstract fun snapshotFlow(): Flow<Snapshot>
@@ -17,6 +19,7 @@ abstract class Library {
      */
     val snapshotStateFlow by lazy {
         snapshotFlow()
+            .onEach { onReady() }
             .stateIn(coroutineScope, SharingStarted.Lazily, Snapshot.Empty)
     }
 

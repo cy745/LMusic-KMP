@@ -73,6 +73,7 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.vlcj)
+            implementation(libs.native.lib.loader)
         }
     }
 }

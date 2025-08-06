@@ -44,7 +44,7 @@ object DailyRecommend : LazyGridContent {
                     FilterChip(
                         selected = true,
                         onClick = {
-                            KRouter.route<Screen>("/detail", mapOf("item" to "test"))
+                            KRouter.route<Screen>("/player", mapOf("item" to "test"))
                                 ?.let { navigator?.push(it) }
                         },
                         label = {
