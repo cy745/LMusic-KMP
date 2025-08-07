@@ -71,6 +71,10 @@ object VLCPlayerLoader : CoroutineScope, ReadyState by readyStateImpl() {
                 return@mapIndexedNotNull null
             }
 
+            if (targetFile.parentFile?.exists() != true) {
+                targetFile.parentFile?.mkdirs()
+            }
+
             if (!targetFile.exists()) {
                 targetFile.createNewFile()
             }
