@@ -6,6 +6,7 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LGroupItem
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.player.VLCPlayer
 import com.lalilu.lplayer.player.VLCPlayerLoader
 import kotlinx.coroutines.*
@@ -30,6 +31,10 @@ class VLCPlayback : Playback, CoroutineScope {
             }
         }
         VLCPlayerLoader.initialize()
+
+        launch {
+            MacOSMenu(this@VLCPlayback)
+        }
     }
 
     private val errorSharedFlow = MutableSharedFlow<Throwable>()
