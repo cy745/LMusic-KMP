@@ -105,6 +105,8 @@ krpc-ktor-client = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-clien
 krpc-ktor-server = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server", version.ref = "krpc" }
 
 vlcj = { module = "uk.co.caprica:vlcj", version.ref = "vlcj" }
+jfa = { module = "com.github.cy745:jfa", version = "1313973a03" }
+
 media3-common = { module = "androidx.media3:media3-common", version.ref = "media3" }
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
