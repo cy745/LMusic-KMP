@@ -8,11 +8,8 @@ import java.util.*
 object VLCPlayer {
     private var mediaPlayer: MediaPlayer? = null
 
-    init {
-        VLCPlayerLoader.initialize()
-    }
-
-    fun getPlayer(): MediaPlayer {
+    fun getPlayer(): MediaPlayer? {
+        if (!VLCPlayerLoader.isReady.value) throw IllegalStateException("VLC not ready")
         return mediaPlayer ?: initMediaPlayer()
             .also { mediaPlayer = it }
     }

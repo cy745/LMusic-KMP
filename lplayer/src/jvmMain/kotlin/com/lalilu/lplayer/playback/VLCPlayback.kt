@@ -7,6 +7,7 @@ import com.lalilu.lmedia.entity.LGroupItem
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lplayer.player.VLCPlayer
+import com.lalilu.lplayer.player.VLCPlayerLoader
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import uk.co.caprica.vlcj.player.base.MediaPlayer
@@ -15,18 +16,25 @@ import kotlin.coroutines.CoroutineContext
 
 class VLCPlayback : Playback, CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io + SupervisorJob()
-    val player: MediaPlayer by lazy {
-        VLCPlayer.getPlayer().apply {
-            events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
-                override fun playing(mediaPlayer: MediaPlayer?) {
-                    isPlayingFlow.value = true
-                }
+    private var playerInstance: MediaPlayer? = null
+    val player: MediaPlayer
+        get() {
+            return playerInstance ?: VLCPlayer.getPlayer()?.apply {
+                events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
+                    override fun playing(mediaPlayer: MediaPlayer?) {
+                        isPlayingFlow.value = true
+                    }
 
-                override fun paused(mediaPlayer: MediaPlayer?) {
-                    isPlayingFlow.value = false
-                }
-            })
+                    override fun paused(mediaPlayer: MediaPlayer?) {
+                        isPlayingFlow.value = false
+                    }
+                })
+            }?.also { playerInstance = it }
+            ?: throw Exception("Player Not Initialized")
         }
+
+    init {
+        VLCPlayerLoader.initialize()
     }
 
     private val isPlayingFlow = MutableStateFlow(false)
@@ -77,7 +85,7 @@ class VLCPlayback : Playback, CoroutineScope {
         player.controls().stop()
     }
 
-    override fun skipTo(index: Int) {
+    override fun skipTo(index: Int) = runWith {
         val targetItem = flattenPlaylist.value.getOrNull(index)
             ?: throw Exception("Invalid index")
 
