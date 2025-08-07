@@ -18,25 +18,21 @@ class VLCPlayback : Playback, CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io + SupervisorJob()
     private var playerInstance: MediaPlayer? = null
     val player: MediaPlayer
-        get() {
-            return playerInstance ?: VLCPlayer.getPlayer()?.apply {
-                events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
-                    override fun playing(mediaPlayer: MediaPlayer?) {
-                        isPlayingFlow.value = true
-                    }
-
-                    override fun paused(mediaPlayer: MediaPlayer?) {
-                        isPlayingFlow.value = false
-                    }
-                })
-            }?.also { playerInstance = it }
-            ?: throw Exception("Player Not Initialized")
-        }
+        get() = playerInstance ?: throw Exception("Player Not Initialized")
 
     init {
+        VLCPlayerLoader.whenReady {
+            launch {
+                playerInstance = VLCPlayer.getPlayer()?.also {
+                    bindPlayer(it)
+                    playerInstance = it
+                }
+            }
+        }
         VLCPlayerLoader.initialize()
     }
 
+    private val errorSharedFlow = MutableSharedFlow<Throwable>()
     private val isPlayingFlow = MutableStateFlow(false)
     private val playlist = MutableStateFlow<List<LItem>>(emptyList())
     private val flattenPlaylist = playlist.flatten()
@@ -141,11 +137,42 @@ class VLCPlayback : Playback, CoroutineScope {
         player.status().length()
     }
 
+    override fun errorMessage(): SharedFlow<Throwable> = errorSharedFlow
     override fun currentDuration(): Long = runWith(0) {
         player.status().length()
     }
-}
 
+    private fun bindPlayer(player: MediaPlayer) {
+        player.events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
+            override fun playing(mediaPlayer: MediaPlayer?) {
+                isPlayingFlow.value = true
+            }
+
+            override fun paused(mediaPlayer: MediaPlayer?) {
+                isPlayingFlow.value = false
+            }
+        })
+    }
+
+    private fun runWith(callback: () -> Unit) {
+        try {
+            callback()
+        } catch (e: Exception) {
+            Logger.e(tag = "VLCPlayback", messageString = "Error in playback", throwable = e)
+            launch { errorSharedFlow.emit(e) }
+        }
+    }
+
+    private fun <T> runWith(default: T, callback: () -> T): T {
+        return try {
+            callback()
+        } catch (e: Exception) {
+            Logger.e(tag = "VLCPlayback", messageString = "Error in playback", throwable = e)
+            launch { errorSharedFlow.emit(e) }
+            default
+        }
+    }
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 private fun Flow<List<LItem>>.flatten(): Flow<List<LAudio>> {
@@ -157,23 +184,5 @@ private fun Flow<List<LItem>>.flatten(): Flow<List<LAudio>> {
                 else -> emptyList()
             }
         }
-    }
-}
-
-
-private fun runWith(callback: () -> Unit) {
-    try {
-        callback()
-    } catch (e: Exception) {
-        Logger.e(tag = "VLCPlayback", messageString = "Error in playback", throwable = e)
-    }
-}
-
-private fun <T> runWith(default: T, callback: () -> T): T {
-    return try {
-        callback()
-    } catch (e: Exception) {
-        Logger.e(tag = "VLCPlayback", messageString = "Error in playback", throwable = e)
-        default
     }
 }

@@ -2,6 +2,7 @@ package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 sealed class PlaybackState {
@@ -38,4 +39,5 @@ interface Playback {
     fun currentDuration(): Long
     fun currentPosition(): Long
     fun currentBufferedPosition(): Long
+    fun errorMessage(): SharedFlow<Throwable>
 }
