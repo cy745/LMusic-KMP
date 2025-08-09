@@ -1,11 +1,7 @@
 package com.lalilu.lplayer.menu
 
 import com.lalilu.lplayer.playback.Playback
-import de.jangassen.jfa.FoundationCallbackRegistry
-import de.jangassen.jfa.ThreadUtils
-import de.jangassen.jfa.appkit.NSApplication
-import de.jangassen.jfa.appkit.NSMenu
-import de.jangassen.jfa.appkit.NSMenuItem
+import org.rococoa.cocoa.NSApplication
 
 class MacOSMenu(private val playback: Playback) {
     /**
@@ -43,10 +39,8 @@ class MacOSMenu(private val playback: Playback) {
 
         menuItems.forEach { firstMenu.addItem(it) }
 
-        ThreadUtils.dispatch_sync {
-            NSApplication.sharedApplication()
-                .setMainMenu(rootMenu)
-        }
+        NSApplication.sharedApplication()
+            .setMainMenu(rootMenu)
     }
 
     private fun onClickMenuItem(menuItem: MenuItem) {
@@ -66,5 +60,5 @@ fun MenuItem.toNSMenuItem(onClick: (MenuItem) -> Unit): NSMenuItem {
 
     return NSMenuItem.alloc()
         .initWithTitle(title, callback.selector, keyEquivalent)
-        .also { it.setTarget(callback.target) }
+        .also { it.setTarget(callback.target.id()) }
 }
