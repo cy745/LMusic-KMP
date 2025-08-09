@@ -21,6 +21,11 @@ object NativeExtractor {
     private val osName: String by lazy { System.getProperty("os.name").lowercase(Locale.getDefault()) }
     val extractDir by lazy { File(FileKit.filesDir.file, "native_libs") }
 
+    init {
+        val nativeLibPath = extractDir.absolutePath
+        System.setProperty("jna.library.path", nativeLibPath)
+    }
+
     private val platformDir by lazy {
         when {
             isMac() -> "osx"

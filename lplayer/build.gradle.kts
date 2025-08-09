@@ -73,7 +73,7 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.vlcj)
-            implementation(libs.jfa)
+            implementation(libs.bundles.rococoa)
         }
     }
 }
