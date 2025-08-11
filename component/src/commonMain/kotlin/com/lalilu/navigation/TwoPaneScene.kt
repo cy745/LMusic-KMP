@@ -3,13 +3,18 @@ package com.lalilu.navigation
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.WindowInfo
+import androidx.compose.ui.unit.IntSize
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.Scene
 import androidx.navigation3.ui.SceneStrategy
-import com.lalilu.component.LocalWindowSizeClass
+import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_MEDIUM_LOWER_BOUND
 
 
 // --- TwoPaneScene ---
@@ -24,12 +29,43 @@ class TwoPaneScene<T : Any>(
 ) : Scene<T> {
     override val entries: List<NavEntry<T>> = listOf(firstEntry, secondEntry)
     override val content: @Composable (() -> Unit) = {
-        Row(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.weight(0.5f)) {
-                firstEntry.Content()
+        val windowInfo = LocalWindowInfo.current
+        val childFirstWindowInfo = remember(windowInfo) {
+            object : WindowInfo {
+                override val isWindowFocused: Boolean
+                    get() = windowInfo.isWindowFocused
+
+                override val containerSize: IntSize
+                    get() = IntSize(
+                        (windowInfo.containerSize.width * 0.4f).toInt(),
+                        windowInfo.containerSize.height
+                    )
             }
-            Column(modifier = Modifier.weight(0.5f)) {
-                secondEntry.Content()
+        }
+        val childSecondWindowInfo = remember(windowInfo) {
+            object : WindowInfo {
+                override val isWindowFocused: Boolean
+                    get() = windowInfo.isWindowFocused
+
+                override val containerSize: IntSize
+                    get() = IntSize(
+                        (windowInfo.containerSize.width * 0.6f).toInt(),
+                        windowInfo.containerSize.height
+                    )
+            }
+        }
+
+
+        Row(modifier = Modifier.fillMaxSize()) {
+            CompositionLocalProvider(LocalWindowInfo provides childFirstWindowInfo) {
+                Column(modifier = Modifier.weight(0.4f)) {
+                    firstEntry.Content()
+                }
+            }
+            CompositionLocalProvider(LocalWindowInfo provides childSecondWindowInfo) {
+                Column(modifier = Modifier.weight(0.6f)) {
+                    secondEntry.Content()
+                }
             }
         }
     }
@@ -57,11 +93,11 @@ class TwoPaneSceneStrategy<T : Any> : SceneStrategy<T> {
         onBack: (Int) -> Unit
     ): Scene<T>? {
 
-        val windowSizeClass = LocalWindowSizeClass.current.widthSizeClass
+        val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
 
         // Condition 1: Only return a Scene if the window is sufficiently wide to render two panes.
         // We use isWidthAtLeastBreakpoint with WIDTH_DP_MEDIUM_LOWER_BOUND (600dp).
-        if (windowSizeClass == WindowWidthSizeClass.Compact) {
+        if (!windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_MEDIUM_LOWER_BOUND)) {
             return null
         }
 
