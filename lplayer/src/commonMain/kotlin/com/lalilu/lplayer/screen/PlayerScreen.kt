@@ -29,13 +29,13 @@ class PlayerScreen : Screen {
 
     @OptIn(ExperimentalSharedTransitionApi::class)
     @Composable
-    override fun Content(modifier: Modifier) {
+    override fun Content() {
         val model = rememberScreenModel { PlayerScreenModel() }
         val isPlaying = model.isPlaying.collectAsState()
         val currentItem = model.currentItem.collectAsState()
 
         Column(
-            modifier = modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

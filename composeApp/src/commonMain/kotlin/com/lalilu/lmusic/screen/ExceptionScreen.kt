@@ -19,9 +19,9 @@ import com.lalilu.navigation.Screen
 class ExceptionScreen(private val exception: Exception) : Screen {
 
     @Composable
-    override fun Content(modifier: Modifier) {
+    override fun Content() {
         Column(
-            modifier = modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Center,

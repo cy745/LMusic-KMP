@@ -18,7 +18,7 @@ import com.lalilu.navigation.Screen
 class HomeScreen : Screen {
 
     @Composable
-    override fun Content(modifier: Modifier) {
+    override fun Content() {
         HomeScreenContent()
     }
 }

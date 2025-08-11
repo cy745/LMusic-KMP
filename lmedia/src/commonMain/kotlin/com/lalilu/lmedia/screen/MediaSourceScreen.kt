@@ -29,7 +29,7 @@ object MediaSourceScreen : Screen {
 
     @OptIn(ExperimentalSharedTransitionApi::class)
     @Composable
-    override fun Content(modifier: Modifier) {
+    override fun Content() {
         val platformSource = koinInject<PlatformMediaSource>()
         val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
         val column = when {

@@ -1,7 +1,6 @@
 package com.lalilu.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import kotlin.uuid.ExperimentalUuidApi
@@ -13,8 +12,7 @@ interface Screen : NavKey {
         get() = name()
 
     @Composable
-    fun Content(modifier: Modifier = Modifier) {
-    }
+    fun Content()
 }
 
 private fun Screen.name(): String {
