@@ -75,9 +75,6 @@ kotlin {
             implementation(project(":lmedia"))
             implementation(project(":lplayer"))
             implementation(project(":lhome"))
-            implementation(libs.lifecycle.viewmodel)
-            implementation(libs.compose.lifecycle)
-            implementation(libs.compose.viewmodel)
             implementation(libs.compose.ui.backhandler)
             implementation(compose.components.resources)
 
