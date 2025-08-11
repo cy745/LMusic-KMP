@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.source.MediaSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.mapLatest
@@ -47,7 +48,7 @@ class MediaStoreSource(
             context.applicationContext.contentResolver
                 .registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, observer)
 
-            invokeOnClose {
+            awaitClose {
                 context.applicationContext.contentResolver
                     .unregisterContentObserver(observer)
             }
