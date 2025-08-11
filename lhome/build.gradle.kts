@@ -43,7 +43,6 @@ kotlin {
                 implementation(project(":component"))
                 implementation(project(":lmedia"))
                 implementation(libs.remixicon.kmp)
-                implementation(libs.compose.material3.window.size)
             }
         }
         val commonTest by getting {

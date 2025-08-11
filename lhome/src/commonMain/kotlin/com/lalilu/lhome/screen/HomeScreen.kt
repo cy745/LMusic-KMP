@@ -11,8 +11,8 @@ import androidx.compose.ui.Modifier
 import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.extensions.DailyRecommend
-import io.github.hristogochev.vortex.navigator.LocalNavigator
-import io.github.hristogochev.vortex.screen.Screen
+import com.lalilu.navigation.LocalBackStack
+import com.lalilu.navigation.Screen
 
 @Destination(router = ["/home"])
 class HomeScreen : Screen {
@@ -28,7 +28,7 @@ class HomeScreen : Screen {
 fun HomeScreenContent(modifier: Modifier = Modifier) {
     val dailyRecommend = DailyRecommend.register()
     val statusBar = WindowInsets.statusBars.asPaddingValues()
-    val navigator = LocalNavigator.current
+    val navigator = LocalBackStack.current
 
     LazyVerticalGrid(
         modifier = modifier.fillMaxSize(),
@@ -39,7 +39,7 @@ fun HomeScreenContent(modifier: Modifier = Modifier) {
             item(span = { GridItemSpan(12) }) {
                 Button(onClick = {
                     KRouter.route<Screen>("/media_source")
-                        ?.let { navigator?.push(it) }
+                        ?.let { navigator.add(it) }
                 }) {
                     Text("Go to MediaSourceScreen")
                 }

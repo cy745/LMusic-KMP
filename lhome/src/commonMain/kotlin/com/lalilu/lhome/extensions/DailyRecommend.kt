@@ -1,5 +1,7 @@
 package com.lalilu.lhome.extensions
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.animateBounds
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -10,23 +12,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lalilu.component.LazyGridContent
-import com.lalilu.component.LocalWindowSizeClass
 import com.lalilu.krouter.KRouter
 import com.lalilu.lhome.component.RecommendCard2
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
 import com.lalilu.lmedia.entity.LAudio
-import io.github.hristogochev.vortex.navigator.LocalNavigator
-import io.github.hristogochev.vortex.screen.Screen
+import com.lalilu.navigation.LocalBackStack
+import com.lalilu.navigation.LocalSharedTransitionScope
+import com.lalilu.navigation.Screen
 import org.koin.compose.koinInject
 
 object DailyRecommend : LazyGridContent {
 
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
-        val windowWidthClass = LocalWindowSizeClass.current.widthSizeClass
-        val navigator = LocalNavigator.current
+        val navigator = LocalBackStack.current
         val homeVM = koinInject<HomeScreenModel>()
 
         return fun LazyGridScope.() {
@@ -45,7 +46,7 @@ object DailyRecommend : LazyGridContent {
                         selected = true,
                         onClick = {
                             KRouter.route<Screen>("/player", mapOf("item" to "test"))
-                                ?.let { navigator?.push(it) }
+                                ?.let { navigator.add(it) }
                         },
                         label = {
                             Text("换一换")
@@ -64,6 +65,7 @@ object DailyRecommend : LazyGridContent {
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 fun LazyGridScope.dailyRecommendForSideCompat(
     audios: () -> List<LAudio>
 ) {
@@ -73,6 +75,7 @@ fun LazyGridScope.dailyRecommendForSideCompat(
         span = { GridItemSpan(maxLineSpan) }
     ) {
         RecommendRow(
+            modifier = Modifier.animateBounds(LocalSharedTransitionScope.current),
             items = audios,
             getId = { it.id }
         ) {

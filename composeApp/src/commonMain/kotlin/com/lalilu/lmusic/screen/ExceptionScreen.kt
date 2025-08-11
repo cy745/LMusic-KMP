@@ -12,7 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.lalilu.krouter.annotation.Destination
-import io.github.hristogochev.vortex.screen.Screen
+import com.lalilu.navigation.Screen
 
 
 @Destination("/error")
