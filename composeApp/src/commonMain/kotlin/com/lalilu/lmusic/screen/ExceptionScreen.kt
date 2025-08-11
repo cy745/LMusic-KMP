@@ -12,16 +12,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.lalilu.krouter.annotation.Destination
-import io.github.hristogochev.vortex.screen.Screen
+import com.lalilu.navigation.Screen
 
 
 @Destination("/error")
 class ExceptionScreen(private val exception: Exception) : Screen {
 
     @Composable
-    override fun Content() {
+    override fun Content(modifier: Modifier) {
         Column(
-            modifier = Modifier.fillMaxSize()
+            modifier = modifier.fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Center,

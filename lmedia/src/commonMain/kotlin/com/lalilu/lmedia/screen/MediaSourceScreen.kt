@@ -1,34 +1,40 @@
 package com.lalilu.lmedia.screen
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.lalilu.component.LocalWindowSizeClass
+import androidx.window.core.layout.WindowSizeClass
+import com.lalilu.RemixIcon
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.rpc.RemoteServerPanel
-import io.github.hristogochev.vortex.screen.Screen
+import com.lalilu.navigation.LocalBackStack
+import com.lalilu.navigation.LocalSharedTransitionScope
+import com.lalilu.navigation.Screen
+import com.lalilu.remixicon.Arrows
+import com.lalilu.remixicon.arrows.arrowLeftLine
 import org.koin.compose.koinInject
 
 
 @Destination("/media_source")
 object MediaSourceScreen : Screen {
 
+    @OptIn(ExperimentalSharedTransitionApi::class)
     @Composable
-    override fun Content() {
+    override fun Content(modifier: Modifier) {
         val platformSource = koinInject<PlatformMediaSource>()
-        val windowSizeClass = LocalWindowSizeClass.current
-        val column = when (windowSizeClass.widthSizeClass) {
-            WindowWidthSizeClass.Medium -> 2
-            WindowWidthSizeClass.Expanded -> 3
+        val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
+        val column = when {
+            windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) -> 3
+            windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND) -> 2
             else -> 1
         }
 
@@ -39,6 +45,26 @@ object MediaSourceScreen : Screen {
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalItemSpacing = 16.dp
         ) {
+            item {
+                val backStack = LocalBackStack.current
+                with(LocalSharedTransitionScope.current) {
+                    Button(
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .height(48.dp)
+                            .sharedElementWithCallerManagedVisibility(
+                                sharedContentState = rememberSharedContentState("test"),
+                                visible = backStack.last() is MediaSourceScreen
+                            ),
+                        onClick = { if (backStack.size >= 2) backStack.removeLastOrNull() }
+                    ) {
+                        Icon(
+                            imageVector = RemixIcon.Arrows.arrowLeftLine,
+                            contentDescription = null
+                        )
+                    }
+                }
+            }
             item {
                 RemoteServerPanel(modifier = Modifier.fillMaxWidth())
             }
