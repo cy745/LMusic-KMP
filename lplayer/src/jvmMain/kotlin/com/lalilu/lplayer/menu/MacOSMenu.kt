@@ -1,9 +1,16 @@
 package com.lalilu.lplayer.menu
 
+import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.rococoa.cocoa.NSApplication
+import kotlin.coroutines.CoroutineContext
 
-class MacOSMenu(private val playback: Playback) {
+class MacOSMenu(private val playback: Playback) : CoroutineScope {
+    override val coroutineContext: CoroutineContext = Dispatchers.io
+
     /**
      * MACOS的根menu是不显示的，只是一个隐藏的容器
      */
@@ -29,18 +36,20 @@ class MacOSMenu(private val playback: Playback) {
     }
 
     init {
-        val menuItems = listOf(
-            MenuItem.PlayPause,
-            MenuItem.Next,
-            MenuItem.Previous,
-            MenuItem.Like,
-            MenuItem.RandomPlay,
-        ).map { it.toNSMenuItem(::onClickMenuItem) }
+        launch {
+            val menuItems = listOf(
+                MenuItem.PlayPause,
+                MenuItem.Next,
+                MenuItem.Previous,
+                MenuItem.Like,
+                MenuItem.RandomPlay,
+            ).map { it.toNSMenuItem(::onClickMenuItem) }
 
-        menuItems.forEach { firstMenu.addItem(it) }
+            menuItems.forEach { firstMenu.addItem(it) }
 
-        NSApplication.sharedApplication()
-            .setMainMenu(rootMenu)
+            NSApplication.sharedApplication()
+                .setMainMenu(rootMenu)
+        }
     }
 
     private fun onClickMenuItem(menuItem: MenuItem) {

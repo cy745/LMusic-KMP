@@ -32,9 +32,8 @@ class VLCPlayback : Playback, CoroutineScope {
         }
         VLCPlayerLoader.initialize()
 
-        launch {
-            MacOSMenu(this@VLCPlayback)
-        }
+        MacOSMenu(this@VLCPlayback)
+//        MacOSNotification(this@VLCPlayback)
     }
 
     private val errorSharedFlow = MutableSharedFlow<Throwable>()

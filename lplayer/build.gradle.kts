@@ -75,6 +75,13 @@ kotlin {
             implementation(libs.vlcj)
             implementation(libs.bundles.rococoa)
         }
+        val jvmTest by getting {
+            dependencies {
+                implementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
+                implementation("org.junit.jupiter:junit-jupiter-engine:5.13.4")
+                implementation("org.junit.platform:junit-platform-launcher:1.13.4")
+            }
+        }
     }
 }
 
