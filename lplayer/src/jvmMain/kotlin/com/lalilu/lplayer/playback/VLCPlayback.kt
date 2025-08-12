@@ -157,6 +157,10 @@ class VLCPlayback : Playback, CoroutineScope {
             override fun paused(mediaPlayer: MediaPlayer?) {
                 isPlayingFlow.value = false
             }
+
+            override fun finished(mediaPlayer: MediaPlayer?) {
+                skipToNext()
+            }
         })
     }
 
