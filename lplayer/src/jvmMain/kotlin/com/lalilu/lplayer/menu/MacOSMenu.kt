@@ -6,6 +6,7 @@ import com.lalilu.lplayer.playback.Playback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.rococoa.Foundation
+import org.rococoa.ID
 import org.rococoa.cocoa.NSApplication
 import kotlin.coroutines.CoroutineContext
 
@@ -65,9 +66,14 @@ class MacOSMenu(private val playback: Playback) : CoroutineScope {
     }
 }
 
+fun interface MenuClickCallback {
+    fun invoke(sender: ID)
+}
+
 fun MenuItem.toNSMenuItem(onClick: (MenuItem) -> Unit): NSMenuItem {
-    val callback = FoundationCallbackRegistry
-        .registerCallback { onClick(this) }
+    val callback = FoundationCallback.wrap(MenuClickCallback {
+        onClick(this)
+    })
 
     return NSMenuItem.alloc()
         .initWithTitle(title, callback.selector, keyEquivalent)
