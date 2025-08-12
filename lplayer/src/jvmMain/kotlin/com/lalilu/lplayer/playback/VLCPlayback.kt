@@ -7,6 +7,7 @@ import com.lalilu.lmedia.entity.LGroupItem
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lplayer.menu.MacOSMenu
+import com.lalilu.lplayer.notification.MacOSNotification
 import com.lalilu.lplayer.player.VLCPlayer
 import com.lalilu.lplayer.player.VLCPlayerLoader
 import kotlinx.coroutines.*
@@ -29,7 +30,7 @@ class VLCPlayback : Playback, CoroutineScope {
                     ?.also { bindPlayer(it) }
 
                 MacOSMenu(this@VLCPlayback)
-//        MacOSNotification(this@VLCPlayback)
+                MacOSNotification(this@VLCPlayback)
             }
         }
     }
