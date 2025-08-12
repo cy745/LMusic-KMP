@@ -3,15 +3,18 @@ package com.lalilu.lplayer.playback
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LGroupItem
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.notification.MacOSNotification
 import com.lalilu.lplayer.player.VLCPlayer
 import com.lalilu.lplayer.player.VLCPlayerLoader
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import kotlin.coroutines.CoroutineContext
@@ -173,19 +176,6 @@ class VLCPlayback : Playback, CoroutineScope {
             Logger.e(tag = "VLCPlayback", messageString = "Error in playback", throwable = e)
             launch { errorSharedFlow.emit(e) }
             default
-        }
-    }
-}
-
-@OptIn(ExperimentalCoroutinesApi::class)
-private fun Flow<List<LItem>>.flatten(): Flow<List<LAudio>> {
-    return mapLatest { list ->
-        list.flatMap {
-            when (it) {
-                is LGroupItem -> it.items
-                is LAudio -> listOf(it)
-                else -> emptyList()
-            }
         }
     }
 }
