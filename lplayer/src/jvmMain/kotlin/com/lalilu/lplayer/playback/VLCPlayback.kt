@@ -22,18 +22,16 @@ class VLCPlayback : Playback, CoroutineScope {
         get() = playerInstance ?: throw Exception("Player Not Initialized")
 
     init {
+        VLCPlayerLoader.initialize()
         VLCPlayerLoader.whenReady {
             launch {
-                playerInstance = VLCPlayer.getPlayer()?.also {
-                    bindPlayer(it)
-                    playerInstance = it
-                }
+                playerInstance = VLCPlayer.getPlayer()
+                    ?.also { bindPlayer(it) }
+
+                MacOSMenu(this@VLCPlayback)
+//        MacOSNotification(this@VLCPlayback)
             }
         }
-        VLCPlayerLoader.initialize()
-
-        MacOSMenu(this@VLCPlayback)
-//        MacOSNotification(this@VLCPlayback)
     }
 
     private val errorSharedFlow = MutableSharedFlow<Throwable>()

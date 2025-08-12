@@ -1,10 +1,11 @@
 package com.lalilu.lplayer.menu
 
+import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import org.rococoa.Foundation
 import org.rococoa.cocoa.NSApplication
 import kotlin.coroutines.CoroutineContext
 
@@ -36,19 +37,20 @@ class MacOSMenu(private val playback: Playback) : CoroutineScope {
     }
 
     init {
-        launch {
-            val menuItems = listOf(
-                MenuItem.PlayPause,
-                MenuItem.Next,
-                MenuItem.Previous,
-                MenuItem.Like,
-                MenuItem.RandomPlay,
-            ).map { it.toNSMenuItem(::onClickMenuItem) }
+        val menuItems = listOf(
+            MenuItem.PlayPause,
+            MenuItem.Next,
+            MenuItem.Previous,
+            MenuItem.Like,
+            MenuItem.RandomPlay,
+        ).map { it.toNSMenuItem(::onClickMenuItem) }
 
-            menuItems.forEach { firstMenu.addItem(it) }
+        menuItems.forEach { firstMenu.addItem(it) }
 
+        Foundation.runOnMainThread {
             NSApplication.sharedApplication()
                 .setMainMenu(rootMenu)
+            Logger.i("菜单初始化完成")
         }
     }
 
