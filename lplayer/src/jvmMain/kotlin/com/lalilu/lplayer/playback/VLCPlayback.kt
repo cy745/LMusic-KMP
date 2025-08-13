@@ -44,6 +44,7 @@ class VLCPlayback : Playback, CoroutineScope {
     private val flattenPlaylist = playlist.flatten()
         .stateIn(this, SharingStarted.WhileSubscribed(), emptyList())
 
+    private val currentPlaybackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     private val currentItemIndex = MutableStateFlow(0)
     private val currentItemFlow = flattenPlaylist
         .combine(currentItemIndex) { list, index -> list.getOrNull(index) }
@@ -135,8 +136,10 @@ class VLCPlayback : Playback, CoroutineScope {
 
     override fun currentItemIndex(): StateFlow<Int> = currentItemIndex
 
+    override fun currentPlaybackState(): StateFlow<PlaybackState> = currentPlaybackState
+
     override fun currentPosition(): Long = runWith(0) {
-        player.status().time()
+        player.status().time() / 1000L
     }
 
     override fun currentBufferedPosition(): Long = runWith(0) {
@@ -145,21 +148,21 @@ class VLCPlayback : Playback, CoroutineScope {
 
     override fun errorMessage(): SharedFlow<Throwable> = errorSharedFlow
     override fun currentDuration(): Long = runWith(0) {
-        player.status().length()
+        player.status().length() / 1000L
     }
 
     private fun bindPlayer(player: MediaPlayer) {
         player.events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
             override fun playing(mediaPlayer: MediaPlayer?) {
-                isPlayingFlow.value = true
+                launch { isPlayingFlow.value = true }
             }
 
             override fun paused(mediaPlayer: MediaPlayer?) {
-                isPlayingFlow.value = false
+                launch { isPlayingFlow.value = false }
             }
 
             override fun finished(mediaPlayer: MediaPlayer?) {
-                skipToNext()
+                launch { skipToNext() }
             }
         })
     }

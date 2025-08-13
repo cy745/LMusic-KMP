@@ -1,7 +1,8 @@
 package com.lalilu.lplayer.macos
 
-import org.rococoa.cocoa.foundation.NSNumber
 import org.rococoa.cocoa.foundation.NSObject
+
+typealias NSTimeInterval = Double
 
 abstract class MPRemoteCommandEvent : NSObject() {
     companion object {
@@ -11,9 +12,6 @@ abstract class MPRemoteCommandEvent : NSObject() {
     abstract fun command(): MPRemoteCommand
     abstract fun timestamp(): NSTimeInterval
 }
-
-abstract class NSTimeInterval : NSNumber()
-
 
 abstract class MPChangePlaybackPositionCommandEvent : MPRemoteCommandEvent() {
     abstract fun positionTime(): NSTimeInterval

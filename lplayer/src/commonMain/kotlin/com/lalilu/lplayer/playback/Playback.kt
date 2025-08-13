@@ -11,7 +11,7 @@ sealed class PlaybackState {
     data class Playing(val item: LItem) : PlaybackState()
     data class Paused(val item: LItem) : PlaybackState()
     data class Error(val error: Throwable) : PlaybackState()
-    data object Ended : PlaybackState()
+    data object Stopped : PlaybackState()
 }
 
 interface Playback {
@@ -35,6 +35,7 @@ interface Playback {
     fun isPlaying(): StateFlow<Boolean>
     fun currentItem(): StateFlow<LAudio?>
     fun currentItemIndex(): StateFlow<Int>
+    fun currentPlaybackState(): StateFlow<PlaybackState>
 
     fun currentDuration(): Long
     fun currentPosition(): Long
