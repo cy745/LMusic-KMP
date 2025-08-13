@@ -1,9 +1,9 @@
 package com.lalilu.lplayer.menu
 
+import com.lalilu.lplayer.macos.NSImage
 import com.sun.jna.Pointer
 import org.rococoa.*
 import org.rococoa.cocoa.NSApplication
-import org.rococoa.cocoa.foundation.NSImage
 import org.rococoa.cocoa.foundation.NSObject
 
 abstract class NSMenu : NSObject() {

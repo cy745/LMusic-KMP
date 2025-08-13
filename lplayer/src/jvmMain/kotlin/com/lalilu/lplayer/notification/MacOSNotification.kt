@@ -1,8 +1,12 @@
 package com.lalilu.lplayer.notification
 
 import co.touchlab.kermit.Logger
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.request.ImageRequest
 import com.lalilu.common.ext.io
 import com.lalilu.lplayer.macos.*
+import com.lalilu.lplayer.macos.NSImage
 import com.lalilu.lplayer.menu.FoundationCallback
 import com.lalilu.lplayer.playback.Playback
 import kotlinx.coroutines.CoroutineScope
@@ -10,10 +14,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
-import org.rococoa.cocoa.foundation.NSArray
-import org.rococoa.cocoa.foundation.NSDictionary
-import org.rococoa.cocoa.foundation.NSNumber
-import org.rococoa.cocoa.foundation.NSString
+import kotlinx.coroutines.runBlocking
+import org.rococoa.cocoa.CGFloat
+import org.rococoa.cocoa.foundation.*
 import kotlin.coroutines.CoroutineContext
 
 fun interface CommandHandler {
@@ -52,9 +55,11 @@ class MacOSNotification(
             remoteCommandCenter.disableLanguageOptionCommand(),
         )
     }
+    private val imageLoader by lazy { SingletonImageLoader.get(PlatformContext.INSTANCE) }
 
     init {
         MediaPlayerLibrary.load()
+        PlatformContext.INSTANCE
 
         enableCommand.forEach { command ->
             command.addTarget(
@@ -73,10 +78,32 @@ class MacOSNotification(
             val title = audio?.title ?: "Unknown"
             val subtitle = audio?.subtitle ?: "sub"
 
+
+            val artwork = MPMediaItemArtwork.initWithBoundsSize(
+                boundsSize = CGSize(CGFloat(100.0), CGFloat(100.0)),
+                callback = { cgSize ->
+                    runBlocking(Dispatchers.io) {
+                        val imageResult = imageLoader.execute(
+                            ImageRequest.Builder(PlatformContext.INSTANCE)
+                                .data(audio)
+                                .build()
+                        )
+
+                        val cgImage = CGImage()
+
+                        NSImage.alloc().initWithCGImage(
+                            cgImage = cgImage,
+                            size = NSSize(cgSize.width.toDouble(), cgSize.height.toDouble())
+                        )
+                    }
+                }
+            )
+
             val keys = NSArray.CLASS.arrayWithObjects(
                 MPMediaItemProperty.Title.nativeValue,
                 MPMediaItemProperty.Artist.nativeValue,
                 MPMediaItemProperty.PlaybackDuration.nativeValue,
+                MPMediaItemProperty.Artwork.nativeValue,
                 MPNowPlayingInfoProperty.PlaybackRate.nativeValue,
                 MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
                 MPNowPlayingInfoProperty.IsLiveStream.nativeValue
@@ -85,6 +112,7 @@ class MacOSNotification(
                 NSString.stringWithString(title),
                 NSString.stringWithString(subtitle),
                 NSNumber.CLASS.numberWithLong(playback.currentDuration()),
+                artwork,
                 NSNumber.CLASS.numberWithDouble(if (isPlaying) 1.0 else 0.0),
                 NSNumber.CLASS.numberWithLong(playback.currentPosition()),
                 NSNumber.CLASS.numberWithBool(false)
