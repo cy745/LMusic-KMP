@@ -1,0 +1,55 @@
+plugins {
+    kotlin("jvm")
+}
+
+dependencies {
+    api("net.java.dev.jna:jna:5.17.0")
+}
+
+// Execute Xcode build for native libraries
+tasks.register<Exec>("buildNative") {
+    workingDir = File(projectDir, "./")
+    commandLine(
+        "xcodebuild",
+        "-project",
+        "wrapper.xcodeproj",
+        "-target",
+        "libwrapper",
+        "-configuration",
+        "Release"
+    )
+
+    // Only run this task if the output files don't exist or are older than the sources
+    outputs.file(File(workingDir, "build/Release/libwrapper.dylib"))
+
+    doFirst {
+        println("Building native libraries...")
+    }
+}
+
+tasks.register<Exec>("cleanNative") {
+    workingDir = File(projectDir, "./")
+    commandLine(
+        "xcodebuild",
+        "-project",
+        "wrapper.xcodeproj",
+        "-target",
+        "libwrapper",
+        "-configuration",
+        "Release",
+        "clean"
+    )
+
+    doFirst {
+        println("Cleaning native libraries...")
+    }
+}
+
+tasks.named("clean") {
+    dependsOn("cleanNative")
+}
+
+// Configure the build to depend on the native library build
+tasks.named("build") {
+    dependsOn("buildNative")
+}
