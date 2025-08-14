@@ -3,9 +3,9 @@ package com.lalilu.test
 import com.lalilu.lplayer.macos.MPMediaItemProperty
 import com.lalilu.lplayer.macos.MPNowPlayingInfoCenter
 import com.lalilu.lplayer.macos.MPNowPlayingInfoProperty
-import com.lalilu.lplayer.macos.MediaPlayerLibrary
 import com.lalilu.lplayer.menu.NSMenu
 import com.lalilu.lplayer.menu.NSMenuItem
+import com.lalilu.wrapper.WrapperLibrary
 import org.junit.Test
 import org.rococoa.Foundation
 import org.rococoa.cocoa.foundation.NSArray
@@ -19,7 +19,7 @@ class RococoaTest {
         val projectPath = System.getProperty("user.dir")
         val nativeLibPath = "$projectPath/src/jvmMain/resources/osx"
         System.setProperty("jna.library.path", nativeLibPath)
-        MediaPlayerLibrary.load()
+        WrapperLibrary.instance
         println(nativeLibPath)
     }
 

@@ -9,11 +9,15 @@ import com.lalilu.common.ext.io
 import com.lalilu.lplayer.macos.*
 import com.lalilu.lplayer.menu.FoundationCallback
 import com.lalilu.lplayer.playback.Playback
+import com.lalilu.wrapper.WrapperLibrary
+import com.sun.jna.Pointer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import org.rococoa.ID
+import org.rococoa.Rococoa
 import org.rococoa.cocoa.foundation.*
 import kotlin.coroutines.CoroutineContext
 
@@ -56,9 +60,7 @@ class MacOSNotification(
     private val imageLoader by lazy { SingletonImageLoader.get(PlatformContext.INSTANCE) }
 
     init {
-        MediaPlayerLibrary.load()
-        PlatformContext.INSTANCE
-
+        WrapperLibrary.instance
         enableCommand.forEach { command ->
             command.addTarget(
                 target = nsCallback.target.id(),
@@ -82,32 +84,41 @@ class MacOSNotification(
                     .build()
             )
             val bitmap = imageResult.image?.toBitmap()
-            val size = (bitmap?.width ?: 0) * (bitmap?.height ?: 0) * (bitmap?.bytesPerPixel ?: 0)
             val pixels = bitmap?.peekPixels()?.buffer
 
-            if (pixels != null && pixels.size > 0) {
-                NSData.CLASS.dataWithBytes_length(pixels.bytes, pixels.size)
-            }
+            val nsData = pixels?.takeIf { pixels.size > 0 }
+                ?.let { NSData.CLASS.dataWithBytes_length(it.bytes, it.size) }
 
-            Logger.i("width: ${bitmap?.width}, height: ${bitmap?.height}, bpp: ${bitmap?.bytesPerPixel}, size: $size")
+            val artwork = nsData?.let { data ->
+                WrapperLibrary.instance.createMediaItemArtwork(
+                    Pointer.createConstant(data.id().toLong()),
+                    bitmap.width,
+                    bitmap.height,
+                    32,
+                    8,
+                    bitmap.width * 4
+                ).takeIf { it.getLong(0) > 0 }
+                    ?.let { Rococoa.wrap(ID.fromLong(it.getLong(0)), NSObject::class.java) }
+            }
+            Logger.i("artwork: $artwork")
 
             val keys = NSArray.CLASS.arrayWithObjects(
                 MPMediaItemProperty.Title.nativeValue,
                 MPMediaItemProperty.Artist.nativeValue,
                 MPMediaItemProperty.PlaybackDuration.nativeValue,
-//                MPMediaItemProperty.Artwork.nativeValue,
                 MPNowPlayingInfoProperty.PlaybackRate.nativeValue,
                 MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
-                MPNowPlayingInfoProperty.IsLiveStream.nativeValue
+                MPNowPlayingInfoProperty.IsLiveStream.nativeValue,
+                if (artwork == null) null else MPMediaItemProperty.Artwork.nativeValue,
             )
             val values = NSArray.CLASS.arrayWithObjects(
                 NSString.stringWithString(title),
                 NSString.stringWithString(subtitle),
                 NSNumber.CLASS.numberWithLong(playback.currentDuration()),
-//                artwork,
                 NSNumber.CLASS.numberWithDouble(if (isPlaying) 1.0 else 0.0),
                 NSNumber.CLASS.numberWithLong(playback.currentPosition()),
-                NSNumber.CLASS.numberWithBool(false)
+                NSNumber.CLASS.numberWithBool(false),
+                artwork,
             )
 
             val dictionary = NSDictionary.CLASS.dictionaryWithObjects_forKeys(values, keys)
