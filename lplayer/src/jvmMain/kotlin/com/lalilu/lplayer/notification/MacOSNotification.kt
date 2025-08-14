@@ -4,9 +4,9 @@ import co.touchlab.kermit.Logger
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
+import coil3.toBitmap
 import com.lalilu.common.ext.io
 import com.lalilu.lplayer.macos.*
-import com.lalilu.lplayer.macos.NSImage
 import com.lalilu.lplayer.menu.FoundationCallback
 import com.lalilu.lplayer.playback.Playback
 import kotlinx.coroutines.CoroutineScope
@@ -14,8 +14,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.runBlocking
-import org.rococoa.cocoa.CGFloat
 import org.rococoa.cocoa.foundation.*
 import kotlin.coroutines.CoroutineContext
 
@@ -78,32 +76,26 @@ class MacOSNotification(
             val title = audio?.title ?: "Unknown"
             val subtitle = audio?.subtitle ?: "sub"
 
-
-            val artwork = MPMediaItemArtwork.initWithBoundsSize(
-                boundsSize = CGSize(CGFloat(100.0), CGFloat(100.0)),
-                callback = { cgSize ->
-                    runBlocking(Dispatchers.io) {
-                        val imageResult = imageLoader.execute(
-                            ImageRequest.Builder(PlatformContext.INSTANCE)
-                                .data(audio)
-                                .build()
-                        )
-
-                        val cgImage = CGImage()
-
-                        NSImage.alloc().initWithCGImage(
-                            cgImage = cgImage,
-                            size = NSSize(cgSize.width.toDouble(), cgSize.height.toDouble())
-                        )
-                    }
-                }
+            val imageResult = imageLoader.execute(
+                ImageRequest.Builder(PlatformContext.INSTANCE)
+                    .data(audio)
+                    .build()
             )
+            val bitmap = imageResult.image?.toBitmap()
+            val size = (bitmap?.width ?: 0) * (bitmap?.height ?: 0) * (bitmap?.bytesPerPixel ?: 0)
+            val pixels = bitmap?.peekPixels()?.buffer
+
+            if (pixels != null && pixels.size > 0) {
+                NSData.CLASS.dataWithBytes_length(pixels.bytes, pixels.size)
+            }
+
+            Logger.i("width: ${bitmap?.width}, height: ${bitmap?.height}, bpp: ${bitmap?.bytesPerPixel}, size: $size")
 
             val keys = NSArray.CLASS.arrayWithObjects(
                 MPMediaItemProperty.Title.nativeValue,
                 MPMediaItemProperty.Artist.nativeValue,
                 MPMediaItemProperty.PlaybackDuration.nativeValue,
-                MPMediaItemProperty.Artwork.nativeValue,
+//                MPMediaItemProperty.Artwork.nativeValue,
                 MPNowPlayingInfoProperty.PlaybackRate.nativeValue,
                 MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
                 MPNowPlayingInfoProperty.IsLiveStream.nativeValue
@@ -112,7 +104,7 @@ class MacOSNotification(
                 NSString.stringWithString(title),
                 NSString.stringWithString(subtitle),
                 NSNumber.CLASS.numberWithLong(playback.currentDuration()),
-                artwork,
+//                artwork,
                 NSNumber.CLASS.numberWithDouble(if (isPlaying) 1.0 else 0.0),
                 NSNumber.CLASS.numberWithLong(playback.currentPosition()),
                 NSNumber.CLASS.numberWithBool(false)
