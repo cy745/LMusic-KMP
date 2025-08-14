@@ -74,6 +74,7 @@ kotlin {
         jvmMain.dependencies {
             implementation(libs.vlcj)
             implementation(libs.bundles.rococoa)
+            implementation(project(":lplayer:libwrapper"))
         }
         val jvmTest by getting {
             dependencies {
