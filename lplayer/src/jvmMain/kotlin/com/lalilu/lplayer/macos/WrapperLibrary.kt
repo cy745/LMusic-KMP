@@ -22,6 +22,7 @@ interface WrapperLibrary : Library {
      * @param bitsPerPixel     图片每像素位数
      * @param bitsPerComponent 图片颜色分量位数
      * @param bytesPerRow      图片每行字节数
+     * @param bitmapInfoType   图片的颜色分量的排序类型
      * @return 媒体
      */
     fun createMediaItemArtwork(
@@ -30,6 +31,7 @@ interface WrapperLibrary : Library {
         bitmapHeight: Int,
         bitsPerPixel: Int,
         bitsPerComponent: Int,
-        bytesPerRow: Int
+        bytesPerRow: Int,
+        bitmapInfoType: Int
     ): ID
 }

@@ -17,7 +17,7 @@ MPMediaItemArtwork* createMediaItemArtwork(
         size_t bitsPerPixel,
         size_t bitsPerComponent,
         size_t bytesPerRow,
-        CGBitmapInfo bitmapInfo // 新增：允许外部指定位图信息（含字节顺序）
+        size_t bitmapInfoType
 ) {
     NSLog(@"[createMediaItemArtwork]: data length: %lu, %zu, %zu, %zu, %zu, %zu",
             (unsigned long)[bitmapData length], bitmapWidth, bitmapHeight,
@@ -39,7 +39,34 @@ MPMediaItemArtwork* createMediaItemArtwork(
                 expectedDataSize, (unsigned long)[bitmapData length]);
         return nil;
     }
-
+    
+    CGBitmapInfo bitmapInfo = kCGBitmapByteOrder16Little;
+    switch (bitmapInfoType) {
+        case 0:
+            bitmapInfo = kCGBitmapByteOrderDefault;
+            break;
+        case 1:
+            bitmapInfo = kCGBitmapByteOrder16Big;
+            break;
+        case 2:
+            bitmapInfo = kCGBitmapByteOrder32Big;
+            break;
+        case 3:
+            bitmapInfo = kCGBitmapByteOrder16Little;
+            break;
+        case 4:
+            bitmapInfo = kCGBitmapByteOrder32Little;
+            break;
+        case 5: // 添加一个新的选项用于 RGBA 格式
+            bitmapInfo = kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+            break;
+        case 6:
+            bitmapInfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little;
+            break;
+        default:
+            break;
+    }
+    
     CGSize boundsSize = CGSizeMake((CGFloat)bitmapWidth, (CGFloat)bitmapHeight);
 
     MPMediaItemArtwork* artwork = [[MPMediaItemArtwork alloc] initWithBoundsSize:boundsSize
@@ -73,7 +100,7 @@ MPMediaItemArtwork* createMediaItemArtwork(
                 bitsPerPixel,
                 bytesPerRow,
                 colorSpace,
-                bitmapInfo, // 替换固定值，使用外部传入的参数
+                bitmapInfo,
                 provider,
                 NULL,
                 NO,

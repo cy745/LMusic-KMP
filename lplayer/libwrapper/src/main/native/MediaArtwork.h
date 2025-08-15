@@ -27,6 +27,7 @@ MPMediaItemArtwork* createMediaItemArtwork(
        size_t bitmapHeight,
        size_t bitsPerPixel,
        size_t bitsPerComponent,
-       size_t bytesPerRow
+       size_t bytesPerRow,
+       size_t bitmapInfoType
 );
 

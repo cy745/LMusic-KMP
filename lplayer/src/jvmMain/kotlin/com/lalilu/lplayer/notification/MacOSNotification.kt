@@ -90,12 +90,13 @@ class MacOSNotification(
 
             val artwork = nsData?.let { data ->
                 val result = WrapperLibrary.instance.createMediaItemArtwork(
-                    nsData.id(),
-                    bitmap.width,
-                    bitmap.height,
-                    32,
-                    8,
-                    bitmap.width * 4
+                    bitmapData = nsData.id(),
+                    bitmapWidth = bitmap.width,
+                    bitmapHeight = bitmap.height,
+                    bitsPerPixel = 32,
+                    bitsPerComponent = 8,
+                    bytesPerRow = bitmap.width * 4,
+                    bitmapInfoType = 6
                 )
                 Rococoa.wrap(result, NSObject::class.java)
             }
