@@ -9,14 +9,11 @@ import com.lalilu.common.ext.io
 import com.lalilu.lplayer.macos.*
 import com.lalilu.lplayer.menu.FoundationCallback
 import com.lalilu.lplayer.playback.Playback
-import com.lalilu.wrapper.WrapperLibrary
-import com.sun.jna.Pointer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
-import org.rococoa.ID
 import org.rococoa.Rococoa
 import org.rococoa.cocoa.foundation.*
 import kotlin.coroutines.CoroutineContext
@@ -75,6 +72,8 @@ class MacOSNotification(
         )
 
         playback.currentItem().combine(playback.isPlaying()) { audio, isPlaying ->
+            Logger.i("currentItem: $audio, isPlaying: $isPlaying")
+
             val title = audio?.title ?: "Unknown"
             val subtitle = audio?.subtitle ?: "sub"
 
@@ -90,15 +89,15 @@ class MacOSNotification(
                 ?.let { NSData.CLASS.dataWithBytes_length(it.bytes, it.size) }
 
             val artwork = nsData?.let { data ->
-                WrapperLibrary.instance.createMediaItemArtwork(
-                    Pointer.createConstant(data.id().toLong()),
+                val result = WrapperLibrary.instance.createMediaItemArtwork(
+                    nsData.id(),
                     bitmap.width,
                     bitmap.height,
                     32,
                     8,
                     bitmap.width * 4
-                ).takeIf { it.getLong(0) > 0 }
-                    ?.let { Rococoa.wrap(ID.fromLong(it.getLong(0)), NSObject::class.java) }
+                )
+                Rococoa.wrap(result, NSObject::class.java)
             }
             Logger.i("artwork: $artwork")
 
@@ -123,8 +122,6 @@ class MacOSNotification(
 
             val dictionary = NSDictionary.CLASS.dictionaryWithObjects_forKeys(values, keys)
             nowPlayingInfoCenter.setNowPlayingInfo(dictionary)
-
-            Logger.i("currentItem: $audio, isPlaying: $isPlaying")
         }.launchIn(this)
     }
 

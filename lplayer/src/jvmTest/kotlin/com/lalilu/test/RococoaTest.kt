@@ -3,9 +3,9 @@ package com.lalilu.test
 import com.lalilu.lplayer.macos.MPMediaItemProperty
 import com.lalilu.lplayer.macos.MPNowPlayingInfoCenter
 import com.lalilu.lplayer.macos.MPNowPlayingInfoProperty
+import com.lalilu.lplayer.macos.WrapperLibrary
 import com.lalilu.lplayer.menu.NSMenu
 import com.lalilu.lplayer.menu.NSMenuItem
-import com.lalilu.wrapper.WrapperLibrary
 import org.junit.Test
 import org.rococoa.Foundation
 import org.rococoa.cocoa.foundation.NSArray

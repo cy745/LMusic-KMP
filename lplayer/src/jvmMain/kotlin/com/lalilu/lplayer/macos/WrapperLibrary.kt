@@ -1,13 +1,14 @@
-package com.lalilu.wrapper
+package com.lalilu.lplayer.macos
 
+import com.lalilu.wrapper.MediaPlayerLibrary
 import com.sun.jna.Library
 import com.sun.jna.Native
-import com.sun.jna.Pointer
+import org.rococoa.ID
 
 interface WrapperLibrary : Library {
     companion object Companion {
         val instance: WrapperLibrary by lazy {
-            MediaPlayerLibrary.load()
+            MediaPlayerLibrary.Companion.load()
             Native.load("wrapper", WrapperLibrary::class.java)
         }
     }
@@ -24,11 +25,11 @@ interface WrapperLibrary : Library {
      * @return 媒体
      */
     fun createMediaItemArtwork(
-        bitmapData: Pointer,
+        bitmapData: ID,
         bitmapWidth: Int,
         bitmapHeight: Int,
         bitsPerPixel: Int,
         bitsPerComponent: Int,
         bytesPerRow: Int
-    ): Pointer
+    ): ID
 }
