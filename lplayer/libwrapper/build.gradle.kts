@@ -8,6 +8,18 @@ dependencies {
 
 // Execute Xcode build for native libraries
 tasks.register<Exec>("buildNative") {
+    onlyIf {
+        val os = System.getProperty("os.name").lowercase()
+        if (!os.contains("mac")) return@onlyIf false
+
+        return@onlyIf try {
+            val process = ProcessBuilder("which", "xcode").start()
+            process.waitFor() == 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     workingDir = File(projectDir, "./")
     commandLine(
         "xcodebuild",
@@ -28,6 +40,18 @@ tasks.register<Exec>("buildNative") {
 }
 
 tasks.register<Exec>("cleanNative") {
+    onlyIf {
+        val os = System.getProperty("os.name").lowercase()
+        if (!os.contains("mac")) return@onlyIf false
+
+        return@onlyIf try {
+            val process = ProcessBuilder("which", "xcode").start()
+            process.waitFor() == 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     workingDir = File(projectDir, "./")
     commandLine(
         "xcodebuild",
