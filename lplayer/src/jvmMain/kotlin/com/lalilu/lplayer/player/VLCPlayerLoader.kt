@@ -27,12 +27,6 @@ object VLCPlayerLoader : CoroutineScope, ReadyState by readyStateImpl() {
     fun initialize(forceOverride: Boolean = false) = launch {
         Logger.i(tag = TAG, messageString = "start Initialize")
 
-        if (NativeDiscovery().discover()) {
-            Logger.i(tag = TAG, messageString = "Native library found, Skip Extract")
-            onReady()
-            return@launch
-        }
-
         NativeExtractor.doExtract(forceOverride = forceOverride)
         val targetExtractDir = NativeExtractor.extractDir
 

@@ -171,7 +171,7 @@ class VLCPlayback : Playback, CoroutineScope {
         try {
             callback()
         } catch (e: Exception) {
-            Logger.e(tag = "VLCPlayback", messageString = "Error in playback", throwable = e)
+            Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
             launch { errorSharedFlow.emit(e) }
         }
     }
@@ -180,7 +180,7 @@ class VLCPlayback : Playback, CoroutineScope {
         return try {
             callback()
         } catch (e: Exception) {
-            Logger.e(tag = "VLCPlayback", messageString = "Error in playback", throwable = e)
+            Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
             launch { errorSharedFlow.emit(e) }
             default
         }
