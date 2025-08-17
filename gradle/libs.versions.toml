@@ -55,6 +55,7 @@ jbx-lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:l
 
 krouter-core = { module = "io.github.cy745.KRouter:core", version.ref = "krouter" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
+kotlin-logging = { module = "io.github.oshai:kotlin-logging", version = "7.0.3" }
 human-readable = { module = "nl.jacobras:Human-Readable", version.ref = "human-readable" }
 
 vortex = { module = "io.github.hristogochev:vortex", version.ref = "vortex" }

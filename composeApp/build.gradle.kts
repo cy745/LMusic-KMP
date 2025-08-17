@@ -134,7 +134,7 @@ android {
 
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard.pro"
+                "proguard-android.pro"
             )
 
             signingConfig = runCatching { signingConfigs["release"] }.getOrNull()
@@ -160,7 +160,7 @@ compose.desktop {
         mainClass = "com.lalilu.lmusic.MainKt"
 
         buildTypes.release.proguard {
-            configurationFiles.from("proguard.pro")
+            configurationFiles.from("proguard-desktop.pro")
         }
 
         nativeDistributions {

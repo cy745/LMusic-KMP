@@ -41,6 +41,7 @@ kotlin {
             dependencies {
                 api(compose.runtime)
                 api(libs.kermit)
+                api(libs.kotlin.logging)
                 api(libs.human.readable)
                 api(libs.krouter.core)
                 api(libs.kotlinx.serialization)
@@ -67,6 +68,7 @@ kotlin {
         }
         jvmMain.dependencies {
             api(libs.ktor.client.okhttp)
+            api("ch.qos.logback:logback-classic:1.5.18")
         }
         iosMain.dependencies {
             api(libs.ktor.client.darwin)
