@@ -41,9 +41,11 @@ kotlin {
             dependencies {
                 api(compose.runtime)
                 api(libs.kermit)
+                api(libs.human.readable)
                 api(libs.krouter.core)
                 api(libs.kotlinx.serialization)
                 api(libs.kotlinx.coroutines.core)
+                api(libs.kotlinx.datetime)
                 api(libs.koin.core)
                 api(libs.koin.annotations)
 

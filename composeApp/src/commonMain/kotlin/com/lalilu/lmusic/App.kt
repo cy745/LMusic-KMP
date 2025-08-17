@@ -94,6 +94,15 @@ fun App() {
                                     contentDescription = null
                                 )
                             }
+                            Button(onClick = {
+                                KRouter.route<Screen>("/log")
+                                    ?.let { backStack.add(it) }
+                            }) {
+                                Icon(
+                                    imageVector = RemixIcon.Arrows.arrowLeftLine,
+                                    contentDescription = null
+                                )
+                            }
                         }
                     }
                 }
