@@ -92,6 +92,12 @@ fun LogItem(
             withStyle(style = SpanStyle(color = Color.Black)) {
                 append(logItem.message)
             }
+            if (logItem.throwable != null) {
+                append('\n')
+                withStyle(style = SpanStyle(color = Color.DarkGray)) {
+                    append(logItem.throwable.stackTraceToString())
+                }
+            }
         }
     }
 
