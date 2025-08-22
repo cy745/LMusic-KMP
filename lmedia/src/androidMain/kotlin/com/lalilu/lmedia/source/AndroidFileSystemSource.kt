@@ -72,7 +72,8 @@ class AndroidFileSystemSource(
                     LAudio(
                         title = metadata.title,
                         subtitle = metadata.artist,
-                        sourceItem = source
+                        sourceItem = source,
+                        mediaSourceName = this@AndroidFileSystemSource.name
                     )
                 }
             )

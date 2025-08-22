@@ -43,7 +43,8 @@ object MusicKitSource : MediaSource {
                     LAudio(
                         title = it.title(),
                         subtitle = it.artist(),
-                        sourceItem = SourceItem.MusicKitItem(it)
+                        sourceItem = SourceItem.MusicKitItem(it),
+                        mediaSourceName = this@MusicKitSource.name
                     )
                 }
             )

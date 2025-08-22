@@ -2,11 +2,11 @@ package com.lalilu.lmedia.source
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.lalilu.common.ext.io
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
-import com.lalilu.lmedia.rpc.RemotableMediaSource
 import com.russhwolf.settings.ExperimentalSettingsApi
 import com.russhwolf.settings.ObservableSettings
 import com.russhwolf.settings.coroutines.getStringOrNullFlow
@@ -21,7 +21,7 @@ import kotlin.coroutines.CoroutineContext
 @OptIn(ExperimentalSettingsApi::class, ExperimentalCoroutinesApi::class)
 class JvmFileSystemSource(
     private val settings: ObservableSettings
-) : MediaSource, RemotableMediaSource, CoroutineScope {
+) : MediaSource, MediaDataSource, CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob()
 
     companion object {
@@ -60,66 +60,60 @@ class JvmFileSystemSource(
                     id = file.absolutePath(),
                     title = metadata.title,
                     subtitle = metadata.artist,
-                    sourceItem = SourceItem.FileItem(file.file)
+                    sourceItem = SourceItem.FileItem(file.file),
+                    mediaSourceName = this@JvmFileSystemSource.name
                 )
             }
         )
     }.stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
 
-    override suspend fun requireName(): String = name
+    override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
+        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
 
-    override fun requirePictureFlow(id: String, type: String): Flow<ByteArray?> {
-        return sourceStateFlow
-            .mapLatest { snapshot -> snapshot.audios.firstOrNull { it.id == id } }
-            .mapLatest { audio ->
-                val fileItem = audio?.sourceItem as? SourceItem.FileItem
-                    ?: throw IllegalArgumentException("Invalid id: $id")
+        val fileItem = audio?.sourceItem as? SourceItem.FileItem
+            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
 
-                val path = fileItem.file.path
-                if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
+        val path = fileItem.file.path
+        if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
 
-                val stream = Taglib.getPicture(path = path)?.inputStream()
-                    ?: throw FileNotFoundException("Not found picture for $path")
-
-                stream.readBytes()
-            }
+        Taglib.getLyric(path = path)
+            ?: throw FileNotFoundException("Not found picture for $path")
     }
 
-    override fun requireLyricFlow(id: String, type: String): Flow<String?> {
-        return sourceStateFlow
-            .mapLatest { snapshot -> snapshot.audios.firstOrNull { it.id == id } }
-            .mapLatest { audio ->
-                val fileItem = audio?.sourceItem as? SourceItem.FileItem
-                    ?: throw IllegalArgumentException("Invalid id: $id")
+    override suspend fun getPicture(song: LAudio): MediaData? {
+        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
 
-                val path = fileItem.file.path
-                if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
+        val fileItem = audio?.sourceItem as? SourceItem.FileItem
+            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
 
-                Taglib.getLyric(path = path)
-                    ?: throw FileNotFoundException("Not found picture for $path")
-            }
+        val path = fileItem.file.path
+        if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
+
+        val stream = Taglib.getPicture(path = path)?.inputStream()
+            ?: throw FileNotFoundException("Not found picture for $path")
+
+        return MediaData.Bytes(stream.readBytes())
     }
 
-    override fun requireMediaFlow(id: String, type: String): Flow<ByteArray?> {
-        return sourceStateFlow
-            .mapLatest { snapshot -> snapshot.audios.firstOrNull { it.id == id } }
-            .mapLatest { audio ->
-                val fileItem = audio?.sourceItem as? SourceItem.FileItem
-                    ?: throw IllegalArgumentException("Invalid id: $id")
+    override suspend fun getMedia(song: LAudio): MediaData? = withContext(Dispatchers.io) {
+        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
 
-                val file = fileItem.file
-                if (!file.exists()) {
-                    throw FileNotFoundException("File not found: ${file.absolutePath}")
-                }
+        val fileItem = audio?.sourceItem as? SourceItem.FileItem
+            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
 
-                if (!file.canRead()) {
-                    throw SecurityException("Cannot read file: ${file.absolutePath}")
-                }
+        val file = fileItem.file
+        if (!file.exists()) {
+            throw FileNotFoundException("File not found: ${file.absolutePath}")
+        }
 
-                file.readBytes()
-            }
+        if (!file.canRead()) {
+            throw SecurityException("Cannot read file: ${file.absolutePath}")
+        }
+
+        MediaData.Bytes(file.readBytes())
     }
 
+    override val dataSource: MediaDataSource = this
     override fun source(): Flow<Snapshot> = sourceStateFlow
 
     @Composable

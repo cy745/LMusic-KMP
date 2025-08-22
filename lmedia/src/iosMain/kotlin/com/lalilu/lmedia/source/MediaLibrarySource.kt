@@ -44,7 +44,8 @@ object MediaLibrarySource : MediaSource {
                 LAudio(
                     title = it.title ?: "unknown",
                     subtitle = it.assetURL?.toString() ?: "unknownArtist",
-                    sourceItem = SourceItem.MPItem(it)
+                    sourceItem = SourceItem.MPItem(it),
+                    mediaSourceName = this@MediaLibrarySource.name
                 )
             }
 
