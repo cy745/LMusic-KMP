@@ -2,25 +2,29 @@ package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
+import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.notification.MacOSNotification
+import com.lalilu.lplayer.player.ByteArrayCallbackMedia
 import com.lalilu.lplayer.player.VLCPlayer
 import com.lalilu.lplayer.player.VLCPlayerLoader
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import kotlin.coroutines.CoroutineContext
 
-class VLCPlayback : Playback, CoroutineScope {
+class VLCPlayback : Playback, CoroutineScope, KoinComponent {
     override val coroutineContext: CoroutineContext = Dispatchers.io + SupervisorJob()
+    private val platformMediaSource: PlatformMediaSource by inject()
+    private var prepareJob: Job? = null
     private var playerInstance: MediaPlayer? = null
     val player: MediaPlayer
         get() = playerInstance ?: throw Exception("Player Not Initialized")
@@ -51,14 +55,37 @@ class VLCPlayback : Playback, CoroutineScope {
         .stateIn(this, SharingStarted.WhileSubscribed(), null)
 
     private fun playWithItem(item: LAudio) {
-        val path = item.sourceItem
-            .let { it as? SourceItem.FileItem }
-            ?.file?.absolutePath
-            ?: throw Exception("Invalid source item: ${item.sourceItem}")
+        prepareJob?.cancel()
+        prepareJob = launch {
+            val source = platformMediaSource.sources
+                .firstOrNull { item.mediaSourceName == it.name }
+                ?: throw Exception("No source item found for ${item.mediaSourceName}")
 
-        player.media().prepare(path)
-        player.controls().play()
-        currentItemIndex.value = flattenPlaylist.value.indexOf(item)
+            val data = source.dataSource.getMedia(item)
+            when (data) {
+                is MediaData.Url -> {
+                    Logger.i(tag = "VLCPlayback", messageString = "prepared with url: ${data.url}")
+                    player.media().prepare(data.url)
+                }
+
+                is MediaData.Bytes -> {
+                    Logger.i(tag = "VLCPlayback", messageString = "prepared with bytes: ${data.bytes.size}")
+                    player.media().prepare(ByteArrayCallbackMedia.obtain(data.bytes))
+                }
+
+                else -> {
+                    val path = item.sourceItem
+                        .let { it as? SourceItem.FileItem }
+                        ?.file?.absolutePath
+                        ?: throw Exception("Invalid source item: ${item.sourceItem}")
+
+                    Logger.i(tag = "VLCPlayback", messageString = "prepared with path: $path")
+                    player.media().prepare(path)
+                }
+            }
+            player.controls().play()
+            currentItemIndex.value = flattenPlaylist.value.indexOf(item)
+        }
     }
 
     override fun play() = runWith {
