@@ -3,24 +3,74 @@ package com.lalilu.lmedia.source
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.rpc.annotations.Rpc
+import kotlinx.serialization.Serializable
+
+/**
+ * 媒体源数据
+ */
+@Serializable
+sealed class MediaData {
+
+    @Serializable
+    data class Url(val url: String) : MediaData()
+
+    @Serializable
+    class Bytes(val bytes: ByteArray) : MediaData()
+}
 
 /**
  * 媒体数据源
- *
- * @property name 数据源名称
  */
-interface MediaSource {
-    val name: String
+@Rpc
+interface MediaDataSource {
+    companion object {
+        val Empty = object : MediaDataSource {}
+    }
 
     /**
-     * 媒体数据源的流
+     * 获取歌词
+     */
+    suspend fun getLyric(song: LAudio): String? = null
+
+    /**
+     * 获取图片
+     */
+    suspend fun getPicture(song: LAudio): MediaData? = null
+
+    /**
+     * 获取媒体数据
+     */
+    suspend fun getMedia(song: LAudio): MediaData? = null
+}
+
+@Rpc
+interface MediaSourceBase {
+
+    /**
+     * 媒体源的流
      * 未实现的情况不可使用 [kotlinx.coroutines.flow.emptyFlow] 占位
      * 会导致其他Flow使用combine合并该Flow时一直等待此Flow返回
      */
     fun source(): Flow<Snapshot> = flowOf(Snapshot.Empty)
+}
+
+/**
+ * 媒体源
+ *
+ * @property name 数据源名称，兼具唯一标识的作用
+ */
+interface MediaSource : MediaSourceBase {
+    val name: String
+
+    /**
+     * 媒体数据源
+     */
+    val dataSource: MediaDataSource get() = MediaDataSource.Empty
 
     @Composable
     fun Content(modifier: Modifier = Modifier) {
