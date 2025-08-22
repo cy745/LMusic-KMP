@@ -2,7 +2,9 @@ package com.lalilu.lmedia.rpc
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -11,6 +13,9 @@ import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.source.MediaDataSource
+import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.source.MediaSourceBase
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.response.*
@@ -59,7 +64,7 @@ class RemoteServer(
     /**
      * 筛选本机中可供外部远程访问的数据源
      */
-    val remotableMediaSource by lazy { platformMediaSource.sources.filterIsInstance<RemotableMediaSource>() }
+    val remotableMediaSource by lazy { platformMediaSource.sources }
 
     /**
      * 服务器配置参数
@@ -76,7 +81,7 @@ class RemoteServer(
      */
     val serverFlow = configFlow.flatMapLatest { config ->
         val targetMediaSource = remotableMediaSource
-            .firstOrNull { it.requireName() == config.selectedSourceKey }
+            .firstOrNull { it.name == config.selectedSourceKey }
 
         if (!config.enable) {
             return@flatMapLatest flowOf(null)
@@ -159,18 +164,12 @@ fun RemoteServerPanel(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 removeServer.remotableMediaSource.forEach {
-                    val name = remember { mutableStateOf("") }
-
-                    LaunchedEffect(it) {
-                        name.value = it.requireName()
-                    }
-
                     FilterChip(
-                        selected = config.selectedSourceKey == name.value,
+                        selected = config.selectedSourceKey == it.name,
                         onClick = {
-                            removeServer.configItem.value = config.copy(selectedSourceKey = name.value)
+                            removeServer.configItem.value = config.copy(selectedSourceKey = it.name)
                         },
-                        label = { Text(text = name.value) }
+                        label = { Text(text = it.name) }
                     )
                 }
             }
@@ -180,7 +179,7 @@ fun RemoteServerPanel(modifier: Modifier = Modifier) {
 
 private fun provideRpcServer(
     port: Int,
-    mediaSource: RemotableMediaSource,
+    mediaSource: MediaSource,
     config: Application.() -> Unit = {}
 ): EngineServer? {
     val factory = serverEngineFactory
@@ -192,7 +191,8 @@ private fun provideRpcServer(
         routing {
             rpc("/rpc") {
                 rpcConfig { serialization { json() } }
-                registerService<RemotableMediaSource> { mediaSource }
+                registerService<MediaSourceBase> { mediaSource }
+                registerService<MediaDataSource> { mediaSource.dataSource }
             }
             route("/") {
                 get { call.respond("Hello world!") }

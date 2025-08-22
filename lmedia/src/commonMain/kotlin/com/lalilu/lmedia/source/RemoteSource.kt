@@ -5,9 +5,8 @@ import androidx.compose.ui.Modifier
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
-import com.lalilu.lmedia.entity.Remote
+import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.rpc.RemotableMediaSource
 import io.ktor.client.*
 import io.ktor.client.request.*
 import kotlinx.coroutines.*
@@ -38,11 +37,10 @@ data class RemoteSourceConfig(
 @Single(binds = [RemoteSource::class])
 class RemoteSource(
     lMediaKV: LMediaKV,
-) : MediaSource, CoroutineScope {
+) : MediaSource, MediaDataSource, CoroutineScope {
 
     companion object {
         private const val TAG = "RemoteSource"
-        var remoteService: RemotableMediaSource? = null
     }
 
     override val coroutineContext: CoroutineContext =
@@ -61,6 +59,7 @@ class RemoteSource(
     )
 
     private val configFlow = configItem.flow()
+    private var remoteMediaDataSource: MediaDataSource? = null
 
     /**
      * 客户端对象，使用Flow封装，当上游配置改变时，会重新创建客户端对象
@@ -98,15 +97,20 @@ class RemoteSource(
      */
     val snapshotStateFlow = rpcClientFlow
         .flatMapLatest { client ->
-            val service = client?.withService<RemotableMediaSource>()
-            remoteService = service
+            val service = client?.withService<MediaSourceBase>()
+            remoteMediaDataSource = client?.withService<MediaDataSource>()
 
             service?.source()
                 ?.catch { emit(Snapshot.Empty) }
-                ?.onEach { it.audios.forEach { audio -> audio.sourceItem = Remote(audio.id, "audio") } }
+                ?.onEach { it.audios.forEach { audio -> audio.mediaSourceName = this@RemoteSource.name } }
                 ?: flowOf(Snapshot.Empty)
         }.stateIn(this, SharingStarted.Eagerly, Snapshot.Empty)
 
+    override suspend fun getLyric(song: LAudio): String? = remoteMediaDataSource?.getLyric(song)
+    override suspend fun getPicture(song: LAudio): MediaData? = remoteMediaDataSource?.getPicture(song)
+    override suspend fun getMedia(song: LAudio): MediaData? = remoteMediaDataSource?.getMedia(song)
+
+    override val dataSource: MediaDataSource = this
     override fun source(): Flow<Snapshot> = snapshotStateFlow
 
     @Composable
