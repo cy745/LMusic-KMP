@@ -77,7 +77,7 @@ class JvmFileSystemSource(
         if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
 
         Taglib.getLyric(path = path)
-            ?: throw FileNotFoundException("Not found picture for $path")
+            ?: throw FileNotFoundException("Not found lyric for $path")
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? {
