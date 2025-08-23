@@ -77,12 +77,14 @@ class MacOSNotification(
             val title = audio?.title ?: "Unknown"
             val subtitle = audio?.subtitle ?: "sub"
 
-            val imageResult = imageLoader.execute(
-                ImageRequest.Builder(PlatformContext.INSTANCE)
-                    .data(audio)
-                    .build()
-            )
-            val bitmap = imageResult.image?.toBitmap()
+            val imageResult = audio?.let {
+                imageLoader.execute(
+                    ImageRequest.Builder(PlatformContext.INSTANCE)
+                        .data(audio)
+                        .build()
+                )
+            }
+            val bitmap = imageResult?.image?.toBitmap()
             val pixels = bitmap?.peekPixels()?.buffer
 
             val nsData = pixels?.takeIf { pixels.size > 0 }
