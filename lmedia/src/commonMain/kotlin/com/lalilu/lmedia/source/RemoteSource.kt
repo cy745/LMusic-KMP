@@ -8,7 +8,10 @@ import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import io.ktor.client.*
+import io.ktor.client.plugins.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
@@ -59,7 +62,7 @@ class RemoteSource(
     )
 
     private val configFlow = configItem.flow()
-    private var remoteMediaDataSource: MediaDataSource? = null
+    private var remoteClient: HttpClient? = null
 
     /**
      * 客户端对象，使用Flow封装，当上游配置改变时，会重新创建客户端对象
@@ -72,17 +75,22 @@ class RemoteSource(
             return@flatMapLatest flowOf(null)
         }
 
-        callbackFlow<KtorRpcClient?> {
-            val client = HttpClient { installKrpc { serialization { json() } } }
+        callbackFlow<Pair<HttpClient, KtorRpcClient?>> {
+            val client = HttpClient {
+                defaultRequest { url("http://${config.url}") }
+                installKrpc { serialization { json() } }
+            }
+            val krpcClient = client
                 .rpc { url("ws://${config.url}/rpc") }
 
-            send(client)
+            send(client to krpcClient)
             Logger.i(
                 tag = TAG,
                 messageString = "New Client instance created: ${client.hashCode()}"
             )
 
             awaitClose {
+                krpcClient.close()
                 client.close()
                 Logger.i(
                     tag = TAG,
@@ -96,9 +104,10 @@ class RemoteSource(
      * 远程获取到的source的Flow，stateIn使其持久化，避免重复请求
      */
     val snapshotStateFlow = rpcClientFlow
-        .flatMapLatest { client ->
-            val service = client?.withService<MediaSourceBase>()
-            remoteMediaDataSource = client?.withService<MediaDataSource>()
+        .flatMapLatest { pair ->
+            remoteClient = pair?.first
+            val krpcClient = pair?.second
+            val service = krpcClient?.withService<MediaSourceBase>()
 
             service?.source()
                 ?.catch { emit(Snapshot.Empty) }
@@ -106,9 +115,34 @@ class RemoteSource(
                 ?: flowOf(Snapshot.Empty)
         }.stateIn(this, SharingStarted.Eagerly, Snapshot.Empty)
 
-    override suspend fun getLyric(song: LAudio): String? = remoteMediaDataSource?.getLyric(song)
-    override suspend fun getPicture(song: LAudio): MediaData? = remoteMediaDataSource?.getPicture(song)
-    override suspend fun getMedia(song: LAudio): MediaData? = remoteMediaDataSource?.getMedia(song)
+    override suspend fun getLyric(song: LAudio): String? {
+        val targetUrl = "lyric/${song.id.encodeURLPathPart()}"
+        val lyric = remoteClient?.get(targetUrl)
+            ?.bodyAsText()
+
+        return lyric
+    }
+
+    override suspend fun getPicture(song: LAudio): MediaData? {
+        val targetUrl = "picture/${song.id.encodeURLPathPart()}"
+
+        val picture = remoteClient?.get(targetUrl)
+            ?.bodyAsBytes()
+            ?.takeIf { it.isNotEmpty() }
+            ?: return null
+
+        return MediaData.Bytes(picture)
+    }
+
+    override suspend fun getMedia(song: LAudio): MediaData? {
+        val targetUrl = "media/${song.id.encodeURLPathPart()}"
+        val media = remoteClient?.get(targetUrl)
+            ?.bodyAsBytes()
+            ?.takeIf { it.isNotEmpty() }
+            ?: return null
+
+        return MediaData.Bytes(media)
+    }
 
     override val dataSource: MediaDataSource = this
     override fun source(): Flow<Snapshot> = snapshotStateFlow

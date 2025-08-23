@@ -26,7 +26,6 @@ sealed class MediaData {
 /**
  * 媒体数据源
  */
-@Rpc
 interface MediaDataSource {
     companion object {
         val Empty = object : MediaDataSource {}

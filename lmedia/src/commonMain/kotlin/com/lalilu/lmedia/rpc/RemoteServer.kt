@@ -13,9 +13,11 @@ import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.PlatformMediaSource
-import com.lalilu.lmedia.source.MediaDataSource
+import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaSource
 import com.lalilu.lmedia.source.MediaSourceBase
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.response.*
@@ -185,6 +187,13 @@ private fun provideRpcServer(
     val factory = serverEngineFactory
     if (factory == null) return null
 
+    suspend fun getAudioById(id: String): LAudio {
+        return mediaSource.source()
+            .firstOrNull()?.audios
+            ?.firstOrNull { it.id == id }
+            ?: throw IllegalArgumentException("No audio found for id: $id")
+    }
+
     return embeddedServer(factory, port) {
         install(Krpc)
 
@@ -192,10 +201,72 @@ private fun provideRpcServer(
             rpc("/rpc") {
                 rpcConfig { serialization { json() } }
                 registerService<MediaSourceBase> { mediaSource }
-                registerService<MediaDataSource> { mediaSource.dataSource }
             }
-            route("/") {
-                get { call.respond("Hello world!") }
+            get("/") {
+                call.respondText("Hello World!")
+            }
+            get("/lyric/{id}") {
+                try {
+                    val id = call.parameters["id"]
+                        ?: throw IllegalArgumentException("Invalid id")
+
+                    val audio = getAudioById(id)
+                    val lyric = mediaSource.dataSource.getLyric(audio)
+                        ?: throw IllegalArgumentException("No lyric found for id: $id")
+
+                    call.respondText(lyric)
+                } catch (e: Exception) {
+                    call.respondText(text = "${e.message}")
+                    Logger.e(
+                        tag = "RemoteServer",
+                        messageString = "getLyric: ${e.message}",
+                        throwable = e
+                    )
+                }
+            }
+            get("/picture/{id}") {
+                try {
+                    val id = call.parameters["id"]
+                        ?: throw IllegalArgumentException("Invalid id")
+
+                    val audio = getAudioById(id)
+                    val picture = mediaSource.dataSource.getPicture(audio)
+
+                    when (picture) {
+                        is MediaData.Bytes -> call.respondBytes(picture.bytes, ContentType.Image.PNG)
+                        is MediaData.Url -> call.respondText(picture.url, ContentType.Text.Plain)
+                        else -> throw IllegalArgumentException("Invalid Picture type")
+                    }
+                } catch (e: Exception) {
+                    call.respondText(text = "${e.message}")
+                    Logger.e(
+                        tag = "RemoteServer",
+                        messageString = "getPicture: ${e.message}",
+                        throwable = e
+                    )
+                }
+            }
+            get("/media/{id}") {
+                try {
+                    val id = call.parameters["id"]
+                        ?: throw IllegalArgumentException("Invalid id")
+
+                    val audio = getAudioById(id)
+                    val media = mediaSource.dataSource.getMedia(audio)
+
+                    when (media) {
+                        is MediaData.Bytes -> call.respondBytes(media.bytes, ContentType.Audio.MPEG)
+                        is MediaData.Url -> call.respondText(media.url, ContentType.Text.Plain)
+                        else -> throw IllegalArgumentException("Invalid Media type")
+                    }
+                } catch (e: Exception) {
+                    call.respondText(text = "${e.message}")
+                    Logger.e(
+                        tag = "RemoteServer",
+                        messageString = "getMedia: ${e.message}",
+                        throwable = e
+                    )
+                }
             }
         }
 
