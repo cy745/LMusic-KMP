@@ -7,6 +7,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lmedia.entity.SourceItemDefaults
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
@@ -136,6 +137,11 @@ class RemoteSource(
 
     override suspend fun getMedia(song: LAudio): MediaData? {
         val targetUrl = "media/${song.id.encodeURLPathPart()}"
+
+        if (song.sourceItem is SourceItemDefaults.RequestUrl) {
+            return MediaData.Url("http://${configItem.value.url}/media/${song.id.encodeURLPathPart()}")
+        }
+
         val media = remoteClient?.get(targetUrl)
             ?.bodyAsBytes()
             ?.takeIf { it.isNotEmpty() }

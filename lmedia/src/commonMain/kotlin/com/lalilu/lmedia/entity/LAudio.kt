@@ -11,7 +11,7 @@ data class LAudio(
     override val extra: Map<String, String> = emptyMap(),
 
     @Transient
-    var sourceItem: SourceItem = Empty,
+    var sourceItem: SourceItem = SourceItemDefaults.Empty,
     var mediaSourceName: String,
 ) : LItem
 
@@ -20,9 +20,18 @@ expect sealed interface SourceItem {
     val key: String
 }
 
-/**
- * 标记无数据的对象
- */
-object Empty : SourceItem {
-    override val key: String = "${this::class::qualifiedName}"
+object SourceItemDefaults {
+    /**
+     * 标记无数据的对象
+     */
+    object Empty : SourceItem {
+        override val key: String = "${this::class::qualifiedName}"
+    }
+
+    /**
+     * 向后端请求url
+     */
+    object RequestUrl : SourceItem {
+        override val key: String = "${this::class::qualifiedName}"
+    }
 }
