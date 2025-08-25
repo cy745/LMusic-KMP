@@ -35,7 +35,8 @@ class PlayerScreen : Screen {
         val currentItem = model.currentItem.collectAsState()
 
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize()
+                .systemBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
