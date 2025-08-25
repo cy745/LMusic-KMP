@@ -35,7 +35,8 @@ kotlin {
     ).forEach {
         it.compilations {
             val main by getting {
-                cinterops {
+                val observer by cinterops.creating {
+                    definitionFile.set(file("src/nativeInterop/cinterop/observer.def"))
                 }
             }
         }
