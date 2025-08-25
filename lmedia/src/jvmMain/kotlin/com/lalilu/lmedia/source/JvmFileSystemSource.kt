@@ -45,7 +45,9 @@ class JvmFileSystemSource(
                 val low4 = it.readInt()
                 val high4 = it.readInt()
 
-                (low4 == 0x664C6143 && high4 == 0x00000022) || (low4 == 0x4F676753 && high4 == 0x00020000)
+                (low4 == 0x664C6143 && high4 == 0x00000022) // flac
+                        || (low4 == 0x4F676753 && high4 == 0x00020000) // ogg
+                        || (low4 and 0x49443300 != 0) // mp3
             }
         }
     }.map { files ->
