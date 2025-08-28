@@ -55,6 +55,7 @@ kotlin {
                 api(libs.ktor.client.serialization)
                 api(libs.ktor.client.serialization.json)
                 api(libs.ktor.client.logging)
+                api(libs.ktorfit)
             }
         }
         val commonTest by getting {

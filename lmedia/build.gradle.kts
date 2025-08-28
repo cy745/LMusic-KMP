@@ -17,6 +17,7 @@ plugins {
     alias(libs.plugins.krpc)
     alias(libs.plugins.swiftklib)
     alias(libs.plugins.osdetector)
+    alias(libs.plugins.ktorfit)
 }
 
 group = "com.lalilu.lmedia"
@@ -62,6 +63,7 @@ kotlin {
                 api(libs.bundles.settings)
                 api(libs.ktor.server.core)
                 api(libs.bundles.krpc)
+                api(libs.ktorfit)
             }
         }
         val commonTest by getting {
