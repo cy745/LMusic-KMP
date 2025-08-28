@@ -1,6 +1,8 @@
 package com.lalilu.lmedia.source.subsonic
 
+import com.lalilu.lmedia.source.subsonic.entity.GetAlbumInfo2Response
 import com.lalilu.lmedia.source.subsonic.entity.GetAlbumList2Response
+import com.lalilu.lmedia.source.subsonic.entity.GetAlbumResponse
 import de.jensklingenberg.ktorfit.http.GET
 import de.jensklingenberg.ktorfit.http.Query
 
@@ -45,4 +47,32 @@ interface SubsonicApi {
         @Query("genre") genre: String? = null,
         @Query("musicFolderId") musicFolderId: String? = null
     ): SubsonicResponseWrapper<GetAlbumList2Response>
+
+    /**
+     * http://your-server/rest/getAlbumInfo2 Since [1.14.0](https://www.subsonic.org/pages/api.jsp#getAlbumInfo2)
+     *
+     * 获取专辑详情信息（基于ID3标签组织音乐），返回专辑的描述、图片URL等信息
+     * 数据来源于last.fm
+     *
+     * @param id 专辑ID（必填），用于指定要获取信息的专辑
+     * @return 包含专辑信息的响应包装类，成功时返回专辑的不同尺寸封面图片URL、描述等信息
+     */
+    @GET("getAlbumInfo2")
+    suspend fun getAlbumInfo2(
+        @Query("id") id: String
+    ): SubsonicResponseWrapper<GetAlbumInfo2Response>
+
+    /**
+     * http://your-server/rest/getAlbum Since [1.8.0](https://www.subsonic.org/pages/api.jsp#getAlbum)
+     *
+     * 返回专辑的详细信息，包括专辑中的歌曲列表
+     * 此方法根据ID3标签组织音乐
+     *
+     * @param id 专辑ID（必填），用于指定要获取详细信息的专辑
+     * @return 包含专辑详细信息和歌曲列表的响应包装类
+     */
+    @GET("getAlbum")
+    suspend fun getAlbum(
+        @Query("id") id: String
+    ): SubsonicResponseWrapper<GetAlbumResponse>
 }
