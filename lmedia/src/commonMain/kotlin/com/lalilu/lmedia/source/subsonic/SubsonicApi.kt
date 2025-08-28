@@ -1,8 +1,6 @@
 package com.lalilu.lmedia.source.subsonic
 
-import com.lalilu.lmedia.source.subsonic.entity.GetAlbumInfo2Response
-import com.lalilu.lmedia.source.subsonic.entity.GetAlbumList2Response
-import com.lalilu.lmedia.source.subsonic.entity.GetAlbumResponse
+import com.lalilu.lmedia.source.subsonic.entity.*
 import de.jensklingenberg.ktorfit.http.GET
 import de.jensklingenberg.ktorfit.http.Query
 
@@ -12,6 +10,49 @@ import de.jensklingenberg.ktorfit.http.Query
 interface SubsonicApi {
     @GET("ping")
     suspend fun ping(): SubsonicResponseWrapper<SubsonicResponse>
+
+    /**
+     * http://your-server/rest/getArtists Since [1.8.0](https://www.subsonic.org/pages/api.jsp#getArtists)
+     *
+     * Similar to getIndexes, but organizes music according to ID3 tags.
+     * 与getIndexes类似，但按ID3标签组织音乐
+     *
+     * @param musicFolderId If specified, only return artists in the music folder with the given ID.
+     *                     如果指定，则仅返回指定音乐文件夹中的艺术家
+     * @return 包含按字母索引分组的艺术家列表的响应包装类
+     */
+    @GET("getArtists")
+    suspend fun getArtists(
+        @Query("musicFolderId") musicFolderId: String? = null
+    ): SubsonicResponseWrapper<GetArtistsResponse>
+
+    /**
+     * http://your-server/rest/getArtist Since [1.8.0](https://www.subsonic.org/pages/api.jsp#getArtist)
+     *
+     * Returns details for an artist, including a list of albums. This method organizes music according to ID3 tags.
+     * 返回艺术家的详细信息，包括专辑列表。此方法按ID3标签组织音乐
+     *
+     * @param id The artist ID. 艺术家ID（必填）
+     * @return 包含艺术家详细信息和专辑列表的响应包装类
+     */
+    @GET("getArtist")
+    suspend fun getArtist(
+        @Query("id") id: String
+    ): SubsonicResponseWrapper<GetArtistResponse>
+
+    /**
+     * http://your-server/rest/getArtistInfo2 Since [1.11.0](https://www.subsonic.org/pages/api.jsp#getArtistInfo2)
+     *
+     * Returns artist info with biography, image URLs and similar artists, using data from last.fm.
+     * 返回艺术家信息，包括传记、图片URL和相似艺术家，数据来源于last.fm
+     *
+     * @param id The artist ID. 艺术家ID（必填）
+     * @return 包含艺术家详细信息的响应包装类，成功时返回艺术家的传记、图片URL、相似艺术家等信息
+     */
+    @GET("getArtistInfo2")
+    suspend fun getArtistInfo2(
+        @Query("id") id: String
+    ): SubsonicResponseWrapper<GetArtistInfo2Response>
 
     /**
      * http://your-server/rest/getAlbumList2 Since [1.8.0](https://www.subsonic.org/pages/api.jsp#getAlbumList2)
