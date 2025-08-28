@@ -22,7 +22,7 @@ import kotlinx.rpc.krpc.ktor.client.rpc
 import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
 import kotlinx.serialization.Serializable
-import org.koin.core.annotation.Single
+import kotlinx.serialization.json.Json
 import kotlin.coroutines.CoroutineContext
 
 @Serializable
@@ -38,9 +38,9 @@ data class RemoteSourceConfig(
 
 @Suppress("UnusedFlow")
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(binds = [RemoteSource::class])
 class RemoteSource(
     lMediaKV: LMediaKV,
+    json: Json
 ) : MediaSource, MediaDataSource, CoroutineScope {
 
     companion object {
@@ -79,7 +79,7 @@ class RemoteSource(
         callbackFlow<Pair<HttpClient, KtorRpcClient?>> {
             val client = HttpClient {
                 defaultRequest { url("http://${config.url}") }
-                installKrpc { serialization { json() } }
+                installKrpc { serialization { json(json) } }
             }
             val krpcClient = client
                 .rpc { url("ws://${config.url}/rpc") }
