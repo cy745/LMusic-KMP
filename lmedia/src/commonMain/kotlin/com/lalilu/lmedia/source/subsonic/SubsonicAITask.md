@@ -11,7 +11,8 @@
 1. 为数据类的所有参数填充默认值
 2. 当响应数据中某项元素值为null，导致无法获取类型信息时，请使用Any?类型
 3. 注意data class必须要有参数，如果某个元素是空对象，则不应该使用data class定义，而应该直接使用class定义
-4. 如果我没有提供json数据，则从接口文档中目标接口的Example链接中获取xml结构的响应示例数据，并以该数据来实现数据类
+4. 如果我没有提供json数据，则访问接口文档中目标接口的Example链接，获取xml结构的响应示例数据，并以该数据来实现数据类
+   (Example的链接与接口有部分相似的关系：例如getArtists接口的Example链接为：https://www.subsonic.org/pages/inc/api/examples/artists_example_1.xml)
 
 ### 已经构建好的结构
 
