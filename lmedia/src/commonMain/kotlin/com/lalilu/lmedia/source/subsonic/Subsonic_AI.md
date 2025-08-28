@@ -4,11 +4,14 @@
 请帮生成对应的kotlin的接口方法和对应数据类和对应的注释，项目使用Kotlin、Kotlin Serialization、Ktorfit实现，
 已经实现了部分接口，请参照示例完成任务
 
-#### 需要注意的一些原则：
+**接口文档地址：** https://www.subsonic.org/pages/api.jsp
+
+#### 需要注意的一些事项原则：
 
 1. 为数据类的所有参数填充默认值
 2. 当响应数据中某项元素值为null，导致无法获取类型信息时，请使用Any?类型
 3. 注意data class必须要有参数，如果某个元素是空对象，则不应该使用data class定义，而应该直接使用class定义
+4. 如果我没有提供json数据，则从接口文档中目标接口的Example链接中获取xml结构的响应示例数据，并以该数据来实现数据类
 
 ### 已经构建好的结构
 
@@ -109,57 +112,11 @@ interface SubsonicApi {
 
 ### 目标接口
 
-接口名称：getAlbumList2
+接口名称：getAlbumInfo2
 
 接口返回数据示例：
 
 ```json
-{
-  "subsonic-response": {
-    "status": "ok",
-    "version": "1.16.1",
-    "type": "navidrome",
-    "serverVersion": "0.58.0 (9dbe0c18)",
-    "openSubsonic": true,
-    "albumList2": {
-      "album": [
-        {
-          "id": "1YcCl7AmPizscD57xBulQu",
-          "name": "0.0000%",
-          "artist": "7co",
-          "artistId": "7MwxULUOgdnqEcIqToXdwp",
-          "coverArt": "al-1YcCl7AmPizscD57xBulQu_67fb5773",
-          "songCount": 1,
-          "duration": 155,
-          "created": "2025-08-03T02:39:37.127474357Z",
-          "year": 2025,
-          "userRating": 0,
-          "genres": [],
-          "musicBrainzId": "",
-          "isCompilation": false,
-          "sortName": "0.0000%",
-          "discTitles": [],
-          "originalReleaseDate": {
-          },
-          "releaseDate": {
-          },
-          "releaseTypes": [],
-          "recordLabels": [],
-          "moods": [],
-          "artists": [
-            {
-              "id": "7MwxULUOgdnqEcIqToXdwp",
-              "name": "7co"
-            }
-          ],
-          "displayArtist": "7co",
-          "explicitStatus": "",
-          "version": ""
-        }
-      ]
-    }
-  }
-}
 ```
 
 
