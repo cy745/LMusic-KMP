@@ -35,7 +35,7 @@ data class GetAlbumInfo2Response(
         /** 大尺寸专辑封面图片URL */
         @SerialName("largeImageUrl")
         val largeImageUrl: String = "",
-
+        
         /** 超大尺寸专辑封面图片URL */
         @SerialName("xLargeImageUrl")
         val xLargeImageUrl: String = "",
@@ -43,6 +43,14 @@ data class GetAlbumInfo2Response(
         /** 专辑描述文本 */
         @SerialName("notes")
         val notes: String = "",
+        
+        /** MusicBrainz标识符 */
+        @SerialName("musicBrainzId")
+        val musicBrainzId: String = "",
+        
+        /** Last.fm链接 */
+        @SerialName("lastFmUrl")
+        val lastFmUrl: String = "",
 
         /** 音乐类型/风格 */
         @SerialName("genres")

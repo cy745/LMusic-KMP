@@ -28,7 +28,7 @@ data class GetAlbumResponse(
      * @property created 专辑创建时间（ISO格式字符串）
      * @property year 发行年份
      * @property genre 音乐风格
-     * @property songs 歌曲列表
+     * @property song 歌曲列表
      */
     @Serializable
     data class Album(
@@ -45,15 +45,7 @@ data class GetAlbumResponse(
         val created: String = "",
         val year: Int = 0,
         val genre: String = "",
-        val songs: Songs = Songs()
-    )
-
-    /**
-     * 歌曲列表容器
-     * @property song 歌曲列表
-     */
-    @Serializable
-    data class Songs(
+        @SerialName("song")
         val song: List<Song> = emptyList()
     )
 
