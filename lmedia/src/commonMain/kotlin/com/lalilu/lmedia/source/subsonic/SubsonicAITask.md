@@ -110,13 +110,5 @@ interface SubsonicApi {
 }
 ```
 
-### 目标接口
-
-接口名称：getAlbumInfo2
-
-接口返回数据示例：
-
-```json
-```
 
 
