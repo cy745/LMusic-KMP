@@ -64,6 +64,7 @@ kotlin {
                 api(libs.ktor.server.core)
                 api(libs.bundles.krpc)
                 api(libs.ktorfit)
+                api(kotlincrypto.hash.md)
             }
         }
         val commonTest by getting {

@@ -56,6 +56,9 @@ kotlin {
                 api(libs.ktor.client.serialization.json)
                 api(libs.ktor.client.logging)
                 api(libs.ktorfit)
+
+                // kotlin crypto
+                api(kotlincrypto.hash.md)
             }
         }
         val commonTest by getting {
