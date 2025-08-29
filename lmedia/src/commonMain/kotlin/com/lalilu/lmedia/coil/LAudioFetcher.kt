@@ -6,6 +6,7 @@ import coil3.fetch.FetchResult
 import coil3.fetch.Fetcher
 import coil3.key.Keyer
 import coil3.request.Options
+import coil3.toUri
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.source.MediaData
@@ -32,11 +33,11 @@ class LAudioFetcher(
             ?: throw IllegalArgumentException("MediaSource not found")
 
         val pictureData = source.getPicture(audio)
-            ?: throw IllegalArgumentException("Picture not found")
+            ?: throw IllegalArgumentException("Picture not found for data: $audio")
 
         val data = when (pictureData) {
             is MediaData.Bytes -> pictureData.bytes
-            is MediaData.Url -> pictureData.url
+            is MediaData.Url -> pictureData.url.toUri()
         }
 
         actualFetcher = imageLoader.components.newFetcher(
@@ -44,7 +45,7 @@ class LAudioFetcher(
             options = options,
             imageLoader = imageLoader
         )?.first
-            ?: throw IllegalArgumentException("Fetcher not found")
+            ?: throw IllegalArgumentException("Fetcher not found for data: $data")
 
         return actualFetcher?.fetch()
     }
