@@ -12,7 +12,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GetAlbumList2Response(
     @SerialName("albumList2")
-    val albumList2: AlbumList2
+    val albumList2: AlbumList2 = AlbumList2()
 ) : SubsonicResponse() {
 
     /**
@@ -21,7 +21,7 @@ data class GetAlbumList2Response(
      */
     @Serializable
     data class AlbumList2(
-        val album: List<Album>
+        val album: List<Album> = emptyList()
     )
 
     /**
@@ -53,44 +53,74 @@ data class GetAlbumList2Response(
      */
     @Serializable
     data class Album(
-        val id: String,
-        val name: String,
-        val artist: String,
+        val id: String = "",
+        val name: String = "",
+        val artist: String = "",
         @SerialName("artistId")
-        val artistId: String,
+        val artistId: String = "",
         @SerialName("coverArt")
-        val coverArt: String,
+        val coverArt: String = "",
         @SerialName("songCount")
-        val songCount: Int,
-        val duration: Int,
-        val created: String,
-        val year: Int,
+        val songCount: Int = 0,
+        val duration: Int = 0,
+        val created: String = "",
+        val year: Int = 0,
         @SerialName("userRating")
-        val userRating: Int,
-        val genres: List<String>,
+        val userRating: Int = 0,
+        @SerialName("genres")
+        val genres: List<Genre> = emptyList(),
         @SerialName("musicBrainzId")
-        val musicBrainzId: String,
+        val musicBrainzId: String = "",
         @SerialName("isCompilation")
-        val isCompilation: Boolean,
+        val isCompilation: Boolean = false,
         @SerialName("sortName")
-        val sortName: String,
+        val sortName: String = "",
         @SerialName("discTitles")
-        val discTitles: List<String>,
+        val discTitles: List<DiscTitle> = emptyList(),
         @SerialName("originalReleaseDate")
-        val originalReleaseDate: OriginalReleaseDate,
+        val originalReleaseDate: OriginalReleaseDate = OriginalReleaseDate(),
         @SerialName("releaseDate")
-        val releaseDate: ReleaseDate,
+        val releaseDate: ReleaseDate = ReleaseDate(),
         @SerialName("releaseTypes")
-        val releaseTypes: List<String>,
+        val releaseTypes: List<String> = emptyList(),
         @SerialName("recordLabels")
-        val recordLabels: List<String>,
-        val moods: List<String>,
-        val artists: List<Artist>,
+        val recordLabels: List<RecordLabel> = emptyList(),
+        val moods: List<String> = emptyList(),
+        val artists: List<Artist> = emptyList(),
         @SerialName("displayArtist")
-        val displayArtist: String,
+        val displayArtist: String = "",
         @SerialName("explicitStatus")
-        val explicitStatus: String,
-        val version: String
+        val explicitStatus: String = "",
+        val version: String = ""
+    )
+
+    /**
+     * 音乐风格信息模型
+     * @property name 风格名称
+     */
+    @Serializable
+    data class Genre(
+        val name: String = ""
+    )
+
+    /**
+     * 碟片标题信息模型
+     * @property disc 碟片编号
+     * @property title 碟片标题
+     */
+    @Serializable
+    data class DiscTitle(
+        val disc: Int = 0,
+        val title: String = ""
+    )
+
+    /**
+     * 唱片公司信息模型
+     * @property name 唱片公司名称
+     */
+    @Serializable
+    data class RecordLabel(
+        val name: String = ""
     )
 
     /**
@@ -100,8 +130,8 @@ data class GetAlbumList2Response(
      */
     @Serializable
     data class Artist(
-        val id: String,
-        val name: String
+        val id: String = "",
+        val name: String = ""
     )
 
     /**

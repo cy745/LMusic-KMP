@@ -14,7 +14,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GetArtistResponse(
     @SerialName("artist")
-    val artist: Artist
+    val artist: Artist = Artist()
 ) : SubsonicResponse() {
 
     /**
@@ -28,15 +28,15 @@ data class GetArtistResponse(
     @Serializable
     data class Artist(
         @SerialName("id")
-        val id: String,
+        val id: String = "",
         @SerialName("name")
-        val name: String,
+        val name: String = "",
         @SerialName("coverArt")
-        val coverArt: String,
+        val coverArt: String = "",
         @SerialName("albumCount")
-        val albumCount: Int,
+        val albumCount: Int = 0,
         @SerialName("album")
-        val album: List<Album>
+        val album: List<Album> = emptyList()
     )
 
     /**
@@ -53,20 +53,20 @@ data class GetArtistResponse(
     @Serializable
     data class Album(
         @SerialName("id")
-        val id: String,
+        val id: String = "",
         @SerialName("name")
-        val name: String,
+        val name: String = "",
         @SerialName("coverArt")
-        val coverArt: String,
+        val coverArt: String = "",
         @SerialName("songCount")
-        val songCount: Int,
+        val songCount: Int = 0,
         @SerialName("created")
-        val created: String,
+        val created: String = "",
         @SerialName("duration")
-        val duration: Int,
+        val duration: Int = 0,
         @SerialName("artist")
-        val artist: String,
+        val artist: String = "",
         @SerialName("artistId")
-        val artistId: String
+        val artistId: String = ""
     )
 }

@@ -14,7 +14,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GetArtistInfo2Response(
     @SerialName("artistInfo2")
-    val artistInfo2: ArtistInfo2
+    val artistInfo2: ArtistInfo2 = ArtistInfo2()
 ) : SubsonicResponse() {
 
     /**
@@ -55,9 +55,9 @@ data class GetArtistInfo2Response(
     @Serializable
     data class SimilarArtist(
         @SerialName("id")
-        val id: String,
+        val id: String = "",
         @SerialName("name")
-        val name: String,
+        val name: String = "",
         @SerialName("coverArt")
         val coverArt: String? = null,
         @SerialName("albumCount")
