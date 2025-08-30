@@ -2,6 +2,7 @@ package com.lalilu.lmedia.source.subsonic
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
 open class SubsonicResponse(
@@ -14,9 +15,18 @@ open class SubsonicResponse(
     val openSubsonic: Boolean = true,
     val error: SubsonicError? = null
 ) {
+    @Transient
     val isSuccess: Boolean = status == "ok"
+
+    @Transient
     val isFailed: Boolean = status == "failed"
+
+    @Transient
     val isError: Boolean = error != null
+
+    @Transient
     val errorCode: Int = error?.code ?: 0
+
+    @Transient
     val errorMessage: String = error?.message ?: ""
 }
