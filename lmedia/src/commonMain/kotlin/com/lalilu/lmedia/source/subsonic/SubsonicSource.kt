@@ -16,6 +16,7 @@ import io.ktor.client.plugins.api.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -64,12 +65,20 @@ class SubsonicSource(
 
     private val actionFlow = configItem.flow().flatMapLatest { config ->
         logger.i(messageString = "config: $config")
-        if (subsonicApi?.first != config.url) {
-            val ktorfit = ktorfit {
-                httpClient(ktorClient)
-                baseUrl(config.url)
+
+        // 若当前配置的url改变或者api为null，则重新创建api
+        if (subsonicApi?.first != config.url || subsonicApi?.second == null) {
+            runCatching {
+                val ktorfit = ktorfit {
+                    httpClient(ktorClient)
+                    baseUrl(config.url)
+                }
+                subsonicApi = config.url to ktorfit.createSubsonicApi()
+            }.getOrElse {
+                logger.i(messageString = "${it.message}")
+                it.printStackTrace()
             }
-            subsonicApi = config.url to ktorfit.createSubsonicApi()
+            logger.i(messageString = "recreate api result: $subsonicApi")
         }
 
         val api = subsonicApi?.second
@@ -85,41 +94,54 @@ class SubsonicSource(
 
             if (pingResp == null) {
                 logger.i(messageString = "Request ping failed")
+                awaitClose {}
                 return@callbackFlow
             }
 
             if (pingResp.isError) {
                 logger.i(messageString = "Request ping failed: ${pingResp.error}")
+                awaitClose {}
                 return@callbackFlow
             }
 
-            // 遍历获取所有专辑
-            val albums = retrieveAllPage { size, offset ->
-                api.getAlbumList2(
-                    type = "newest",
-                    size = size,
-                    offset = offset
-                ).response.albumList2.album
-            }
-
-            val songs = albums.map { album ->
-                async { api.getAlbum(album.id).response.album.song }
-            }.awaitAll()
-                .flatten()
-
-            val audios = songs.map { song ->
-                LAudio(
-                    id = song.id,
-                    title = song.title,
-                    subtitle = song.artist,
-                    mediaSourceName = this@SubsonicSource.name
-                )
+            val audios = runCatching {
+                getSongs(api)
+            }.getOrElse {
+                logger.e(messageString = "getSongs failed: ${it.message}", throwable = it)
+                emptyList()
             }
 
             send(Snapshot(audios = audios))
-
             awaitClose {}
         }
+    }
+
+    suspend fun CoroutineScope.getSongs(api: SubsonicApi): List<LAudio> {
+        // 遍历获取所有专辑
+        val albums = retrieveAllPage { size, offset ->
+            api.getAlbumList2(
+                type = "newest",
+                size = size,
+                offset = offset
+            ).response.albumList2.album
+        }
+
+        // 遍历获取歌曲
+        val songs = albums.map { album ->
+            async { api.getAlbum(album.id).response.album.song }
+        }.awaitAll()
+            .flatten()
+
+        // 歌曲转换LAudio统一格式
+        val audios = songs.map { song ->
+            LAudio(
+                id = song.id,
+                title = song.title,
+                subtitle = song.artist,
+                mediaSourceName = this@SubsonicSource.name
+            )
+        }
+        return audios
     }
 
     override val dataSource: MediaDataSource = this
