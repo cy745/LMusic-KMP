@@ -10,7 +10,6 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
-import com.lalilu.lmedia.entity.SourceItemDefaults
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.playback.Playback
@@ -52,7 +51,9 @@ class WrappedAVPlayer : Playback, CoroutineScope, KoinComponent {
     private val remoteCommandCenter = MPRemoteCommandCenter.sharedCommandCenter()
     private var notificationObserver: Any? = null
     private var timeObserver: Any? = null
+    private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
     val player: AVPlayer = AVPlayer()
+    var audioPlayer: AVAudioPlayer? = null
     val nowPlayingInfo = mutableMapOf<String, Any>()
 
     init {
@@ -370,68 +371,102 @@ class WrappedAVPlayer : Playback, CoroutineScope, KoinComponent {
 
     override fun currentPlaybackState(): StateFlow<PlaybackState> = currentPlaybackState
 
-    private fun playWithItem(item: LAudio) {
+    private fun playWithItem(item: LAudio) = runWith {
         prepareJob?.cancel()
         prepareJob = launch {
-            ensureAudioSessionActive()
-            val source = platformMediaSource.sources
-                .firstOrNull { item.mediaSourceName == it.name }
-                ?: throw Exception("No source item found for ${item.mediaSourceName}")
+            runWithSuspend {
+                ensureAudioSessionActive()
+                val source = platformMediaSource.sources
+                    .firstOrNull { item.mediaSourceName == it.name }
+                    ?: throw Exception("No source item found for ${item.mediaSourceName}")
 
-            item.sourceItem = SourceItemDefaults.RequestUrl
+                val data = source.dataSource.getMedia(item)
+                when (data) {
+                    is MediaData.Url -> {
+                        Logger.i(tag = "AVPlayer", messageString = "prepared with url: ${data.url}")
+                        val url = NSURL.URLWithString(data.url)!!
+                        val playerItem = AVPlayerItem(url)
 
-            val data = source.dataSource.getMedia(item)
-            val playerItem = when (data) {
-                is MediaData.Url -> {
-                    Logger.i(tag = "AVPlayer", messageString = "prepared with url: ${data.url}")
-                    val url = NSURL.URLWithString(data.url)!!
-                    AVPlayerItem(url)
+                        player.pause()
+                        if (timeObserver != null) {
+                            player.removeTimeObserver(timeObserver!!)
+                            timeObserver = null
+                        }
+
+                        player.replaceCurrentItemWithPlayerItem(playerItem)
+                        startTimeObserver()
+                        player.play()
+                        audioPlayer?.stop()
+                        audioPlayer = null
+                    }
+
+                    is MediaData.Bytes -> {
+                        Logger.i(tag = "AVPlayer", messageString = "prepared with bytes: ${data.bytes.size}")
+
+                        val player = memScoped {
+                            val data = NSData.dataWithBytes(
+                                bytes = data.bytes.refTo(0).getPointer(this),
+                                length = data.bytes.size.toULong()
+                            )
+                            AVAudioPlayer(data, errorPtr.ptr)
+                        }
+
+                        player.prepareToPlay()
+                        player.play()
+
+                        audioPlayer?.stop()
+                        audioPlayer = player
+                    }
+
+                    else -> {
+                        throw Exception("Unsupported source item: $data")
+                    }
                 }
 
-                else -> {
-                    throw Exception("Unsupported source item: $data")
-                }
+                isPlayingFlow.value = true
+                currentItemIndex.value = flattenPlaylist.value.indexOf(item)
+                updateNowPlayingInfo(item)
             }
-
-            ensureAudioSessionActive()
-
-            player.pause()
-
-            if (timeObserver != null) {
-                player.removeTimeObserver(timeObserver!!)
-                timeObserver = null
-            }
-
-            player.replaceCurrentItemWithPlayerItem(playerItem)
-
-            startTimeObserver()
-
-            player.play()
-
-            currentItemIndex.value = flattenPlaylist.value.indexOf(item)
-            updateNowPlayingInfo(item)
         }
     }
 
-    override fun play() {
+    override fun play() = runWith {
         ensureAudioSessionActive()
+        // 若audioPlayer存在，则直接播放
+        if (audioPlayer != null) {
+            debugLog("audioPlayer playing: ${audioPlayer?.currentTime} ${audioPlayer?.duration}")
+
+            audioPlayer?.play()
+            isPlayingFlow.value = true
+            currentItemFlow.value?.let { updateNowPlayingInfo(it) }
+            return@runWith
+        }
+
+        // 若player存在播放中的元素，则直接播放
         if (player.currentItem != null) {
-            debugLog("playing: ${player.currentItem} ${player.currentItem?.status}")
+            debugLog("player playing: ${player.currentItem} ${player.currentItem?.status}")
 
             player.play()
             isPlayingFlow.value = true
             currentItemFlow.value?.let { updateNowPlayingInfo(it) }
-        } else {
-            val current = currentItemFlow.value
-                ?: throw Exception("No media to play")
-            debugLog("playing: ${current.id} ${current.title} ${current.subtitle} ${current.mediaSourceName}")
-
-            playWithItem(current)
+            return@runWith
         }
+
+        // 获取当前播放元素，并进行播放
+        val current = currentItemFlow.value
+            ?: throw Exception("No media to play")
+        debugLog("playing: ${current.id} ${current.title} ${current.subtitle} ${current.mediaSourceName}")
+
+        playWithItem(current)
     }
 
-    override fun pause() {
-        player.pause()
+    override fun pause() = runWith {
+        if (audioPlayer != null) {
+            audioPlayer?.pause()
+        } else {
+            player.pause()
+        }
+
         isPlayingFlow.value = false
         currentItemFlow.value?.let { updateNowPlayingInfo(it) }
     }
@@ -440,13 +475,15 @@ class WrappedAVPlayer : Playback, CoroutineScope, KoinComponent {
         if (isPlayingFlow.value) pause() else play()
     }
 
-    override fun stop() {
+    override fun stop() = runWith {
+        audioPlayer?.stop()
+        audioPlayer = null
         player.pause()
         player.replaceCurrentItemWithPlayerItem(null)
         isPlayingFlow.value = false
     }
 
-    override fun skipTo(index: Int) {
+    override fun skipTo(index: Int) = runWith {
         val targetItem = flattenPlaylist.value.getOrNull(index)
             ?: throw Exception("Invalid index")
 
@@ -457,7 +494,7 @@ class WrappedAVPlayer : Playback, CoroutineScope, KoinComponent {
         }
     }
 
-    override fun skipToNext() {
+    override fun skipToNext() = runWith {
         val nextIndex = (currentItemIndex.value + 1) % flattenPlaylist.value.size
         val nextItem = flattenPlaylist.value.getOrNull(nextIndex)
             ?: throw Exception("No next item")
@@ -465,7 +502,7 @@ class WrappedAVPlayer : Playback, CoroutineScope, KoinComponent {
         playWithItem(nextItem)
     }
 
-    override fun skipTpPrevious() {
+    override fun skipTpPrevious() = runWith {
         val previousIndex = (currentItemIndex.value - 1 + flattenPlaylist.value.size) % flattenPlaylist.value.size
         val previousItem = flattenPlaylist.value.getOrNull(previousIndex)
             ?: throw Exception("No previous item")
@@ -473,23 +510,33 @@ class WrappedAVPlayer : Playback, CoroutineScope, KoinComponent {
         playWithItem(previousItem)
     }
 
-    override fun seekTo(positionMs: Long) {
-        val time = CMTimeMake(value = positionMs / 1000L, timescale = 1000)
-        player.seekToTime(time)
-    }
-
-    override fun currentDuration(): Long {
-        val currentItem = player.currentItem
-        currentItem?.let {
-            val duration = it.duration
-            return CMTimeGetSeconds(duration).toLong() * 1000
+    override fun seekTo(positionMs: Long) = runWith {
+        if (audioPlayer != null) {
+            audioPlayer?.playAtTime(positionMs / 1000.0)
+        } else {
+            val time = CMTimeMake(value = positionMs / 1000L, timescale = 1000)
+            player.seekToTime(time)
         }
-        return 0L
     }
 
-    override fun currentPosition(): Long {
+    override fun currentDuration(): Long = runWith(0L) {
+        if (audioPlayer != null) {
+            return@runWith audioPlayer?.duration()?.toLong() ?: 0L
+        }
+
+        player.currentItem?.let {
+            return@runWith CMTimeGetSeconds(it.duration).toLong() * 1000
+        }
+        return@runWith 0L
+    }
+
+    override fun currentPosition(): Long = runWith(0L) {
+        if (audioPlayer != null) {
+            return@runWith audioPlayer?.currentTime()?.toLong() ?: 0L
+        }
+
         val currentTime = player.currentTime()
-        return CMTimeGetSeconds(currentTime).toLong() * 1000
+        return@runWith CMTimeGetSeconds(currentTime).toLong() * 1000
     }
 
     override fun currentBufferedPosition(): Long {
@@ -497,6 +544,34 @@ class WrappedAVPlayer : Playback, CoroutineScope, KoinComponent {
     }
 
     override fun errorMessage(): SharedFlow<Throwable> = errorSharedFlow
+
+    private suspend fun runWithSuspend(callback: suspend () -> Unit) {
+        try {
+            callback()
+        } catch (e: Exception) {
+            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+            launch { errorSharedFlow.emit(e) }
+        }
+    }
+
+    private fun runWith(callback: () -> Unit) {
+        try {
+            callback()
+        } catch (e: Exception) {
+            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+            launch { errorSharedFlow.emit(e) }
+        }
+    }
+
+    private fun <T> runWith(default: T, callback: () -> T): T {
+        return try {
+            callback()
+        } catch (e: Exception) {
+            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+            launch { errorSharedFlow.emit(e) }
+            default
+        }
+    }
 }
 
 fun NSError.print() {
