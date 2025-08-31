@@ -1,10 +1,6 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
-import coil3.PlatformContext
-import coil3.SingletonImageLoader
-import coil3.request.ImageRequest
-import coil3.toBitmap
 import com.lalilu.cinterop.ObserverProtocol
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
@@ -12,9 +8,14 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.util.flatten
+import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
+import com.lalilu.lplayer.notifacation.RemoteCommandHandler
 import kotlinx.cinterop.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import platform.AVFAudio.*
@@ -24,8 +25,6 @@ import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
 import platform.CoreMedia.CMTimeMakeWithSeconds
 import platform.Foundation.*
-import platform.MediaPlayer.*
-import platform.UIKit.UIImage
 import platform.darwin.NSEC_PER_SEC
 import platform.darwin.NSObject
 import kotlin.coroutines.CoroutineContext
@@ -45,18 +44,16 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
     private val platformMediaSource: PlatformMediaSource by inject()
     private var prepareJob: Job? = null
 
-    private val nowPlayingInfoCenter = MPNowPlayingInfoCenter.defaultCenter()
-    private val remoteCommandCenter = MPRemoteCommandCenter.sharedCommandCenter()
     private var notificationObserver: Any? = null
     private var timeObserver: Any? = null
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
     val player: AVPlayer = AVPlayer()
     var audioPlayer: AVAudioPlayer? = null
-    val nowPlayingInfo = mutableMapOf<String, Any>()
 
     init {
         setUpAudioSession()
-        setupRemoteCommands()
+        NowPlayingInfoNotification.bindPlayback(this)
+        RemoteCommandHandler.bindPlayback(this)
     }
 
     private val observer: (CValue<CMTime>) -> Unit = { time ->
@@ -64,7 +61,6 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
         debugLog("observer: ${seconds}")
         if (player.currentItem?.isPlaybackLikelyToKeepUp() == true) {
             debugLog("setupRemoteCommands: ${seconds}")
-            setupRemoteCommands()
         }
 //        if (player.currentItem?.isPlaybackLikelyToKeepUp() == true) {
 //            listener?.onBufferingStateChanged(false)
@@ -76,64 +72,6 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
 //        }
     }
 
-    private fun updateNowPlayingInfo(track: LAudio) = launch {
-        nowPlayingInfo.apply {
-            this[MPMediaItemPropertyTitle] = track.title
-            this[MPMediaItemPropertyArtist] = track.subtitle
-            this[MPMediaItemPropertyAlbumTitle] = track.subtitle
-            this[MPMediaItemPropertyPlaybackDuration] = currentDuration().toDouble().div(1000)
-            this[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentPosition().toDouble().div(1000)
-            this[MPNowPlayingInfoPropertyPlaybackRate] = if (isPlayingFlow.value) 1.0 else 0.0
-        }
-
-        UIImage.imageNamed("AppIcon")?.let { placeholderImage ->
-            nowPlayingInfo[MPMediaItemPropertyArtwork] =
-                MPMediaItemArtwork(boundsSize = placeholderImage.size) { _ -> placeholderImage }
-        }
-
-        nowPlayingInfoCenter.nowPlayingInfo = nowPlayingInfo.toMap()
-
-//        loadAlbumArtwork(track)
-    }
-
-    private suspend fun loadAlbumArtwork(track: LAudio?) = withContext(Dispatchers.io) {
-        val imageLoader = SingletonImageLoader.get(PlatformContext.INSTANCE)
-        val imageResult = track?.let {
-            imageLoader.execute(
-                ImageRequest.Builder(PlatformContext.INSTANCE)
-                    .data(track)
-                    .build()
-            )
-        }
-        val bitmap = imageResult?.image?.toBitmap()
-        val pixels = bitmap?.peekPixels()?.buffer
-
-        val nsData = pixels
-            ?.takeIf { pixels.size > 0 }
-            ?.let {
-                val address = pixels.writableData().toLong()
-                val pointer = address.toCPointer<CPointed>()
-
-                NSData.dataWithBytes(pointer, it.size.toULong())
-            }
-
-        if (nsData == null) {
-            nowPlayingInfo.remove(MPMediaItemPropertyArtwork)
-            NSOperationQueue.mainQueue().addOperationWithBlock {
-                nowPlayingInfoCenter.nowPlayingInfo = nowPlayingInfo.toMap()
-            }
-            return@withContext
-        }
-
-        UIImage.imageWithData(nsData)?.let { image ->
-            nowPlayingInfo[MPMediaItemPropertyArtwork] =
-                MPMediaItemArtwork(boundsSize = image.size) { _ -> image }
-
-            NSOperationQueue.mainQueue().addOperationWithBlock {
-                nowPlayingInfoCenter.nowPlayingInfo = nowPlayingInfo.toMap()
-            }
-        }
-    }
 
     @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
     private fun ensureAudioSessionActive() {
@@ -191,71 +129,6 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
                     }
                 }
             )
-        }
-    }
-
-    private fun setupRemoteCommands() {
-        remoteCommandCenter.playCommand.setEnabled(true)
-        remoteCommandCenter.playCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            debugLog("playCommand")
-            if (!isPlayingFlow.value) {
-                play()
-                MPRemoteCommandHandlerStatusSuccess
-            } else {
-                MPRemoteCommandHandlerStatusCommandFailed
-            }
-        }
-
-        remoteCommandCenter.pauseCommand.setEnabled(true)
-        remoteCommandCenter.pauseCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            debugLog("pauseCommand")
-            if (isPlayingFlow.value) {
-                pause()
-                MPRemoteCommandHandlerStatusSuccess
-            } else {
-                MPRemoteCommandHandlerStatusCommandFailed
-            }
-        }
-
-        remoteCommandCenter.togglePlayPauseCommand.setEnabled(true)
-        remoteCommandCenter.togglePlayPauseCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            if (isPlayingFlow.value) pause() else play()
-            debugLog("togglePlayPauseCommand")
-            MPRemoteCommandHandlerStatusSuccess
-        }
-
-        remoteCommandCenter.skipForwardCommand.setEnabled(true)
-        remoteCommandCenter.skipForwardCommand.preferredIntervals = NSArray.arrayWithObject(NSNumber(double = 15.0))
-        remoteCommandCenter.skipForwardCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            val seconds = (event as? MPSkipIntervalCommandEvent)?.interval ?: 15.0
-            val current = currentPosition().toDouble().div(1000)
-            seekTo(((current + seconds) * 1000).toLong())
-            debugLog("skipForwardCommand: $seconds")
-            MPRemoteCommandHandlerStatusSuccess
-        }
-
-        remoteCommandCenter.skipBackwardCommand.setEnabled(true)
-        remoteCommandCenter.skipBackwardCommand.preferredIntervals = NSArray.arrayWithObject(NSNumber(double = 15.0))
-        remoteCommandCenter.skipBackwardCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            val seconds = (event as? MPSkipIntervalCommandEvent)?.interval ?: 15.0
-            val current = currentPosition().toDouble().div(1000)
-            seekTo(((current - seconds).coerceAtLeast(0.0) * 1000).toLong())
-            debugLog("skipBackwardCommand: $seconds")
-            MPRemoteCommandHandlerStatusSuccess
-        }
-
-        remoteCommandCenter.nextTrackCommand.setEnabled(true)
-        remoteCommandCenter.nextTrackCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            debugLog("nextTrackCommand")
-            skipToNext()
-            MPRemoteCommandHandlerStatusSuccess
-        }
-
-        remoteCommandCenter.previousTrackCommand.setEnabled(true)
-        remoteCommandCenter.previousTrackCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            debugLog("previousTrackCommand")
-            skipTpPrevious()
-            MPRemoteCommandHandlerStatusSuccess
         }
     }
 
@@ -423,7 +296,6 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
 
                 isPlayingFlow.value = true
                 currentItemIndex.value = flattenPlaylist.value.indexOf(item)
-                updateNowPlayingInfo(item)
             }
         }
     }
@@ -436,7 +308,6 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
 
             audioPlayer?.play()
             isPlayingFlow.value = true
-            currentItemFlow.value?.let { updateNowPlayingInfo(it) }
             return@runWith
         }
 
@@ -446,7 +317,6 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
 
             player.play()
             isPlayingFlow.value = true
-            currentItemFlow.value?.let { updateNowPlayingInfo(it) }
             return@runWith
         }
 
@@ -466,7 +336,6 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
         }
 
         isPlayingFlow.value = false
-        currentItemFlow.value?.let { updateNowPlayingInfo(it) }
     }
 
     override fun togglePlayPause() {
