@@ -76,9 +76,12 @@ object RemoteCommandHandler {
 
         remoteCommandCenter.changePlaybackPositionCommand.setEnabled(true)
         remoteCommandCenter.changePlaybackPositionCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            debugLog("changePlaybackPositionCommand")
-            val position = (event as? MPChangePlaybackPositionCommandEvent)?.positionTime ?: 0.0
-            playback.seekTo((position * 1000).toLong())
+            val seconds = (event as? MPChangePlaybackPositionCommandEvent)?.positionTime ?: 0.0
+            val millisecond = seconds.times(1000L)
+
+            debugLog("changePlaybackPositionCommand: $millisecond")
+            playback.seekTo(millisecond.toLong())
+
             MPRemoteCommandHandlerStatusSuccess
         }
     }

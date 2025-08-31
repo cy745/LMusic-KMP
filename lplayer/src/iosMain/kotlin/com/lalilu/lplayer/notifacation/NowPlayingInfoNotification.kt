@@ -8,17 +8,18 @@ import coil3.toBitmap
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.playback.Playback
-import kotlinx.cinterop.CPointed
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.toCPointer
-import kotlinx.coroutines.*
+import kotlinx.cinterop.refTo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import platform.Foundation.NSData
+import kotlinx.coroutines.withContext
+import platform.CoreGraphics.*
 import platform.Foundation.NSOperationQueue
-import platform.Foundation.dataWithBytes
 import platform.MediaPlayer.*
 import platform.UIKit.UIImage
 import kotlin.coroutines.CoroutineContext
@@ -30,53 +31,55 @@ object NowPlayingInfoNotification : CoroutineScope {
     private val logger = Logger.withTag("NowPlayingInfoNotification")
     private val nowPlayingInfoCenter = MPNowPlayingInfoCenter.defaultCenter()
     private val nowPlayingInfo = mutableMapOf<String, Any>()
-    private var runningJob: Job? = null
     private val updateMutex = Mutex()
 
     fun debugLog(message: String) = logger.i(messageString = message)
 
     fun bindPlayback(playback: Playback) {
         debugLog("Binding playback to NowPlayingInfoNotification")
-        runningJob?.cancel()
-        runningJob = launch {
-            playback.currentItem()
-                .onEach { track ->
-                    debugLog("Received new track: ${track?.title} by ${track?.subtitle}")
-                    nowPlayingInfo.apply {
-                        this[MPMediaItemPropertyTitle] = track?.title ?: ""
-                        this[MPMediaItemPropertyArtist] = track?.subtitle ?: ""
-                        this[MPMediaItemPropertyAlbumTitle] = track?.subtitle ?: ""
-                    }
+        playback.currentItem()
+            .onEach { track ->
+                debugLog("Received new track: ${track?.title} by ${track?.subtitle}")
+                nowPlayingInfo.apply {
+                    this[MPMediaItemPropertyTitle] = track?.title ?: ""
+                    this[MPMediaItemPropertyArtist] = track?.subtitle ?: ""
+                    this[MPMediaItemPropertyAlbumTitle] = track?.subtitle ?: ""
+                    this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration().toDouble().div(1000)
+                    this[MPNowPlayingInfoPropertyPlaybackRate] = if (playback.isPlaying().value) 1.0 else 0.0
+                    this[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
+                        playback.currentPosition().toDouble().div(1000)
+                }
 
-                    UIImage.imageNamed("AppIcon")?.let { placeholderImage ->
-                        nowPlayingInfo[MPMediaItemPropertyArtwork] =
-                            MPMediaItemArtwork(boundsSize = placeholderImage.size) { _ -> placeholderImage }
-                    }
+                val placeholderImage = UIImage.imageNamed("AppIcon")
+                debugLog("Placeholder image loaded: ${placeholderImage != null}")
+                UIImage.imageNamed("AppIcon")?.let { placeholderImage ->
+                    nowPlayingInfo[MPMediaItemPropertyArtwork] =
+                        MPMediaItemArtwork(boundsSize = placeholderImage.size) { _ -> placeholderImage }
+                }
 
-                    debugLog("Updating now playing info with track info")
-                    updateNowPlayingInfo()
+                debugLog("Updating now playing info with track info")
+                updateNowPlayingInfo()
 
-                    debugLog("Loading album artwork for track")
-                    loadAlbumArtwork(track)
-                }.launchIn(this)
+                debugLog("Loading album artwork for track")
+                loadAlbumArtwork(track)
+            }.launchIn(this)
 
-            playback.isPlaying()
-                .onEach { isPlaying ->
-                    debugLog("Playback state changed, isPlaying: $isPlaying")
-                    nowPlayingInfo.apply {
-                        this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration().toDouble().div(1000)
-                        this[MPNowPlayingInfoPropertyPlaybackRate] = if (playback.isPlaying().value) 1.0 else 0.0
-                        this[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-                            playback.currentPosition().toDouble().div(1000)
-                    }
-                    debugLog(
-                        "Playback info - Duration: ${nowPlayingInfo[MPMediaItemPropertyPlaybackDuration]}, " +
-                                "Rate: ${nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate]}, " +
-                                "Elapsed: ${nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime]}"
-                    )
-                    updateNowPlayingInfo()
-                }.launchIn(this)
-        }
+        playback.isPlaying()
+            .onEach { isPlaying ->
+                debugLog("Playback state changed, isPlaying: $isPlaying")
+                nowPlayingInfo.apply {
+                    this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration().toDouble().div(1000)
+                    this[MPNowPlayingInfoPropertyPlaybackRate] = if (playback.isPlaying().value) 1.0 else 0.0
+                    this[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
+                        playback.currentPosition().toDouble().div(1000)
+                }
+                debugLog(
+                    "Playback info - Duration: ${nowPlayingInfo[MPMediaItemPropertyPlaybackDuration]}, " +
+                            "Rate: ${nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate]}, " +
+                            "Elapsed: ${nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime]}"
+                )
+                updateNowPlayingInfo()
+            }.launchIn(this)
     }
 
     private suspend fun loadAlbumArtwork(track: LAudio?) = withContext(Dispatchers.io) {
@@ -90,32 +93,34 @@ object NowPlayingInfoNotification : CoroutineScope {
             )
         }
         val bitmap = imageResult?.image?.toBitmap()
-        val pixels = bitmap?.peekPixels()?.buffer
+        val bytes = bitmap?.readPixels()
 
-        debugLog("Bitmap loaded: ${bitmap != null}, Has pixels: ${pixels?.size ?: 0 > 0}")
-        val nsData = pixels
-            ?.takeIf { pixels.size > 0 }
-            ?.let {
-                val address = pixels.writableData().toLong()
-                val pointer = address.toCPointer<CPointed>()
-
-                NSData.dataWithBytes(pointer, it.size.toULong())
-            }
-
-        if (nsData == null) {
+        debugLog("bitmap bytes loaded: ${bytes != null}, size: ${bytes?.size}")
+        if (bitmap == null || bytes == null) {
             debugLog("No album artwork data found, removing artwork from now playing info")
             nowPlayingInfo.remove(MPMediaItemPropertyArtwork)
-            NSOperationQueue.mainQueue().addOperationWithBlock {
-                nowPlayingInfoCenter.nowPlayingInfo = nowPlayingInfo.toMap()
-            }
+            updateNowPlayingInfo()
             return@withContext
         }
 
-        debugLog("Album artwork data loaded, creating UIImage")
-        UIImage.imageWithData(nsData)?.let { image ->
-            nowPlayingInfo[MPMediaItemPropertyArtwork] =
-                MPMediaItemArtwork(boundsSize = image.size) { _ -> image }
+        val colorSpace = CGColorSpaceCreateDeviceRGB()
+        val context = CGBitmapContextCreate(
+            data = bytes.refTo(0),
+            width = bitmap.width.toULong(),
+            height = bitmap.height.toULong(),
+            bitsPerComponent = 8u,
+            bytesPerRow = (4 * bitmap.width).toULong(),
+            space = colorSpace,
+            bitmapInfo = CGImageAlphaInfo.kCGImageAlphaPremultipliedFirst.value or
+                    kCGBitmapByteOrder32Little
+        )
 
+        val uiImage = CGBitmapContextCreateImage(context)
+            ?.let { UIImage.imageWithCGImage(it) }
+
+        debugLog("Album artwork data loaded, creating UIImage: ${uiImage != null}")
+        uiImage?.let { image ->
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize = image.size) { _ -> image }
             debugLog("Album artwork updated, refreshing now playing info")
             updateNowPlayingInfo()
         }

@@ -1,13 +1,16 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
-import com.lalilu.cinterop.ObserverProtocol
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.util.flatten
+import com.lalilu.lplayer.helper.AVAudioPlayerDidPlayToEndHelper
+import com.lalilu.lplayer.helper.AVPlayerItemEventObserver
+import com.lalilu.lplayer.helper.AudioSessionHelper
+import com.lalilu.lplayer.helper.observeFor
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
 import com.lalilu.lplayer.notifacation.RemoteCommandHandler
 import kotlinx.cinterop.*
@@ -18,17 +21,15 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import platform.AVFAudio.*
+import platform.AVFAudio.AVAudioPlayer
 import platform.AVFoundation.*
-import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
-import platform.CoreMedia.CMTimeMakeWithSeconds
-import platform.Foundation.*
-import platform.darwin.NSEC_PER_SEC
-import platform.darwin.NSObject
+import platform.Foundation.NSData
+import platform.Foundation.NSError
+import platform.Foundation.NSURL
+import platform.Foundation.dataWithBytes
 import kotlin.coroutines.CoroutineContext
-import kotlin.experimental.ExperimentalNativeApi
 
 @OptIn(ExperimentalForeignApi::class)
 class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
@@ -44,172 +45,9 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
     private val platformMediaSource: PlatformMediaSource by inject()
     private var prepareJob: Job? = null
 
-    private var notificationObserver: Any? = null
-    private var timeObserver: Any? = null
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
     val player: AVPlayer = AVPlayer()
     var audioPlayer: AVAudioPlayer? = null
-
-    init {
-        setUpAudioSession()
-        NowPlayingInfoNotification.bindPlayback(this)
-        RemoteCommandHandler.bindPlayback(this)
-    }
-
-    private val observer: (CValue<CMTime>) -> Unit = { time ->
-        val seconds = CMTimeGetSeconds(time)
-        debugLog("observer: ${seconds}")
-        if (player.currentItem?.isPlaybackLikelyToKeepUp() == true) {
-            debugLog("setupRemoteCommands: ${seconds}")
-        }
-//        if (player.currentItem?.isPlaybackLikelyToKeepUp() == true) {
-//            listener?.onBufferingStateChanged(false)
-//            listener?.onPlaybackStateChanged(isPlaying())
-//            setupRemoteCommands()
-//            currentTrack?.let { updateNowPlayingInfo(it) }
-//        } else {
-//            listener?.onBufferingStateChanged(true)
-//        }
-    }
-
-
-    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-    private fun ensureAudioSessionActive() {
-        memScoped {
-            val audioSession = AVAudioSession.sharedInstance()
-            val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-
-            audioSession.setActive(active = true, withOptions = 0u, error = errorPtr.ptr)
-        }
-    }
-
-    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-    private fun setUpAudioSession() {
-        memScoped {
-            val audioSession = AVAudioSession.sharedInstance()
-            val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-
-            if (!audioSession.setCategory(
-                    category = AVAudioSessionCategoryPlayback,
-                    mode = AVAudioSessionModeDefault,
-                    options = 0u,
-                    error = errorPtr.ptr
-                )
-            ) {
-                errorPtr.value?.let { error ->
-                    debugLog("Error setting audio session category: ${error.localizedDescription}")
-                }
-                return@memScoped
-            }
-
-            if (!audioSession.setActive(active = true, withOptions = 0u, error = errorPtr.ptr)) {
-                errorPtr.value?.let { error ->
-                    debugLog("Error activating audio session: ${error.localizedDescription}")
-                }
-            }
-            NSNotificationCenter.defaultCenter().addObserverForName(
-                name = "AVAudioSessionInterruptionNotification",
-                `object` = audioSession,
-                queue = NSOperationQueue.mainQueue(),
-                usingBlock = { notification: NSNotification? ->
-                    debugLog("AVAudioSessionInterruptionNotification")
-                    notification?.userInfo?.let { userInfo ->
-                        val interruptionType = userInfo[AVAudioSessionInterruptionTypeKey] as? NSNumber
-                        val typeValue = interruptionType?.unsignedLongValue
-                        debugLog("interruptionType: $typeValue")
-                        when (typeValue) {
-                            AVAudioSessionInterruptionTypeBegan -> pause()
-                            AVAudioSessionInterruptionTypeEnded -> {
-                                val options = userInfo[AVAudioSessionInterruptionOptionKey] as? NSNumber
-                                if (options?.unsignedLongValue == AVAudioSessionInterruptionOptionShouldResume) {
-                                    play()
-                                }
-                            }
-                        }
-                    }
-                }
-            )
-        }
-    }
-
-    private val endTimeObserver: (NSNotification?) -> Unit = { _ ->
-        ensureAudioSessionActive()
-        NSOperationQueue.mainQueue().addOperationWithBlock {
-            debugLog("endTimeObserver")
-//            val nextTrackPlayed = playNextTrack()
-//
-//            if (!nextTrackPlayed) {
-//                listener?.onAudioCompleted()
-//
-//                player.pause()
-//                player.seekToTime(CMTimeMake(value = 0, timescale = 1000))
-//
-//                currentTrack?.let { updateNowPlayingInfo(it) }
-//            }
-            skipToNext()
-        }
-    }
-
-    @OptIn(ExperimentalForeignApi::class, ExperimentalNativeApi::class)
-    private fun startTimeObserver() {
-        val interval = CMTimeMakeWithSeconds(1.0, NSEC_PER_SEC.toInt())
-        timeObserver = player.addPeriodicTimeObserverForInterval(interval, queue = null, usingBlock = observer)
-
-        if (notificationObserver != null) {
-            NSNotificationCenter.defaultCenter().removeObserver(notificationObserver!!)
-            notificationObserver = null
-        }
-
-        player.currentItem?.let { currentItem ->
-            debugLog("startTimeObserver: ${currentItem.duration} ${currentItem.status} ${currentItem.loadedTimeRanges} ${currentItem.timedMetadata} ${currentItem.asset}")
-            notificationObserver = NSNotificationCenter.defaultCenter().addObserverForName(
-                name = AVPlayerItemDidPlayToEndTimeNotification,
-                `object` = currentItem,
-                queue = NSOperationQueue.mainQueue(),
-                usingBlock = endTimeObserver
-            )
-            currentItem.addObserver(
-                observer = Observer {
-                    val status = when (currentItem.status) {
-                        AVPlayerStatusUnknown -> "AVPlayerStatusUnknown"
-                        AVPlayerStatusReadyToPlay -> "AVPlayerStatusReadyToPlay"
-                        AVPlayerStatusFailed -> "AVPlayerStatusFailed"
-                        else -> "UNKNOWN"
-                    }
-                    currentItem.error?.let {
-                        debugLog("error: ${it.domain} ${it.code} -> ${it.localizedDescription}")
-                        debugLog("reason: ${it.localizedFailureReason}")
-                        debugLog("suggestion: ${it.localizedRecoverySuggestion}")
-                        debugLog("options: ${it.localizedRecoveryOptions}")
-                        it.print()
-                    }
-                    debugLog("status change: $status")
-                },
-                forKeyPath = "status",
-                options = NSKeyValueObservingOptionNew,
-                context = null
-            )
-        } ?: run {
-//            listener?.onError()
-        }
-    }
-
-    private class Observer(
-        private val callback: () -> Unit = {}
-    ) : NSObject(), ObserverProtocol {
-        override fun observeValueForKeyPath(
-            keyPath: String?,
-            ofObject: Any?,
-            change: Map<Any?, *>?,
-            context: COpaquePointer?
-        ) {
-            println("keyPath $keyPath")
-            println("ofObject $ofObject")
-            println("change $change")
-            println("context $context")
-            callback()
-        }
-    }
 
     private val errorSharedFlow = MutableSharedFlow<Throwable>()
     private val isPlayingFlow = MutableStateFlow(false)
@@ -222,6 +60,14 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
     private val currentItemFlow = flattenPlaylist
         .combine(currentItemIndex) { list, index -> list.getOrNull(index) }
         .stateIn(this, SharingStarted.WhileSubscribed(), null)
+
+    init {
+        NowPlayingInfoNotification.bindPlayback(this)
+        RemoteCommandHandler.bindPlayback(this)
+        if (AudioSessionHelper.setUpAudioSession()) {
+            AudioSessionHelper.bindPlayback(this)
+        }
+    }
 
     override fun flattenPlaylist(): StateFlow<List<LAudio>> = flattenPlaylist
     override fun playlist(): StateFlow<List<LItem>> = playlist
@@ -246,7 +92,7 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
         prepareJob?.cancel()
         prepareJob = launch {
             runWithSuspend {
-                ensureAudioSessionActive()
+                AudioSessionHelper.ensureAudioSessionActive()
                 val source = platformMediaSource.sources
                     .firstOrNull { item.mediaSourceName == it.name }
                     ?: throw Exception("No source item found for ${item.mediaSourceName}")
@@ -259,14 +105,50 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
                         val playerItem = AVPlayerItem(url)
 
                         player.pause()
-                        if (timeObserver != null) {
-                            player.removeTimeObserver(timeObserver!!)
-                            timeObserver = null
+
+                        // 监听playerItem的状态变化
+                        playerItem.observeFor("status") {
+                            when (it.status) {
+                                AVPlayerStatusUnknown -> {
+                                    debugLog("status: AVPlayerStatusUnknown")
+                                }
+
+                                AVPlayerStatusReadyToPlay -> {
+                                    debugLog("status: AVPlayerStatusReadyToPlay")
+                                    isPlayingFlow.value = true
+                                    currentItemIndex.value = flattenPlaylist.value.indexOf(item)
+                                }
+
+                                AVPlayerStatusFailed -> {
+                                    debugLog("status: AVPlayerStatusFailed")
+                                    it.error?.let {
+                                        debugLog("error: ${it.domain} ${it.code} -> ${it.localizedDescription}")
+                                        debugLog("reason: ${it.localizedFailureReason}")
+                                        debugLog("suggestion: ${it.localizedRecoverySuggestion}")
+                                        debugLog("options: ${it.localizedRecoveryOptions}")
+                                    }
+                                    it.error?.print()
+                                }
+                            }
                         }
 
+                        // 监听进度变化
+//                        AVPlayerPositionObserver.observe(player) {
+//                            debugLog("position: $it")
+//                        }
                         player.replaceCurrentItemWithPlayerItem(playerItem)
-                        startTimeObserver()
                         player.play()
+
+                        // 监听播放完成事件
+                        AVPlayerItemEventObserver.observe(
+                            key = AVPlayerItemDidPlayToEndTimeNotification,
+                            target = playerItem,
+                            callback = {
+                                debugLog("AVPlayerItemDidPlayToEndTimeNotification")
+                                this@AVPlayerPlayback.skipToNext()
+                            }
+                        )
+
                         audioPlayer?.stop()
                         audioPlayer = null
                     }
@@ -285,6 +167,29 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
                         player.prepareToPlay()
                         player.play()
 
+                        isPlayingFlow.value = true
+                        currentItemIndex.value = flattenPlaylist.value.indexOf(item)
+
+                        AVAudioPlayerDidPlayToEndHelper.observe(
+                            player = player,
+                            onFinishPlaying = { _, isSuccess ->
+                                debugLog("AVAudioPlayerDidPlayToEndTimeNotification: $isSuccess")
+                                this@AVPlayerPlayback.skipToNext()
+                            },
+                            onEndInterruptionWithFlags = { _, flags ->
+                                debugLog("AVAudioPlayerDidEndInterruptionWithFlags: $flags")
+                            },
+                            onDecodeErrorDidOccur = { _, error ->
+                                debugLog("AVAudioPlayerDidDecodeErrorDidOccur: $error")
+                            },
+                            onBeginInterruption = {
+                                debugLog("AVAudioPlayerDidBeginInterruption")
+                            },
+                            onEndInterruption = {
+                                debugLog("AVAudioPlayerDidEndInterruption")
+                            }
+                        )
+
                         audioPlayer?.stop()
                         audioPlayer = player
                     }
@@ -293,15 +198,12 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
                         throw Exception("Unsupported source item: $data")
                     }
                 }
-
-                isPlayingFlow.value = true
-                currentItemIndex.value = flattenPlaylist.value.indexOf(item)
             }
         }
     }
 
     override fun play() = runWith {
-        ensureAudioSessionActive()
+        AudioSessionHelper.ensureAudioSessionActive()
         // 若audioPlayer存在，则直接播放
         if (audioPlayer != null) {
             debugLog("audioPlayer playing: ${audioPlayer?.currentTime} ${audioPlayer?.duration}")
@@ -361,7 +263,7 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
         }
     }
 
-    override fun skipToNext() = runWith {
+    override fun skipToNext(): Unit = runWith {
         val nextIndex = (currentItemIndex.value + 1) % flattenPlaylist.value.size
         val nextItem = flattenPlaylist.value.getOrNull(nextIndex)
             ?: throw Exception("No next item")
@@ -369,7 +271,7 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
         playWithItem(nextItem)
     }
 
-    override fun skipTpPrevious() = runWith {
+    override fun skipTpPrevious(): Unit = runWith {
         val previousIndex = (currentItemIndex.value - 1 + flattenPlaylist.value.size) % flattenPlaylist.value.size
         val previousItem = flattenPlaylist.value.getOrNull(previousIndex)
             ?: throw Exception("No previous item")
@@ -381,7 +283,7 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
         if (audioPlayer != null) {
             audioPlayer?.playAtTime(positionMs / 1000.0)
         } else {
-            val time = CMTimeMake(value = positionMs / 1000L, timescale = 1000)
+            val time = CMTimeMake(value = positionMs, timescale = 1000)
             player.seekToTime(time)
         }
     }
@@ -391,10 +293,13 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
             return@runWith audioPlayer?.duration()?.toLong() ?: 0L
         }
 
-        player.currentItem?.let {
-            return@runWith CMTimeGetSeconds(it.duration).toLong() * 1000
-        }
-        return@runWith 0L
+        val seconds = player.currentItem
+            ?.let { CMTimeGetSeconds(it.duration) }
+            ?: 0.0
+
+        return@runWith seconds
+            .times(1000.0)
+            .toLong()
     }
 
     override fun currentPosition(): Long = runWith(0L) {
@@ -403,7 +308,11 @@ class AVPlayerPlayback : Playback, CoroutineScope, KoinComponent {
         }
 
         val currentTime = player.currentTime()
-        return@runWith CMTimeGetSeconds(currentTime).toLong() * 1000
+        val seconds = CMTimeGetSeconds(currentTime)
+
+        return@runWith seconds
+            .times(1000.0)
+            .toLong()
     }
 
     override fun currentBufferedPosition(): Long {
