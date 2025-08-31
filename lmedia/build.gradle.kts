@@ -62,6 +62,7 @@ kotlin {
                 api(libs.filekit.dialogs.compose)
                 api(libs.bundles.settings)
                 api(libs.ktor.server.core)
+                api(libs.ktor.server.cors)
                 api(libs.bundles.krpc)
                 api(libs.ktorfit)
                 api(kotlincrypto.hash.md)

@@ -20,6 +20,7 @@ import com.lalilu.lmedia.source.MediaSourceBase
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
+import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.*
@@ -101,7 +102,7 @@ class RemoteServer(
 
         callbackFlow<EngineServer?> {
             val server = provideRpcServer(port = config.port, mediaSource = targetMediaSource)
-                ?.start(wait = false)
+                ?.startSuspend(wait = false)
 
             if (server != null) {
                 Logger.i(
@@ -196,6 +197,10 @@ private fun provideRpcServer(
 
     return embeddedServer(factory, port) {
         install(Krpc)
+        install(CORS) {
+            anyHost()
+            anyMethod()
+        }
 
         routing {
             rpc("/rpc") {
