@@ -7,6 +7,7 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.util.flatten
+import com.lalilu.lplayer.notification.BrowserMediaSessionHelper
 import io.github.vinceglb.filekit.utils.toJsArray
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -40,6 +41,13 @@ class AudioPlayback : Playback, CoroutineScope, KoinComponent {
         .stateIn(this, SharingStarted.WhileSubscribed(), null)
 
     private val player = Audio()
+
+    init {
+        BrowserMediaSessionHelper.bindPlayback(this)
+        player.addEventListener("ended") {
+            skipToNext()
+        }
+    }
 
     private fun playWithItem(item: LAudio) {
         prepareJob?.cancel()
