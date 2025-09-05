@@ -5,14 +5,6 @@ import com.lalilu.lmedia.entity.LItem
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
-sealed class PlaybackState {
-    data object Idle : PlaybackState()
-    data class Loading(val item: LItem) : PlaybackState()
-    data class Playing(val item: LItem) : PlaybackState()
-    data class Paused(val item: LItem) : PlaybackState()
-    data class Error(val error: Throwable) : PlaybackState()
-    data object Stopped : PlaybackState()
-}
 
 interface Playback {
     // Controls
