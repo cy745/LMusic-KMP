@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -30,19 +31,19 @@ object BrowserMediaSessionHelper : CoroutineScope, KoinComponent {
         val session = mediaSession ?: return
 
         session.setActionHandler("play") {
-            playback.play()
+            launch { playback.play() }
         }
         session.setActionHandler("pause") {
-            playback.pause()
+            launch { playback.pause() }
         }
         session.setActionHandler("previoustrack") {
-            playback.skipTpPrevious()
+            launch { playback.skipToPrevious() }
         }
         session.setActionHandler("nexttrack") {
-            playback.skipToNext()
+            launch { playback.skipToNext() }
         }
 
-        playback.currentItem().onEach { item ->
+        playback.currentItem.onEach { item ->
             item?.let {
                 createMetadata(
                     it.title,

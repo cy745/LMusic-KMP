@@ -1,13 +1,19 @@
 package com.lalilu.lplayer.helper
 
 import co.touchlab.kermit.Logger
+import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
 import kotlinx.cinterop.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import platform.AVFAudio.*
 import platform.Foundation.*
+import kotlin.coroutines.CoroutineContext
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-object AudioSessionHelper {
+object AudioSessionHelper : CoroutineScope {
+    override val coroutineContext: CoroutineContext = Dispatchers.io
     private val audioSession by lazy { AVAudioSession.sharedInstance() }
     private val logger = Logger.withTag("AudioSessionInterruptionHelper")
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
@@ -57,13 +63,16 @@ object AudioSessionHelper {
                     val interruptionType = userInfo[AVAudioSessionInterruptionTypeKey] as? NSNumber
                     val typeValue = interruptionType?.unsignedLongValue
                     debugLog("interruptionType: $typeValue")
-                    
+
                     when (typeValue) {
-                        AVAudioSessionInterruptionTypeBegan -> playback.pause()
+                        AVAudioSessionInterruptionTypeBegan -> {
+                            launch { playback.pause() }
+                        }
+
                         AVAudioSessionInterruptionTypeEnded -> {
                             val options = userInfo[AVAudioSessionInterruptionOptionKey] as? NSNumber
                             if (options?.unsignedLongValue == AVAudioSessionInterruptionOptionShouldResume) {
-                                playback.play()
+                                launch { playback.play() }
                             }
                         }
                     }

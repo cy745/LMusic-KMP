@@ -8,29 +8,39 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface Playback {
     // Controls
-    fun play()
-    fun pause()
-    fun togglePlayPause()
-    fun stop()
-    fun skipTo(index: Int)
-    fun skipToNext()
-    fun skipTpPrevious()
-    fun seekTo(positionMs: Long)
+    suspend fun play()
+    suspend fun pause()
+    suspend fun togglePlayPause()
+    suspend fun stop()
+    suspend fun skipTo(index: Int)
+    suspend fun skipToNext()
+    suspend fun skipToPrevious()
+    suspend fun seekTo(positionMs: Long)
 
-    // Queue
-    fun flattenPlaylist(): StateFlow<List<LAudio>>
-    fun playlist(): StateFlow<List<LItem>>
-    fun updatePlaylist(playlist: List<LItem>)
-    fun clearPlaylist()
+    // Queue Management
+    val playlist: StateFlow<List<LItem>>
+    val currentItem: StateFlow<LAudio?>
+    val currentItemIndex: StateFlow<Int>
 
-    // Infos
-    fun isPlaying(): StateFlow<Boolean>
-    fun currentItem(): StateFlow<LAudio?>
-    fun currentItemIndex(): StateFlow<Int>
-    fun currentPlaybackState(): StateFlow<PlaybackState>
+    suspend fun updatePlaylist(playlist: List<LItem>)
+    suspend fun clearPlaylist()
 
-    fun currentDuration(): Long
-    fun currentPosition(): Long
-    fun currentBufferedPosition(): Long
-    fun errorMessage(): SharedFlow<Throwable>
+    // Playback State
+    val isPlaying: StateFlow<Boolean>
+    val playbackState: StateFlow<PlaybackState>
+    val errors: SharedFlow<Throwable>
+    val playbackMode: StateFlow<PlaybackMode>
+
+    // Playback Information
+    val currentDuration: StateFlow<Long>
+    val currentPosition: StateFlow<Long>
+    val currentBufferedPosition: StateFlow<Long>
+
+    // Utility Properties
+    val canSeek: StateFlow<Boolean>
+    val canSkipNext: StateFlow<Boolean>
+    val canSkipPrevious: StateFlow<Boolean>
+
+    // Playback Mode
+    suspend fun setPlaybackMode(mode: PlaybackMode)
 }

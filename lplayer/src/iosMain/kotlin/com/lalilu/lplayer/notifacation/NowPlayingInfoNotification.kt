@@ -37,17 +37,17 @@ object NowPlayingInfoNotification : CoroutineScope {
 
     fun bindPlayback(playback: Playback) {
         debugLog("Binding playback to NowPlayingInfoNotification")
-        playback.currentItem()
+        playback.currentItem
             .onEach { track ->
                 debugLog("Received new track: ${track?.title} by ${track?.subtitle}")
                 nowPlayingInfo.apply {
                     this[MPMediaItemPropertyTitle] = track?.title ?: ""
                     this[MPMediaItemPropertyArtist] = track?.subtitle ?: ""
                     this[MPMediaItemPropertyAlbumTitle] = track?.subtitle ?: ""
-                    this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration().toDouble().div(1000)
-                    this[MPNowPlayingInfoPropertyPlaybackRate] = if (playback.isPlaying().value) 1.0 else 0.0
+                    this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration.value.toDouble().div(1000)
+                    this[MPNowPlayingInfoPropertyPlaybackRate] = if (playback.isPlaying.value) 1.0 else 0.0
                     this[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-                        playback.currentPosition().toDouble().div(1000)
+                        playback.currentPosition.value.toDouble().div(1000)
                 }
 
                 val placeholderImage = UIImage.imageNamed("AppIcon")
@@ -64,14 +64,14 @@ object NowPlayingInfoNotification : CoroutineScope {
                 loadAlbumArtwork(track)
             }.launchIn(this)
 
-        playback.isPlaying()
+        playback.isPlaying
             .onEach { isPlaying ->
                 debugLog("Playback state changed, isPlaying: $isPlaying")
                 nowPlayingInfo.apply {
-                    this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration().toDouble().div(1000)
-                    this[MPNowPlayingInfoPropertyPlaybackRate] = if (playback.isPlaying().value) 1.0 else 0.0
+                    this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration.value.toDouble().div(1000)
+                    this[MPNowPlayingInfoPropertyPlaybackRate] = if (isPlaying) 1.0 else 0.0
                     this[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-                        playback.currentPosition().toDouble().div(1000)
+                        playback.currentPosition.value.toDouble().div(1000)
                 }
                 debugLog(
                     "Playback info - Duration: ${nowPlayingInfo[MPMediaItemPropertyPlaybackDuration]}, " +

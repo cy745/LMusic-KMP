@@ -7,6 +7,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -23,6 +24,9 @@ import com.lalilu.remixicon.Arrows
 import com.lalilu.remixicon.arrows.arrowLeftLine
 import io.github.hristogochev.vortex.model.ScreenModel
 import io.github.hristogochev.vortex.model.rememberScreenModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Destination("/player")
 class PlayerScreen : Screen {
@@ -33,6 +37,7 @@ class PlayerScreen : Screen {
         val model = rememberScreenModel { PlayerScreenModel() }
         val isPlaying = model.isPlaying.collectAsState()
         val currentItem = model.currentItem.collectAsState()
+        val scope = rememberCoroutineScope()
 
         Column(
             modifier = Modifier.fillMaxSize()
@@ -49,19 +54,19 @@ class PlayerScreen : Screen {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Button(onClick = { LPlayer.instance.skipTpPrevious() }) {
+                Button(onClick = { scope.launch { LPlayer.instance.skipToPrevious() } }) {
                     Text(text = "Previous")
                 }
 
-                Button(onClick = { LPlayer.instance.play() }) {
+                Button(onClick = { scope.launch { LPlayer.instance.play() } }) {
                     Text(text = "Play")
                 }
 
-                Button(onClick = { LPlayer.instance.pause() }) {
+                Button(onClick = { scope.launch { LPlayer.instance.pause() } }) {
                     Text(text = "Pause")
                 }
 
-                Button(onClick = { LPlayer.instance.skipToNext() }) {
+                Button(onClick = { scope.launch { LPlayer.instance.skipToNext() } }) {
                     Text(text = "Next")
                 }
             }
@@ -88,15 +93,17 @@ class PlayerScreen : Screen {
     }
 }
 
-class PlayerScreenModel : ScreenModel {
-    val isPlaying = LPlayer.instance.isPlaying()
-    val currentItem = LPlayer.instance.currentItem()
+class PlayerScreenModel : ScreenModel, CoroutineScope by CoroutineScope(Dispatchers.Default) {
+    val isPlaying = LPlayer.instance.isPlaying
+    val currentItem = LPlayer.instance.currentItem
 
     init {
         LMedia.instance.whenReady {
-            val list = LMedia.instance.get<LAudio>()
-            LPlayer.instance.updatePlaylist(list)
-            Logger.i("[LPlayer] set list: ${list.size}")
+            launch {
+                val list = LMedia.instance.get<LAudio>()
+                LPlayer.instance.updatePlaylist(list)
+                Logger.i("[LPlayer] set list: ${list.size}")
+            }
         }
     }
 }

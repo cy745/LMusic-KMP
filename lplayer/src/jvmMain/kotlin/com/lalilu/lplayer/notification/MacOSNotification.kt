@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.launch
 import org.rococoa.Rococoa
 import org.rococoa.cocoa.foundation.*
 import kotlin.coroutines.CoroutineContext
@@ -71,7 +72,7 @@ class MacOSNotification(
             selector = changePositionCallback.selector
         )
 
-        playback.currentItem().combine(playback.isPlaying()) { audio, isPlaying ->
+        playback.currentItem.combine(playback.isPlaying) { audio, isPlaying ->
             Logger.i("currentItem: $audio, isPlaying: $isPlaying")
 
             val title = audio?.title ?: "Unknown"
@@ -116,9 +117,9 @@ class MacOSNotification(
             val values = NSArray.CLASS.arrayWithObjects(
                 NSString.stringWithString(title),
                 NSString.stringWithString(subtitle),
-                NSNumber.CLASS.numberWithLong(playback.currentDuration()),
+                NSNumber.CLASS.numberWithLong(playback.currentDuration.value),
                 NSNumber.CLASS.numberWithDouble(if (isPlaying) 1.0 else 0.0),
-                NSNumber.CLASS.numberWithLong(playback.currentPosition()),
+                NSNumber.CLASS.numberWithLong(playback.currentPosition.value),
                 NSNumber.CLASS.numberWithBool(false),
                 artwork,
             )
@@ -133,12 +134,12 @@ class MacOSNotification(
         val command = event.command()
 
         when (command) {
-            remoteCommandCenter.playCommand() -> playback.play()
-            remoteCommandCenter.pauseCommand() -> playback.pause()
-            remoteCommandCenter.stopCommand() -> playback.stop()
-            remoteCommandCenter.togglePlayPauseCommand() -> playback.togglePlayPause()
-            remoteCommandCenter.nextTrackCommand() -> playback.skipToNext()
-            remoteCommandCenter.previousTrackCommand() -> playback.skipTpPrevious()
+            remoteCommandCenter.playCommand() -> launch { playback.play() }
+            remoteCommandCenter.pauseCommand() -> launch { playback.pause() }
+            remoteCommandCenter.stopCommand() -> launch { playback.stop() }
+            remoteCommandCenter.togglePlayPauseCommand() -> launch { playback.togglePlayPause() }
+            remoteCommandCenter.nextTrackCommand() -> launch { playback.skipToNext() }
+            remoteCommandCenter.previousTrackCommand() -> launch { playback.skipToPrevious() }
             else -> {
                 Logger.i("UnRecognized command: $command timestamp: ${event.timestamp()}")
             }
@@ -149,7 +150,7 @@ class MacOSNotification(
 
     override fun onPositionChange(event: MPChangePlaybackPositionCommandEvent): MPRemoteCommandHandlerStatus {
         val position = (event.positionTime() * 1000L).toLong()
-        playback.seekTo(position)
+        launch { playback.seekTo(position) }
         return MPRemoteCommandHandlerStatus.Success
     }
 }
