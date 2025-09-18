@@ -1,5 +1,8 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
+import com.lalilu.gradle.XcodeDetector
+import com.lalilu.gradle.makeSureAllSourcesJarAfterKsp
+import com.lalilu.gradle.setupIOSTarget
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -30,12 +33,8 @@ kotlin {
             jvmTarget = JvmTarget.JVM_11
         }
     }
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach {
-        it.compilations {
+    setupIOSTarget {
+        compilations {
             val main by getting {
                 cinterops {
                     create("MusicKitWrapper")
@@ -90,10 +89,12 @@ kotlin {
     }
 }
 
-swiftklib {
-    create("MusicKitWrapper") {
-        path = file("native/MusicKitWrapper")
-        packageName("com.lalilu.lmedia")
+XcodeDetector.whenXcodeInstalled {
+    swiftklib {
+        create("MusicKitWrapper") {
+            path = file("native/MusicKitWrapper")
+            packageName("com.lalilu.lmedia")
+        }
     }
 }
 
@@ -113,24 +114,7 @@ android {
     }
 }
 
-tasks.getByName("jvmSourcesJar") {
-    dependsOn("kspCommonMainKotlinMetadata")
-}
-tasks.getByName("wasmJsSourcesJar") {
-    dependsOn("kspCommonMainKotlinMetadata")
-}
-tasks.getByName("sourcesJar") {
-    dependsOn("kspCommonMainKotlinMetadata")
-}
-tasks.getByName("iosArm64SourcesJar") {
-    dependsOn("kspCommonMainKotlinMetadata")
-}
-tasks.getByName("iosX64SourcesJar") {
-    dependsOn("kspCommonMainKotlinMetadata")
-}
-tasks.getByName("iosSimulatorArm64SourcesJar") {
-    dependsOn("kspCommonMainKotlinMetadata")
-}
+makeSureAllSourcesJarAfterKsp()
 
 mavenPublishing {
     coordinates(
