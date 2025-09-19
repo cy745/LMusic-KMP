@@ -127,11 +127,14 @@ class AudioPlayback : AbstractPlayback(), KoinComponent {
     override suspend fun seekTo(positionMs: Long) {
         try {
             player.fastSeek(positionMs.toDouble())
-            _currentPosition.value = positionMs / 1000L
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
             emitError(e)
         }
+    }
+    
+    override fun currentPosition(): Long {
+        return (player.currentTime * 1000).toLong()
     }
 }
 

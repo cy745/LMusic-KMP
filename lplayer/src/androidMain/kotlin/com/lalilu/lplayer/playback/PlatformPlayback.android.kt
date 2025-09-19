@@ -9,74 +9,77 @@ import kotlinx.coroutines.flow.StateFlow
 
 actual fun platformPlayback(): Playback {
     return object : Playback {
-        override fun play() {
+        override suspend fun play() {
         }
 
-        override fun pause() {
+        override suspend fun pause() {
         }
 
-        override fun togglePlayPause() {
+        override suspend fun togglePlayPause() {
         }
 
-        override fun stop() {
+        override suspend fun stop() {
         }
 
-        override fun skipTo(index: Int) {
+        override suspend fun skipTo(index: Int) {
         }
 
-        override fun skipToNext() {
+        override suspend fun skipToNext() {
         }
 
-        override fun skipTpPrevious() {
+        override suspend fun skipToPrevious() {
         }
 
-        override fun seekTo(positionMs: Long) {
+        override suspend fun seekTo(positionMs: Long) {
         }
 
-        override fun flattenPlaylist(): StateFlow<List<LAudio>> {
-            return MutableStateFlow(emptyList())
+        override val playlist: StateFlow<List<LItem>>
+            get() = MutableStateFlow(emptyList())
+
+        override val currentItem: StateFlow<LAudio?>
+            get() = MutableStateFlow(null)
+
+        override val currentItemIndex: StateFlow<Int>
+            get() = MutableStateFlow(0)
+
+        override suspend fun updatePlaylist(playlist: List<LItem>) {
         }
 
-        override fun playlist(): StateFlow<List<LItem>> {
-            return MutableStateFlow(emptyList())
+        override suspend fun clearPlaylist() {
         }
 
-        override fun updatePlaylist(playlist: List<LItem>) {
-        }
+        override val isPlaying: StateFlow<Boolean>
+            get() = MutableStateFlow(false)
 
-        override fun clearPlaylist() {
-        }
+        override val playbackState: StateFlow<PlaybackState>
+            get() = MutableStateFlow(PlaybackState.Idle)
 
-        override fun isPlaying(): StateFlow<Boolean> {
-            return MutableStateFlow(false)
-        }
+        override val errors: SharedFlow<Throwable>
+            get() = MutableSharedFlow()
 
-        override fun currentItem(): StateFlow<LAudio?> {
-            return MutableStateFlow(null)
-        }
+        override val playbackMode: StateFlow<PlaybackMode>
+            get() = MutableStateFlow(PlaybackMode.SEQUENTIAL)
 
-        override fun currentItemIndex(): StateFlow<Int> {
-            return MutableStateFlow(0)
-        }
-
-        override fun currentPlaybackState(): StateFlow<PlaybackState> {
-            return MutableStateFlow(PlaybackState.Idle)
-        }
-
-        override fun currentDuration(): Long {
-            return 0L
-        }
+        override val currentDuration: StateFlow<Long>
+            get() = MutableStateFlow(0L)
 
         override fun currentPosition(): Long {
             return 0L
         }
 
-        override fun currentBufferedPosition(): Long {
-            return 0L
-        }
+        override val currentBufferedPosition: StateFlow<Long>
+            get() = MutableStateFlow(0L)
 
-        override fun errorMessage(): SharedFlow<Throwable> {
-            return MutableSharedFlow()
+        override val canSeek: StateFlow<Boolean>
+            get() = MutableStateFlow(false)
+
+        override val canSkipNext: StateFlow<Boolean>
+            get() = MutableStateFlow(false)
+
+        override val canSkipPrevious: StateFlow<Boolean>
+            get() = MutableStateFlow(false)
+
+        override suspend fun setPlaybackMode(mode: PlaybackMode) {
         }
     }
 }

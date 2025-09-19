@@ -244,6 +244,14 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
             emitError(e)
         }
     }
+    
+    override fun currentPosition(): Long {
+        return if (audioPlayer != null) {
+            (audioPlayer!!.currentTime * 1000).toLong()
+        } else {
+            (player.currentTime().seconds * 1000).toLong()
+        }
+    }
 }
 
 fun NSError.print() {

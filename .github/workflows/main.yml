@@ -46,23 +46,23 @@ jobs:
   build-windows:
     name: build-windows
     runs-on: windows-latest
-  
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-  
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: gradle
-  
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Build with Gradle
         run: ./gradlew composeApp:packageReleaseMsi
-  
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -72,23 +72,23 @@ jobs:
   build-macos:
     name: build-macos
     runs-on: macos-latest
-  
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-  
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: gradle
-  
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Build with Gradle
         run: ./gradlew composeApp:packageReleaseDmg
-  
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -98,27 +98,62 @@ jobs:
   build-linux:
     name: build-linux
     runs-on: ubuntu-latest
-  
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-  
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: gradle
-  
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Build with Gradle
         run: ./gradlew composeApp:packageReleaseDeb
-  
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-deb
           path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/deb/*.deb
 
+  build-web:
+    name: build-web
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Build Web Distribution
+        run: ./gradlew composeApp:wasmJsBrowserDistribution
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: ${{ github.workspace }}/composeApp/build/dist/wasmJs/productionExecutable/
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-args: '--prod'
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-project-path: ${{ secrets.VERCEL_PROJECT_NAME }}
+          working-directory: ${{ github.workspace }}/composeApp/build/dist/wasmJs/productionExecutable/
       

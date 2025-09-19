@@ -119,7 +119,7 @@ class MacOSNotification(
                 NSString.stringWithString(subtitle),
                 NSNumber.CLASS.numberWithLong(playback.currentDuration.value),
                 NSNumber.CLASS.numberWithDouble(if (isPlaying) 1.0 else 0.0),
-                NSNumber.CLASS.numberWithLong(playback.currentPosition.value),
+                NSNumber.CLASS.numberWithLong(playback.currentPosition()),
                 NSNumber.CLASS.numberWithBool(false),
                 artwork,
             )

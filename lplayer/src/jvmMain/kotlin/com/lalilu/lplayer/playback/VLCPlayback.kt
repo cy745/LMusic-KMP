@@ -141,11 +141,14 @@ class VLCPlayback : AbstractPlayback(), KoinComponent {
     override suspend fun seekTo(positionMs: Long) {
         try {
             player.controls().setTime(positionMs)
-            _currentPosition.value = positionMs / 1000L
         } catch (e: Exception) {
             Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
             emitError(e)
         }
+    }
+    
+    override fun currentPosition(): Long {
+        return player.status().time()
     }
 
     private fun bindPlayer(player: MediaPlayer) {
@@ -169,12 +172,10 @@ class VLCPlayback : AbstractPlayback(), KoinComponent {
             }
 
             override fun timeChanged(mediaPlayer: MediaPlayer?, newTime: Long) {
-                _currentPosition.value = newTime / 1000L
+                // 不再需要更新_currentPosition
             }
 
             override fun lengthChanged(mediaPlayer: MediaPlayer?, newLength: Long) {
-                _currentPosition.value = 0L
-                _currentBufferedPosition.value = 0L
                 _currentDuration.value = newLength / 1000L
                 updateNavigationCapabilities()
             }

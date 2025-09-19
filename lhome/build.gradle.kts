@@ -1,8 +1,10 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
 import com.android.build.api.dsl.androidLibrary
+import com.lalilu.gradle.setupIOSTarget
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmCompilerOptions
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -24,14 +26,13 @@ kotlin {
         compileSdk = libs.versions.android.targetSdk.get().toInt()
 
         compilations.configureEach {
-            compilerOptions.configure {
-                jvmTarget = JvmTarget.JVM_11
+            compileTaskProvider.configure {
+                (compilerOptions as? KotlinJvmCompilerOptions)
+                    ?.jvmTarget = JvmTarget.JVM_11
             }
         }
     }
-    iosX64()
-    iosArm64()
-    iosSimulatorArm64()
+    setupIOSTarget {}
     wasmJs {
         browser()
         binaries.executable()

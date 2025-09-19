@@ -1,3 +1,4 @@
+import com.lalilu.gradle.setupIOSTarget
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -24,12 +25,8 @@ kotlin {
         }
     }
 
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
+    setupIOSTarget {
+        binaries.framework {
             baseName = "ComposeApp"
             isStatic = true
         }
@@ -74,6 +71,7 @@ kotlin {
             implementation(project(":component"))
             implementation(project(":lmedia"))
             implementation(project(":lplayer"))
+            implementation(project(":llyricview"))
             implementation(project(":lhome"))
             implementation(libs.compose.ui.backhandler)
             implementation(compose.components.resources)
