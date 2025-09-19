@@ -1,10 +1,8 @@
 import com.lalilu.gradle.setupIOSTarget
-import org.gradle.kotlin.dsl.assign
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.dsl.KotlinJvmCompilerOptions
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
 import java.io.FileInputStream
 import java.util.*
@@ -73,6 +71,7 @@ kotlin {
             implementation(project(":component"))
             implementation(project(":lmedia"))
             implementation(project(":lplayer"))
+            implementation(project(":llyricview"))
             implementation(project(":lhome"))
             implementation(libs.compose.ui.backhandler)
             implementation(compose.components.resources)

@@ -20,7 +20,7 @@ plugins {
     alias(libs.plugins.osdetector)
 }
 
-group = "com.lalilu.lplayer"
+group = "com.lalilu.llyricview"
 version = "1.0.0"
 
 kotlin {
@@ -30,15 +30,7 @@ kotlin {
             jvmTarget = JvmTarget.JVM_11
         }
     }
-    setupIOSTarget {
-        compilations {
-            val main by getting {
-                val observer by cinterops.creating {
-                    definitionFile.set(file("src/nativeInterop/cinterop/observer.def"))
-                }
-            }
-        }
-    }
+    setupIOSTarget {}
     wasmJs {
         browser()
         binaries.executable()
@@ -49,8 +41,7 @@ kotlin {
             dependencies {
                 api(compose.components.resources)
                 api(project(":component"))
-                api(project(":lmedia"))
-                api(project(":llyricview"))
+                api(project(":llyric"))
                 api(libs.koin.core)
                 api(libs.koin.annotations)
                 api(libs.kotlinx.coroutines.core)
@@ -64,18 +55,6 @@ kotlin {
                 implementation(libs.kotlin.test)
             }
         }
-        iosMain.dependencies {
-        }
-        androidMain.dependencies {
-            implementation(compose.preview)
-            implementation(libs.media3.session)
-            implementation(libs.media3.exoplayer)
-        }
-        jvmMain.dependencies {
-            implementation(libs.vlcj)
-            implementation(libs.bundles.rococoa)
-            implementation(project(":lplayer:libwrapper"))
-        }
         val jvmTest by getting {
             dependencies {
                 implementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
@@ -85,13 +64,6 @@ kotlin {
         }
     }
 }
-
-//swiftklib {
-//    create("MusicKitWrapper") {
-//        path = file("native/MusicKitWrapper")
-//        packageName("com.lalilu.lmedia")
-//    }
-//}
 
 dependencies {
     debugImplementation(libs.compose.ui.tooling)
