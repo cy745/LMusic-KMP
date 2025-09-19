@@ -33,7 +33,7 @@ interface Playback {
 
     // Playback Information
     val currentDuration: StateFlow<Long>
-    val currentPosition: StateFlow<Long>
+    fun currentPosition(): Long
     val currentBufferedPosition: StateFlow<Long>
 
     // Utility Properties
