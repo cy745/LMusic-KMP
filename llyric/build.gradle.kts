@@ -2,22 +2,13 @@
 
 import com.lalilu.gradle.makeSureAllSourcesJarAfterKsp
 import com.lalilu.gradle.setupIOSTarget
-import com.vanniktech.maven.publish.JavadocJar
-import com.vanniktech.maven.publish.KotlinMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
-    alias(libs.plugins.composeMultiplatform)
-    alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
-    alias(libs.plugins.vanniktech.pulish)
-    alias(libs.plugins.dokka)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.swiftklib)
-    alias(libs.plugins.osdetector)
 }
 
 group = "com.lalilu.llyric"
@@ -40,14 +31,8 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                api(compose.components.resources)
-                api(libs.koin.core)
-                api(libs.koin.annotations)
                 api(libs.kotlinx.coroutines.core)
                 api(libs.kotlinx.io)
-                api(libs.filekit.core)
-                api(libs.bundles.settings)
-
                 api(libs.kotlinx.serialization)
                 api(libs.xmlutil.core)
                 api(libs.xmlutil.serialization)
@@ -58,12 +43,6 @@ kotlin {
                 implementation(libs.kotlin.test)
             }
         }
-        iosMain.dependencies {
-        }
-        androidMain.dependencies {
-        }
-        jvmMain.dependencies {
-        }
         val jvmTest by getting {
             dependencies {
                 implementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
@@ -72,11 +51,6 @@ kotlin {
             }
         }
     }
-}
-
-dependencies {
-    debugImplementation(libs.compose.ui.tooling)
-    kspCommonMainMetadata(libs.koin.compiler)
 }
 
 android {
@@ -91,27 +65,3 @@ android {
 }
 
 makeSureAllSourcesJarAfterKsp()
-
-mavenPublishing {
-    coordinates(
-        groupId = group.toString(),
-        version = version.toString(),
-        artifactId = "core",
-    )
-
-    configure(
-        KotlinMultiplatform(
-            javadocJar = JavadocJar.Dokka("dokkaGenerate"),
-            sourcesJar = true,
-        )
-    )
-
-    pom {
-        name = "LPlayer"
-        description = "LPlayer"
-        inceptionYear = "2025"
-    }
-
-    publishToMavenCentral(true)
-//    signAllPublications()
-}
