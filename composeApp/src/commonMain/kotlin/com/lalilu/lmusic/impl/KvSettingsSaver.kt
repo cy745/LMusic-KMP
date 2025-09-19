@@ -2,6 +2,7 @@
 
 package com.lalilu.lmusic.impl
 
+import com.lalilu.common.kv.KVContext
 import com.lalilu.common.kv.KVSaver
 import com.russhwolf.settings.Settings
 import org.koin.core.annotation.Single
@@ -11,6 +12,11 @@ import kotlin.reflect.KClass
 class KvSettingsSaver(
     private val settings: Settings
 ) : KVSaver {
+
+    init {
+        // 注册为默认的Saver
+        KVContext.registerSaver(this)
+    }
 
     override fun <T> readData(key: String, defaultValue: T?, clazz: KClass<*>): T {
         return when {
