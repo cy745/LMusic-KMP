@@ -8,8 +8,8 @@ composeHotReload = "1.0.0-beta06"
 composeMultiplatform = "1.8.2"
 kotlinx-serialization = "1.9.0"
 junit = "4.13.2"
-kotlin = "2.2.0"
-ksp = "2.2.0-2.0.2"
+kotlin = "2.2.20"
+ksp = "2.2.20-2.0.3"
 kotlinx-coroutines = "1.10.2"
 tiamat = "2.0.0-alpha01"
 krouter = "0.0.4"
@@ -106,12 +106,6 @@ ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "kto
 ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
 ktorfit = { module = "de.jensklingenberg.ktorfit:ktorfit-lib", version.ref = "ktorfit" }
 
-krpc-client = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-client", version.ref = "krpc" }
-krpc-server = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-server", version.ref = "krpc" }
-krpc-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-serialization-json", version.ref = "krpc" }
-krpc-ktor-client = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-client", version.ref = "krpc" }
-krpc-ktor-server = { module = "org.jetbrains.kotlinx:kotlinx-rpc-krpc-ktor-server", version.ref = "krpc" }
-
 vlcj = { module = "uk.co.caprica:vlcj", version.ref = "vlcj" }
 rococoa-core = { module = "com.github.cy745.rococoa:core", version.ref = "rococoa" }
 rococoa-contrib = { module = "com.github.cy745.rococoa:contrib", version.ref = "rococoa" }
@@ -133,7 +127,6 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 krouter-plugin = { id = "io.github.cy745.KRouter.plugin", version.ref = "krouter" }
 vanniktech-pulish = { id = "com.vanniktech.maven.publish.base", version = "0.34.0" }
-krpc = { id = "org.jetbrains.kotlinx.rpc.plugin", version.ref = "krpc" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
 swiftklib = { id = "io.github.ttypic.swiftklib", version = "0.6.4" }
@@ -143,6 +136,5 @@ ktorfit = { id = "de.jensklingenberg.ktorfit", version.ref = "ktorfit" }
 [bundles]
 coil = ["coil-compose", "coil-ktor", "coil-svg"]
 settings = ["settings", "settings-coroutines", "settings-make-observable", "settings-no-arg", "settings-serialization"]
-krpc = ["krpc-client", "krpc-server", "krpc-serialization-json", "krpc-ktor-client", "krpc-ktor-server"]
 rococoa = ["rococoa-cocoa", "rococoa-contrib", "rococoa-core"]
 jbx = ["jbx-savedstate-compose", "jbx-lifecycle-viewmodel-compose", "jbx-lifecycle-runtime-compose"]

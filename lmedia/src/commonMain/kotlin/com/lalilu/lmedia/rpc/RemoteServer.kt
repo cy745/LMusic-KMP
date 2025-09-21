@@ -14,9 +14,9 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaSource
-import com.lalilu.lmedia.source.MediaSourceBase
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -26,9 +26,6 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
-import kotlinx.rpc.krpc.ktor.server.Krpc
-import kotlinx.rpc.krpc.ktor.server.rpc
-import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
 import org.koin.core.annotation.Single
@@ -185,8 +182,7 @@ private fun provideRpcServer(
     mediaSource: MediaSource,
     config: Application.() -> Unit = {}
 ): EngineServer? {
-    val factory = serverEngineFactory
-    if (factory == null) return null
+    val factory = serverEngineFactory ?: return null
 
     suspend fun getAudioById(id: String): LAudio {
         return mediaSource.source()
@@ -196,19 +192,17 @@ private fun provideRpcServer(
     }
 
     return embeddedServer(factory, port) {
-        install(Krpc)
         install(CORS) {
             anyHost()
             anyMethod()
         }
 
         routing {
-            rpc("/rpc") {
-                rpcConfig { serialization { json() } }
-                registerService<MediaSourceBase> { mediaSource }
-            }
             get("/") {
                 call.respondText("Hello World!")
+            }
+            get("/source") {
+                call.respond(mediaSource.source().firstOrNull() ?: Snapshot.Empty)
             }
             get("/lyric/{id}") {
                 try {

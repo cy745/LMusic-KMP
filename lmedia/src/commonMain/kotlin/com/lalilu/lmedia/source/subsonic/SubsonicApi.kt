@@ -116,4 +116,17 @@ interface SubsonicApi {
     suspend fun getAlbum(
         @Query("id") id: String
     ): SubsonicResponseWrapper<GetAlbumResponse>
+
+    /**
+     * http://your-server/rest/getLyricsBySongId [OpenSubsonic](https://opensubsonic.netlify.app/docs/endpoints/getlyricsbysongid/)
+     *
+     * 获取歌曲的歌词，基于ID3标签组织音乐
+     *
+     * @param id 歌曲ID（必填），用于指定要获取歌词的歌曲
+     * @return 获取歌词的响应包装类，成功时返回歌词信息
+     */
+    @GET("getLyricsBySongId")
+    suspend fun getLyricsBySongId(
+        @Query("id") id: String
+    ): SubsonicResponseWrapper<GetLyricByIdResponse>
 }

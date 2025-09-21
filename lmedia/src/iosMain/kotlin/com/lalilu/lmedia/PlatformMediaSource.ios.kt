@@ -9,6 +9,6 @@ import org.koin.core.scope.Scope
 actual fun Scope.provideMediaSources(): PlatformMediaSource = PlatformMediaSource.provide(
     MediaLibrarySource,
     MusicKitSource,
-    RemoteSource(get(), get()),
+    RemoteSource(get()),
     SubsonicSource(get(), get())
 )

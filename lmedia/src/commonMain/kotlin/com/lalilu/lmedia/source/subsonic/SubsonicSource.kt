@@ -3,6 +3,7 @@ package com.lalilu.lmedia.source.subsonic
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import co.touchlab.kermit.Logger
+import com.lalilu.common.ext.io
 import com.lalilu.common.ext.retrieveAllPage
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.entity.LAudio
@@ -10,16 +11,14 @@ import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaDataSource
 import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.source.subsonic.entity.toLrcContent
 import de.jensklingenberg.ktorfit.ktorfit
 import io.ktor.client.*
 import io.ktor.client.plugins.api.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -147,7 +146,15 @@ class SubsonicSource(
     override val dataSource: MediaDataSource = this
     override fun source(): Flow<Snapshot> = actionFlow
 
-    override suspend fun getLyric(song: LAudio): String? = null
+    override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
+        val api = subsonicApi?.second ?: return@withContext null
+        val lyric = api.getLyricsBySongId(song.id)
+
+        lyric.response.lyricsList.structuredLyrics.firstOrNull()
+            ?.toLrcContent()
+            ?.takeIf { it.isNotEmpty() }
+    }
+
     override suspend fun getMedia(song: LAudio): MediaData? {
         val url = buildSubsonicUrl("stream", mapOf("id" to song.id))
         return MediaData.Url(url)

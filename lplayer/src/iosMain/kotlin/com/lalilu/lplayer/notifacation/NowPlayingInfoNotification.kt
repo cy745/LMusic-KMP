@@ -47,7 +47,7 @@ object NowPlayingInfoNotification : CoroutineScope {
                     this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration.value.toDouble().div(1000)
                     this[MPNowPlayingInfoPropertyPlaybackRate] = if (playback.isPlaying.value) 1.0 else 0.0
                     this[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-                        playback.currentPosition.value.toDouble().div(1000)
+                        playback.currentPosition().toDouble().div(1000)
                 }
 
                 val placeholderImage = UIImage.imageNamed("AppIcon")
@@ -71,7 +71,7 @@ object NowPlayingInfoNotification : CoroutineScope {
                     this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration.value.toDouble().div(1000)
                     this[MPNowPlayingInfoPropertyPlaybackRate] = if (isPlaying) 1.0 else 0.0
                     this[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-                        playback.currentPosition.value.toDouble().div(1000)
+                        playback.currentPosition().toDouble().div(1000)
                 }
                 debugLog(
                     "Playback info - Duration: ${nowPlayingInfo[MPMediaItemPropertyPlaybackDuration]}, " +

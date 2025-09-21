@@ -9,6 +9,7 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItemDefaults
 import io.ktor.client.*
+import io.ktor.client.call.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -16,13 +17,7 @@ import io.ktor.http.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
-import kotlinx.rpc.krpc.ktor.client.KtorRpcClient
-import kotlinx.rpc.krpc.ktor.client.installKrpc
-import kotlinx.rpc.krpc.ktor.client.rpc
-import kotlinx.rpc.krpc.serialization.json.json
-import kotlinx.rpc.withService
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlin.coroutines.CoroutineContext
 
 @Serializable
@@ -36,11 +31,9 @@ data class RemoteSourceConfig(
     }
 }
 
-@Suppress("UnusedFlow")
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSource(
-    lMediaKV: LMediaKV,
-    json: Json
+    lMediaKV: LMediaKV
 ) : MediaSource, MediaDataSource, CoroutineScope {
 
     companion object {
@@ -63,12 +56,11 @@ class RemoteSource(
     )
 
     private val configFlow = configItem.flow()
-    private var remoteClient: HttpClient? = null
 
     /**
      * 客户端对象，使用Flow封装，当上游配置改变时，会重新创建客户端对象
      */
-    private val rpcClientFlow = configFlow.flatMapLatest { config ->
+    private val clientFlow = configFlow.flatMapLatest { config ->
         Logger.i(tag = TAG, messageString = "Config update: $config")
 
         if (!config.enable || config.url.isBlank()) {
@@ -76,22 +68,18 @@ class RemoteSource(
             return@flatMapLatest flowOf(null)
         }
 
-        callbackFlow<Pair<HttpClient, KtorRpcClient?>> {
+        callbackFlow<HttpClient> {
             val client = HttpClient {
                 defaultRequest { url("http://${config.url}") }
-                installKrpc { serialization { json(json) } }
             }
-            val krpcClient = client
-                .rpc { url("ws://${config.url}/rpc") }
 
-            send(client to krpcClient)
+            send(client)
             Logger.i(
                 tag = TAG,
                 messageString = "New Client instance created: ${client.hashCode()}"
             )
 
             awaitClose {
-                krpcClient.close()
                 client.close()
                 Logger.i(
                     tag = TAG,
@@ -99,26 +87,27 @@ class RemoteSource(
                 )
             }
         }
-    }
+    }.stateIn(this, SharingStarted.Eagerly, null)
 
     /**
      * 远程获取到的source的Flow，stateIn使其持久化，避免重复请求
      */
-    val snapshotStateFlow = rpcClientFlow
-        .flatMapLatest { pair ->
-            remoteClient = pair?.first
-            val krpcClient = pair?.second
-            val service = krpcClient?.withService<MediaSourceBase>()
-
-            service?.source()
-                ?.catch { emit(Snapshot.Empty) }
-                ?.onEach { it.audios.forEach { audio -> audio.mediaSourceName = this@RemoteSource.name } }
-                ?: flowOf(Snapshot.Empty)
+    val snapshotStateFlow = clientFlow
+        .flatMapLatest { client ->
+            flow {
+                // 先返回空，避免下游长时间等待
+                emit(Snapshot.Empty)
+                emit(
+                    client?.get("/source")
+                        ?.body<Snapshot>()
+                        ?: Snapshot.Empty
+                )
+            }.onEach { it.audios.forEach { audio -> audio.mediaSourceName = this@RemoteSource.name } }
         }.stateIn(this, SharingStarted.Eagerly, Snapshot.Empty)
 
     override suspend fun getLyric(song: LAudio): String? {
         val targetUrl = "lyric/${song.id.encodeURLPathPart()}"
-        val lyric = remoteClient?.get(targetUrl)
+        val lyric = clientFlow.value?.get(targetUrl)
             ?.bodyAsText()
 
         return lyric
@@ -127,7 +116,8 @@ class RemoteSource(
     override suspend fun getPicture(song: LAudio): MediaData? {
         val targetUrl = "picture/${song.id.encodeURLPathPart()}"
 
-        val picture = remoteClient?.get(targetUrl)
+        val picture = clientFlow.value
+            ?.get(targetUrl)
             ?.bodyAsBytes()
             ?.takeIf { it.isNotEmpty() }
             ?: return null
@@ -142,7 +132,8 @@ class RemoteSource(
             return MediaData.Url("http://${configItem.value.url}/media/${song.id.encodeURLPathPart()}")
         }
 
-        val media = remoteClient?.get(targetUrl)
+        val media = clientFlow.value
+            ?.get(targetUrl)
             ?.bodyAsBytes()
             ?.takeIf { it.isNotEmpty() }
             ?: return null

@@ -8,5 +8,5 @@ import org.koin.core.scope.Scope
 actual fun Scope.provideMediaSources(): PlatformMediaSource = PlatformMediaSource.provide(
     MediaStoreSource(get()),
     AndroidFileSystemSource(get()),
-    RemoteSource(get(), get()),
+    RemoteSource(get()),
 )

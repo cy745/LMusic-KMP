@@ -238,18 +238,21 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
                 val time = CMTimeMake(value = positionMs, timescale = 1000)
                 player.seekToTime(time)
             }
-            _currentPosition.value = positionMs / 1000L
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
             emitError(e)
         }
     }
-    
+
     override fun currentPosition(): Long {
         return if (audioPlayer != null) {
             (audioPlayer!!.currentTime * 1000).toLong()
         } else {
-            (player.currentTime().seconds * 1000).toLong()
+            memScoped {
+                // AVPlayer的currentTime返回的是ns，需要转换成ms
+                player.currentTime()
+                    .useContents { value / 1000L / 1000L }
+            }
         }
     }
 }

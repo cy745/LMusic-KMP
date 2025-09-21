@@ -7,7 +7,6 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.rpc.annotations.Rpc
 import kotlinx.serialization.Serializable
 
 /**
@@ -47,7 +46,6 @@ interface MediaDataSource {
     suspend fun getMedia(song: LAudio): MediaData? = null
 }
 
-@Rpc
 interface MediaSourceBase {
 
     /**
