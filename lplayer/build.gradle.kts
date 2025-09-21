@@ -1,7 +1,7 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
+import com.lalilu.gradle.XcodeDetector
 import com.lalilu.gradle.makeSureAllSourcesJarAfterKsp
-import com.lalilu.gradle.setupIOSTarget
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -30,9 +30,13 @@ kotlin {
             jvmTarget = JvmTarget.JVM_11
         }
     }
-    setupIOSTarget {
-        compilations {
-            val main by getting {
+    XcodeDetector.whenXcodeInstalled {
+        listOf(
+            iosX64(),
+            iosArm64(),
+            iosSimulatorArm64()
+        ).forEach {
+            it.compilations.getByName("main") {
                 val observer by cinterops.creating {
                     definitionFile.set(file("src/nativeInterop/cinterop/observer.def"))
                 }

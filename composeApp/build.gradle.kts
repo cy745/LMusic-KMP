@@ -1,4 +1,4 @@
-import com.lalilu.gradle.setupIOSTarget
+import com.lalilu.gradle.XcodeDetector
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -24,14 +24,18 @@ kotlin {
             jvmTarget.set(JvmTarget.JVM_11)
         }
     }
-
-    setupIOSTarget {
-        binaries.framework {
-            baseName = "ComposeApp"
-            isStatic = true
+    XcodeDetector.whenXcodeInstalled {
+        listOf(
+            iosX64(),
+            iosArm64(),
+            iosSimulatorArm64()
+        ).forEach {
+            it.binaries.framework {
+                baseName = "ComposeApp"
+                isStatic = true
+            }
         }
     }
-
     jvm("desktop")
 
     @OptIn(ExperimentalWasmDsl::class)

@@ -1,7 +1,7 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
+import com.lalilu.gradle.XcodeDetector
 import com.lalilu.gradle.makeSureAllSourcesJarAfterKsp
-import com.lalilu.gradle.setupIOSTarget
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -30,7 +30,13 @@ kotlin {
             jvmTarget = JvmTarget.JVM_11
         }
     }
-    setupIOSTarget {}
+    XcodeDetector.whenXcodeInstalled {
+        listOf(
+            iosX64(),
+            iosArm64(),
+            iosSimulatorArm64()
+        )
+    }
     wasmJs {
         browser()
         binaries.executable()

@@ -1,8 +1,8 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
+import com.google.devtools.ksp.gradle.KspAATask
 import com.lalilu.gradle.XcodeDetector
 import com.lalilu.gradle.makeSureAllSourcesJarAfterKsp
-import com.lalilu.gradle.setupIOSTarget
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -17,7 +17,6 @@ plugins {
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.krpc)
     alias(libs.plugins.swiftklib)
     alias(libs.plugins.osdetector)
     alias(libs.plugins.ktorfit)
@@ -33,9 +32,13 @@ kotlin {
             jvmTarget = JvmTarget.JVM_11
         }
     }
-    setupIOSTarget {
-        compilations {
-            val main by getting {
+    XcodeDetector.whenXcodeInstalled {
+        listOf(
+            iosX64(),
+            iosArm64(),
+            iosSimulatorArm64()
+        ).forEach {
+            it.compilations.getByName("main") {
                 cinterops {
                     create("MusicKitWrapper")
                 }
@@ -62,7 +65,6 @@ kotlin {
                 api(libs.bundles.settings)
                 api(libs.ktor.server.core)
                 api(libs.ktor.server.cors)
-                api(libs.bundles.krpc)
                 api(libs.ktorfit)
                 api(kotlincrypto.hash.md)
             }
@@ -115,6 +117,27 @@ android {
 }
 
 makeSureAllSourcesJarAfterKsp()
+
+project.tasks.withType(KspAATask::class.java).configureEach {
+    if (name != "kspCommonMainKotlinMetadata") {
+        if (name == "kspDebugKotlinAndroid") {
+            enabled = false
+        }
+        if (name == "kspReleaseKotlinAndroid") {
+            enabled = false
+        }
+        if (name == "kspKotlinIosSimulatorArm64") {
+            enabled = false
+        }
+        if (name == "kspKotlinIosX64") {
+            enabled = false
+        }
+        if (name == "kspKotlinIosArm64") {
+            enabled = false
+        }
+        dependsOn("kspCommonMainKotlinMetadata")
+    }
+}
 
 mavenPublishing {
     coordinates(
