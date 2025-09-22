@@ -41,6 +41,10 @@ kotlin {
             it.compilations.getByName("main") {
                 cinterops {
                     create("MusicKitWrapper")
+                    create("Taglib") {
+                        definitionFile.set(file("src/nativeInterop/taglib/Taglib.def"))
+                        headers(file("src/nativeInterop/taglib/include/taglib/tag_c.h"))
+                    }
                 }
             }
         }
@@ -94,7 +98,7 @@ kotlin {
 XcodeDetector.whenXcodeInstalled {
     swiftklib {
         create("MusicKitWrapper") {
-            path = file("native/MusicKitWrapper")
+            path = file("src/nativeInterop/MusicKitWrapper")
             packageName("com.lalilu.lmedia")
         }
     }
