@@ -79,6 +79,9 @@ kotlin {
                 implementation(libs.kotlin.test)
             }
         }
+        iosMain.dependencies {
+            implementation(compose.components.resources)
+        }
         androidMain.dependencies {
             implementation(compose.preview)
         }

@@ -1,5 +1,7 @@
 package com.lalilu.lmedia.source
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
@@ -102,6 +104,11 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
         }
 
         MediaData.Bytes(file.readBytes())
+    }
+
+    @Composable
+    override fun Content(modifier: Modifier) {
+        SandBoxFileSystemSourceContent(modifier)
     }
 }
 
