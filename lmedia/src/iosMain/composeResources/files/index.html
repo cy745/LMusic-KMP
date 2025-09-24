@@ -2,19 +2,313 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>当前时间</title>
-    <script>
-        function updateTime() {
-            const now = new Date();
-            const timeString = now.toLocaleString();
-            document.getElementById("time").innerText = timeString;
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>沙盒文件管理器</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f7;
+            color: #333;
         }
-        setInterval(updateTime, 1000);
-        window.onload = updateTime;
-    </script>
+
+        h1 {
+            text-align: center;
+            color: #1d1d1f;
+        }
+
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .upload-section {
+            margin-bottom: 30px;
+        }
+
+        .file-list {
+            margin-top: 20px;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-info {
+            flex-grow: 1;
+        }
+
+        .file-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .file-meta {
+            font-size: 0.85em;
+            color: #888;
+        }
+
+        .file-actions button {
+            background-color: #0071e3;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-left: 8px;
+        }
+
+        .file-actions button.delete {
+            background-color: #ff3b30;
+        }
+
+        .file-actions button:hover {
+            opacity: 0.9;
+        }
+
+        #fileInput {
+            margin-bottom: 10px;
+        }
+
+        #uploadButton {
+            background-color: #34c759;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+        }
+
+        #uploadButton:hover {
+            background-color: #2db64e;
+        }
+
+        #uploadButton:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status-message {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .status-message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .directory-indicator {
+            color: #0071e3;
+            font-weight: 500;
+        }
+
+        .empty-message {
+            text-align: center;
+            color: #888;
+            padding: 20px;
+        }
+    </style>
 </head>
 <body>
-<h1>当前时间</h1>
-<p id="time"></p>
+<h1>沙盒文件管理器</h1>
+
+<div class="container upload-section">
+    <h2>上传文件</h2>
+    <input type="file" id="fileInput" multiple>
+    <button id="uploadButton">上传文件</button>
+    <div id="uploadStatus"></div>
+</div>
+
+<div class="container file-list">
+    <h2>文件列表</h2>
+    <button id="refreshButton">刷新列表</button>
+    <div id="fileList">
+        <div class="empty-message">加载中...</div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = '/api/files';
+
+    // 页面加载时获取文件列表
+    window.onload = function () {
+        refreshFileList();
+    };
+
+    // 刷新文件列表
+    document.getElementById('refreshButton').addEventListener('click', refreshFileList);
+
+    // 上传文件
+    document.getElementById('uploadButton').addEventListener('click', uploadFiles);
+
+    // 获取文件列表
+    function refreshFileList() {
+        fetch(API_BASE)
+            .then(response => response.json())
+            .then(files => {
+                const fileListElement = document.getElementById('fileList');
+                if (files.length === 0) {
+                    fileListElement.innerHTML = '<div class="empty-message">暂无文件</div>';
+                    return;
+                }
+
+                fileListElement.innerHTML = files.map(file => `
+                        <div class="file-item">
+                            <div class="file-info">
+                                <div class="file-name">${file.isDirectory ? '<span class="directory-indicator">📁</span>' : '📄'} ${file.name}</div>
+                                <div class="file-meta">
+                                    ${file.isDirectory ? '目录' : formatFileSize(file.size)} 
+                                </div>
+                            </div>
+                            <div class="file-actions">
+                                ${!file.isDirectory ? `<button onclick="downloadFile('${file.name}')">下载</button>` : ''}
+                                <button class="delete" onclick="deleteFile('${file.name}')">删除</button>
+                            </div>
+                        </div>
+                    `).join('');
+            })
+            .catch(error => {
+                console.error('获取文件列表失败:', error);
+                document.getElementById('fileList').innerHTML = '<div class="empty-message">加载文件列表失败</div>';
+            });
+    }
+
+    // 删除文件
+    function deleteFile(fileName) {
+        if (!confirm(`确定要删除文件 "${fileName}" 吗?`)) {
+            return;
+        }
+
+        fetch(`${API_BASE}/${encodeURIComponent(fileName)}`, {
+            method: 'DELETE'
+        })
+            .then(response => {
+                if (response.ok) {
+                    showMessage('文件删除成功', 'success');
+                    refreshFileList();
+                } else {
+                    return response.text().then(text => {
+                        throw new Error(text);
+                    });
+                }
+            })
+            .catch(error => {
+                showMessage(`删除失败: ${error.message}`, 'error');
+            });
+    }
+
+    // 下载文件
+    function downloadFile(fileName) {
+        const link = document.createElement('a');
+        link.href = `/files/${encodeURIComponent(fileName)}`;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // 上传文件
+    function uploadFiles() {
+        const fileInput = document.getElementById('fileInput');
+        const files = fileInput.files;
+
+        if (files.length === 0) {
+            showMessage('请选择要上传的文件', 'error');
+            return;
+        }
+
+        const uploadButton = document.getElementById('uploadButton');
+        uploadButton.disabled = true;
+        uploadButton.textContent = '上传中...';
+
+        // 逐个上传文件
+        let uploadPromises = [];
+        for (let i = 0; i < files.length; i++) {
+            uploadPromises.push(uploadFile(files[i]));
+        }
+
+        Promise.all(uploadPromises)
+            .then(() => {
+                showMessage(`成功上传 ${files.length} 个文件`, 'success');
+                fileInput.value = '';
+                refreshFileList();
+            })
+            .catch(error => {
+                showMessage(`上传失败: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                uploadButton.disabled = false;
+                uploadButton.textContent = '上传文件';
+            });
+    }
+
+    // 上传单个文件
+    function uploadFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('fileName', file.name);
+        formData.append('description', '这是一张图片');
+
+        console.log(formData)
+
+        return fetch(API_BASE, {
+            method: 'POST',
+            body: formData
+        }).then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error(text);
+                });
+            }
+            return response.text();
+        });
+    }
+
+    // 显示消息
+    function showMessage(message, type) {
+        const statusElement = document.getElementById('uploadStatus');
+        statusElement.innerHTML = `<div class="status-message ${type}">${message}</div>`;
+
+        // 3秒后自动清除消息
+        setTimeout(() => {
+            statusElement.innerHTML = '';
+        }, 3000);
+    }
+
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+</script>
 </body>
 </html>
