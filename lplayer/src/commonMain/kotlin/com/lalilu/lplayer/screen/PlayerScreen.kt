@@ -1,6 +1,7 @@
 package com.lalilu.lplayer.screen
 
-import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
@@ -9,10 +10,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.touchlab.kermit.Logger
+import coil3.compose.AsyncImage
 import com.lalilu.RemixIcon
 import com.lalilu.common.ext.io
 import com.lalilu.krouter.annotation.Destination
@@ -23,11 +28,12 @@ import com.lalilu.lmedia.LMedia
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
-import com.lalilu.navigation.LocalBackStack
-import com.lalilu.navigation.LocalSharedTransitionScope
 import com.lalilu.navigation.Screen
-import com.lalilu.remixicon.Arrows
-import com.lalilu.remixicon.arrows.arrowLeftLine
+import com.lalilu.remixicon.Media
+import com.lalilu.remixicon.media.pauseLine
+import com.lalilu.remixicon.media.playLine
+import com.lalilu.remixicon.media.skipBackLine
+import com.lalilu.remixicon.media.skipForwardLine
 import io.github.hristogochev.vortex.model.ScreenModel
 import io.github.hristogochev.vortex.model.rememberScreenModel
 import kotlinx.coroutines.*
@@ -74,6 +80,31 @@ class PlayerScreen : Screen {
                 }
             }
 
+            AnimatedContent(
+                modifier = Modifier.fillMaxSize(),
+                targetState = currentItem.value,
+                transitionSpec = {
+                    fadeIn() togetherWith fadeOut(
+                        animationSpec = tween(
+                            durationMillis = 300,
+                            delayMillis = 500
+                        )
+                    )
+                }
+            ) { target ->
+                AsyncImage(
+                    modifier = Modifier.fillMaxSize()
+                        .blur(50.dp, 50.dp)
+                        .drawWithContent {
+                            drawContent()
+                            drawRect(color = Color.Black.copy(0.2f))
+                        },
+                    model = target,
+                    contentScale = ContentScale.FillHeight,
+                    contentDescription = null
+                )
+            }
+
             LyricLayout(
                 modifier = Modifier.fillMaxSize(),
                 currentTime = { currentTime.value },
@@ -86,50 +117,40 @@ class PlayerScreen : Screen {
             Column(
                 modifier = Modifier.fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .navigationBarsPadding(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val backStack = LocalBackStack.current
-                    with(LocalSharedTransitionScope.current) {
-                        Button(
-                            modifier = Modifier
-                                .wrapContentWidth()
-                                .height(48.dp)
-                                .sharedElementWithCallerManagedVisibility(
-                                    sharedContentState = rememberSharedContentState("test"),
-                                    visible = backStack.last() is PlayerScreen
-                                ),
-                            onClick = { if (backStack.size >= 2) backStack.removeLastOrNull() }
-                        ) {
-                            Icon(
-                                imageVector = RemixIcon.Arrows.arrowLeftLine,
-                                contentDescription = null
-                            )
-                        }
-                    }
-                    Text(
-                        text = "${currentItem.value?.title}",
-                        color = Color.White,
-                        fontSize = 24.sp
-                    )
-                }
+                Text(
+                    text = "${currentItem.value?.title}",
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
 
                 Row(
-                    modifier = Modifier,
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, alignment = Alignment.CenterHorizontally)
                 ) {
                     Button(onClick = { scope.launch { LPlayer.instance.skipToPrevious() } }) {
-                        Text(text = "<")
+                        Icon(
+                            imageVector = RemixIcon.Media.skipBackLine,
+                            contentDescription = "skip back"
+                        )
                     }
 
                     Button(onClick = { scope.launch { LPlayer.instance.togglePlayPause() } }) {
-                        Text(text = if (isPlaying.value) "Pause" else "Play")
+                        Icon(
+                            imageVector = if (isPlaying.value) RemixIcon.Media.pauseLine else RemixIcon.Media.playLine,
+                            contentDescription = "skip ${if (isPlaying.value) "pause" else "play"}"
+                        )
                     }
 
                     Button(onClick = { scope.launch { LPlayer.instance.skipToNext() } }) {
-                        Text(text = ">")
+                        Icon(
+                            imageVector = RemixIcon.Media.skipForwardLine,
+                            contentDescription = "skip forward"
+                        )
                     }
                 }
             }
