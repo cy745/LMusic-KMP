@@ -1,40 +1,26 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
-import com.russhwolf.settings.ExperimentalSettingsApi
-import com.russhwolf.settings.ObservableSettings
-import com.russhwolf.settings.coroutines.getStringOrNullFlow
 import io.github.vinceglb.filekit.*
-import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
-import kotlinx.coroutines.*
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.withContext
 import kotlinx.io.buffered
-import java.io.FileNotFoundException
+import kotlinx.io.files.FileNotFoundException
 import kotlin.coroutines.CoroutineContext
 
-@OptIn(ExperimentalSettingsApi::class, ExperimentalCoroutinesApi::class)
-class JvmFileSystemSource(
-    private val settings: ObservableSettings
-) : MediaSource, MediaDataSource, CoroutineScope {
-    override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob()
-
-    companion object {
-        private const val KEY_PATH = "path"
-    }
-
-    override val name: String = "JvmFileSystemSource"
-
-    private val fileFlow = settings.getStringOrNullFlow(KEY_PATH)
-        .mapLatest { path ->
-            path?.let { PlatformFile(it) }
-                ?.takeIf { it.exists() }
-        }
+@OptIn(ExperimentalForeignApi::class)
+object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
+    override val coroutineContext: CoroutineContext = Dispatchers.io
+    override val name: String = "SandboxFileSystemSource"
+    private val musicFolder = FileKit.filesDir
+    private val fileFlow = flowOf(musicFolder.takeIf { it.exists() })
 
     private val sourceStateFlow = fileFlow.map { root ->
         root?.filterChildren { file ->
@@ -62,12 +48,17 @@ class JvmFileSystemSource(
                     id = file.absolutePath(),
                     title = metadata.title,
                     subtitle = metadata.artist,
-                    sourceItem = SourceItem.FileItem(file.file),
-                    mediaSourceName = this@JvmFileSystemSource.name
+                    sourceItem = SourceItem.FileItem(file),
+                    mediaSourceName = this@SandboxFileSystemSource.name
                 )
             }
         )
     }.stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
+
+
+    override fun source(): Flow<Snapshot> = sourceStateFlow
+    override val dataSource: MediaDataSource = this
+
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
         val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
@@ -105,41 +96,10 @@ class JvmFileSystemSource(
 
         val file = fileItem.file
         if (!file.exists()) {
-            throw FileNotFoundException("File not found: ${file.absolutePath}")
-        }
-
-        if (!file.canRead()) {
-            throw SecurityException("Cannot read file: ${file.absolutePath}")
+            throw FileNotFoundException("File not found: ${file.nsUrl}")
         }
 
         MediaData.Bytes(file.readBytes())
-    }
-
-    override val dataSource: MediaDataSource = this
-    override fun source(): Flow<Snapshot> = sourceStateFlow
-
-    @Composable
-    override fun Content(modifier: Modifier) {
-        val scope = rememberCoroutineScope()
-        val path = fileFlow.collectAsState(null)
-        val source by remember { source() }.collectAsState(
-            initial = Snapshot.Empty,
-            context = Dispatchers.IO
-        )
-
-        val launcher = rememberDirectoryPickerLauncher {
-            scope.launch(Dispatchers.IO) {
-                settings.putString(KEY_PATH, it?.absolutePath() ?: "")
-            }
-        }
-
-        JvmFileSystemSourceContent(
-            modifier = modifier,
-            title = name,
-            path = path.value?.name ?: "",
-            itemsCount = source.audios.size,
-            onSelectDirectory = { launcher.launch() }
-        )
     }
 }
 

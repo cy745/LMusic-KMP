@@ -1,6 +1,5 @@
 package com.lalilu.lmedia.coil
 
-import coil3.ImageLoader
 import coil3.decode.DataSource
 import coil3.decode.ImageSource
 import coil3.fetch.FetchResult
@@ -12,20 +11,6 @@ import com.lalilu.lmedia.entity.SourceItem
 import okio.buffer
 import okio.source
 import java.io.FileNotFoundException
-
-@Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
-actual class SourceItemFetcherFactory : SourceItemFetcher {
-    actual override fun create(
-        data: SourceItem,
-        options: Options,
-        imageLoader: ImageLoader
-    ): Fetcher? {
-        return super.create(data, options, imageLoader) ?: when (data) {
-            is SourceItem.FileItem -> FileSourceItemFetcher(data, options)
-            else -> throw IllegalArgumentException("Unsupported data type: ${data::class.simpleName}")
-        }
-    }
-}
 
 class FileSourceItemFetcher(
     private val fileItem: SourceItem.FileItem,
