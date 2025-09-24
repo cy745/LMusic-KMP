@@ -11,13 +11,16 @@ import com.lalilu.lmedia.entity.SourceItemDefaults
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.*
+import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlin.coroutines.CoroutineContext
 
 @Serializable
@@ -33,7 +36,8 @@ data class RemoteSourceConfig(
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSource(
-    lMediaKV: LMediaKV
+    lMediaKV: LMediaKV,
+    json: Json
 ) : MediaSource, MediaDataSource, CoroutineScope {
 
     companion object {
@@ -71,6 +75,7 @@ class RemoteSource(
         callbackFlow<HttpClient> {
             val client = HttpClient {
                 defaultRequest { url("http://${config.url}") }
+                install(ContentNegotiation) { json(json = json) }
             }
 
             send(client)

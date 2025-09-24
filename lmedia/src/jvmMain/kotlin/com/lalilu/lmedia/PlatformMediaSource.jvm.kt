@@ -9,6 +9,6 @@ import org.koin.core.scope.Scope
 actual fun Scope.provideMediaSources(): PlatformMediaSource = PlatformMediaSource.provide(
     JvmFileSystemSource(get()),
     WebDavSource(),
-    RemoteSource(get()),
+    RemoteSource(get(), get()),
     SubsonicSource(get(), get())
 )

@@ -38,7 +38,9 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
         }
     }.map { files ->
         files?.mapNotNull { file ->
-            val metadata = Taglib.readMetadata(path = file.absolutePath()) ?: return@mapNotNull null
+            val metadata = runCatching { Taglib.readMetadata(path = file.absolutePath()) }
+                .getOrNull()
+                ?: return@mapNotNull null
             file to metadata
         } ?: emptyList()
     }.map { songs ->

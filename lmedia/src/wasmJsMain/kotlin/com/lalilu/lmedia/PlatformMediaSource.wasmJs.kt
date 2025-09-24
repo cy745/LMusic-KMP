@@ -8,7 +8,7 @@ import org.koin.core.scope.Scope
 actual fun Scope.provideMediaSources(): PlatformMediaSource {
     return PlatformMediaSource.provide(
         WebDavSource(),
-        RemoteSource(get()),
+        RemoteSource(get(), get()),
         SubsonicSource(get(), get())
     )
 }

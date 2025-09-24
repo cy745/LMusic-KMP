@@ -2,7 +2,6 @@
 
 import com.google.devtools.ksp.gradle.KspAATask
 import com.lalilu.gradle.XcodeDetector
-import com.lalilu.gradle.makeSureAllSourcesJarAfterKsp
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -69,6 +68,8 @@ kotlin {
                 api(libs.bundles.settings)
                 api(libs.ktor.server.core)
                 api(libs.ktor.server.cors)
+                api(libs.ktor.server.cio)
+                api(libs.ktor.server.content.negotiation)
                 api(libs.ktorfit)
                 api(kotlincrypto.hash.md)
             }
@@ -78,16 +79,11 @@ kotlin {
                 implementation(libs.kotlin.test)
             }
         }
-        iosMain.dependencies {
-            implementation(libs.ktor.server.cio)
-        }
         androidMain.dependencies {
-            implementation(libs.ktor.server.netty)
             implementation(compose.preview)
         }
         jvmMain.dependencies {
             implementation(libs.native.lib.loader)
-            implementation(libs.ktor.server.netty)
         }
         wasmJsMain.dependencies {
             implementation(npm("taglib-wasm", "0.5.4"))
@@ -120,26 +116,22 @@ android {
     }
 }
 
-makeSureAllSourcesJarAfterKsp()
+afterEvaluate {
+    project.tasks.withType(KspAATask::class.java).configureEach {
+        when (name) {
+            "kspKotlinJvm" -> dependsOn(
+                "generateResourceAccessorsForJvmMain",
+                "generateActualResourceCollectorsForJvmMain"
+            )
 
-project.tasks.withType(KspAATask::class.java).configureEach {
-    if (name != "kspCommonMainKotlinMetadata") {
-        if (name == "kspDebugKotlinAndroid") {
-            enabled = false
+            "kspKotlinIosArm64" -> dependsOn(
+                "generateResourceAccessorsForIosArm64Main",
+                "generateResourceAccessorsForIosMain",
+                "generateResourceAccessorsForAppleMain",
+                "generateResourceAccessorsForNativeMain",
+                "generateActualResourceCollectorsForIosArm64Main",
+            )
         }
-        if (name == "kspReleaseKotlinAndroid") {
-            enabled = false
-        }
-        if (name == "kspKotlinIosSimulatorArm64") {
-            enabled = false
-        }
-        if (name == "kspKotlinIosX64") {
-            enabled = false
-        }
-        if (name == "kspKotlinIosArm64") {
-            enabled = false
-        }
-        dependsOn("kspCommonMainKotlinMetadata")
     }
 }
 

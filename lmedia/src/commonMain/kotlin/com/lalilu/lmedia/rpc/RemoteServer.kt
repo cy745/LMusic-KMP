@@ -18,8 +18,10 @@ import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaSource
 import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
+import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -27,6 +29,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.koin.compose.koinInject
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
@@ -53,7 +56,8 @@ data class RemoteServerConfig(
 @Single(createdAtStart = true)
 class RemoteServer(
     lMediaKV: LMediaKV,
-    platformMediaSource: PlatformMediaSource
+    platformMediaSource: PlatformMediaSource,
+    json: Json
 ) : CoroutineScope {
     private val TAG = "RemoteServer"
     override val coroutineContext: CoroutineContext =
@@ -98,8 +102,11 @@ class RemoteServer(
         }
 
         callbackFlow<EngineServer?> {
-            val server = provideRpcServer(port = config.port, mediaSource = targetMediaSource)
-                ?.startSuspend(wait = false)
+            val server = provideRpcServer(
+                port = config.port,
+                mediaSource = targetMediaSource,
+                config = { install(ContentNegotiation) { json(json) } }
+            )?.startSuspend(wait = false)
 
             if (server != null) {
                 Logger.i(
@@ -202,7 +209,7 @@ private fun provideRpcServer(
                 call.respondText("Hello World!")
             }
             get("/source") {
-                call.respond(mediaSource.source().firstOrNull() ?: Snapshot.Empty)
+                call.respond<Snapshot>(mediaSource.source().firstOrNull() ?: Snapshot.Empty)
             }
             get("/lyric/{id}") {
                 try {
