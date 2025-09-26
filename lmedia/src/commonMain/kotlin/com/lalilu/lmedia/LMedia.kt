@@ -5,6 +5,7 @@ import com.lalilu.lmedia.entity.combineToOne
 import com.lalilu.lmedia.source.Library
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import org.koin.core.annotation.Single
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -22,7 +23,7 @@ class LMedia : Library(), KoinComponent {
         combine(
             flows = platformSource.sources.map { it.source() },
             transform = { it.combineToOne() }
-        )
+        ).distinctUntilChangedBy { it.updateTime }
     }
 
     companion object {

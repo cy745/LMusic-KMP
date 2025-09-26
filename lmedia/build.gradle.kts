@@ -127,6 +127,12 @@ afterEvaluate {
                 "generateActualResourceCollectorsForJvmMain"
             )
 
+            "kspDebugKotlinAndroid" -> dependsOn(
+                "generateActualResourceCollectorsForAndroidMain",
+                "generateResourceAccessorsForAndroidMain",
+                "generateResourceAccessorsForAndroidDebug",
+            )
+
             "kspKotlinIosArm64" -> dependsOn(
                 "generateResourceAccessorsForIosArm64Main",
                 "generateResourceAccessorsForIosMain",

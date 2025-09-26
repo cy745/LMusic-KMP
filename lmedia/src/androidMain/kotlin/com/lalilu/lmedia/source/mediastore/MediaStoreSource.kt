@@ -22,10 +22,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
-import org.koin.core.annotation.Single
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single
 class MediaStoreSource(
     private val context: Application
 ) : MediaSource {

@@ -8,83 +8,178 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import com.lalilu.common.ext.io
+import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
 import io.github.vinceglb.filekit.*
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import kotlinx.io.buffered
+import java.io.FileNotFoundException
+import kotlin.coroutines.CoroutineContext
 
+@SuppressLint("NewApi")
+@OptIn(ExperimentalCoroutinesApi::class)
 class AndroidFileSystemSource(
-    private val context: Application
-) : MediaSource {
+    private val context: Application,
+    private val lMediaKV: LMediaKV
+) : MediaSource, MediaDataSource, CoroutineScope {
+    override val coroutineContext: CoroutineContext = Dispatchers.io + SupervisorJob()
     override val name: String = "AndroidFileSystemSource"
-    private val selectedFile = MutableStateFlow<PlatformFile?>(null)
 
-    @SuppressLint("NewApi")
-    override fun source(): Flow<Snapshot> {
-        val filesFlow = selectedFile.map { root ->
-            root?.filterChildren { file ->
-                if (file.isDirectory()) return@filterChildren false
-                if (file.size() < 10) return@filterChildren false
-
-                file.source().buffered().use {
-                    val low4 = it.readInt()
-                    val high4 = it.readInt()
-
-                    (low4 == 0x664C6143 && high4 == 0x00000022) || (low4 == 0x4F676753 && high4 == 0x00020000)
-                }
-            }
+    private val filePathState = lMediaKV.obtain<String>("file_path")
+    private val selectedFile = filePathState.flow()
+        .mapLatest { path ->
+            PlatformFile(path)
+                .takeIf { it.exists() }
         }
 
-        return filesFlow.map { files ->
-            files?.map { it.androidFile }?.mapNotNull { file ->
-                when (file) {
-                    is AndroidFile.FileWrapper -> {
-                        val metadata = Taglib.readMetadata(path = file.file.absolutePath)
-                            ?: return@mapNotNull null
+    private val sourceStateFlow = selectedFile.map { root ->
+        root?.filterChildren { file ->
+            if (file.isDirectory()) return@filterChildren false
+            if (file.size() < 10) return@filterChildren false
 
-                        SourceItem.FileItem(file.file) to metadata
-                    }
+            file.source().buffered().use {
+                val low4 = it.readInt()
+                val high4 = it.readInt()
 
-                    is AndroidFile.UriWrapper -> {
-                        val metadata = context.contentResolver
-                            .openFileDescriptor(file.uri, "r")
-                            ?.use { Taglib.readMetadata(fd = it.detachFd()) }
-                            ?: return@mapNotNull null
+                (low4 == 0x664C6143 && high4 == 0x00000022) || (low4 == 0x4F676753 && high4 == 0x00020000)
+            }
+        }
+    }.map { files ->
+        files?.map { it.androidFile }?.mapNotNull { file ->
+            when (file) {
+                is AndroidFile.FileWrapper -> {
+                    val metadata = Taglib.readMetadata(path = file.file.absolutePath)
+                        ?: return@mapNotNull null
 
-                        SourceItem.UriItem(file.uri) to metadata
-                    }
+                    SourceItem.FileItem(file.file) to metadata
                 }
-            } ?: emptyList()
-        }.map { result ->
-            Snapshot(
-                audios = result.map { (source, metadata) ->
-                    LAudio(
-                        title = metadata.title,
-                        subtitle = metadata.artist,
-                        sourceItem = source,
-                        mediaSourceName = this@AndroidFileSystemSource.name
-                    )
+
+                is AndroidFile.UriWrapper -> {
+                    val metadata = context.contentResolver
+                        .openFileDescriptor(file.uri, "r")
+                        ?.use { Taglib.readMetadata(fd = it.detachFd()) }
+                        ?: return@mapNotNull null
+
+                    SourceItem.UriItem(file.uri) to metadata
                 }
-            )
+            }
+        } ?: emptyList()
+    }.map { result ->
+        Snapshot(
+            audios = result.map { (source, metadata) ->
+                LAudio(
+                    id = source.key,
+                    title = metadata.title,
+                    subtitle = metadata.artist,
+                    sourceItem = source,
+                    mediaSourceName = this@AndroidFileSystemSource.name
+                )
+            }
+        )
+    }.stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
+
+    override fun source(): Flow<Snapshot> = sourceStateFlow
+    override val dataSource: MediaDataSource = this
+
+    override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
+        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
+
+        val sourceItem = audio?.sourceItem
+            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
+
+        when (sourceItem) {
+            is SourceItem.FileItem -> {
+                val file = sourceItem.file
+
+                val lyric = Taglib.getLyric(path = file.absolutePath)
+                    ?: throw FileNotFoundException("Not found lyric for $file")
+
+                lyric
+            }
+
+            is SourceItem.FilePathItem -> {
+                val uri = sourceItem.path.toUri()
+
+                val lyric = context.contentResolver
+                    .openFileDescriptor(uri, "r")
+                    ?.use { Taglib.getLyric(fd = it.detachFd()) }
+                    ?: throw FileNotFoundException("Not found lyric for $uri")
+
+                lyric
+            }
+
+            else -> null
+        }
+    }
+
+    override suspend fun getPicture(song: LAudio): MediaData? = withContext(Dispatchers.io) {
+        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
+
+        val sourceItem = audio?.sourceItem
+            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
+
+        when (sourceItem) {
+            is SourceItem.FileItem -> {
+                val file = sourceItem.file
+
+                val picture = Taglib.getPicture(path = file.absolutePath)
+                    ?: throw FileNotFoundException("Not found lyric for $file")
+
+                MediaData.Bytes(picture)
+            }
+
+            is SourceItem.FilePathItem -> {
+                val uri = sourceItem.path.toUri()
+
+                val picture = context.contentResolver
+                    .openFileDescriptor(uri, "r")
+                    ?.use { Taglib.getPicture(fd = it.detachFd()) }
+                    ?: throw FileNotFoundException("Not found lyric for $uri")
+
+                MediaData.Bytes(picture)
+            }
+
+            else -> null
+        }
+    }
+
+    override suspend fun getMedia(song: LAudio): MediaData? = withContext(Dispatchers.io) {
+        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
+
+        val sourceItem = audio?.sourceItem
+            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
+
+        when (sourceItem) {
+            is SourceItem.FileItem -> {
+                val file = sourceItem.file
+                MediaData.Bytes(file.readBytes())
+            }
+
+            is SourceItem.FilePathItem -> {
+                MediaData.Url(sourceItem.path)
+            }
+
+            else -> null
         }
     }
 
     @Composable
     override fun Content(modifier: Modifier) {
-        val scope = rememberCoroutineScope()
         val launcher = rememberDirectoryPickerLauncher {
-            scope.launch(Dispatchers.IO) { selectedFile.emit(it) }
+            filePathState.value = it?.absolutePath() ?: ""
         }
         val source by remember { source() }
             .collectAsState(Snapshot.Empty)
