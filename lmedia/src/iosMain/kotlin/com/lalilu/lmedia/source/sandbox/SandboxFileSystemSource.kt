@@ -1,12 +1,16 @@
-package com.lalilu.lmedia.source
+package com.lalilu.lmedia.source.sandbox
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.lalilu.common.ext.io
+import com.lalilu.common.flow.toUpdatableFlow
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.source.MediaData
+import com.lalilu.lmedia.source.MediaDataSource
+import com.lalilu.lmedia.source.MediaSource
 import io.github.vinceglb.filekit.*
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
@@ -24,7 +28,7 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
     private val musicFolder = FileKit.filesDir
     private val fileFlow = flowOf(musicFolder.takeIf { it.exists() })
 
-    private val sourceStateFlow = fileFlow.map { root ->
+    private val sourceFlow = fileFlow.map { root ->
         root?.filterChildren { file ->
             if (file.isDirectory()) return@filterChildren false
             if (file.size() < 10) return@filterChildren false
@@ -57,8 +61,10 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
                 )
             }
         )
-    }.stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
+    }.toUpdatableFlow()
 
+    private val sourceStateFlow = sourceFlow
+        .stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
 
     override fun source(): Flow<Snapshot> = sourceStateFlow
     override val dataSource: MediaDataSource = this
@@ -108,7 +114,10 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
 
     @Composable
     override fun Content(modifier: Modifier) {
-        SandBoxFileSystemSourceContent(modifier)
+        SandBoxFileSystemSourceContent(
+            modifier = modifier,
+            onSourceUpdate = { sourceFlow.requireUpdate() }
+        )
     }
 }
 
