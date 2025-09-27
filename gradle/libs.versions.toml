@@ -4,7 +4,7 @@ android-targetSdk = "36"
 android-minSdk = "23"
 androidx-activity = "1.10.1"
 androidx-lifecycle = "2.9.1"
-composeHotReload = "1.0.0-beta06"
+composeHotReload = "1.0.0-beta08"
 composeMultiplatform = "1.8.2"
 kotlinx-serialization = "1.9.0"
 junit = "4.13.2"
@@ -61,6 +61,7 @@ kotlin-logging = { module = "io.github.oshai:kotlin-logging", version = "7.0.3" 
 human-readable = { module = "nl.jacobras:Human-Readable", version.ref = "human-readable" }
 xmlutil-core = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlutil" }
 xmlutil-serialization = { module = "io.github.pdvrieze.xmlutil:serialization", version.ref = "xmlutil" }
+qrcode-kotlin = { module = "io.github.g0dkar:qrcode-kotlin", version = "4.5.0" }
 
 vortex = { module = "io.github.hristogochev:vortex", version.ref = "vortex" }
 vortex-koin = { module = "io.github.hristogochev:vortex-koin", version.ref = "vortex" }

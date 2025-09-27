@@ -22,12 +22,9 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
@@ -45,17 +42,19 @@ data class FileInfo(
 )
 
 object SandBoxFileSystemServer : CoroutineScope, KoinComponent {
-    override val coroutineContext: CoroutineContext = Dispatchers.io
-    var server: EmbeddedServer<*, *>? by mutableStateOf(null)
-        private set
+    override val coroutineContext: CoroutineContext = Dispatchers.io + SupervisorJob()
     private val json: Json by inject<Json>()
     private var mutex = Mutex()
+    var server: EmbeddedServer<*, *>? by mutableStateOf(null)
+        private set
+    var urls: List<String> by mutableStateOf(emptyList())
+        private set
 
     suspend fun start(
-        onStart: () -> Unit = {},
+        onStart: (urls: List<String>) -> Unit = {},
         onError: (Throwable) -> Unit = {},
         onSourceUpdate: () -> Unit = {},
-    ) = withContext(Dispatchers.io) {
+    ) = withContext(coroutineContext) {
         runCatching {
             mutex.withLock {
                 if (server != null) {
@@ -64,12 +63,20 @@ object SandBoxFileSystemServer : CoroutineScope, KoinComponent {
                 }
 
                 provideSandBoxFileSystemServer(
-                    port = 8096,
                     config = { install(ContentNegotiation) { json(json) } },
-                    onMusicFolderUpdate = { onSourceUpdate() }
+                    onSourceUpdate = onSourceUpdate
                 )?.also { it.startSuspend(false) }?.let {
                     server = it
-                    onStart()
+                    val connectors = it.engine.resolvedConnectors()
+                    urls = connectors.map { connector ->
+                        val scheme = when (connector.type) {
+                            ConnectorType.HTTP -> "http://"
+                            ConnectorType.HTTPS -> "https://"
+                            else -> ""
+                        }
+                        "$scheme${connector.host}:${connector.port}"
+                    }
+                    onStart(urls)
                 }
             }
         }.getOrElse {
@@ -87,7 +94,7 @@ object SandBoxFileSystemServer : CoroutineScope, KoinComponent {
             return
         }
 
-        launch(Dispatchers.io) {
+        launch {
             runCatching {
                 mutex.withLock {
                     server?.stopSuspend()
@@ -105,9 +112,9 @@ object SandBoxFileSystemServer : CoroutineScope, KoinComponent {
 
     @OptIn(InternalAPI::class, ExperimentalTime::class)
     private fun provideSandBoxFileSystemServer(
-        port: Int,
+        port: Int = 0,
         config: Application.() -> Unit = {},
-        onMusicFolderUpdate: () -> Unit = {}
+        onSourceUpdate: () -> Unit = {}
     ): EngineServer? {
         val factory = serverEngineFactory ?: return null
         val musicFolder = FileKit.filesDir
@@ -155,7 +162,7 @@ object SandBoxFileSystemServer : CoroutineScope, KoinComponent {
                         if (file.exists()) {
                             file.delete()
                             call.respond("File deleted successfully")
-                            onMusicFolderUpdate()
+                            onSourceUpdate()
                         } else {
                             call.respond(HttpStatusCode.NotFound, "File not found")
                         }
@@ -190,7 +197,7 @@ object SandBoxFileSystemServer : CoroutineScope, KoinComponent {
                             call.respond(HttpStatusCode.BadRequest, "File data is missing")
                         }
 
-                        onMusicFolderUpdate()
+                        onSourceUpdate()
                     } catch (e: Exception) {
                         call.respond(HttpStatusCode.InternalServerError, "Failed to upload file: ${e.message}")
                         e.printStackTrace()
