@@ -1,6 +1,5 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
-import com.google.devtools.ksp.gradle.KspAATask
 import com.lalilu.gradle.XcodeDetector
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
@@ -115,31 +114,6 @@ android {
     defaultConfig {
         ndk {
             abiFilters.addAll(listOf("armeabi-v7a", "arm64-v7a", "arm64-v8a", "x86", "x86_64"))
-        }
-    }
-}
-
-afterEvaluate {
-    project.tasks.withType(KspAATask::class.java).configureEach {
-        when (name) {
-            "kspKotlinJvm" -> dependsOn(
-                "generateResourceAccessorsForJvmMain",
-                "generateActualResourceCollectorsForJvmMain"
-            )
-
-            "kspDebugKotlinAndroid" -> dependsOn(
-                "generateActualResourceCollectorsForAndroidMain",
-                "generateResourceAccessorsForAndroidMain",
-                "generateResourceAccessorsForAndroidDebug",
-            )
-
-            "kspKotlinIosArm64" -> dependsOn(
-                "generateResourceAccessorsForIosArm64Main",
-                "generateResourceAccessorsForIosMain",
-                "generateResourceAccessorsForAppleMain",
-                "generateResourceAccessorsForNativeMain",
-                "generateActualResourceCollectorsForIosArm64Main",
-            )
         }
     }
 }

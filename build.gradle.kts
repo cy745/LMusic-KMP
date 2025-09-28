@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.KotlinJsCompile
+
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
     // in each subproject's classloader
@@ -16,3 +18,11 @@ plugins {
 
 // 配置注入遍历的起点项目
 ext { set("targetInjectProjectName", "composeApp") }
+
+// 子项目都开启 wasm-kclass-fqn
+// 让 wasm 支持直接访问 KClass 的 qualifiedName 参数
+subprojects {
+    tasks.withType<KotlinJsCompile>().configureEach {
+        compilerOptions.freeCompilerArgs.add("-Xwasm-kclass-fqn")
+    }
+}
