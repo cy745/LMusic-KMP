@@ -18,7 +18,7 @@ package androidx.navigation3.ui
 
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleOwner
+import androidx.lifecycle.compose.OverrideLifecycleOwner
 import androidx.navigation3.runtime.navEntryDecorator
 
 @Composable
@@ -31,5 +31,5 @@ internal fun transitionAwareLifecycleNavEntryDecorator(backStack: List<Any>, isS
                 isInBackStack && !isSettled -> Lifecycle.State.STARTED
                 else /* !isInBackStack */ -> Lifecycle.State.CREATED
             }
-        LifecycleOwner(maxLifecycle = maxLifecycle) { entry.Content() }
+        OverrideLifecycleOwner(maxLifecycle = maxLifecycle) { entry.Content() }
     }
