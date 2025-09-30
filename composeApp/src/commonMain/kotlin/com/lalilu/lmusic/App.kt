@@ -40,7 +40,7 @@ fun App() {
         )
     }
 
-    MaterialTheme {
+    LMusicTheme {
         SharedTransitionLayout {
             val sharedEntryInSceneNavEntryDecorator = remember {
                 navEntryDecorator<NavKey> { entry ->
