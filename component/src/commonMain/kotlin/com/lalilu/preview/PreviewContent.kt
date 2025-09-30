@@ -13,7 +13,7 @@ fun preview(
     theme: @Composable (@Composable () -> Unit) -> Unit = { DefaultTheme(it) },
     background: @Composable (@Composable () -> Unit) -> Unit = { DefaultBackground(it) },
     content: @Composable PreviewScope.() -> Unit,
-) = preview(
+) = previewWithConfiguration(
     configuration = { dataContext.addAll(data) },
     theme = theme,
     background = background,
@@ -21,7 +21,7 @@ fun preview(
 )
 
 @Composable
-fun preview(
+fun previewWithConfiguration(
     configuration: PreviewScope.() -> Unit = { },
     theme: @Composable (@Composable () -> Unit) -> Unit = { DefaultTheme(it) },
     background: @Composable (@Composable () -> Unit) -> Unit = { DefaultBackground(it) },

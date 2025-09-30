@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
+import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -44,26 +45,17 @@ fun SongCard(
 
 @Preview
 @Composable
-private fun SongCardPreview() = preview(data = previewData) {
+private fun SongCardPreview() = preview {
     Column {
-        repeat<SongPreviewData>(10) {
+        repeat<PreviewPresets>(
+            count = 10,
+            key = "SONGS",
+            shuffle = true
+        ) {
             SongCard(
-                title = title,
-                subtitle = subtitle
+                title = stringValue("title"),
+                subtitle = stringValue("subtitle")
             )
         }
     }
 }
-
-data class SongPreviewData(val title: String, val subtitle: String)
-
-val previewData = listOf(
-    SongPreviewData("青花瓷", "周杰伦"),
-    SongPreviewData("夜曲", "周杰伦"),
-    SongPreviewData("匆匆那年", "王菲"),
-    SongPreviewData("Lemon", "米津玄師"),
-    SongPreviewData("Shape of You", "Ed Sheeran"),
-    SongPreviewData("Blinding Lights", "The Weeknd"),
-    SongPreviewData("君の名は希望", "乃木坂46"),
-    SongPreviewData("Uptown Funk", "Mark Ronson ft. Bruno Mars")
-).shuffled()
