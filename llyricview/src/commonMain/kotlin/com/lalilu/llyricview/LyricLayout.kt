@@ -12,7 +12,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -28,7 +30,6 @@ import com.lalilu.extensions.startRecord
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.findPlayingIndex
 import com.lalilu.llyricview.impl.LyricContentNormal
-import io.github.hristogochev.vortex.util.BackHandler
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
@@ -36,7 +37,7 @@ import kotlinx.coroutines.isActive
 import org.koin.compose.koinInject
 import org.koin.core.qualifier.named
 
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalComposeUiApi::class)
 @Composable
 fun LyricLayout(
     modifier: Modifier = Modifier,

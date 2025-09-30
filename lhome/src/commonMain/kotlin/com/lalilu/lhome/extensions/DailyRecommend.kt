@@ -21,14 +21,14 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.navigation.LocalBackStack
 import com.lalilu.navigation.LocalSharedTransitionScope
 import com.lalilu.navigation.Screen
-import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 
 object DailyRecommend : LazyGridContent {
 
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
         val navigator = LocalBackStack.current
-        val homeVM = koinInject<HomeScreenModel>()
+        val homeVM = koinViewModel<HomeScreenModel>()
 
         return fun LazyGridScope.() {
             item(

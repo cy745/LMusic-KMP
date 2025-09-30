@@ -55,11 +55,10 @@ kotlin {
                 api(compose.components.uiToolingPreview)
                 api(libs.bundles.jbx)
                 api(libs.compose.adaptive)
-                api(libs.vortex)
-                api(libs.vortex.koin)
                 api(libs.bundles.coil)
                 api(libs.bundles.settings)
                 api(libs.koin.compose)
+                api(libs.koin.compose.viewmodel)
                 api(libs.remixicon.kmp)
                 api(libs.qrcode.kotlin)
             }

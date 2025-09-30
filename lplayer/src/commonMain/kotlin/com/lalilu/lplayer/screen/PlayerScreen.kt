@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import coil3.compose.AsyncImage
 import com.lalilu.RemixIcon
@@ -34,10 +36,13 @@ import com.lalilu.remixicon.media.pauseLine
 import com.lalilu.remixicon.media.playLine
 import com.lalilu.remixicon.media.skipBackLine
 import com.lalilu.remixicon.media.skipForwardLine
-import io.github.hristogochev.vortex.model.ScreenModel
-import io.github.hristogochev.vortex.model.rememberScreenModel
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.annotation.Factory
 
 @Destination("/player")
 class PlayerScreen : Screen {
@@ -45,7 +50,7 @@ class PlayerScreen : Screen {
     @OptIn(ExperimentalSharedTransitionApi::class)
     @Composable
     override fun Content() {
-        val model = rememberScreenModel { PlayerScreenModel() }
+        val model = koinViewModel<PlayerScreenModel>()
         val isPlaying = model.isPlaying.collectAsState()
         val currentItem = model.currentItem.collectAsState()
         val scope = rememberCoroutineScope()
@@ -158,13 +163,14 @@ class PlayerScreen : Screen {
     }
 }
 
-class PlayerScreenModel : ScreenModel, CoroutineScope by CoroutineScope(Dispatchers.Default) {
+@Factory
+class PlayerScreenModel : ViewModel() {
     val isPlaying = LPlayer.instance.isPlaying
     val currentItem = LPlayer.instance.currentItem
 
     init {
         LMedia.instance.whenReady {
-            launch {
+            viewModelScope.launch {
                 val list = LMedia.instance.get<LAudio>()
                 LPlayer.instance.updatePlaylist(list)
                 Logger.i("[LPlayer] set list: ${list.size}")

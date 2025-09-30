@@ -25,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.util.fastForEachReversed
 import androidx.navigation3.runtime.DecoratedNavEntryProvider
 import androidx.navigation3.runtime.NavEntry
@@ -33,7 +34,6 @@ import androidx.navigation3.runtime.rememberSavedStateNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay.DEFAULT_TRANSITION_DURATION_MILLISECOND
 import androidx.navigation3.ui.NavDisplay.POP_TRANSITION_SPEC
 import androidx.navigation3.ui.NavDisplay.TRANSITION_SPEC
-import io.github.hristogochev.vortex.util.BackHandler
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlin.reflect.KClass
