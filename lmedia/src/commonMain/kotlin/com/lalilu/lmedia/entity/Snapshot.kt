@@ -29,3 +29,48 @@ fun Array<Snapshot>.combineToOne(): Snapshot {
         updateTime = maxOf { it.updateTime }
     )
 }
+
+fun List<LAudio>.buildSnapshot(): Snapshot {
+    val albums = this
+        .groupBy { song -> song.metadata.album }
+        .map { (album, songs) ->
+            LAlbum(
+                id = album,
+                title = album,
+                subtitle = "",
+                items = songs
+            )
+        }
+
+    val artists = this
+        .groupBy { song -> song.metadata.artist }
+        .map { (artist, songs) ->
+            LArtist(
+                id = artist,
+                title = artist,
+                subtitle = "",
+                items = songs
+            )
+        }
+        .separate()
+        .merge()
+
+    val genres = this
+        .groupBy { song -> song.metadata.genre }
+        .map { (genre, songs) ->
+            LGenre(
+                id = genre,
+                title = genre,
+                subtitle = "",
+                items = songs
+            )
+        }
+
+    return Snapshot(
+        audios = this,
+        albums = albums,
+        artists = artists,
+        genres = genres,
+    )
+}
+

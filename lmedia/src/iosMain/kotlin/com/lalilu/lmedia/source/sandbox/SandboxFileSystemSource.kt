@@ -8,6 +8,7 @@ import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.entity.buildSnapshot
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaDataSource
 import com.lalilu.lmedia.source.MediaSource
@@ -49,18 +50,19 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
                 ?: return@mapNotNull null
             file to metadata
         } ?: emptyList()
-    }.map { songs ->
-        Snapshot(
-            audios = songs.map { (file, metadata) ->
-                LAudio(
-                    id = file.absolutePath(),
-                    title = metadata.title,
-                    subtitle = metadata.artist,
-                    sourceItem = SourceItem.FileItem(file),
-                    mediaSourceName = this@SandboxFileSystemSource.name
-                )
-            }
-        )
+    }.map { pairs ->
+        val songs = pairs.map { (file, metadata) ->
+            LAudio(
+                id = file.absolutePath(),
+                title = metadata.title,
+                subtitle = metadata.artist,
+                sourceItem = SourceItem.FileItem(file),
+                metadata = metadata,
+                mediaSourceName = this@SandboxFileSystemSource.name,
+            )
+        }
+
+        songs.buildSnapshot()
     }.toUpdatableFlow()
 
     private val sourceStateFlow = sourceFlow
