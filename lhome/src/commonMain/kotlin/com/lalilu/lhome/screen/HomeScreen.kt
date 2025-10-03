@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.extensions.DailyRecommend
+import com.lalilu.lhome.extensions.LatestPanel
 import com.lalilu.navigation.LocalBackStack
 import com.lalilu.navigation.Screen
 
@@ -27,6 +28,8 @@ class HomeScreen : Screen {
 @Composable
 fun HomeScreenContent(modifier: Modifier = Modifier) {
     val dailyRecommend = DailyRecommend.register()
+    val latestPanel = LatestPanel.register()
+
     val statusBar = WindowInsets.statusBars.asPaddingValues()
     val navigator = LocalBackStack.current
 
@@ -36,6 +39,8 @@ fun HomeScreenContent(modifier: Modifier = Modifier) {
         contentPadding = PaddingValues(top = statusBar.calculateTopPadding()),
         content = {
             dailyRecommend.invoke(this)
+            latestPanel.invoke(this)
+
             item(span = { GridItemSpan(12) }) {
                 Button(onClick = {
                     KRouter.route<Screen>("/media_source")

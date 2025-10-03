@@ -3,7 +3,7 @@ package com.lalilu.lhome.extensions
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.animateBounds
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.material3.FilterChip
@@ -12,15 +12,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lalilu.component.LazyGridContent
-import com.lalilu.krouter.KRouter
-import com.lalilu.lhome.component.RecommendCard2
+import com.lalilu.lhome.component.RecommendCard
+import com.lalilu.lhome.component.RecommendGroupCard
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.LGroupItem
+import com.lalilu.lmedia.entity.LItem
 import com.lalilu.navigation.LocalBackStack
 import com.lalilu.navigation.LocalSharedTransitionScope
-import com.lalilu.navigation.Screen
 import org.koin.compose.viewmodel.koinViewModel
 
 object DailyRecommend : LazyGridContent {
@@ -44,10 +44,7 @@ object DailyRecommend : LazyGridContent {
                 ) {
                     FilterChip(
                         selected = true,
-                        onClick = {
-                            KRouter.route<Screen>("/player", mapOf("item" to "test"))
-                                ?.let { navigator.add(it) }
-                        },
+                        onClick = { homeVM.requireUpdateDailyRecommends() },
                         label = {
                             Text("换一换")
                         }
@@ -55,19 +52,20 @@ object DailyRecommend : LazyGridContent {
                 }
             }
 
-            dailyRecommendForSideCompat(audios = { homeVM.recentlyAdded.value })
-//            when (windowWidthClass) {
-//                WindowWidthSizeClass.Compact -> dailyRecommendForSideCompat()
-//                WindowWidthSizeClass.Medium -> dailyRecommendForSideMedium()
-//                WindowWidthSizeClass.Expanded -> dailyRecommendForSideExpanded()
-//            }
+            dailyRecommendForSideCompat(
+                items = { homeVM.dailyRecommends.value },
+                onClick = {
+
+                }
+            )
         }
     }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 fun LazyGridScope.dailyRecommendForSideCompat(
-    audios: () -> List<LAudio>
+    items: () -> List<LItem>,
+    onClick: (LItem) -> Unit = {}
 ) {
     item(
         key = "daily_recommend",
@@ -76,25 +74,24 @@ fun LazyGridScope.dailyRecommendForSideCompat(
     ) {
         RecommendRow(
             modifier = Modifier.animateBounds(LocalSharedTransitionScope.current),
-            items = audios,
+            items = items,
             getId = { it.id }
         ) {
-            RecommendCard2(
-                item = { it },
-                modifier = Modifier.size(width = 250.dp, height = 250.dp),
-                onClick = {
-//                    AppRouter.route("/pages/songs/detail")
-//                        .with("mediaId", it.id)
-//                        .jump()
-                }
-            )
+            if (it is LGroupItem) {
+                RecommendGroupCard(
+                    modifier = Modifier.width(width = 250.dp),
+                    group = it,
+                    onClick = onClick
+                )
+            } else {
+                RecommendCard(
+                    modifier = Modifier.width(width = 250.dp),
+                    title = it.title,
+                    subTitle = it.subtitle,
+                    imageData = it,
+                    onClick = { onClick(it) }
+                )
+            }
         }
     }
-}
-
-fun LazyGridScope.dailyRecommendForSideMedium() {
-}
-
-fun LazyGridScope.dailyRecommendForSideExpanded() {
-
 }
