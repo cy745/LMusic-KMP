@@ -165,6 +165,36 @@ val SongsPreviewData = PreviewPresets.build(
             "title" to "青花瓷",
             "subtitle" to "周杰伦",
             "duration" to 2100
+        ),
+        mapOf(
+            "id" to 21,
+            "title" to "We Don't Talk About Bruno",
+            "subtitle" to "Carolina Gaitán, Mauro Castillo, Adassa, Rhenzy Feliz, Diane Guerrero, Stephanie Beatriz & Encanto Cast",
+            "duration" to 2200
+        ),
+        mapOf(
+            "id" to 22,
+            "title" to "The Lord of the Rings: The Return of the King - Into the West",
+            "subtitle" to "Annie Lennox",
+            "duration" to 2900
+        ),
+        mapOf(
+            "id" to 23,
+            "title" to "Hasta la Raíz (Live)",
+            "subtitle" to "Natalia Lafourcade feat. Los Macorinos",
+            "duration" to 2600
+        ),
+        mapOf(
+            "id" to 24,
+            "title" to "Bohemian Rhapsody - 2011 Mix",
+            "subtitle" to "Queen",
+            "duration" to 3500
+        ),
+        mapOf(
+            "id" to 25,
+            "title" to "Symphony No. 9 in D Minor, Op. 125 'Choral': Ode to Joy",
+            "subtitle" to "Ludwig van Beethoven, Berlin Philharmonic, Herbert von Karajan",
+            "duration" to 4200
         )
     )
 )

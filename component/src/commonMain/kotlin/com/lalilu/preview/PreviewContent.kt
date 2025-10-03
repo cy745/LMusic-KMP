@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import com.lalilu.LMusicTheme
 
 @Composable
 fun preview(
@@ -33,7 +34,7 @@ fun previewWithConfiguration(
 
 @Composable
 private fun DefaultTheme(content: @Composable () -> Unit) {
-    MaterialTheme { content() }
+    LMusicTheme { content() }
 }
 
 @Composable
