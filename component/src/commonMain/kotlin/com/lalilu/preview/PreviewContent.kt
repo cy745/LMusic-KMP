@@ -11,11 +11,15 @@ import com.lalilu.LMusicTheme
 @Composable
 fun preview(
     data: List<Any> = emptyList(),
-    theme: @Composable (@Composable () -> Unit) -> Unit = { DefaultTheme(it) },
+    isDarkMode: Boolean = false,
+    theme: @Composable (Boolean, @Composable () -> Unit) -> Unit = { darkMode, block ->
+        DefaultTheme(darkMode || isDarkMode, block)
+    },
     background: @Composable (@Composable () -> Unit) -> Unit = { DefaultBackground(it) },
     content: @Composable PreviewScope.() -> Unit,
 ) = previewWithConfiguration(
     configuration = { dataContext.addAll(data) },
+    isDarkMode = isDarkMode,
     theme = theme,
     background = background,
     content = content
@@ -24,17 +28,22 @@ fun preview(
 @Composable
 fun previewWithConfiguration(
     configuration: PreviewScope.() -> Unit = { },
-    theme: @Composable (@Composable () -> Unit) -> Unit = { DefaultTheme(it) },
-    background: @Composable (@Composable () -> Unit) -> Unit = { DefaultBackground(it) },
+    isDarkMode: Boolean = false,
+    theme: @Composable (Boolean, @Composable () -> Unit) -> Unit = { darkMode, block ->
+        DefaultTheme(darkMode || isDarkMode, block)
+    },
+    background: @Composable (@Composable () -> Unit) -> Unit = {
+        DefaultBackground(it)
+    },
     content: @Composable PreviewScope.() -> Unit,
 ) {
     val previewScope = remember { PreviewScope().apply(configuration) }
-    theme { background { previewScope.content() } }
+    theme(isDarkMode) { background { previewScope.content() } }
 }
 
 @Composable
-private fun DefaultTheme(content: @Composable () -> Unit) {
-    LMusicTheme { content() }
+private fun DefaultTheme(darkMode: Boolean, content: @Composable () -> Unit) {
+    LMusicTheme(isDarkTheme = darkMode) { content() }
 }
 
 @Composable
