@@ -1,6 +1,5 @@
 package com.lalilu.lhome.component
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -21,13 +20,11 @@ fun RecommendTitle(
     modifier: Modifier = Modifier,
     title: String,
     paddingValues: PaddingValues = PaddingValues(horizontal = 16.dp),
-    onClick: () -> Unit = {},
     extraContent: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
             .padding(paddingValues),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween

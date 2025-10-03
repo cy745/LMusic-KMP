@@ -24,6 +24,10 @@ class HomeScreenModel(
         .mapLatest { it.take(15) }
         .toState(emptyList(), viewModelScope)
 
+    val histories = library.getFlow<LAudio>()
+        .mapLatest { it.shuffled().take(6) }
+        .toState(emptyList(), viewModelScope)
+
     val dailyRecommends = lHomeKV.dailyRecommends.flow()
         .flatMapLatest { list ->
             library.snapshotStateFlow.mapLatest { snapshot ->
@@ -37,12 +41,6 @@ class HomeScreenModel(
             }
         }
         .toState(emptyList(), viewModelScope)
-
-    init {
-        if (dailyRecommends.value.isEmpty()) {
-            requireUpdateDailyRecommends()
-        }
-    }
 
     fun requireUpdateDailyRecommends() = viewModelScope.launch {
         val buildItems = buildList {

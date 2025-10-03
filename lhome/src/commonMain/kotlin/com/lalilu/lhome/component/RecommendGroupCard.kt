@@ -18,9 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LGroupItem
-import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.entity.*
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -35,9 +33,31 @@ fun RecommendGroupCard(
     val rowCount = remember(group) {
         when {
             group.items.size == 1 -> 1
-            group.items.size == 4 -> 2
+            group.items.size <= 4 -> 2
             group.items.size >= 9 -> 3
             else -> 3
+        }
+    }
+    val title = remember(group) {
+        if (group.title.isNotBlank()) return@remember group.title
+
+        when (group) {
+            is LAlbum -> "专辑"
+            is LArtist -> "歌手"
+            is LGenre -> "曲风"
+            is LFolder -> "文件夹"
+            else -> "元素"
+        }
+    }
+    val subtitle = remember(group) {
+        if (group.subtitle.isNotBlank()) return@remember group.subtitle
+
+        when (group) {
+            is LAlbum -> "专辑: 共 ${group.itemsCount} 首歌曲"
+            is LArtist -> "歌手: 共 ${group.itemsCount} 首歌曲"
+            is LGenre -> "曲风: 共 ${group.itemsCount} 首歌曲"
+            is LFolder -> "文件夹: 共 ${group.itemsCount} 首歌曲"
+            else -> "共 ${group.items.size} 首歌曲"
         }
     }
 
@@ -50,7 +70,14 @@ fun RecommendGroupCard(
             )
     ) {
         Column(
-            modifier = Modifier,
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.onBackground.copy(0.05f))
+                .clickable(
+                    interactionSource = interactionSource,
+                    onClick = { onClick(group) }
+                )
+                .padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             repeat(rowCount) { row ->
@@ -80,7 +107,7 @@ fun RecommendGroupCard(
 
         Text(
             modifier = Modifier.padding(top = 8.dp),
-            text = group.title,
+            text = title,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.W600,
             maxLines = 1,
@@ -89,7 +116,7 @@ fun RecommendGroupCard(
         )
         Text(
             modifier = Modifier.alpha(0.6f),
-            text = group.subtitle,
+            text = subtitle,
             style = MaterialTheme.typography.bodySmall,
             maxLines = 1,
             color = MaterialTheme.colorScheme.onBackground,
@@ -101,17 +128,17 @@ fun RecommendGroupCard(
 @Composable
 private fun RecommendGroupItemCard(
     modifier: Modifier = Modifier,
-    item: LAudio,
-    onClick: (LAudio) -> Unit = {}
+    item: LItem,
+    onClick: (LItem) -> Unit = {}
 ) {
     AsyncImage(
         modifier = modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(8.dp))
             .border(
                 width = 1f.dp,
                 color = MaterialTheme.colorScheme.onBackground.copy(0.2f),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(8.dp)
             )
             .clickable(onClick = { onClick(item) })
             .background(MaterialTheme.colorScheme.onBackground.copy(0.15f)),
@@ -123,8 +150,8 @@ private fun RecommendGroupItemCard(
 @Preview
 @Composable
 private fun RecommendGroupCardPreview() = preview {
-    val group = remember {
-        val audios = dataContext.filterIsInstance<PreviewPresets>()
+    val audios = remember {
+        dataContext.filterIsInstance<PreviewPresets>()
             .mapIndexed { index, preset ->
                 LAudio(
                     id = index.toString(),
@@ -133,11 +160,23 @@ private fun RecommendGroupCardPreview() = preview {
                     mediaSourceName = ""
                 )
             }
-
-        val firstItem = audios.firstOrNull()
+    }
+    val group1 = remember {
+        val firstItem = audios.randomOrNull()
 
         object : LGroupItem {
-            override val items = audios
+            override val items = audios.take(4)
+            override val id: String = firstItem?.id ?: ""
+            override val title: String = firstItem?.title ?: ""
+            override val subtitle: String = firstItem?.subtitle ?: ""
+            override val extra: Map<String, String> = emptyMap()
+        }
+    }
+    val group2 = remember {
+        val firstItem = audios.randomOrNull()
+
+        object : LGroupItem {
+            override val items = audios.take(5)
             override val id: String = firstItem?.id ?: ""
             override val title: String = firstItem?.title ?: ""
             override val subtitle: String = firstItem?.subtitle ?: ""
@@ -153,14 +192,14 @@ private fun RecommendGroupCardPreview() = preview {
         item {
             RecommendGroupCard(
                 modifier = Modifier.width(250.dp),
-                group = group
+                group = group1
             )
         }
 
         item {
             RecommendGroupCard(
                 modifier = Modifier.width(250.dp),
-                group = group
+                group = group2
             )
         }
     }

@@ -1,12 +1,12 @@
 package com.lalilu.lhome.extensions
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.animateBounds
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -20,7 +20,6 @@ import com.lalilu.lhome.viewmodel.HomeScreenModel
 import com.lalilu.lmedia.entity.LGroupItem
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.navigation.LocalBackStack
-import com.lalilu.navigation.LocalSharedTransitionScope
 import org.koin.compose.viewmodel.koinViewModel
 
 object DailyRecommend : LazyGridContent {
@@ -36,17 +35,16 @@ object DailyRecommend : LazyGridContent {
                 contentType = "daily_recommend_header",
                 span = { GridItemSpan(maxLineSpan) }
             ) {
-                RecommendTitle(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    title = "每日推荐",
-                    onClick = {
-                    }
-                ) {
+                RecommendTitle(title = "每日推荐") {
                     FilterChip(
                         selected = true,
+                        shape = RoundedCornerShape(50),
                         onClick = { homeVM.requireUpdateDailyRecommends() },
                         label = {
-                            Text("换一换")
+                            Text(
+                                text = "换一换",
+                                style = MaterialTheme.typography.labelMedium,
+                            )
                         }
                     )
                 }
@@ -73,7 +71,7 @@ fun LazyGridScope.dailyRecommendForSideCompat(
         span = { GridItemSpan(maxLineSpan) }
     ) {
         RecommendRow(
-            modifier = Modifier.animateBounds(LocalSharedTransitionScope.current),
+            modifier = Modifier,
             items = items,
             getId = { it.id }
         ) {

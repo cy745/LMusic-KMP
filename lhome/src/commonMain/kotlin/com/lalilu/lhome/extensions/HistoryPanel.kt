@@ -1,8 +1,10 @@
 package com.lalilu.lhome.extensions
 
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -13,31 +15,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lalilu.component.LazyGridContent
 import com.lalilu.krouter.KRouter
-import com.lalilu.lhome.component.RecommendCard
-import com.lalilu.lhome.component.RecommendRow
+import com.lalilu.lhome.component.AudioItemCard
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
 import com.lalilu.navigation.LocalBackStack
 import com.lalilu.navigation.Screen
 import org.koin.compose.viewmodel.koinViewModel
 
-object LatestPanel : LazyGridContent {
-
+object HistoryPanel : LazyGridContent {
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
         val backStack = LocalBackStack.current
         val vm = koinViewModel<HomeScreenModel>()
-        val items by vm.recentlyAdded
+        val items by vm.histories
 
         return fun LazyGridScope.() {
-            // 若列表为空，不显示
-            if (items.isEmpty()) return
-
-            item(
-                key = "latest_header",
-                contentType = "latest_header",
-                span = { GridItemSpan(maxLineSpan) }
-            ) {
+            item(span = { GridItemSpan(12) }) {
                 RecommendTitle(title = "最近添加") {
                     FilterChip(
                         selected = true,
@@ -49,7 +42,7 @@ object LatestPanel : LazyGridContent {
                         },
                         label = {
                             Text(
-                                text = "所有歌曲",
+                                text = "历史播放",
                                 style = MaterialTheme.typography.labelMedium,
                             )
                         }
@@ -57,22 +50,22 @@ object LatestPanel : LazyGridContent {
                 }
             }
 
-            item(
-                key = "latest",
-                contentType = "latest",
-                span = { GridItemSpan(maxLineSpan) }
+            items(
+                items = items,
+                key = { it.id },
+                contentType = { "HISTORY_ITEM" },
+                span = { GridItemSpan(12) }
             ) {
-                RecommendRow(
-                    items = { items },
-                    getId = { it.id }
-                ) {
-                    RecommendCard(
-                        modifier = Modifier.width(120.dp),
-                        title = it.title,
-                        subTitle = it.subtitle,
-                        imageData = it
-                    )
-                }
+                AudioItemCard(
+                    modifier = Modifier
+                        .clickable {
+
+                        }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    title = it.title,
+                    subtitle = it.subtitle,
+                    imageData = it
+                )
             }
         }
     }

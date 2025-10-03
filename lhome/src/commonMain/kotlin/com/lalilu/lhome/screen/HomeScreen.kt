@@ -2,17 +2,15 @@ package com.lalilu.lhome.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.lalilu.krouter.KRouter
+import androidx.compose.ui.unit.dp
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.extensions.DailyRecommend
+import com.lalilu.lhome.extensions.EntryPanel
+import com.lalilu.lhome.extensions.HistoryPanel
 import com.lalilu.lhome.extensions.LatestPanel
-import com.lalilu.navigation.LocalBackStack
 import com.lalilu.navigation.Screen
 
 @Destination(router = ["/home"])
@@ -29,26 +27,24 @@ class HomeScreen : Screen {
 fun HomeScreenContent(modifier: Modifier = Modifier) {
     val dailyRecommend = DailyRecommend.register()
     val latestPanel = LatestPanel.register()
+    val historyPanel = HistoryPanel.register()
+    val entryPanel = EntryPanel.register()
 
     val statusBar = WindowInsets.statusBars.asPaddingValues()
-    val navigator = LocalBackStack.current
+    val navigationBar = WindowInsets.navigationBars.asPaddingValues()
 
     LazyVerticalGrid(
         modifier = modifier.fillMaxSize(),
         columns = GridCells.Fixed(12),
-        contentPadding = PaddingValues(top = statusBar.calculateTopPadding()),
+        contentPadding = PaddingValues(
+            top = statusBar.calculateTopPadding() + 16.dp,
+            bottom = navigationBar.calculateBottomPadding() + 12.dp
+        ),
         content = {
             dailyRecommend.invoke(this)
             latestPanel.invoke(this)
-
-            item(span = { GridItemSpan(12) }) {
-                Button(onClick = {
-                    KRouter.route<Screen>("/media_source")
-                        ?.let { navigator.add(it) }
-                }) {
-                    Text("Go to MediaSourceScreen")
-                }
-            }
+            historyPanel.invoke(this)
+            entryPanel.invoke(this)
         }
     )
 }
