@@ -71,7 +71,6 @@ kotlin {
         iosMain.dependencies {
         }
         androidMain.dependencies {
-            implementation(compose.preview)
             implementation(libs.media3.session)
             implementation(libs.media3.exoplayer)
         }
@@ -98,7 +97,6 @@ kotlin {
 //}
 
 dependencies {
-    debugImplementation(libs.compose.ui.tooling)
     kspCommonMainMetadata(libs.koin.compiler)
 }
 

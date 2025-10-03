@@ -53,8 +53,11 @@ kotlin {
                 api(compose.ui)
                 api(compose.components.resources)
                 api(compose.components.uiToolingPreview)
-                api(libs.bundles.jbx)
+
                 api(libs.compose.adaptive)
+                api(libs.compose.ui.backhandler)
+
+                api(libs.bundles.jbx)
                 api(libs.bundles.coil)
                 api(libs.bundles.settings)
                 api(libs.koin.compose)
@@ -70,6 +73,8 @@ kotlin {
         }
         val androidMain by getting {
             dependencies {
+                api(compose.preview)
+                api(compose.uiTooling)
                 api(libs.coil.gif)
             }
         }

@@ -72,7 +72,6 @@ kotlin {
 }
 
 dependencies {
-    debugImplementation(libs.compose.ui.tooling)
     kspCommonMainMetadata(libs.koin.compiler)
 }
 

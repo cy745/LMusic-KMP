@@ -57,6 +57,7 @@ kotlin {
             dependencies {
                 api(compose.components.resources)
                 api(project(":component"))
+//                api(libs.compose.adaptive)
                 api(libs.koin.core)
                 api(libs.koin.annotations)
                 api(libs.kotlinx.coroutines.core)
@@ -103,7 +104,6 @@ XcodeDetector.whenXcodeInstalled {
 }
 
 dependencies {
-    debugImplementation(libs.compose.ui.tooling)
     kspCommonMainMetadata(libs.koin.compiler)
 }
 
