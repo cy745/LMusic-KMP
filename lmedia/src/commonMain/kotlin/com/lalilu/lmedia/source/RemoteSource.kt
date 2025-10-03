@@ -107,7 +107,32 @@ class RemoteSource(
                         ?.body<Snapshot>()
                         ?: Snapshot.Empty
                 )
-            }.onEach { it.audios.forEach { audio -> audio.mediaSourceName = this@RemoteSource.name } }
+            }.onEach {
+                // 重定向数据源至RemoteSource
+                it.audios.forEach { audio ->
+                    audio.mediaSourceName = this@RemoteSource.name
+                }
+                it.albums.forEach { album ->
+                    album.items.forEach { audio ->
+                        audio.mediaSourceName = this@RemoteSource.name
+                    }
+                }
+                it.artists.forEach { artist ->
+                    artist.items.forEach { audio ->
+                        audio.mediaSourceName = this@RemoteSource.name
+                    }
+                }
+                it.folders.forEach { folder ->
+                    folder.items.forEach { audio ->
+                        audio.mediaSourceName = this@RemoteSource.name
+                    }
+                }
+                it.genres.forEach { genre ->
+                    genre.items.forEach { audio ->
+                        audio.mediaSourceName = this@RemoteSource.name
+                    }
+                }
+            }
         }.stateIn(this, SharingStarted.Eagerly, Snapshot.Empty)
 
     override suspend fun getLyric(song: LAudio): String? {
