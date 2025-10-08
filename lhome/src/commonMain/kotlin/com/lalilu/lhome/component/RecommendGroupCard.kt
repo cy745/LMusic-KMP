@@ -1,5 +1,6 @@
 package com.lalilu.lhome.component
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,16 +19,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.lalilu.extensions.SharedContext
+import com.lalilu.extensions.SharedMap
+import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.lmedia.entity.*
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun RecommendGroupCard(
     modifier: Modifier = Modifier,
     group: LGroupItem,
-    onClick: (LItem) -> Unit = {},
+    onClick: (LItem, SharedMap) -> Unit = { _, _ -> },
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val rowCount = remember(group) {
@@ -61,90 +66,108 @@ fun RecommendGroupCard(
         }
     }
 
-    Column(
-        modifier = modifier
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = { onClick(group) }
-            )
+    SharedContext(
+        sharedMap = rememberSharedMap(
+            id = group.id,
+            keys = listOf("TITLE", "SUBTITLE")
+        )
     ) {
         Column(
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.onBackground.copy(0.05f))
+            modifier = modifier
                 .clickable(
                     interactionSource = interactionSource,
-                    onClick = { onClick(group) }
+                    indication = null,
+                    onClick = { onClick(group, sharedMap) }
                 )
-                .padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            repeat(rowCount) { row ->
-                Row(
-                    modifier = Modifier,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    repeat(rowCount) { column ->
-                        val item = group.items.getOrNull(row * rowCount + column)
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.onBackground.copy(0.05f))
+                    .clickable(
+                        interactionSource = interactionSource,
+                        onClick = { onClick(group, sharedMap) }
+                    )
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                repeat(rowCount) { row ->
+                    Row(
+                        modifier = Modifier,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        repeat(rowCount) { column ->
+                            val item = group.items.getOrNull(row * rowCount + column)
 
-                        if (item != null) {
-                            RecommendGroupItemCard(
-                                modifier = modifier.weight(1f),
-                                item = item,
-                                onClick = onClick
-                            )
-                        } else {
-                            Spacer(
-                                modifier = Modifier.weight(1f)
-                                    .aspectRatio(1f)
-                            )
+                            if (item != null) {
+                                RecommendGroupItemCard(
+                                    modifier = modifier.weight(1f)
+                                        .sharedElementV2("COVER"),
+                                    item = item,
+                                    onClick = onClick
+                                )
+                            } else {
+                                Spacer(
+                                    modifier = Modifier.weight(1f)
+                                        .aspectRatio(1f)
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
 
-        Text(
-            modifier = Modifier.padding(top = 8.dp),
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.W600,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.onBackground,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            modifier = Modifier.alpha(0.6f),
-            text = subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.onBackground,
-            overflow = TextOverflow.Ellipsis,
-        )
+            Text(
+                modifier = Modifier.padding(top = 8.dp)
+                    .sharedElementV2("TITLE"),
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.W600,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onBackground,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                modifier = Modifier.alpha(0.6f)
+                    .sharedElementV2("TITLE"),
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onBackground,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun RecommendGroupItemCard(
     modifier: Modifier = Modifier,
     item: LItem,
-    onClick: (LItem) -> Unit = {}
+    onClick: (LItem, SharedMap) -> Unit = { _, _ -> }
 ) {
-    AsyncImage(
-        modifier = modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(8.dp))
-            .border(
-                width = 1f.dp,
-                color = MaterialTheme.colorScheme.onBackground.copy(0.2f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .clickable(onClick = { onClick(item) })
-            .background(MaterialTheme.colorScheme.onBackground.copy(0.15f)),
-        model = item,
-        contentDescription = item.title
-    )
+    SharedContext(
+        sharedMap = rememberSharedMap(
+            id = item.id,
+            keys = listOf("COVER")
+        )
+    ) {
+        AsyncImage(
+            modifier = modifier
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(8.dp))
+                .border(
+                    width = 1f.dp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(0.2f),
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .clickable(onClick = { onClick(item, sharedMap) })
+                .background(MaterialTheme.colorScheme.onBackground.copy(0.15f)),
+            model = item,
+            contentDescription = item.title
+        )
+    }
 }
 
 @Preview

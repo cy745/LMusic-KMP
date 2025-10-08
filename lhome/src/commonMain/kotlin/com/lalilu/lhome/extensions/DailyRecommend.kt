@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lalilu.component.LazyGridContent
+import com.lalilu.extensions.SharedMap
+import com.lalilu.krouter.KRouter
 import com.lalilu.lhome.component.RecommendCard
 import com.lalilu.lhome.component.RecommendGroupCard
 import com.lalilu.lhome.component.RecommendRow
@@ -20,6 +22,7 @@ import com.lalilu.lhome.viewmodel.HomeScreenModel
 import com.lalilu.lmedia.entity.LGroupItem
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.navigation.LocalBackStack
+import com.lalilu.navigation.Screen
 import org.koin.compose.viewmodel.koinViewModel
 
 object DailyRecommend : LazyGridContent {
@@ -52,8 +55,19 @@ object DailyRecommend : LazyGridContent {
 
             dailyRecommendForSideCompat(
                 items = { homeVM.dailyRecommends.value },
-                onClick = {
+                onClick = { item, sharedMap ->
+                    val screen = runCatching {
+                        KRouter.route<Screen>(
+                            router = "/song/detail",
+                            extraParams = mapOf(
+                                "mediaId" to item.id,
+                                "sharedMap" to sharedMap
+                            )
+                        )
+                    }.getOrNull()
+                        ?: return@dailyRecommendForSideCompat
 
+                    navigator.add(screen)
                 }
             )
         }
@@ -63,7 +77,7 @@ object DailyRecommend : LazyGridContent {
 @OptIn(ExperimentalSharedTransitionApi::class)
 fun LazyGridScope.dailyRecommendForSideCompat(
     items: () -> List<LItem>,
-    onClick: (LItem) -> Unit = {}
+    onClick: (LItem, SharedMap) -> Unit = { _, _ -> }
 ) {
     item(
         key = "daily_recommend",
@@ -74,20 +88,21 @@ fun LazyGridScope.dailyRecommendForSideCompat(
             modifier = Modifier,
             items = items,
             getId = { it.id }
-        ) {
-            if (it is LGroupItem) {
+        ) { item ->
+            if (item is LGroupItem) {
                 RecommendGroupCard(
                     modifier = Modifier.width(width = 250.dp),
-                    group = it,
+                    group = item,
                     onClick = onClick
                 )
             } else {
                 RecommendCard(
                     modifier = Modifier.width(width = 250.dp),
-                    title = it.title,
-                    subTitle = it.subtitle,
-                    imageData = it,
-                    onClick = { onClick(it) }
+                    id = item.id,
+                    title = item.title,
+                    subTitle = item.subtitle,
+                    imageData = item,
+                    onClick = { onClick(item, it) }
                 )
             }
         }

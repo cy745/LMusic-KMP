@@ -1,5 +1,6 @@
 package com.lalilu.lhome.component
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,62 +19,78 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.lalilu.extensions.SharedContext
+import com.lalilu.extensions.SharedMap
+import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun RecommendCard(
     modifier: Modifier = Modifier,
+    id: String = "",
     title: String,
     subTitle: String,
     imageData: Any = Unit,
-    onClick: () -> Unit = {}
+    onClick: (SharedMap) -> Unit = {}
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-
-    Column(
-        modifier = modifier
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
+    SharedContext(
+        sharedMap = rememberSharedMap(
+            id = id,
+            keys = listOf("COVER", "TITLE", "SUBTITLE")
+        )
     ) {
-        AsyncImage(
-            modifier = Modifier
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp))
-                .border(
-                    width = 1f.dp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(0.2f),
-                    shape = RoundedCornerShape(12.dp)
-                )
+        val interactionSource = remember { MutableInteractionSource() }
+
+        Column(
+            modifier = modifier
                 .clickable(
                     interactionSource = interactionSource,
-                    onClick = onClick
+                    indication = null,
+                    onClick = { onClick(sharedMap) }
                 )
-                .background(MaterialTheme.colorScheme.onBackground.copy(0.15f)),
-            model = imageData,
-            contentDescription = null
-        )
-        Text(
-            modifier = Modifier.padding(top = 8.dp),
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.W600,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.onBackground,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            modifier = Modifier.alpha(0.6f),
-            text = subTitle,
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.onBackground,
-            overflow = TextOverflow.Ellipsis,
-        )
+        ) {
+            AsyncImage(
+                modifier = Modifier
+                    .sharedElementV2("COVER")
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(
+                        width = 1f.dp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(0.2f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .clickable(
+                        interactionSource = interactionSource,
+                        onClick = { onClick(sharedMap) }
+                    )
+                    .background(MaterialTheme.colorScheme.onBackground.copy(0.15f)),
+                model = imageData,
+                contentDescription = null
+            )
+            Text(
+                modifier = Modifier.padding(top = 8.dp)
+                    .sharedElementV2("TITLE"),
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.W600,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onBackground,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                modifier = Modifier.alpha(0.6f)
+                    .sharedElementV2("SUBTITLE"),
+                text = subTitle,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onBackground,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

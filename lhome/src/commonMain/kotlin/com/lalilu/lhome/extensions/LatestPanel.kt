@@ -65,12 +65,27 @@ object LatestPanel : LazyGridContent {
                 RecommendRow(
                     items = { items },
                     getId = { it.id }
-                ) {
+                ) { item ->
                     RecommendCard(
                         modifier = Modifier.width(120.dp),
-                        title = it.title,
-                        subTitle = it.subtitle,
-                        imageData = it
+                        id = item.id,
+                        title = item.title,
+                        subTitle = item.subtitle,
+                        imageData = item,
+                        onClick = { sharedMap ->
+                            val screen = runCatching {
+                                KRouter.route<Screen>(
+                                    router = "/song/detail",
+                                    extraParams = mapOf(
+                                        "mediaId" to item.id,
+                                        "sharedMap" to sharedMap
+                                    )
+                                )
+                            }.getOrNull()
+                                ?: return@RecommendCard
+
+                            backStack.add(screen)
+                        }
                     )
                 }
             }
