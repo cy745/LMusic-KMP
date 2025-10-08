@@ -1,13 +1,13 @@
 package com.lalilu.lmusic
 
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateListOf
@@ -16,6 +16,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.FrameRateCategory
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.preferredFrameRate
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
@@ -27,9 +28,13 @@ import androidx.navigation3.ui.NavDisplay
 import com.lalilu.LMusicTheme
 import com.lalilu.krouter.KRouter
 import com.lalilu.lmusic.screen.ExceptionScreen
-import com.lalilu.navigation.*
+import com.lalilu.navigation.LocalBackStack
+import com.lalilu.navigation.LocalSharedTransitionScope
+import com.lalilu.navigation.Screen
+import com.lalilu.navigation.toNavEntry
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+private const val DEFAULT_TRANSITION_DURATION_MILLISECOND = 3000
 
 @Suppress("UNCHECKED_CAST")
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
@@ -72,7 +77,6 @@ fun App() {
                 LocalSharedTransitionScope provides this,
                 LocalBackStack provides backStack
             ) {
-                val twoPaneStrategy = remember { TwoPaneSceneStrategy<Screen>() }
 
                 Column {
                     NavDisplay(
@@ -80,7 +84,6 @@ fun App() {
                             .weight(1f)
                             .preferredFrameRate(FrameRateCategory.High),
                         backStack = backStack,
-                        sceneStrategy = twoPaneStrategy,
                         entryDecorators = listOf(
                             sharedEntryInSceneNavEntryDecorator,
                             rememberSceneSetupNavEntryDecorator(),
@@ -88,9 +91,39 @@ fun App() {
                             rememberViewModelStoreNavEntryDecorator(),
                             screenBackgroundDecorator
                         ) as List<NavEntryDecorator<Screen>>,
-                        onBack = { backStack.removeLastOrNull() },
+                        transitionSpec = {
+                            ContentTransform(
+                                fadeIn(animationSpec = tween(DEFAULT_TRANSITION_DURATION_MILLISECOND)),
+                                fadeOut(animationSpec = tween(DEFAULT_TRANSITION_DURATION_MILLISECOND)),
+                            )
+                        },
+                        popTransitionSpec = {
+                            ContentTransform(
+                                fadeIn(animationSpec = tween(DEFAULT_TRANSITION_DURATION_MILLISECOND)),
+                                fadeOut(animationSpec = tween(DEFAULT_TRANSITION_DURATION_MILLISECOND)),
+                            )
+                        },
+                        predictivePopTransitionSpec = {
+                            ContentTransform(
+                                fadeIn(animationSpec = tween(DEFAULT_TRANSITION_DURATION_MILLISECOND)),
+                                fadeOut(animationSpec = tween(DEFAULT_TRANSITION_DURATION_MILLISECOND)),
+                            )
+                        },
                         entryProvider = { it.toNavEntry() }
                     )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(8.dp)
+                    ) {
+                        Button(onClick = {
+                            if (backStack.size >= 2) {
+                                backStack.removeLastOrNull()
+                            }
+                        }) {
+                            Text("Back")
+                        }
+                    }
                 }
             }
         }
