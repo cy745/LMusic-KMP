@@ -13,6 +13,7 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
         maven("https://central.sonatype.com/repository/maven-snapshots/")
+        maven("https://maven.pkg.jetbrains.space/public/p/compose/dev/")
     }
 }
 
@@ -28,6 +29,7 @@ dependencyResolutionManagement {
         mavenCentral()
         maven("https://jitpack.io")
         maven("https://central.sonatype.com/repository/maven-snapshots/")
+        maven("https://maven.pkg.jetbrains.space/public/p/compose/dev/")
     }
 
     versionCatalogs {
@@ -51,4 +53,4 @@ include(":lplayer:libwrapper")
 include(":llyric")
 include(":llyricview")
 include(":lhome")
-includeBuild("ktorfit-gradle-plugin")
+//includeBuild("ktorfit-gradle-plugin")

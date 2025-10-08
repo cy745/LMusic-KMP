@@ -64,6 +64,7 @@ kotlin {
                 api(libs.koin.compose.viewmodel)
                 api(libs.remixicon.kmp)
                 api(libs.qrcode.kotlin)
+                api(libs.sonner)
             }
         }
         val commonTest by getting {

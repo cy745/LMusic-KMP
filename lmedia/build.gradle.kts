@@ -17,7 +17,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.swiftklib)
     alias(libs.plugins.osdetector)
-    id("com.lalilu.ktorfit")
+    alias(libs.plugins.ktorfit)
 }
 
 group = "com.lalilu.lmedia"

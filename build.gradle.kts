@@ -13,8 +13,8 @@ plugins {
     alias(libs.plugins.vanniktech.pulish) apply false
     alias(libs.plugins.dokka) apply false
     alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.ktorfit) apply false
     alias(libs.plugins.krouter.plugin)
-    id("com.lalilu.ktorfit") apply false
 }
 
 // 配置注入遍历的起点项目

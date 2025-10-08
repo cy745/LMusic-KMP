@@ -17,12 +17,13 @@ import androidx.compose.ui.FrameRateCategory
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.preferredFrameRate
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.navEntryDecorator
 import androidx.navigation3.runtime.rememberSavedStateNavEntryDecorator
+import androidx.navigation3.scene.rememberSceneSetupNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
-import androidx.navigation3.ui.rememberSceneSetupNavEntryDecorator
 import com.lalilu.LMusicTheme
 import com.lalilu.krouter.KRouter
 import com.lalilu.lmusic.screen.ExceptionScreen
@@ -30,6 +31,7 @@ import com.lalilu.navigation.*
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 
+@Suppress("UNCHECKED_CAST")
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
 @Composable
 @Preview
@@ -85,7 +87,7 @@ fun App() {
                             rememberSavedStateNavEntryDecorator(),
                             rememberViewModelStoreNavEntryDecorator(),
                             screenBackgroundDecorator
-                        ),
+                        ) as List<NavEntryDecorator<Screen>>,
                         onBack = { backStack.removeLastOrNull() },
                         entryProvider = { it.toNavEntry() }
                     )
