@@ -53,6 +53,7 @@ kotlin {
                 api(compose.ui)
                 api(compose.components.resources)
                 api(compose.components.uiToolingPreview)
+                api("org.jetbrains.androidx.navigationevent:navigationevent-compose:1.0.0-SNAPSHOT+default")
 
                 api(libs.compose.adaptive)
                 api(libs.compose.ui.backhandler)
