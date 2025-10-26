@@ -22,7 +22,7 @@ import com.lalilu.lmusic.util.MemoryLogWriter
 import com.lalilu.navigation.Screen
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 

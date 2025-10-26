@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
 fun AudioItemCard(

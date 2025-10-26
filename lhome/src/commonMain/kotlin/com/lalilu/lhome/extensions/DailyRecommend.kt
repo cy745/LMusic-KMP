@@ -11,6 +11,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import coil3.SingletonImageLoader
+import coil3.compose.LocalPlatformContext
+import coil3.request.Options
 import com.lalilu.component.LazyGridContent
 import com.lalilu.extensions.SharedMap
 import com.lalilu.krouter.KRouter
@@ -31,6 +34,7 @@ object DailyRecommend : LazyGridContent {
     override fun register(): LazyGridScope.() -> Unit {
         val navigator = LocalBackStack.current
         val homeVM = koinViewModel<HomeScreenModel>()
+        val context = LocalPlatformContext.current
 
         return fun LazyGridScope.() {
             item(
@@ -57,11 +61,15 @@ object DailyRecommend : LazyGridContent {
                 items = { homeVM.dailyRecommends.value },
                 onClick = { item, sharedMap ->
                     val screen = runCatching {
+                        val imageLoader = SingletonImageLoader.get(context)
+                        val coverMemoryKey = imageLoader.components.key(item, Options(context))
+
                         KRouter.route<Screen>(
                             router = "/song/detail",
                             extraParams = mapOf(
                                 "mediaId" to item.id,
-                                "sharedMap" to sharedMap
+                                "sharedMap" to sharedMap,
+                                "coverCacheKey" to coverMemoryKey
                             )
                         )
                     }.getOrNull()

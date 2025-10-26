@@ -24,7 +24,7 @@ import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable

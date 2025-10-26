@@ -13,7 +13,7 @@ import com.lalilu.RemixIcon
 import com.lalilu.preview.preview
 import com.lalilu.remixicon.Arrows
 import com.lalilu.remixicon.arrows.arrowRightSLine
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
 fun RecommendTitle(

@@ -29,7 +29,6 @@ fun Screen.toNavEntry(): NavEntry<Screen> {
     return NavEntry(
         key = this,
         contentKey = this.key,
-        metadata = TwoPaneScene.twoPane(),
         content = { it.Content() }
     )
 }

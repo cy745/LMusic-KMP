@@ -13,16 +13,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import com.lalilu.extensions.SharedContext
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmedia.LMedia
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.navigation.Screen
 import com.lalilu.preview.preview
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
 
 @Destination("/song/detail")
@@ -55,6 +56,12 @@ fun SongDetailScreenContent(
 ) = SharedContext(sharedMap = sharedMap) {
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()
     val context = LocalPlatformContext.current
+    val coverData = remember(song) {
+        ImageRequest.Builder(context)
+            .placeholderMemoryCacheKey(coverCacheKey)
+            .data(song)
+            .build()
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -65,7 +72,7 @@ fun SongDetailScreenContent(
                 modifier = Modifier.fillMaxWidth()
                     .aspectRatio(1f)
                     .sharedElementV2("COVER"),
-                model = song,
+                model = coverData,
                 contentDescription = null,
             )
         }
