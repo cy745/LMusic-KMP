@@ -41,6 +41,7 @@ kotlin {
                 implementation(project(":component"))
                 implementation(project(":lmedia"))
                 implementation(libs.remixicon.kmp)
+                api(compose.preview)
             }
         }
         val commonTest by getting {

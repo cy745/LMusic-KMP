@@ -51,6 +51,7 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
+                api(compose.preview)
                 api(compose.components.resources)
                 api(project(":component"))
                 api(project(":lmedia"))

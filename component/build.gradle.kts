@@ -51,13 +51,14 @@ kotlin {
                 api(compose.foundation)
                 api(compose.material3)
                 api(compose.ui)
+                api(compose.preview)
                 api(compose.components.resources)
-                api(compose.components.uiToolingPreview)
-                api("org.jetbrains.androidx.navigationevent:navigationevent-compose:1.0.0-SNAPSHOT+default")
 
                 api(libs.compose.adaptive)
                 api(libs.compose.ui.backhandler)
 
+                api(libs.jbx.navigation3.ui)
+                api(libs.androidx.navigation3.runtime)
                 api(libs.bundles.jbx)
                 api(libs.bundles.coil)
                 api(libs.bundles.settings)

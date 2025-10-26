@@ -20,7 +20,10 @@
 package androidx.navigation3.ui
 
 import androidx.collection.mutableObjectFloatMapOf
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.SeekableTransitionState
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.rememberTransition
@@ -28,19 +31,20 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachReversed
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.rememberLifecycleOwner
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.*
-import androidx.navigation3.ui.NavDisplay.POP_TRANSITION_SPEC
-import androidx.navigation3.ui.NavDisplay.PREDICTIVE_POP_TRANSITION_SPEC
-import androidx.navigation3.ui.NavDisplay.TRANSITION_SPEC
-import androidx.navigation3.ui.NavDisplay.popTransitionSpec
-import androidx.navigation3.ui.NavDisplay.predictivePopTransitionSpec
-import androidx.navigation3.ui.NavDisplay.transitionSpec
+import androidx.navigation3.ui.OverrideNavDisplay.POP_TRANSITION_SPEC
+import androidx.navigation3.ui.OverrideNavDisplay.PREDICTIVE_POP_TRANSITION_SPEC
+import androidx.navigation3.ui.OverrideNavDisplay.TRANSITION_SPEC
 import androidx.navigationevent.NavigationEvent
 import androidx.navigationevent.NavigationEventTransitionState.Idle
 import androidx.navigationevent.NavigationEventTransitionState.InProgress
@@ -53,64 +57,11 @@ import kotlin.jvm.JvmMultifileClass
 import kotlin.jvm.JvmName
 import kotlin.reflect.KClass
 
-/** Object that indicates the features that can be handled by the [NavDisplay] */
-public object NavDisplay {
-    /**
-     * Function to be called on the [NavEntry.metadata] or [Scene.metadata] to notify the
-     * [NavDisplay] that the content should be animated using the provided [ContentTransform].
-     *
-     * **IMPORTANT** By default, the [transitionSpec] defined on a transitioning [NavEntry.metadata]
-     * takes precedence over the [transitionSpec] defined on a [Scene.metadata]. However, the
-     * [Scene] implementation can potentially override the [transitionSpec] defined on a NavEntry.
-     *
-     * @param transitionSpec the [ContentTransform] to be used when adding to the backstack. If this
-     *   is null, the transition will fallback to the transition set on the [NavDisplay]
-     */
-    public fun transitionSpec(
-        transitionSpec: AnimatedContentTransitionScope<Scene<*>>.() -> ContentTransform?
-    ): Map<String, Any> = mapOf(TRANSITION_SPEC to transitionSpec)
-
-    /**
-     * Function to be called on the [NavEntry.metadata] or [Scene.metadata] to notify the
-     * [NavDisplay] that, when popping from backstack, the content should be animated using the
-     * provided [ContentTransform].
-     *
-     * **IMPORTANT** By default, the [popTransitionSpec] defined on a transitioning
-     * [NavEntry.metadata] takes precedence over the [popTransitionSpec] defined on a
-     * [Scene.metadata]. However, a [Scene] implementation can potentially override the
-     * [popTransitionSpec] defined on a NavEntry.
-     *
-     * @param popTransitionSpec the [ContentTransform] to be used when popping from backstack. If
-     *   this is null, the transition will fallback to the transition set on the [NavDisplay]
-     */
-    public fun popTransitionSpec(
-        popTransitionSpec: AnimatedContentTransitionScope<Scene<*>>.() -> ContentTransform?
-    ): Map<String, Any> = mapOf(POP_TRANSITION_SPEC to popTransitionSpec)
-
-    /**
-     * Function to be called on the [NavEntry.metadata] or [Scene.metadata] to notify the
-     * [NavDisplay] that, when popping from backstack using a Predictive back gesture, the content
-     * should be animated using the provided [ContentTransform].
-     *
-     * **IMPORTANT** By default, the [predictivePopTransitionSpec] defined on a transitioning
-     * [NavEntry.metadata] takes precedence over the [predictivePopTransitionSpec] defined on a
-     * [Scene.metadata]. However, a [Scene] implementation can potentially override the
-     * [predictivePopTransitionSpec] defined on a NavEntry.
-     *
-     * @param predictivePopTransitionSpec the [ContentTransform] to be used when popping from
-     *   backStack with predictive back gesture. If this is null, the transition will fallback to
-     *   the transition set on the [NavDisplay]
-     */
-    public fun predictivePopTransitionSpec(
-        predictivePopTransitionSpec:
-        AnimatedContentTransitionScope<Scene<*>>.(
-            @NavigationEvent.SwipeEdge Int
-        ) -> ContentTransform?
-    ): Map<String, Any> = mapOf(PREDICTIVE_POP_TRANSITION_SPEC to predictivePopTransitionSpec)
-
-    internal const val TRANSITION_SPEC = "transitionSpec"
-    internal const val POP_TRANSITION_SPEC = "popTransitionSpec"
-    internal const val PREDICTIVE_POP_TRANSITION_SPEC = "predictivePopTransitionSpec"
+/** Object that indicates the features that can be handled by the [OverrideNavDisplay] */
+public object OverrideNavDisplay {
+    const val TRANSITION_SPEC = "transitionSpec"
+    const val POP_TRANSITION_SPEC = "popTransitionSpec"
+    const val PREDICTIVE_POP_TRANSITION_SPEC = "predictivePopTransitionSpec"
 }
 
 /**
@@ -155,7 +106,7 @@ public object NavDisplay {
  * @sample androidx.navigation3.ui.samples.SceneNavSharedElementSample
  */
 @Composable
-public fun <T : Any> NavDisplay(
+public fun <T : Any> OverrideNavDisplay(
     backStack: List<T>,
     modifier: Modifier = Modifier,
     contentAlignment: Alignment = Alignment.TopStart,
@@ -188,7 +139,7 @@ public fun <T : Any> NavDisplay(
             entryProvider = entryProvider,
         )
 
-    NavDisplay(
+    OverrideNavDisplay(
         entries = entries,
         sceneStrategy = sceneStrategy,
         modifier = modifier,
@@ -248,7 +199,7 @@ public fun <T : Any> NavDisplay(
  * @see [rememberDecoratedNavEntries]
  */
 @Composable
-public fun <T : Any> NavDisplay(
+public fun <T : Any> OverrideNavDisplay(
     entries: List<NavEntry<T>>,
     modifier: Modifier = Modifier,
     contentAlignment: Alignment = Alignment.TopStart,
@@ -297,7 +248,7 @@ public fun <T : Any> NavDisplay(
         },
     )
 
-    NavDisplay(
+    OverrideNavDisplay(
         sceneState,
         gestureState,
         modifier,
@@ -335,7 +286,7 @@ public fun <T : Any> NavDisplay(
  * @sample androidx.navigation3.ui.samples.SceneNavSharedElementSample
  */
 @Composable
-public fun <T : Any> NavDisplay(
+public fun <T : Any> OverrideNavDisplay(
     sceneState: SceneState<T>,
     navigationEventState: NavigationEventState<SceneInfo<T>>,
     modifier: Modifier = Modifier,
@@ -469,6 +420,11 @@ public fun <T : Any> NavDisplay(
                 // Retarget on key change; seek on progress updates.
                 transitionState.seekTo(progress, previousScene)
             }
+        } else {
+            LaunchedEffect(Unit) {
+                // 强制让动画结束，才能更新动画的transitionSpec，实现反向动画
+                transitionState.snapTo(transition.targetState)
+            }
         }
     } else {
         LaunchedEffect(scene) {
@@ -549,9 +505,9 @@ public fun <T : Any> NavDisplay(
     ) { targetScene ->
         val isSettled = transition.currentState == transition.targetState
         CompositionLocalProvider(
-            LocalNavTransitionSettledState provides isSettled,
+            LocalNavTransitionSettledStateOverride provides isSettled,
             LocalNavAnimatedContentScope provides this,
-            LocalEntriesToExcludeFromCurrentScene provides
+            LocalEntriesToExcludeFromCurrentSceneOverride provides
                     sceneToExcludedEntryMap.getValue(targetScene::class to targetScene.key),
         ) {
             targetScene.content()
@@ -579,7 +535,7 @@ public fun <T : Any> NavDisplay(
     // Show all OverlayScene instances above the AnimatedContent
     overlayScenes.fastForEachReversed { overlayScene ->
         CompositionLocalProvider(
-            LocalEntriesToExcludeFromCurrentScene provides
+            LocalEntriesToExcludeFromCurrentSceneOverride provides
                     sceneToExcludedEntryMap.getValue(overlayScene::class to overlayScene.key)
         ) {
             overlayScene.content.invoke()
@@ -619,34 +575,97 @@ private fun <T : Any> Scene<T>.predictivePopSpec():
             ) -> ContentTransform
 }
 
-const val TRANSITION_DURATION = 500
-
-/** Default [transitionSpec] for forward navigation to be used by [NavDisplay]. */
-public fun <T : Any> defaultTransitionSpec(): AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform {
-    return {
-        ContentTransform(
-            targetContentEnter = fadeIn(tween(TRANSITION_DURATION)),
-            initialContentExit = fadeOut(tween(TRANSITION_DURATION)),
-        )
+@Composable
+private fun <T : Any> rememberTransitionAwareLifecycleNavEntryDecorator(
+    entries: List<NavEntry<T>>
+): NavEntryDecorator<T> {
+    val updatedEntries by rememberUpdatedState(entries)
+    return NavEntryDecorator { entry ->
+        val isSettled = LocalNavTransitionSettledStateOverride.current
+        val isInBackStack = updatedEntries.fastAny { it.contentKey == entry.contentKey }
+        val maxLifecycle =
+            when {
+                isInBackStack && isSettled -> Lifecycle.State.RESUMED
+                isInBackStack && !isSettled -> Lifecycle.State.STARTED
+                else /* !isInBackStack */ -> Lifecycle.State.CREATED
+            }
+        val owner = rememberLifecycleOwner(maxLifecycle = maxLifecycle)
+        CompositionLocalProvider(LocalLifecycleOwner provides owner) { entry.Content() }
     }
 }
 
-/** Default [transitionSpec] for pop navigation to be used by [NavDisplay]. */
-public fun <T : Any> defaultPopTransitionSpec(): AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform {
-    return {
-        ContentTransform(
-            targetContentEnter = fadeIn(tween(TRANSITION_DURATION)),
-            initialContentExit = fadeOut(tween(TRANSITION_DURATION)),
-        )
+private val LocalNavTransitionSettledStateOverride: ProvidableCompositionLocal<Boolean> =
+    compositionLocalOf {
+        // If there is no transition state available, assume we are settled already
+        true
     }
-}
 
-/** Default [transitionSpec] for predictive pop navigation to be used by [NavDisplay]. */
-public fun <T : Any> defaultPredictivePopTransitionSpec(): AnimatedContentTransitionScope<Scene<T>>.(@NavigationEvent.SwipeEdge Int) -> ContentTransform {
-    return {
-        ContentTransform(
-            targetContentEnter = fadeIn(tween(TRANSITION_DURATION)),
-            initialContentExit = fadeOut(tween(TRANSITION_DURATION)),
-        )
+
+/** Returns a [SceneSetupNavEntryDecorator] that is remembered across recompositions. */
+@Composable
+private fun <T : Any> rememberSceneSetupNavEntryDecorator(): SceneSetupNavEntryDecoratorOverride<T> =
+    remember {
+        SceneSetupNavEntryDecoratorOverride()
     }
-}
+
+/**
+ * A [NavEntryDecorator] that wraps each entry in a [movableContentOf] to allow nav displays to
+ * arbitrarily place entries in different places in the composable call hierarchy and ensures that
+ * the same entry content is not composed multiple times in different places of the hierarchy by
+ * different scenes.
+ *
+ * This should likely be the first [NavEntryDecorator] to ensure that other [NavEntryDecorator]
+ * calls that are stateful are moved properly inside the [movableContentOf].
+ */
+private class SceneSetupNavEntryDecoratorOverride<T : Any>(
+    val movableContentMap: MutableMap<Any, @Composable (@Composable () -> Unit) -> Unit> =
+        mutableStateMapOf()
+) :
+    NavEntryDecorator<T>(
+        onPop = { contentKey -> movableContentMap.remove(contentKey) },
+        decorate = { entry ->
+            val contentKey = entry.contentKey
+            // If we should not be rendering this entry here in the current scene, we skip calling
+            // entry.Content and all nested content wrappers. If this is the case here, then it
+            // means
+            // that this entry is being rendered by a different scene somewhere else.
+            val entriesToExclude = LocalEntriesToExcludeFromCurrentSceneOverride.current
+            // If no LocalEntriesToRenderInCurrentScene is provided, assume all entries are allowed
+            if (!entriesToExclude.contains(contentKey)) {
+                key(contentKey) {
+                    // In case the key is removed from the backstack while this is still
+                    // being rendered, we remember the movableContent directly to allow
+                    // rendering it while we are animating out.
+                    val movableContent = remember {
+                        // Get or put a movableContentOf for this content key
+                        // This represents a "slot" that can be moved around, specifically to be
+                        // rendered in a different place in the UI callstack hierarchy while
+                        // maintaining all internal state
+                        movableContentMap.getOrPut(contentKey) {
+                            // We don't capture entry.Content() here, as that could result in a
+                            // stale
+                            // entry.Content() call as we want to create a movableContentOf only
+                            // once for each entry. Instead, we pass through the entry's content as
+                            // a composable here to be invoked below
+                            movableContentOf { content -> content() }
+                        }
+                    }
+
+                    // Finally, render the entry content via the movableContentOf
+                    movableContent { entry.Content() }
+                }
+            }
+        },
+    )
+
+/**
+ * The entry keys that should be skipped when rendering in the current [Scene] to allow users of
+ * composable methods like [androidx.compose.animation.AnimatedContent] to only show the entry in a
+ * single scene even while it is transitioning between different scenes.
+ *
+ * If this isn't provided, then all entries in the scene are allowed to be rendered.
+ */
+private val LocalEntriesToExcludeFromCurrentSceneOverride: ProvidableCompositionLocal<Set<Any>> =
+    compositionLocalOf {
+        HashSet()
+    }

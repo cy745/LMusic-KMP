@@ -79,6 +79,7 @@ kotlin {
             implementation(project(":lhome"))
             implementation(libs.compose.ui.backhandler)
             implementation(compose.components.resources)
+            implementation(compose.preview)
 
             implementation(libs.filekit.dialogs)
             implementation(libs.filekit.dialogs.compose)
