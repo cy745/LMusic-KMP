@@ -36,7 +36,6 @@ fun HomeScreenContent(modifier: Modifier = Modifier) {
     LazyVerticalGrid(
         modifier = modifier.fillMaxSize(),
         columns = GridCells.Fixed(12),
-        overscrollEffect = null, // Compose 1.10.0-alpha03 仍存在bug，暂时禁用overscroll，已提交bug [CMP-9153](https://youtrack.jetbrains.com/issue/CMP-9153)
         contentPadding = PaddingValues(
             top = statusBar.calculateTopPadding() + 16.dp,
             bottom = navigationBar.calculateBottomPadding() + 12.dp

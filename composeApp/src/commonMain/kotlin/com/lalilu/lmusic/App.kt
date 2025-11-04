@@ -24,7 +24,7 @@ import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
-import androidx.navigation3.ui.OverrideNavDisplay
+import androidx.navigation3.ui.NavDisplay
 import com.lalilu.LMusicTheme
 import com.lalilu.krouter.KRouter
 import com.lalilu.lmusic.screen.ExceptionScreen
@@ -80,7 +80,7 @@ fun App() {
                 LocalBackStack provides backStack
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    OverrideNavDisplay(
+                    NavDisplay(
                         modifier = Modifier.fillMaxSize()
                             .preferredFrameRate(FrameRateCategory.High),
                         backStack = backStack,
