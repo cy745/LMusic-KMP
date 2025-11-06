@@ -10,9 +10,15 @@ fun main() {
     startKoin { koinSetup() }
 
     application {
+        val windowState = WindowStateKeeper.rememberWindowState()
+
         Window(
-            onCloseRequest = ::exitApplication,
-            title = "LMusic-KMP",
+            onCloseRequest = {
+                WindowStateKeeper.saveWindowState(windowState)
+                exitApplication()
+            },
+            state = windowState,
+            title = "LMusic",
         ) {
             platformSetupCoil()
             App()
