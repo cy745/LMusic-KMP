@@ -7,8 +7,8 @@ import com.lalilu.lmedia.source.subsonic.SubsonicSource
 import org.koin.core.scope.Scope
 
 actual fun Scope.provideMediaSources(): PlatformMediaSource = PlatformMediaSource.provide(
-    JvmFileSystemSource(get()),
-    WebDavSource(),
-    RemoteSource(get(), get()),
-    SubsonicSource(get(), get())
+    ::JvmFileSystemSource.reverseInject(),
+    ::WebDavSource.reverseInject(),
+    ::RemoteSource.reverseInject(),
+    ::SubsonicSource.reverseInject(),
 )

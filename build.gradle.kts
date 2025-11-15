@@ -39,6 +39,7 @@ subprojects {
                 compilerOptions {
                     apiVersion.set(KotlinVersion.KOTLIN_2_2)
                     languageVersion.set(KotlinVersion.KOTLIN_2_2)
+                    freeCompilerArgs.set(listOf("-Xcontext-parameters"))
                 }
             }
         }

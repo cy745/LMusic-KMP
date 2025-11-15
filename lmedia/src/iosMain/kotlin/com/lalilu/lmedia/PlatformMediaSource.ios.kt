@@ -9,6 +9,6 @@ actual fun Scope.provideMediaSources(): PlatformMediaSource = PlatformMediaSourc
 //    MediaLibrarySource,
 //    MusicKitSource,
     SandboxFileSystemSource,
-    RemoteSource(get(), get()),
-    SubsonicSource(get(), get())
+    ::RemoteSource.reverseInject(),
+    ::SubsonicSource.reverseInject(),
 )

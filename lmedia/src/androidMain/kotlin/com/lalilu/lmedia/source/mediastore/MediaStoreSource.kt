@@ -20,7 +20,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -52,8 +53,12 @@ class MediaStoreSource(
             }
         }
 
-        return eventFlow.mapLatest { updateTime ->
-            scanner.scan()
+        return flow {
+            // 先返回Snapshot.Empty，避免阻塞下游的combine
+            emit(Snapshot.Empty)
+            eventFlow.collectLatest {
+                emit(scanner.scan())
+            }
         }
     }
 
