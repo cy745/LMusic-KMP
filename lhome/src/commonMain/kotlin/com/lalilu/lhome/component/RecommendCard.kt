@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.lalilu.extensions.SharedContext
@@ -24,7 +25,6 @@ import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
-import androidx.compose.ui.tooling.preview.Preview
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -39,13 +39,19 @@ fun RecommendCard(
     SharedContext(
         sharedMap = rememberSharedMap(
             id = id,
-            keys = listOf("COVER", "TITLE", "SUBTITLE")
+            keys = listOf(
+                "BOUND",
+                "COVER",
+                "TITLE",
+                "SUBTITLE"
+            )
         )
     ) {
         val interactionSource = remember { MutableInteractionSource() }
 
         Column(
             modifier = modifier
+                .sharedBoundsV2("BOUND")
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,

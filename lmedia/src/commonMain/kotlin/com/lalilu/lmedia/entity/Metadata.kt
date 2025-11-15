@@ -23,4 +23,23 @@ data class Metadata(
     companion object {
         val EMPTY = Metadata()
     }
+
+    fun toMap(): Map<String, String> {
+        return mapOf(
+            "title" to title,
+            "album" to album,
+            "artist" to artist,
+            "albumArtist" to albumArtist,
+            "composer" to composer,
+            "lyricist" to lyricist,
+            "comment" to comment,
+            "genre" to genre,
+            "track" to track,
+            "disc" to disc,
+            "date" to date,
+            "duration" to duration.toString(),
+            "dateAdded" to dateAdded.toString(),
+            "dateModified" to dateModified.toString()
+        )
+    }
 }

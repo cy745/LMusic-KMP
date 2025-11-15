@@ -4,7 +4,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
@@ -15,7 +14,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.FrameRateCategory
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.preferredFrameRate
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -79,7 +82,10 @@ fun App() {
                 LocalSharedTransitionScope provides this,
                 LocalBackStack provides backStack
             ) {
-                Box(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier.fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                ) {
                     NavDisplay(
                         modifier = Modifier.fillMaxSize()
                             .preferredFrameRate(FrameRateCategory.High),
@@ -92,15 +98,15 @@ fun App() {
                         ) as List<NavEntryDecorator<Screen>>,
                         transitionSpec = {
                             slideInVertically(animationSpec) { 100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
-                                    slideOutVertically(animationSpec) { 100 } + fadeOut(tween(50))
+                                    slideOutVertically(animationSpec) { 100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
                         },
                         popTransitionSpec = {
                             slideInVertically(animationSpec) { -100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
-                                    slideOutVertically(animationSpec) { -100 } + fadeOut(tween(50))
+                                    slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
                         },
                         predictivePopTransitionSpec = {
                             slideInVertically(animationSpec) { -100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
-                                    slideOutVertically(animationSpec) { -100 } + fadeOut(tween(50))
+                                    slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
                         },
                         entryProvider = { it.toNavEntry() }
                     )
