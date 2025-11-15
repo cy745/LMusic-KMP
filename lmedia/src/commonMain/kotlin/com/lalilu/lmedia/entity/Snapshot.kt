@@ -21,17 +21,19 @@ data class Snapshot(
 
 fun Array<Snapshot>.combineToOne(): Snapshot {
     return Snapshot(
-        audios = map { it.audios }.flatten(),
-        albums = map { it.albums }.flatten(),
-        artists = map { it.artists }.flatten(),
-        folders = map { it.folders }.flatten(),
-        genres = map { it.genres }.flatten(),
+        audios = map { it.audios }.flatten().distinctBy { it.id },
+        albums = map { it.albums }.flatten().distinctBy { it.id },
+        artists = map { it.artists }.flatten().distinctBy { it.id },
+        folders = map { it.folders }.flatten().distinctBy { it.id },
+        genres = map { it.genres }.flatten().distinctBy { it.id },
         updateTime = maxOf { it.updateTime }
     )
 }
 
 fun List<LAudio>.buildSnapshot(): Snapshot {
-    val albums = this
+    val list = this.distinctBy { it.id } // 去除重复的歌曲
+
+    val albums = list
         .groupBy { song -> song.metadata.album }
         .map { (album, songs) ->
             LAlbum(
@@ -42,7 +44,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
             )
         }.link()
 
-    val artists = this
+    val artists = list
         .groupBy { song -> song.metadata.artist }
         .map { (artist, songs) ->
             LArtist(
@@ -56,7 +58,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
         .merge()
         .link()
 
-    val genres = this
+    val genres = list
         .groupBy { song -> song.metadata.genre }
         .map { (genre, songs) ->
             LGenre(
@@ -68,7 +70,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
         }.link()
 
     return Snapshot(
-        audios = this,
+        audios = list,
         albums = albums,
         artists = artists,
         genres = genres,
