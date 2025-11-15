@@ -7,6 +7,7 @@ import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.entity.buildSnapshot
 import com.russhwolf.settings.ExperimentalSettingsApi
 import com.russhwolf.settings.ObservableSettings
 import com.russhwolf.settings.coroutines.getStringOrNullFlow
@@ -56,17 +57,17 @@ class JvmFileSystemSource(
             file to metadata
         } ?: emptyList()
     }.map { songs ->
-        Snapshot(
-            audios = songs.map { (file, metadata) ->
-                LAudio(
-                    id = file.absolutePath(),
-                    title = metadata.title,
-                    subtitle = metadata.artist,
-                    sourceItem = SourceItem.FileItem(file.file),
-                    mediaSourceName = this@JvmFileSystemSource.name
-                )
-            }
-        )
+        val songs = songs.map { (file, metadata) ->
+            LAudio(
+                id = file.absolutePath(),
+                title = metadata.title,
+                subtitle = metadata.artist,
+                sourceItem = SourceItem.FileItem(file.file),
+                mediaSourceName = this@JvmFileSystemSource.name,
+                metadata = metadata
+            )
+        }
+        songs.buildSnapshot()
     }.stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
