@@ -3,9 +3,18 @@
 package com.lalilu.extensions
 
 import androidx.compose.animation.*
+import androidx.compose.animation.SharedTransitionScope.*
+import androidx.compose.animation.SharedTransitionScope.PlaceholderSize.Companion.ContentSize
+import androidx.compose.animation.SharedTransitionScope.ResizeMode.Companion.scaleToBounds
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment.Companion.Center
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.lalilu.navigation.LocalSharedTransitionScope
 
@@ -44,13 +53,18 @@ class SharedContextScope(
     val sharedMap: SharedMap,
     val sharedTransitionScope: SharedTransitionScope? = null,
     val defaultAnimationScope: AnimatedContentScope? = null,
-    val defaultConfig: SharedTransitionScope.SharedContentConfig? = null
+    val defaultConfig: SharedContentConfig? = null
 ) {
     fun Modifier.sharedElementV2(
         key: String,
-        config: SharedTransitionScope.SharedContentConfig = defaultConfig
+        config: SharedContentConfig = defaultConfig
             ?: SharedTransitionDefaults.SharedContentConfig,
-        animationVisibilityScope: AnimatedVisibilityScope? = null
+        animationVisibilityScope: AnimatedVisibilityScope? = null,
+        boundsTransform: BoundsTransform = SharedTransitionDefaults.BoundsTransform,
+        placeholderSize: PlaceholderSize = ContentSize,
+        renderInOverlayDuringTransition: Boolean = true,
+        zIndexInOverlay: Float = 0f,
+        clipInOverlayDuringTransition: OverlayClip = ParentClip,
     ): Modifier = composed {
         val transitionScope = sharedTransitionScope
             ?: return@composed this@composed
@@ -65,16 +79,28 @@ class SharedContextScope(
         with(transitionScope) {
             this@composed.sharedElement(
                 sharedContentState = rememberSharedContentState(sharedConstantKey, config),
-                animatedVisibilityScope = animationScope
+                animatedVisibilityScope = animationScope,
+                boundsTransform = boundsTransform,
+                placeholderSize = placeholderSize,
+                renderInOverlayDuringTransition = renderInOverlayDuringTransition,
+                zIndexInOverlay = zIndexInOverlay,
+                clipInOverlayDuringTransition = clipInOverlayDuringTransition
             )
         }
     }
 
     fun Modifier.sharedBoundsV2(
         key: String,
-        config: SharedTransitionScope.SharedContentConfig = defaultConfig
-            ?: SharedTransitionDefaults.SharedContentConfig,
+        config: SharedContentConfig = defaultConfig ?: SharedTransitionDefaults.SharedContentConfig,
         animationVisibilityScope: AnimatedVisibilityScope? = null,
+        enter: EnterTransition = fadeIn(),
+        exit: ExitTransition = fadeOut(),
+        boundsTransform: BoundsTransform = SharedTransitionDefaults.BoundsTransform,
+        resizeMode: ResizeMode = scaleToBounds(ContentScale.FillWidth, Center),
+        placeholderSize: PlaceholderSize = ContentSize,
+        renderInOverlayDuringTransition: Boolean = true,
+        zIndexInOverlay: Float = 0f,
+        clipInOverlayDuringTransition: OverlayClip = ParentClip,
     ) = composed {
         val transitionScope = sharedTransitionScope
             ?: return@composed this@composed
@@ -89,7 +115,15 @@ class SharedContextScope(
         with(transitionScope) {
             this@composed.sharedBounds(
                 sharedContentState = rememberSharedContentState(sharedConstantKey, config),
-                animatedVisibilityScope = animationScope
+                animatedVisibilityScope = animationScope,
+                enter = enter,
+                exit = exit,
+                boundsTransform = boundsTransform,
+                resizeMode = resizeMode,
+                placeholderSize = placeholderSize,
+                renderInOverlayDuringTransition = renderInOverlayDuringTransition,
+                zIndexInOverlay = zIndexInOverlay,
+                clipInOverlayDuringTransition = clipInOverlayDuringTransition
             )
         }
     }
@@ -97,8 +131,13 @@ class SharedContextScope(
     fun Modifier.sharedElementWithCallerManagedVisibilityV2(
         key: String,
         visible: Boolean,
-        config: SharedTransitionScope.SharedContentConfig = defaultConfig
-            ?: SharedTransitionDefaults.SharedContentConfig
+        config: SharedContentConfig = defaultConfig
+            ?: SharedTransitionDefaults.SharedContentConfig,
+        boundsTransform: BoundsTransform = SharedTransitionDefaults.BoundsTransform,
+        placeholderSize: PlaceholderSize = ContentSize,
+        renderInOverlayDuringTransition: Boolean = true,
+        zIndexInOverlay: Float = 0f,
+        clipInOverlayDuringTransition: OverlayClip = ParentClip,
     ) = composed {
         val transitionScope = sharedTransitionScope
             ?: return@composed this@composed
@@ -110,10 +149,27 @@ class SharedContextScope(
         with(transitionScope) {
             this@composed.sharedElementWithCallerManagedVisibility(
                 sharedContentState = rememberSharedContentState(sharedConstantKey, config),
-                visible = visible
+                visible = visible,
+                boundsTransform = boundsTransform,
+                placeholderSize = placeholderSize,
+                renderInOverlayDuringTransition = renderInOverlayDuringTransition,
+                zIndexInOverlay = zIndexInOverlay,
+                clipInOverlayDuringTransition = clipInOverlayDuringTransition
             )
         }
     }
+
+    private val ParentClip: OverlayClip =
+        object : OverlayClip {
+            override fun getClipPath(
+                sharedContentState: SharedContentState,
+                bounds: Rect,
+                layoutDirection: LayoutDirection,
+                density: Density,
+            ): Path? {
+                return sharedContentState.parentSharedContentState?.clipPathInOverlay
+            }
+        }
 }
 
 @Composable
