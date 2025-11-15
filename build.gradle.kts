@@ -1,4 +1,8 @@
+import org.jetbrains.kotlin.gradle.dsl.HasConfigurableKotlinCompilerOptions
+import org.jetbrains.kotlin.gradle.dsl.KotlinBaseExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinJsCompile
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+import org.jetbrains.kotlin.gradle.plugin.KotlinMultiplatformPluginWrapper
 
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
@@ -24,5 +28,19 @@ ext { set("targetInjectProjectName", "composeApp") }
 subprojects {
     tasks.withType<KotlinJsCompile>().configureEach {
         compilerOptions.freeCompilerArgs.add("-Xwasm-kclass-fqn")
+    }
+}
+
+// 全局配置项目的kotlin的api和languageVersion
+subprojects {
+    plugins.withType<KotlinMultiplatformPluginWrapper> {
+        configure<KotlinBaseExtension> {
+            if (this is HasConfigurableKotlinCompilerOptions<*>) {
+                compilerOptions {
+                    apiVersion.set(KotlinVersion.KOTLIN_2_2)
+                    languageVersion.set(KotlinVersion.KOTLIN_2_2)
+                }
+            }
+        }
     }
 }
