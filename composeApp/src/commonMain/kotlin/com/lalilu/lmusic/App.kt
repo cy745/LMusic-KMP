@@ -14,11 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.FrameRateCategory
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.preferredFrameRate
+import androidx.compose.ui.*
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -111,18 +107,23 @@ fun App() {
                         entryProvider = { it.toNavEntry() }
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .align(Alignment.BottomCenter)
-                            .navigationBarsPadding()
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        Button(onClick = {
-                            if (backStack.size >= 2) {
-                                backStack.removeLastOrNull()
+                    with(LocalSharedTransitionScope.current) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .align(Alignment.BottomCenter)
+                                .navigationBarsPadding()
+                                .padding(horizontal = 16.dp)
+                                .renderInSharedTransitionScopeOverlay(
+                                    zIndexInOverlay = 10f
+                                )
+                        ) {
+                            Button(onClick = {
+                                if (backStack.size >= 2) {
+                                    backStack.removeLastOrNull()
+                                }
+                            }) {
+                                Text("Back")
                             }
-                        }) {
-                            Text("Back")
                         }
                     }
                 }

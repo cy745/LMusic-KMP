@@ -159,6 +159,21 @@ class SharedContextScope(
         }
     }
 
+    fun Modifier.renderInSharedTransitionScopeOverlayV2(
+        zIndexInOverlay: Float = 0f,
+        renderInOverlay: (() -> Boolean)? = null,
+    ): Modifier = composed {
+        val transitionScope = sharedTransitionScope
+            ?: return@composed this@composed
+
+        with(transitionScope) {
+            this@composed.renderInSharedTransitionScopeOverlay(
+                zIndexInOverlay = zIndexInOverlay,
+                renderInOverlay = renderInOverlay ?: { transitionScope.isTransitionActive }
+            )
+        }
+    }
+
     private val ParentClip: OverlayClip =
         object : OverlayClip {
             override fun getClipPath(
@@ -177,7 +192,7 @@ fun SharedContext(
     sharedMap: SharedMap = LocalSharedMap.current,
     sharedTransitionScope: SharedTransitionScope? = null,
     defaultAnimationScope: AnimatedContentScope? = null,
-    defaultConfig: SharedTransitionScope.SharedContentConfig? = null,
+    defaultConfig: SharedContentConfig? = null,
     block: @Composable SharedContextScope.() -> Unit
 ) {
     val sharedScope = runCatching { sharedTransitionScope ?: LocalSharedTransitionScope.current }

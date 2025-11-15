@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.lalilu.extensions.SharedContext
@@ -25,7 +26,6 @@ import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.lmedia.entity.*
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
-import androidx.compose.ui.tooling.preview.Preview
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -101,8 +101,7 @@ fun RecommendGroupCard(
 
                             if (item != null) {
                                 RecommendGroupItemCard(
-                                    modifier = modifier.weight(1f)
-                                        .sharedElementV2("COVER"),
+                                    modifier = modifier.weight(1f),
                                     item = item,
                                     onClick = onClick
                                 )
@@ -129,7 +128,7 @@ fun RecommendGroupCard(
             )
             Text(
                 modifier = Modifier.alpha(0.6f)
-                    .sharedElementV2("TITLE"),
+                    .sharedElementV2("SUBTITLE"),
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
@@ -163,7 +162,8 @@ private fun RecommendGroupItemCard(
                     shape = RoundedCornerShape(8.dp)
                 )
                 .clickable(onClick = { onClick(item, sharedMap) })
-                .background(MaterialTheme.colorScheme.onBackground.copy(0.15f)),
+                .background(MaterialTheme.colorScheme.onBackground.copy(0.15f))
+                .sharedElementV2("COVER"),
             model = item,
             contentDescription = item.title
         )
