@@ -40,7 +40,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
                 subtitle = "",
                 items = songs
             )
-        }
+        }.link()
 
     val artists = this
         .groupBy { song -> song.metadata.artist }
@@ -54,6 +54,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
         }
         .separate()
         .merge()
+        .link()
 
     val genres = this
         .groupBy { song -> song.metadata.genre }
@@ -64,7 +65,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
                 subtitle = "",
                 items = songs
             )
-        }
+        }.link()
 
     return Snapshot(
         audios = this,
