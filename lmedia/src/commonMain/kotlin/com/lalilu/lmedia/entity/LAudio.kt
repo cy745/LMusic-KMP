@@ -2,6 +2,7 @@ package com.lalilu.lmedia.entity
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlin.reflect.KClass
 
 @Serializable
 data class LAudio(
@@ -17,6 +18,30 @@ data class LAudio(
 ) : LItem {
     companion object {
         val EMPTY_EXTRA = emptyMap<String, String>()
+    }
+
+    @Transient
+    val refs = mutableMapOf<KClass<*>, MutableSet<LGroupItem>>()
+
+    /**
+     * 将指定的分组项链接到当前音频对象
+     *
+     * @param groupItem 要链接的分组项，必须是 LGroupItem 的子类实例
+     * @param T 分组项的具体类型，必须继承自 LGroupItem
+     */
+    inline fun <reified T : LGroupItem> link(groupItem: T) {
+        refs.getOrPut(T::class) { mutableSetOf() }
+            .add(groupItem)
+    }
+
+    /**
+     * 获取当前音频对象关联的指定类型的分组项列表
+     *
+     * @param T 要获取的分组项类型，必须继承自 LGroupItem
+     * @return 包含所有关联的指定类型分组项的列表，如果没有则返回空列表
+     */
+    inline fun <reified T : LGroupItem> ref(): List<T> {
+        return refs[T::class]?.map { it as T } ?: emptyList()
     }
 }
 
