@@ -8,6 +8,7 @@ import org.koin.core.context.startKoin
 fun main() {
     FileKit.init(appId = "LMusic")
     startKoin { koinSetup() }
+    platformSetupCoil()
 
     application {
         val windowState = WindowStateKeeper.rememberWindowState()
@@ -20,7 +21,6 @@ fun main() {
             state = windowState,
             title = "LMusic",
         ) {
-            platformSetupCoil()
             App()
         }
     }

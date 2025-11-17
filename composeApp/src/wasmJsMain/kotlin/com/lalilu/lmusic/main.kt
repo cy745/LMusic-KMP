@@ -21,9 +21,9 @@ import org.koin.core.context.startKoin
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
     startKoin { koinSetup() }
+    platformSetupCoil()
 
     ComposeViewport(document.body!!) {
-        platformSetupCoil()
         App()
         ReplaceFont()
     }

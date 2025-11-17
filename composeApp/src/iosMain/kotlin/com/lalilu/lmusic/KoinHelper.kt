@@ -4,4 +4,5 @@ import org.koin.core.context.startKoin
 
 fun startKoin() {
     startKoin { koinSetup() }
+    platformSetupCoil()
 }
