@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.compositeOver
@@ -61,11 +62,17 @@ fun DefaultBlurBackground(
     ) { data ->
         AsyncImage(
             modifier = Modifier
-                .fillMaxSize(),
+                .fillMaxSize()
+                .drawWithContent {
+                    drawContent()
+                    drawRect(color = Color.Black.copy(alpha = blurProgress() * (100f / 255f)))
+                },
             model = data,
             contentScale = ContentScale.Crop,
             contentDescription = "",
             onSuccess = {
+                if (data != imageData()) return@AsyncImage
+
                 scope.launch(Dispatchers.io) {
                     val image = it.result.image
                     val color = image.toBitmap().toImageBitmap()
