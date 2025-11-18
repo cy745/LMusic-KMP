@@ -17,6 +17,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import platform.AVFAudio.AVAudioPlayer
 import platform.AVFoundation.*
+import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeMake
 import platform.Foundation.NSData
 import platform.Foundation.NSError
@@ -72,6 +73,7 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
                             debugLog("status: AVPlayerStatusReadyToPlay")
                             _isPlaying.value = true
                             _currentItemIndex.value = _playlist.value.flatten().indexOf(item)
+                            playerItem.duration.useContents { _currentDuration.value = toMilliseconds().toLong() }
                             updateNavigationCapabilities()
                         }
 
@@ -110,13 +112,6 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
                     AVAudioPlayer(data, errorPtr.ptr)
                 }
 
-                player.prepareToPlay()
-                player.play()
-
-                _isPlaying.value = true
-                _currentItemIndex.value = _playlist.value.flatten().indexOf(item)
-                updateNavigationCapabilities()
-
                 AVAudioPlayerDidPlayToEndHelper.observe(
                     player = player,
                     onFinishPlaying = { _, isSuccess ->
@@ -130,12 +125,22 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
                         debugLog("AVAudioPlayerDidDecodeErrorDidOccur: $error")
                     },
                     onBeginInterruption = {
-                        debugLog("AVAudioPlayerDidBeginInterruption")
+                        val duration = audioPlayer?.duration
+                        _currentDuration.value = duration?.toLong() ?: 0L
+                        debugLog("AVAudioPlayerDidBeginInterruption: duration: $duration")
                     },
                     onEndInterruption = {
                         debugLog("AVAudioPlayerDidEndInterruption")
                     }
                 )
+
+                player.prepareToPlay()
+                player.play()
+
+                _isPlaying.value = true
+                _currentItemIndex.value = _playlist.value.flatten().indexOf(item)
+                _currentDuration.value = (player.duration * 1000L).toLong()
+                updateNavigationCapabilities()
 
                 audioPlayer?.stop()
                 audioPlayer = player
@@ -269,4 +274,12 @@ fun NSError.print() {
         [localizedRecoveryOptions]: $localizedRecoveryOptions
     """.trimIndent()
     Logger.e(tag = "NSError", messageString = log)
+}
+
+// 扩展函数：获取精确毫秒数（Double 类型，保留小数，适合需要高精度的场景）
+fun CMTime.toMilliseconds(): Double {
+    // 安全检查：timescale 不能为 0，否则返回 0.0
+    if (timescale == 0) return 0.0
+    // 核心计算：(value / timescale) * 1000 → 转换为毫秒
+    return (value.toDouble() / timescale.toDouble()) * 1000.0
 }
