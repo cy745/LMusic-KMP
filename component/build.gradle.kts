@@ -67,6 +67,7 @@ kotlin {
                 api(libs.remixicon.kmp)
                 api(libs.qrcode.kotlin)
                 api(libs.sonner)
+                api(libs.materialKolor)
             }
         }
         val commonTest by getting {

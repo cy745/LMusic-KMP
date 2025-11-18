@@ -6,7 +6,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
@@ -14,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -38,6 +38,7 @@ import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.*
 import com.lalilu.navigation.LocalBackStack
 import com.lalilu.navigation.Screen
+import com.materialkolor.ktx.darken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -65,7 +66,10 @@ class PlayerScreen : Screen {
         val currentTime = remember { mutableStateOf(0L) }
         val platformSource = koinInject<PlatformMediaSource>()
         val isLyricScrollEnable = remember { mutableStateOf(false) }
-        val backgroundColor = remember { mutableStateOf(Color.Gray) }
+
+        val defaultBackgroundColor = MaterialTheme.colorScheme.background.darken(0.2f)
+        val backgroundColor = remember { mutableStateOf(defaultBackgroundColor) }
+        val contentColor = remember { mutableStateOf(Color.White) }
         val scope = rememberCoroutineScope()
 
         val draggable = rememberCustomAnchoredDraggableState { oldState, newState ->
@@ -82,8 +86,6 @@ class PlayerScreen : Screen {
         val playlist = LPlayer.instance.playlist.collectAsState(emptyList())
         val duration = LPlayer.instance.currentDuration.collectAsState(0L)
         val animation = remember { Animatable(0f) }
-
-        val textContentColor = MaterialTheme.colorScheme.onBackground
         val navigationBar = WindowInsets.navigationBars
 
         val bgAnimateColor = animateColorAsState(
@@ -157,7 +159,7 @@ class PlayerScreen : Screen {
                         modifier = Modifier.fillMaxWidth(),
                         title = { currentItem.value?.title ?: "LMusic" },
                         subtitle = { currentItem.value?.subtitle ?: "....." },
-                        contentColor = { textContentColor },
+                        contentColor = { contentColor.value },
                         isPlaying = { isPlaying.value }
                     )
                 }
@@ -166,7 +168,7 @@ class PlayerScreen : Screen {
                 BoxWithConstraints(
                     modifier = modifier.fillMaxSize()
                         .clipToBounds()
-                        .background(color = Color.Gray)
+                        .drawBehind { drawRect(color = bgAnimateColor.value) }
                 ) {
                     val adInterpolator: (Float) -> Float = remember {
                         { x -> ((cos((x + 1) * PI) / 2.0f) + 0.5f).toFloat() }
@@ -233,7 +235,10 @@ class PlayerScreen : Screen {
                                 scaleX = scale
                             },
                         blurProgress = { middleToMaxProgress.value },
-                        onColorPairFetched = { bgColor, cColor -> },
+                        onColorPairFetched = { bgColor, cColor ->
+                            contentColor.value = cColor
+                            backgroundColor.value = bgColor
+                        },
                         imageData = { currentItem.value ?: "" }
                     )
 
@@ -299,6 +304,7 @@ class PlayerScreen : Screen {
 //                            }
                         },
                         onSeekTo = { position ->
+                            Logger.i("seekTo: $position")
                             PlayerAction.SeekTo(position.toLong()).action()
                         },
                         onSwitchTo = { index ->
