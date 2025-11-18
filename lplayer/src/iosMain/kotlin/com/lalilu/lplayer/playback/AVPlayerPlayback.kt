@@ -5,10 +5,7 @@ import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.util.flatten
-import com.lalilu.lplayer.helper.AVAudioPlayerDidPlayToEndHelper
-import com.lalilu.lplayer.helper.AVPlayerItemEventObserver
-import com.lalilu.lplayer.helper.AudioSessionHelper
-import com.lalilu.lplayer.helper.observeFor
+import com.lalilu.lplayer.helper.*
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
 import com.lalilu.lplayer.notifacation.RemoteCommandHandler
 import kotlinx.cinterop.*
@@ -19,10 +16,7 @@ import platform.AVFAudio.AVAudioPlayer
 import platform.AVFoundation.*
 import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeMake
-import platform.Foundation.NSData
-import platform.Foundation.NSError
-import platform.Foundation.NSURL
-import platform.Foundation.dataWithBytes
+import platform.Foundation.*
 
 @OptIn(ExperimentalForeignApi::class)
 class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
@@ -34,6 +28,7 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
         Logger.i(tag = TAG, messageString = message)
     }
 
+    private val observerContext: COpaquePointer = cOpaquePtr()
     private val platformMediaSource: PlatformMediaSource by inject()
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
     val player: AVPlayer = AVPlayer()
@@ -47,43 +42,57 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
         }
     }
 
+    private val observer = Observer { keyPath, ofObject, change, context ->
+        if (observerContext != context) return@Observer
+        val playerItem = ofObject as AVPlayerItem
+        when (playerItem.status) {
+            AVPlayerStatusUnknown -> {
+                debugLog("status: AVPlayerStatusUnknown")
+            }
+
+            AVPlayerStatusReadyToPlay -> {
+                debugLog("status: AVPlayerStatusReadyToPlay")
+                _isPlaying.value = true
+                playerItem.duration.useContents { _currentDuration.value = toMilliseconds().toLong() }
+                updateNavigationCapabilities()
+            }
+
+            AVPlayerStatusFailed -> {
+                debugLog("status: AVPlayerStatusFailed")
+                playerItem.error?.print()
+            }
+        }
+    }
+
     override suspend fun playItem(item: LAudio) {
         AudioSessionHelper.ensureAudioSessionActive()
         val source = platformMediaSource.sources
             .firstOrNull { item.mediaSourceName == it.name }
             ?: throw Exception("No source item found for ${item.mediaSourceName}")
 
-        val data = source.dataSource.getMedia(item)
-        when (data) {
+        when (val data = source.dataSource.getMedia(item)) {
             is MediaData.Url -> {
+                // 移除旧的监听
+                player.currentItem?.removeObserver(
+                    forKeyPath = "status",
+                    observer = observer,
+                    context = observerContext
+                )
+
+                player.pause()
+
                 Logger.i(tag = "AVPlayer", messageString = "prepared with url: ${data.url}")
                 val url = NSURL.URLWithString(data.url)!!
                 val playerItem = AVPlayerItem(url)
 
-                player.pause()
-
                 // 监听playerItem的状态变化
-                playerItem.observeFor("status") {
-                    when (it.status) {
-                        AVPlayerStatusUnknown -> {
-                            debugLog("status: AVPlayerStatusUnknown")
-                        }
+                playerItem.observeFor(
+                    keyPath = "status",
+                    observer = observer,
+                    context = observerContext
+                )
 
-                        AVPlayerStatusReadyToPlay -> {
-                            debugLog("status: AVPlayerStatusReadyToPlay")
-                            _isPlaying.value = true
-                            _currentItemIndex.value = _playlist.value.flatten().indexOf(item)
-                            playerItem.duration.useContents { _currentDuration.value = toMilliseconds().toLong() }
-                            updateNavigationCapabilities()
-                        }
-
-                        AVPlayerStatusFailed -> {
-                            debugLog("status: AVPlayerStatusFailed")
-                            it.error?.print()
-                        }
-                    }
-                }
-
+                _currentItemIndex.value = _playlist.value.flatten().indexOf(item)
                 player.replaceCurrentItemWithPlayerItem(playerItem)
                 player.play()
 
