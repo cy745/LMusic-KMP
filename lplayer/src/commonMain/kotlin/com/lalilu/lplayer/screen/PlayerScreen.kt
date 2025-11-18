@@ -255,7 +255,7 @@ class PlayerScreen : Screen {
                                 translationY = additionalOffset + fixOffset
                                 alpha = progressIncrease
                             },
-                        currentTime = { currentTime.value },
+                        currentTime = { animation.value.toLong() },
                         screenConstraints = constraints,
                         lyricEntry = lyricEntries,
                         isUserClickEnable = { false },
