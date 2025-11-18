@@ -51,7 +51,7 @@ jbx-navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-
 jbx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
 jbx-lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
 jbx-lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3", version = "2.10.0-alpha03" }
-jbx-navigationevent-compose = { module = "org.jetbrains.androidx.navigationevent:navigationevent-compose", version = "1.0.0-SNAPSHOT+default" }
+jbx-navigationevent-compose = { module = "org.jetbrains.androidx.navigationevent:navigationevent-compose", version = "1.0.0-beta01" }
 
 krouter-core = { module = "io.github.cy745.KRouter:core", version.ref = "krouter" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
