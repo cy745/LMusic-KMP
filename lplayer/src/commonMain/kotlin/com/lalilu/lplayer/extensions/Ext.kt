@@ -1,5 +1,9 @@
 package com.lalilu.lplayer.extensions
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+
 
 fun <T> List<T>.getNextOf(item: T, cycle: Boolean = false): T? {
     val nextIndex = indexOf(item) + 1
@@ -27,3 +31,9 @@ fun <T : Any> List<T>.add(index: Int = -1, item: T): List<T> = toMutableList().a
 fun <T : Any> List<T>.removeAt(index: Int): List<T> = toMutableList().apply {
     removeAt(index)
 }
+
+fun Modifier.enableFor(
+    enable: () -> Boolean,
+    forFalse: @Composable Modifier.() -> Modifier = { this },
+    forTrue: @Composable Modifier.() -> Modifier,
+): Modifier = composed { if (enable()) this.forTrue() else this.forFalse() }
