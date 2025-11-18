@@ -31,7 +31,7 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
     private val observerContext: COpaquePointer = cOpaquePtr()
     private val platformMediaSource: PlatformMediaSource by inject()
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
-    val player: AVPlayer = AVPlayer()
+    val avPlayer: AVPlayer = AVPlayer()
     var audioPlayer: AVAudioPlayer? = null
 
     init {
@@ -55,6 +55,7 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
                 _isPlaying.value = true
                 playerItem.duration.useContents { _currentDuration.value = toMilliseconds().toLong() }
                 updateNavigationCapabilities()
+                avPlayer.play()
             }
 
             AVPlayerStatusFailed -> {
@@ -73,13 +74,13 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
         when (val data = source.dataSource.getMedia(item)) {
             is MediaData.Url -> {
                 // 移除旧的监听
-                player.currentItem?.removeObserver(
+                avPlayer.currentItem?.removeObserver(
                     forKeyPath = "status",
                     observer = observer,
                     context = observerContext
                 )
 
-                player.pause()
+                avPlayer.pause()
 
                 Logger.i(tag = "AVPlayer", messageString = "prepared with url: ${data.url}")
                 val url = NSURL.URLWithString(data.url)!!
@@ -93,8 +94,8 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
                 )
 
                 _currentItemIndex.value = _playlist.value.flatten().indexOf(item)
-                player.replaceCurrentItemWithPlayerItem(playerItem)
-                player.play()
+                avPlayer.replaceCurrentItemWithPlayerItem(playerItem)
+                avPlayer.play()
 
                 // 监听播放完成事件
                 AVPlayerItemEventObserver.observe(
@@ -143,6 +144,9 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
                     }
                 )
 
+                // 停止并清除avplayer
+                avPlayer.pause()
+                avPlayer.replaceCurrentItemWithPlayerItem(null)
                 player.prepareToPlay()
                 player.play()
 
@@ -174,10 +178,10 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
             }
 
             // 若player存在播放中的元素，则直接播放
-            if (player.currentItem != null) {
-                debugLog("player playing: ${player.currentItem} ${player.currentItem?.status}")
+            if (avPlayer.currentItem != null) {
+                debugLog("player playing: ${avPlayer.currentItem} ${avPlayer.currentItem?.status}")
 
-                player.play()
+                avPlayer.play()
                 _isPlaying.value = true
                 return
             }
@@ -199,7 +203,7 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
             if (audioPlayer != null) {
                 audioPlayer?.pause()
             } else {
-                player.pause()
+                avPlayer.pause()
             }
 
             _isPlaying.value = false
@@ -217,8 +221,8 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
         try {
             audioPlayer?.stop()
             audioPlayer = null
-            player.pause()
-            player.replaceCurrentItemWithPlayerItem(null)
+            avPlayer.pause()
+            avPlayer.replaceCurrentItemWithPlayerItem(null)
             _isPlaying.value = false
             _currentItemIndex.value = 0
             updateNavigationCapabilities()
@@ -250,7 +254,7 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
                 audioPlayer?.playAtTime(positionMs / 1000.0)
             } else {
                 val time = CMTimeMake(value = positionMs, timescale = 1000)
-                player.seekToTime(time)
+                avPlayer.seekToTime(time)
             }
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
@@ -264,7 +268,7 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
         } else {
             memScoped {
                 // AVPlayer的currentTime返回的是ns，需要转换成ms
-                player.currentTime()
+                avPlayer.currentTime()
                     .useContents { value / 1000L / 1000L }
             }
         }
