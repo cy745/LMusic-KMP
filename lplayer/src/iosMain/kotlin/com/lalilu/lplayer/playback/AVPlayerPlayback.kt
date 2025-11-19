@@ -21,18 +21,18 @@ import platform.Foundation.*
 @OptIn(ExperimentalForeignApi::class)
 class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
     companion object Companion {
-        const val TAG = "WrappedAVPlayer"
+        const val TAG = "AVPlayerPlayback"
     }
 
-    fun debugLog(message: String) {
+    private fun debugLog(message: String) {
         Logger.i(tag = TAG, messageString = message)
     }
 
     private val observerContext: COpaquePointer = cOpaquePtr()
     private val platformMediaSource: PlatformMediaSource by inject()
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
-    val avPlayer: AVPlayer = AVPlayer()
-    var audioPlayer: AVAudioPlayer? = null
+    private val avPlayer: AVPlayer = AVPlayer()
+    private var audioPlayer: AVAudioPlayer? = null
 
     init {
         NowPlayingInfoNotification.bindPlayback(this)
@@ -251,7 +251,8 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
     override suspend fun seekTo(positionMs: Long) {
         try {
             if (audioPlayer != null) {
-                audioPlayer?.playAtTime(positionMs / 1000.0)
+                audioPlayer?.setCurrentTime(positionMs / 1000.0)
+                audioPlayer?.play()
             } else {
                 val time = CMTimeMake(value = positionMs, timescale = 1000)
                 avPlayer.seekToTime(time)
