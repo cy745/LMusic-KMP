@@ -14,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
@@ -24,6 +23,7 @@ import androidx.compose.ui.util.lerp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import com.lalilu.LocalSeedColor
 import com.lalilu.common.ext.io
 import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.annotation.Destination
@@ -38,7 +38,6 @@ import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.*
 import com.lalilu.navigation.LocalBackStack
 import com.lalilu.navigation.Screen
-import com.materialkolor.ktx.darken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -59,6 +58,7 @@ class PlayerScreen : Screen {
         val density = LocalDensity.current
         val backStack = LocalBackStack.current
         val haptic = LocalHapticFeedback.current
+        val seedColor = LocalSeedColor.current
 
         val model = koinViewModel<PlayerScreenModel>()
         val isPlaying = model.isPlaying.collectAsState()
@@ -67,9 +67,7 @@ class PlayerScreen : Screen {
         val platformSource = koinInject<PlatformMediaSource>()
         val isLyricScrollEnable = remember { mutableStateOf(false) }
 
-        val defaultBackgroundColor = MaterialTheme.colorScheme.background.darken(0.2f)
-        val backgroundColor = remember { mutableStateOf(defaultBackgroundColor) }
-        val contentColor = remember { mutableStateOf(Color.White) }
+        val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         val scope = rememberCoroutineScope()
 
         val draggable = rememberCustomAnchoredDraggableState { oldState, newState ->
@@ -89,7 +87,7 @@ class PlayerScreen : Screen {
         val navigationBar = WindowInsets.navigationBars
 
         val bgAnimateColor = animateColorAsState(
-            targetValue = backgroundColor.value,
+            targetValue = MaterialTheme.colorScheme.primaryContainer,
             animationSpec = spring(stiffness = Spring.StiffnessLow),
             label = ""
         )
@@ -159,7 +157,7 @@ class PlayerScreen : Screen {
                         modifier = Modifier.fillMaxWidth(),
                         title = { currentItem.value?.title ?: "LMusic" },
                         subtitle = { currentItem.value?.subtitle ?: "....." },
-                        contentColor = { contentColor.value },
+                        contentColor = { contentColor },
                         isPlaying = { isPlaying.value }
                     )
                 }
@@ -235,10 +233,7 @@ class PlayerScreen : Screen {
                                 scaleX = scale
                             },
                         blurProgress = { middleToMaxProgress.value },
-                        onColorPairFetched = { bgColor, cColor ->
-                            contentColor.value = cColor
-                            backgroundColor.value = bgColor
-                        },
+                        onColorPairFetched = { bgColor, cColor -> seedColor.value = bgColor },
                         imageData = { currentItem.value ?: "" }
                     )
 
