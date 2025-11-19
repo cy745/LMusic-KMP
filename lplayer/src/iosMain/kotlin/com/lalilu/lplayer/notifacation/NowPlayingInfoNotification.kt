@@ -12,6 +12,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.refTo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -46,8 +47,7 @@ object NowPlayingInfoNotification : CoroutineScope {
                     this[MPMediaItemPropertyAlbumTitle] = track?.subtitle ?: ""
                     this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration.value.toDouble().div(1000)
                     this[MPNowPlayingInfoPropertyPlaybackRate] = if (playback.isPlaying.value) 1.0 else 0.0
-                    this[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-                        playback.currentPosition().toDouble().div(1000)
+                    this[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
                 }
 
                 val placeholderImage = UIImage.imageNamed("AppIcon")
@@ -65,13 +65,14 @@ object NowPlayingInfoNotification : CoroutineScope {
             }.launchIn(this)
 
         playback.isPlaying
-            .onEach { isPlaying ->
+            .combine(playback.currentDuration) { isPlaying, duration -> isPlaying to duration }
+            .onEach { (isPlaying, duration) ->
                 debugLog("Playback state changed, isPlaying: $isPlaying")
                 nowPlayingInfo.apply {
-                    this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration.value.toDouble().div(1000)
+                    this[MPMediaItemPropertyPlaybackDuration] = duration.toDouble().div(1000)
                     this[MPNowPlayingInfoPropertyPlaybackRate] = if (isPlaying) 1.0 else 0.0
-                    this[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-                        playback.currentPosition().toDouble().div(1000)
+                    this[MPNowPlayingInfoPropertyElapsedPlaybackTime] = playback.currentPosition().toDouble()
+                        .div(1000)
                 }
                 debugLog(
                     "Playback info - Duration: ${nowPlayingInfo[MPMediaItemPropertyPlaybackDuration]}, " +
