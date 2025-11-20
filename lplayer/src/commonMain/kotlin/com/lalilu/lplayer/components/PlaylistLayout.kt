@@ -18,22 +18,12 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.SongCard
 import com.lalilu.lplayer.action.PlayerAction
+import com.lalilu.extensions.Item
+import com.lalilu.extensions.diff
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-
-data class Item<T>(
-    val data: T,
-    val key: String
-)
-
-fun <T : Any> List<Item<T>>.diff(
-    items: List<T>,
-    getId: (T) -> String
-): List<Item<T>> {
-    return items.map { Item(it, getId(it)) }
-}
 
 @Composable
 fun PlaylistLayout(
