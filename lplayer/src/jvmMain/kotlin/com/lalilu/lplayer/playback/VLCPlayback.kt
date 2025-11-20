@@ -146,7 +146,7 @@ class VLCPlayback : AbstractPlayback(), KoinComponent {
             emitError(e)
         }
     }
-    
+
     override fun currentPosition(): Long {
         return player.status().time()
     }
@@ -176,7 +176,7 @@ class VLCPlayback : AbstractPlayback(), KoinComponent {
             }
 
             override fun lengthChanged(mediaPlayer: MediaPlayer?, newLength: Long) {
-                _currentDuration.value = newLength / 1000L
+                _currentDuration.value = newLength
                 updateNavigationCapabilities()
             }
         })
