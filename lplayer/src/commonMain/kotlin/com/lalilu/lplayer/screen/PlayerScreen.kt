@@ -262,7 +262,16 @@ class PlayerScreen : Screen {
                 PlaylistLayout(
                     modifier = modifier,
                     listState = listState,
-                    items = { playlist.value.mapNotNull { item -> item as? LAudio } },
+                    items = {
+                        val indexOfFirst = playlist.value
+                            .indexOfFirst { item -> item.id == currentItem.value?.id }
+                            .coerceAtLeast(0)
+
+                        playlist.value.runCatching { drop(indexOfFirst) + take(indexOfFirst) }
+                            .getOrNull()
+                            ?.mapNotNull { item -> item as? LAudio }
+                            ?: emptyList()
+                    },
                 )
             },
             overlayContent = {
