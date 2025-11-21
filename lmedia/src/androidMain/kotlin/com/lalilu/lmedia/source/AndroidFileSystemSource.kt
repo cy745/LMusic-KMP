@@ -136,7 +136,7 @@ class AndroidFileSystemSource(
                 val file = sourceItem.file
 
                 val picture = Taglib.getPicture(path = file.absolutePath)
-                    ?: throw FileNotFoundException("Not found lyric for $file")
+                    ?: throw FileNotFoundException("Not found picture for $file")
 
                 MediaData.Bytes(picture)
             }
@@ -147,7 +147,18 @@ class AndroidFileSystemSource(
                 val picture = context.contentResolver
                     .openFileDescriptor(uri, "r")
                     ?.use { Taglib.getPicture(fd = it.detachFd()) }
-                    ?: throw FileNotFoundException("Not found lyric for $uri")
+                    ?: throw FileNotFoundException("Not found picture for $uri")
+
+                MediaData.Bytes(picture)
+            }
+
+            is SourceItem.UriItem -> {
+                val uri = sourceItem.uri
+
+                val picture = context.contentResolver
+                    .openFileDescriptor(uri, "r")
+                    ?.use { Taglib.getPicture(fd = it.detachFd()) }
+                    ?: throw FileNotFoundException("Not found picture for $uri")
 
                 MediaData.Bytes(picture)
             }
