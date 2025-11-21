@@ -53,11 +53,13 @@ class MediaStoreSource(
             }
         }
 
-        return flow {
+        return callbackFlow {
             // 先返回Snapshot.Empty，避免阻塞下游的combine
-            emit(Snapshot.Empty)
+            send(Snapshot.Empty)
             eventFlow.collectLatest {
-                emit(scanner.scan())
+                send(scanner.scan())
+            }
+            awaitClose {
             }
         }
     }
