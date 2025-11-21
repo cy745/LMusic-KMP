@@ -51,12 +51,10 @@ class AndroidFileSystemSource(
             if (file.isDirectory()) return@filterChildren false
             if (file.size() < 10) return@filterChildren false
 
-            val magicNumberType = MagicNumber.match(
+            MagicNumber.match(
                 ext = file.extension,
                 source = file.source().buffered()
-            )
-
-            magicNumberType != null
+            ) != null
         }
     }.map { files ->
         files?.map { it.androidFile }?.mapNotNull { file ->

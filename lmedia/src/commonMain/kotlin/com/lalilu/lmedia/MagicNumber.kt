@@ -1,9 +1,7 @@
 package com.lalilu.lmedia
 
-import io.ktor.utils.io.core.remaining
 import kotlinx.io.Source
 import kotlinx.io.readByteArray
-import okio.BufferedSource
 
 enum class MagicNumber(
     val desc: String,
@@ -75,26 +73,42 @@ enum class MagicNumber(
 
     companion object {
         private val extMap = mutableMapOf<String, MagicNumber>()
+        private var maxHeaderLengthWithOffset = 0
 
         fun match(ext: String?, source: Source): MagicNumber? {
             if (extMap.isEmpty()) {
-                entries.forEach { it.ext.forEach { ext -> extMap[ext] = it } }
+                entries.forEach { it.ext.forEach { ext -> extMap[ext.uppercase()] = it } }
+                maxHeaderLengthWithOffset = entries.maxOf { it.header.size + it.offset }
             }
 
             return source.use {
-                var readByteArray: ByteArray
-                val magicNumber = extMap[ext]
+                val readByteArray = source.readByteArray(maxHeaderLengthWithOffset)
 
+                // 尝试匹配扩展名，获取到扩展名以后还要校验其header是否匹配
+                val magicNumber = extMap[ext?.uppercase()]
                 if (magicNumber != null) {
-                    source.skip(magicNumber.offset.toLong())
-                    readByteArray = source.readByteArray(magicNumber.header.size)
-
-                    if (readByteArray === magicNumber.header) {
-                        return magicNumber
+                    for (i in magicNumber.header.indices) {
+                        if (readByteArray[magicNumber.offset + i] != magicNumber.header[i]) {
+                            break
+                        }
+                        if (i == magicNumber.header.lastIndex) {
+                            return magicNumber
+                        }
                     }
                 }
 
-                // TODO
+                // 尝试匹配header
+                for (magicNumber in entries) {
+                    for (i in magicNumber.header.indices) {
+                        if (readByteArray[magicNumber.offset + i] != magicNumber.header[i]) {
+                            break
+                        }
+                        if (i == magicNumber.header.lastIndex) {
+                            return magicNumber
+                        }
+                    }
+                }
+
                 null
             }
         }

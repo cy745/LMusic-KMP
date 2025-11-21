@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.lalilu.common.ext.io
 import com.lalilu.common.flow.toUpdatableFlow
+import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
@@ -34,14 +35,10 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
             if (file.isDirectory()) return@filterChildren false
             if (file.size() < 10) return@filterChildren false
 
-            file.source().buffered().use {
-                val low4 = it.readInt()
-                val high4 = it.readInt()
-
-                (low4 == 0x664C6143 && high4 == 0x00000022) // flac
-                        || (low4 == 0x4F676753 && high4 == 0x00020000) // ogg
-                        || (low4 and 0x49443300 != 0) // mp3
-            }
+            MagicNumber.match(
+                ext = file.extension,
+                source = file.source().buffered()
+            ) != null
         }
     }.map { files ->
         files?.mapNotNull { file ->
