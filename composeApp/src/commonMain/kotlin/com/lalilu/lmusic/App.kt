@@ -20,7 +20,7 @@ import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
-import androidx.navigation3.ui.NavDisplay
+import androidx.navigation3.ui.OverrideNavDisplay
 import co.touchlab.kermit.Logger
 import com.lalilu.LMusicTheme
 import com.lalilu.common.ext.io
@@ -88,7 +88,7 @@ fun App() {
                     modifier = Modifier.fillMaxSize()
                         .background(MaterialTheme.colorScheme.background)
                 ) {
-                    NavDisplay(
+                    OverrideNavDisplay(
                         modifier = Modifier.fillMaxSize()
                             .preferredFrameRate(FrameRateCategory.High),
                         backStack = backStack,

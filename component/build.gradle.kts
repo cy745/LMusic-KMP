@@ -59,6 +59,8 @@ kotlin {
 
                 api(libs.jbx.navigation3.ui)
                 api(libs.androidx.navigation3.runtime)
+                implementation("androidx.collection:collection:1.5.0")
+
                 api(libs.bundles.jbx)
                 api(libs.bundles.coil)
                 api(libs.bundles.settings)
