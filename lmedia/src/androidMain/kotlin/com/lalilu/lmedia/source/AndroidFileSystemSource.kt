@@ -22,6 +22,7 @@ import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.entity.buildSnapshot
 import io.github.vinceglb.filekit.*
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import kotlinx.coroutines.*
@@ -77,17 +78,18 @@ class AndroidFileSystemSource(
             }
         } ?: emptyList()
     }.map { result ->
-        Snapshot(
-            audios = result.map { (source, metadata) ->
-                LAudio(
-                    id = source.key,
-                    title = metadata.title,
-                    subtitle = metadata.artist,
-                    sourceItem = source,
-                    mediaSourceName = this@AndroidFileSystemSource.name
-                )
-            }
-        )
+        val songs = result.map { (source, metadata) ->
+            LAudio(
+                id = source.key,
+                title = metadata.title,
+                subtitle = metadata.artist,
+                sourceItem = source,
+                metadata = metadata,
+                mediaSourceName = this@AndroidFileSystemSource.name
+            )
+        }
+
+        songs.buildSnapshot()
     }.stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
 
     override fun source(): Flow<Snapshot> = sourceStateFlow
