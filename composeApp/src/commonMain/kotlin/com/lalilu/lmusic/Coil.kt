@@ -16,7 +16,7 @@ fun platformSetupCoil(
     SingletonImageLoader.setSafe {
         ImageLoader.Builder(it)
             .serviceLoaderEnabled(true)
-            .logger(KermitCoilLogger(Logger.withTag("Coil")))
+//            .logger(KermitCoilLogger(Logger.withTag("Coil")))
             .components {
                 add(LAudioFetcherFactory())
                 add(LAudioKeyer())
