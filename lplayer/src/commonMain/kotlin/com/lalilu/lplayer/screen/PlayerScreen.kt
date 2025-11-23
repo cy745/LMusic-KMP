@@ -20,32 +20,28 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.lalilu.LocalSeedColor
 import com.lalilu.common.ext.io
+import com.lalilu.extensions.bindToLifecycle
 import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.annotation.Destination
-import com.lalilu.llyric.LyricItem
-import com.lalilu.llyric.LyricUtils
 import com.lalilu.llyricview.LyricLayout
-import com.lalilu.lmedia.LMedia
-import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.*
+import com.lalilu.lplayer.extensions.PlayMode
+import com.lalilu.lplayer.viewmodel.PlayerViewModel
 import com.lalilu.navigation.LocalBackStack
+import com.lalilu.navigation.LocalNavSeekableTransitionState
 import com.lalilu.navigation.Screen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-import org.koin.core.annotation.Factory
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.pow
 
@@ -59,12 +55,15 @@ class PlayerScreen : Screen {
         val backStack = LocalBackStack.current
         val haptic = LocalHapticFeedback.current
         val seedColor = LocalSeedColor.current
+        val transitionState = LocalNavSeekableTransitionState.current
+        val homeScreen = remember { KRouter.route<Screen>("/home") }
 
-        val model = koinViewModel<PlayerScreenModel>()
-        val isPlaying = model.isPlaying.collectAsState()
-        val currentItem = model.currentItem.collectAsState()
-        val currentTime = remember { mutableStateOf(0L) }
-        val platformSource = koinInject<PlatformMediaSource>()
+        val vm = koinViewModel<PlayerViewModel>()
+        vm.bindToLifecycle()
+
+        val isPlaying = vm.isPlaying.collectAsState()
+        val currentItem = vm.currentItem.collectAsState()
+        val currentTime = vm.currentTime
         val isLyricScrollEnable = remember { mutableStateOf(false) }
 
         val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -83,8 +82,9 @@ class PlayerScreen : Screen {
         val listState = rememberLazyListState()
         val playlist = LPlayer.instance.playlist.collectAsState(emptyList())
         val duration = LPlayer.instance.currentDuration.collectAsState(0L)
-        val animation = remember { Animatable(0f) }
+        val animation = remember { Animatable(currentTime.value.toFloat()) }
         val navigationBar = WindowInsets.navigationBars
+        var navDragOffset = 0f
 
         val bgAnimateColor = animateColorAsState(
             targetValue = MaterialTheme.colorScheme.primaryContainer,
@@ -178,23 +178,6 @@ class PlayerScreen : Screen {
                         { x -> -2f * (x - 0.5f).pow(2) + 0.5f }
                     }
 
-                    val lyricEntries = remember {
-                        mutableStateOf<List<LyricItem>>(emptyList())
-                    }
-
-                    LaunchedEffect(currentItem.value) {
-                        withContext(Dispatchers.io) {
-                            val song = currentItem.value ?: return@withContext
-                            val lyric = platformSource.sources.firstOrNull { it.name == song.mediaSourceName }
-                                ?.dataSource
-                                ?.runCatching { getLyric(song) }
-                                ?.getOrNull()
-
-                            lyricEntries.value = LyricUtils.parseLrc(lyric)
-                                ?: emptyList()
-                        }
-                    }
-
                     BlurBackground(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -252,7 +235,7 @@ class PlayerScreen : Screen {
                             },
                         currentTime = { animation.value.toLong() },
                         screenConstraints = constraints,
-                        lyricEntry = lyricEntries,
+                        lyricEntry = vm.lyricItems,
                         isUserClickEnable = { false },
                         isUserScrollEnable = { false }
                     )
@@ -297,26 +280,37 @@ class PlayerScreen : Screen {
                         animation = animation,
                         maxValue = { duration.value.toFloat() },
                         dataValue = { currentTime.value.toFloat() },
-                        onDispatchDragOffset = {
-//                            enhanceSheetState?.dispatch(it)
+                        onDispatchDragOffset = { deltaY ->
+                            navDragOffset += deltaY
+                            val state = transitionState.value ?: return@SeekbarLayout
+                            val screen = homeScreen ?: return@SeekbarLayout
+                            val progress = (abs(navDragOffset) / 2160f).coerceIn(0f, 1f)
+
+                            if (backStack.lastOrNull() != screen) {
+                                backStack.add(screen)
+                            }
+
+                            scope.launch { state.seekTo(progress, state.targetState) }
                         },
                         onDragStop = { result ->
-//                            if (result == -1) {
-//                                enhanceSheetState?.hide()
-//                            } else {
-//                                enhanceSheetState?.settle(0f)
-//                            }
+                            navDragOffset = 0f
+
+                            if (result == -1) {
+                                backStack.remove(homeScreen)
+                            } else {
+                                val state = transitionState.value
+                                scope.launch { state?.animateTo(state.targetState) }
+                            }
                         },
                         onSeekTo = { position ->
                             Logger.i("seekTo: $position")
                             PlayerAction.SeekTo(position.toLong()).action()
                         },
                         onSwitchTo = { index ->
-                            KRouter.route<Screen>("/home")?.let { backStack.add(it) }
-//                            val playMode = PlayMode.indexOf(index)
-//
-//                            PlayerAction.SetPlayMode(playMode)
-//                                .action()
+                            val playMode = PlayMode.indexOf(index)
+
+                            PlayerAction.SetPlayMode(playMode)
+                                .action()
 //                            DynamicTipsItem.Static(
 //                                title = when (playMode) {
 //                                    PlayMode.ListRecycle -> "列表循环"
@@ -339,21 +333,5 @@ class PlayerScreen : Screen {
                 }
             }
         )
-    }
-}
-
-@Factory
-class PlayerScreenModel : ViewModel() {
-    val isPlaying = LPlayer.instance.isPlaying
-    val currentItem = LPlayer.instance.currentItem
-
-    init {
-        LMedia.instance.whenReady {
-            viewModelScope.launch {
-                val list = LMedia.instance.get<LAudio>()
-                LPlayer.instance.updatePlaylist(list)
-                Logger.i("[LPlayer] set list: ${list.size}")
-            }
-        }
     }
 }
