@@ -43,6 +43,7 @@ import com.lalilu.remixicon.Media
 import com.lalilu.remixicon.media.orderPlayFill
 import com.lalilu.remixicon.media.repeatOneFill
 import com.lalilu.remixicon.media.shuffleFill
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -165,6 +166,7 @@ fun SeekbarLayout(
 
         val maxDurationText = remember(maxValue()) { maxValue().toLong().durationToTime() }
         val currentTimeText = durationToText(duration = { animation.value.toLong() })
+        val animationJob = remember { mutableStateOf<Job?>(null) }
 
         // 使值的变化平滑
         LaunchedEffect(Unit) {
@@ -241,11 +243,13 @@ fun SeekbarLayout(
 
                 SeekbarState.Cancel -> when (seekbarState.value) {
                     SeekbarState.Dispatcher -> {
-                        val animationState = AnimationState(
-                            initialValue = 0f,
-                            initialVelocity = 100f,
-                        )
-                        scope.launch {
+                        animationJob.value?.cancel()
+                        animationJob.value = scope.launch {
+                            val animationState = AnimationState(
+                                initialValue = 0f,
+                                initialVelocity = 100f,
+                            )
+
                             var lastValue = 0f
                             val targetOffset = scrollThreadHold +
                                     density.run { (seekbarPaddingBottom + seekbarHeight).toPx() }
@@ -340,6 +344,8 @@ fun SeekbarLayout(
                         seekbarState.value = SeekbarState.Idle
 
                         seekbarOffsetY.floatValue = 0f
+                        animationJob.value?.cancel()
+                        animationJob.value = null
                         scope.launch { onDragStop(0) }
                     },
                     onDrag = { _, dragAmount ->
