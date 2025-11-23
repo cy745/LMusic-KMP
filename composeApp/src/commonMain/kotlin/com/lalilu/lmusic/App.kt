@@ -1,6 +1,7 @@
 package com.lalilu.lmusic
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.SeekableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
@@ -19,6 +20,7 @@ import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDe
 import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.OverrideNavDisplay
 import co.touchlab.kermit.Logger
@@ -29,10 +31,7 @@ import com.lalilu.lmedia.LMedia
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmusic.screen.ExceptionScreen
 import com.lalilu.lplayer.LPlayer
-import com.lalilu.navigation.LocalBackStack
-import com.lalilu.navigation.LocalSharedTransitionScope
-import com.lalilu.navigation.Screen
-import com.lalilu.navigation.toNavEntry
+import com.lalilu.navigation.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -80,9 +79,14 @@ fun App() {
                 visibilityThreshold = IntOffset.VisibilityThreshold
             )
 
+            val transitionState = remember {
+                mutableStateOf<SeekableTransitionState<Scene<Screen>>?>(null)
+            }
+
             CompositionLocalProvider(
                 LocalSharedTransitionScope provides this,
-                LocalBackStack provides backStack
+                LocalBackStack provides backStack,
+                LocalNavSeekableTransitionState provides transitionState
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize()
@@ -92,6 +96,10 @@ fun App() {
                         modifier = Modifier.fillMaxSize()
                             .preferredFrameRate(FrameRateCategory.High),
                         backStack = backStack,
+                        transitionState = { scene ->
+                            remember { SeekableTransitionState(scene) }
+                                .also { transitionState.value = it }
+                        },
                         entryDecorators = listOf(
                             sharedEntryInSceneNavEntryDecorator,
                             rememberSaveableStateHolderNavEntryDecorator(),

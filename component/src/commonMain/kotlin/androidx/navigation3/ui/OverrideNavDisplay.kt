@@ -167,6 +167,14 @@ public fun <T : Any> OverrideNavDisplay(
             backStack.removeLastOrNull()
         }
     },
+    transitionState: @Composable (Scene<T>) -> SeekableTransitionState<Scene<T>> = { scene ->
+        remember {
+            // The state returned here cannot be nullable cause it produces the input of the
+            // transitionSpec passed into the AnimatedContent and that must match the non-nullable
+            // scope exposed by the transitions on the NavHost and composable APIs.
+            SeekableTransitionState(scene)
+        }
+    },
     entryDecorators: List<NavEntryDecorator<T>> =
         listOf(rememberSaveableStateHolderNavEntryDecorator()),
     sceneStrategy: SceneStrategy<T> = SinglePaneSceneStrategy(),
@@ -195,6 +203,7 @@ public fun <T : Any> OverrideNavDisplay(
         entries = entries,
         sceneStrategy = sceneStrategy,
         modifier = modifier,
+        transitionState = transitionState,
         contentAlignment = contentAlignment,
         sizeTransform = sizeTransform,
         transitionSpec = transitionSpec,
@@ -255,6 +264,14 @@ public fun <T : Any> OverrideNavDisplay(
     entries: List<NavEntry<T>>,
     modifier: Modifier = Modifier,
     contentAlignment: Alignment = Alignment.TopStart,
+    transitionState: @Composable (Scene<T>) -> SeekableTransitionState<Scene<T>> = { scene ->
+        remember {
+            // The state returned here cannot be nullable cause it produces the input of the
+            // transitionSpec passed into the AnimatedContent and that must match the non-nullable
+            // scope exposed by the transitions on the NavHost and composable APIs.
+            SeekableTransitionState(scene)
+        }
+    },
     sceneStrategy: SceneStrategy<T> = SinglePaneSceneStrategy(),
     sizeTransform: SizeTransform? = null,
     transitionSpec: AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform =
@@ -302,6 +319,7 @@ public fun <T : Any> OverrideNavDisplay(
 
     OverrideNavDisplay(
         sceneState,
+        transitionState,
         gestureState,
         modifier,
         contentAlignment,
@@ -340,6 +358,14 @@ public fun <T : Any> OverrideNavDisplay(
 @Composable
 public fun <T : Any> OverrideNavDisplay(
     sceneState: SceneState<T>,
+    transitionState: @Composable (Scene<T>) -> SeekableTransitionState<Scene<T>> = { scene ->
+        remember {
+            // The state returned here cannot be nullable cause it produces the input of the
+            // transitionSpec passed into the AnimatedContent and that must match the non-nullable
+            // scope exposed by the transitions on the NavHost and composable APIs.
+            SeekableTransitionState(scene)
+        }
+    },
     navigationEventState: NavigationEventState<SceneInfo<T>>,
     modifier: Modifier = Modifier,
     contentAlignment: Alignment = Alignment.TopStart,
@@ -356,13 +382,7 @@ public fun <T : Any> OverrideNavDisplay(
 ) {
     // Calculate current Scene and set up transitions
     val scene = sceneState.currentScene
-    val transitionState = remember {
-        // The state returned here cannot be nullable cause it produces the input of the
-        // transitionSpec passed into the AnimatedContent and that must match the non-nullable
-        // scope exposed by the transitions on the NavHost and composable APIs.
-        SeekableTransitionState(scene)
-    }
-
+    val transitionState = transitionState(scene)
     val transition = rememberTransition(transitionState, label = "scene")
 
     // Transition Handling
