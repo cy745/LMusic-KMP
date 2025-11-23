@@ -26,9 +26,16 @@ fun uniqueScreenKey(): String {
 }
 
 fun Screen.toNavEntry(): NavEntry<Screen> {
+    val metadata = mutableMapOf<String, Any>()
+
+    if (this is ScreenTransitionFactory) {
+        metadata += provideTransitionMetadata()
+    }
+
     return NavEntry(
         key = this,
         contentKey = this.key,
+        metadata = metadata,
         content = { it.Content() }
     )
 }
