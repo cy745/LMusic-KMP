@@ -14,7 +14,7 @@ data class PlatformMediaSource(
     }
 }
 
-@Single(binds = [PlatformMediaSource::class])
+@Single(createdAtStart = true)
 fun provideMediaSource(scope: Scope): PlatformMediaSource {
     return scope.provideMediaSources()
 }

@@ -85,7 +85,7 @@ class SubsonicSource(
 
         callbackFlow {
             // 先返回一次空，让下游能快速响应
-            send(Snapshot.Empty)
+            send(Snapshot.Loading)
 
             // 首先通过ping的结果来判断当前输入的配置是否正确
             val pingResp = runCatching { api.ping().response }
@@ -93,12 +93,14 @@ class SubsonicSource(
 
             if (pingResp == null) {
                 logger.i(messageString = "Request ping failed")
+                send(Snapshot.Empty)
                 awaitClose {}
                 return@callbackFlow
             }
 
             if (pingResp.isError) {
                 logger.i(messageString = "Request ping failed: ${pingResp.error}")
+                send(Snapshot.Empty)
                 awaitClose {}
                 return@callbackFlow
             }

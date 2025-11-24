@@ -92,7 +92,7 @@ class AndroidFileSystemSource(
         }
 
         songs.buildSnapshot()
-    }.stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
+    }.stateIn(this, SharingStarted.Lazily, Snapshot.Loading)
 
     override fun source(): Flow<Snapshot> = sourceStateFlow
     override val dataSource: MediaDataSource = this

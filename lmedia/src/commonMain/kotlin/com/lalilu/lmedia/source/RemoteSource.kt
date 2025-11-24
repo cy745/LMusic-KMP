@@ -100,8 +100,8 @@ class RemoteSource(
     val snapshotStateFlow = clientFlow
         .flatMapLatest { client ->
             flow {
-                // 先返回空，避免下游长时间等待
-                emit(Snapshot.Empty)
+                // 先返回Loading，避免下游长时间等待
+                emit(Snapshot.Loading)
                 emit(
                     client?.get("/source")
                         ?.body<Snapshot>()

@@ -3,6 +3,7 @@ package com.lalilu.lmedia.entity
 import kotlinx.serialization.Serializable
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
+import kotlinx.serialization.Transient
 
 @OptIn(ExperimentalTime::class)
 @Serializable
@@ -14,20 +15,34 @@ data class Snapshot(
     val genres: List<LGenre> = emptyList(),
     val updateTime: Long = Clock.System.now().toEpochMilliseconds()
 ) {
+    @Transient
+    var isLoading = false
+        internal set
+
     companion object {
+        val Loading = Snapshot().also { it.isLoading = true }
         val Empty = Snapshot()
     }
 }
 
+@OptIn(ExperimentalTime::class)
 fun Array<Snapshot>.combineToOne(): Snapshot {
+    val isLoading = any { it.isLoading }
+    var updateTime = maxOf { it.updateTime }
+
+    // 如果加载成功，则更新时间
+    if (!isLoading) {
+        updateTime = Clock.System.now().toEpochMilliseconds()
+    }
+
     return Snapshot(
         audios = map { it.audios }.flatten().distinctBy { it.id },
         albums = map { it.albums }.flatten().distinctBy { it.id },
         artists = map { it.artists }.flatten().distinctBy { it.id },
         folders = map { it.folders }.flatten().distinctBy { it.id },
         genres = map { it.genres }.flatten().distinctBy { it.id },
-        updateTime = maxOf { it.updateTime }
-    )
+        updateTime = updateTime
+    ).also { it.isLoading = isLoading }
 }
 
 fun List<LAudio>.buildSnapshot(): Snapshot {

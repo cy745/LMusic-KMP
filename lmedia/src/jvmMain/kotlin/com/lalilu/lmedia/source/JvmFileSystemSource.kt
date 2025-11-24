@@ -65,7 +65,7 @@ class JvmFileSystemSource(
             )
         }
         songs.buildSnapshot()
-    }.stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
+    }.stateIn(this, SharingStarted.Lazily, Snapshot.Loading)
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
         val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }

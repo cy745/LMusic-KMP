@@ -1,6 +1,7 @@
 package com.lalilu.lmedia.source
 
 import com.lalilu.common.ext.ReadyState
+import com.lalilu.common.ext.io
 import com.lalilu.common.ext.readyStateImpl
 import com.lalilu.lmedia.entity.*
 import kotlinx.coroutines.*
@@ -10,20 +11,14 @@ import kotlin.reflect.KClass
 @OptIn(ExperimentalCoroutinesApi::class)
 @Suppress("UNCHECKED_CAST")
 abstract class Library : ReadyState by readyStateImpl() {
-    val coroutineScope = CoroutineScope(Dispatchers.Default) + SupervisorJob()
-
-    protected abstract fun snapshotFlow(): Flow<Snapshot>
+    val coroutineScope = CoroutineScope(Dispatchers.io) + SupervisorJob()
 
     /**
      * 缓存数据源获取到的数据
      */
-    val snapshotStateFlow by lazy {
-        snapshotFlow()
-            .onEach { onReady() }
-            .stateIn(coroutineScope, SharingStarted.Lazily, Snapshot.Empty)
-    }
+    abstract val snapshotStateFlow: StateFlow<Snapshot>
 
-    private fun <T : LItem> singleStateFlow(
+    protected fun <T : LItem> singleStateFlow(
         func: Snapshot.() -> List<T>
     ): StateFlow<Map<String, T>> {
         return snapshotStateFlow
@@ -31,22 +26,7 @@ abstract class Library : ReadyState by readyStateImpl() {
             .stateIn(coroutineScope, SharingStarted.Lazily, emptyMap())
     }
 
-    private val _songsFlow by lazy { singleStateFlow(Snapshot::audios) }
-    private val _albumsFlow by lazy { singleStateFlow(Snapshot::albums) }
-    private val _artistsFlow by lazy { singleStateFlow(Snapshot::artists) }
-    private val _genresFlow by lazy { singleStateFlow(Snapshot::genres) }
-    private val _foldersFlow by lazy { singleStateFlow(Snapshot::folders) }
-
-    fun <T : LItem> getSourceFlowByClass(clazz: KClass<T>): StateFlow<Map<String, T>>? {
-        return when (clazz) {
-            LAudio::class -> _songsFlow
-            LArtist::class -> _artistsFlow
-            LAlbum::class -> _albumsFlow
-            LGenre::class -> _genresFlow
-            LFolder::class -> _foldersFlow
-            else -> null
-        } as StateFlow<Map<String, T>>?
-    }
+    abstract fun <T : LItem> getSourceFlowByClass(clazz: KClass<T>): StateFlow<Map<String, T>>?
 
     fun <T : LItem> getResultFlowByClass(clazz: KClass<T>): Flow<Map<String, T>> =
         getSourceFlowByClass(clazz) ?: flowOf(emptyMap())

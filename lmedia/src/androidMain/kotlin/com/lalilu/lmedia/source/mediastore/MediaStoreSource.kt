@@ -54,8 +54,8 @@ class MediaStoreSource(
         }
 
         return callbackFlow {
-            // 先返回Snapshot.Empty，避免阻塞下游的combine
-            send(Snapshot.Empty)
+            // 先返回Snapshot.Loading，避免阻塞下游的combine
+            send(Snapshot.Loading)
             eventFlow.collectLatest {
                 send(scanner.scan())
             }
