@@ -8,13 +8,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.MagicNumber
@@ -43,8 +41,12 @@ class AndroidFileSystemSource(
     private val filePathState = lMediaKV.obtain<String>("file_path")
     private val selectedFile = filePathState.flow()
         .mapLatest { path ->
-            PlatformFile(path)
-                .takeIf { it.exists() }
+            runCatching {
+                PlatformFile.fromBookmarkData(path.encodeToByteArray())
+            }.getOrElse {
+                Logger.i(tag = name, messageString = "访问失败：${it.message}")
+                PlatformFile(path)
+            }.takeIf { it.exists() }
         }
 
     private val sourceStateFlow = selectedFile.map { root ->
@@ -190,8 +192,17 @@ class AndroidFileSystemSource(
 
     @Composable
     override fun Content(modifier: Modifier) {
+        val scope = rememberCoroutineScope()
         val launcher = rememberDirectoryPickerLauncher {
-            filePathState.value = it?.absolutePath() ?: ""
+            if (it == null) {
+                filePathState.value = ""
+                return@rememberDirectoryPickerLauncher
+            }
+
+            scope.launch(Dispatchers.io) {
+                filePathState.value = it.bookmarkData()
+                    .bytes.decodeToString()
+            }
         }
         val source by remember { source() }
             .collectAsState(Snapshot.Empty)
