@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.media3.common.MediaItem
@@ -16,6 +15,10 @@ import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import com.blankj.utilcode.util.LogUtils
 import com.blankj.utilcode.util.Utils
+import com.lalilu.lmedia.LMedia
+import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.action.Action
 import com.lalilu.lplayer.action.PlayerAction
@@ -27,11 +30,20 @@ import com.lalilu.lplayer.service.MService
 import com.lalilu.lplayer.service.getHistoryItems
 import com.lalilu.lplayer.service.saveHistoryIds
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.guava.await
 import kotlin.coroutines.CoroutineContext
 
 @OptIn(UnstableApi::class)
-object MPlayerPlayback : CoroutineScope, Player.Listener {
+object MPlayerPlayback : CoroutineScope, Player.Listener, Playback {
     override val coroutineContext: CoroutineContext = Dispatchers.IO
     private val sessionToken by lazy {
         SessionToken(Utils.getApp(), ComponentName(Utils.getApp(), MService::class.java))
@@ -46,30 +58,49 @@ object MPlayerPlayback : CoroutineScope, Player.Listener {
     }
 
     var pauseWhenCompletion: Boolean by mutableStateOf(false)
-    var isPlaying: Boolean by mutableStateOf(false)
-        private set
-    var currentMediaItem by mutableStateOf<MediaItem?>(null)
-        private set
-    var currentMediaMetadata: MediaMetadata? by mutableStateOf(null)
-        private set
-    var currentPlaylistMetadata: MediaMetadata? by mutableStateOf(null)
-        private set
-    var currentDuration: Long by mutableLongStateOf(0L)
-        private set
-    var currentTimelineItems by mutableStateOf<List<MediaItem>>(emptyList())
         private set
 
-    val currentPosition: Long
-        get() = runCatching { if (browserFuture.isDone) browserFuture.get()?.currentPosition else null }
-            .getOrNull() ?: 0L
+    // Protected mutable state flows
+    private val _playlist = MutableStateFlow<List<LItem>>(emptyList())
+    private val _currentItemIndex = MutableStateFlow(0)
+    private val _isPlaying = MutableStateFlow(false)
+    private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
+    private val _errors = MutableSharedFlow<Throwable>()
+    private val _currentDuration = MutableStateFlow(0L)
+    private val _currentBufferedPosition = MutableStateFlow(0L)
+    private val _canSeek = MutableStateFlow(false)
+    private val _canSkipNext = MutableStateFlow(false)
+    private val _canSkipPrevious = MutableStateFlow(false)
+    private val _playbackMode = MutableStateFlow(PlaybackMode.SEQUENTIAL)
+    private var shuffledIndices: List<Int> = emptyList()
+    private var currentIndexInShuffled: Int = 0
 
-    val currentBufferedPosition: Long
-        get() = runCatching { if (browserFuture.isDone) browserFuture.get()?.bufferedPosition else null }
-            .getOrNull() ?: 0L
+    // Public state flows
+    override val playlist: StateFlow<List<LItem>> = _playlist.asStateFlow()
+    override val currentItemIndex: StateFlow<Int> = _currentItemIndex.asStateFlow()
+    override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+    override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
+    override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
+    override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
+    override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
+    override val canSeek: StateFlow<Boolean> = _canSeek.asStateFlow()
+    override val canSkipNext: StateFlow<Boolean> = _canSkipNext.asStateFlow()
+    override val canSkipPrevious: StateFlow<Boolean> = _canSkipPrevious.asStateFlow()
+    override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
-    fun isItemPlaying(mediaId: String): Boolean {
-        if (!isPlaying) return false
-        return currentMediaItem?.mediaId == mediaId
+    private val flattenedPlaylist: StateFlow<List<LAudio>> = _playlist
+        .flatten()
+        .stateIn(this, SharingStarted.WhileSubscribed(), emptyList())
+
+    // Computed properties
+    override val currentItem: StateFlow<LAudio?> = flattenedPlaylist
+        .combine(_currentItemIndex) { playlist, index -> playlist.getOrNull(index) }
+        .stateIn(this, SharingStarted.WhileSubscribed(), null)
+
+    init {
+        LMedia.instance.whenReady {
+            init()
+        }
     }
 
     internal fun init() {
@@ -95,57 +126,6 @@ object MPlayerPlayback : CoroutineScope, Player.Listener {
         val browser = browserFuture.await()
 
         when (action) {
-            PlayerAction.Play -> browser.play()
-            PlayerAction.Pause -> browser.pause()
-
-            PlayerAction.SkipToNext -> {
-                if (browser.playMode == PlayMode.Shuffle) {
-                    browser.sendCustomCommand(
-                        CustomCommand.SeekToNext.toSessionCommand(),
-                        Bundle.EMPTY
-                    )
-                } else {
-                    browser.seekToNext()
-                }
-            }
-
-            PlayerAction.SkipToPrevious -> {
-                if (browser.playMode == PlayMode.Shuffle) {
-                    browser.sendCustomCommand(
-                        CustomCommand.SeekToPrevious.toSessionCommand(),
-                        Bundle.EMPTY
-                    )
-                } else {
-                    browser.seekToPrevious()
-                }
-            }
-
-            PlayerAction.PlayOrPause -> {
-                if (browser.isPlaying) {
-                    browser.pause()
-                } else {
-                    browser.play()
-                }
-            }
-
-            is PlayerAction.PlayById -> {
-                browser.getItem(action.id).await().value?.let {
-                    val index = browser.currentTimeline.indexOf(action.id)
-
-                    if (index == -1) {
-                        val item = browser.getItem(action.id)
-                            .await().value ?: return@launch
-
-                        browser.addMediaItem(0, item)
-                        browser.prepare()
-                        browser.play()
-                    } else {
-                        browser.seekTo(index, 0)
-                        browser.play()
-                    }
-                }
-            }
-
             is PlayerAction.SeekTo -> {
                 browser.seekTo(action.positionMs)
             }
@@ -153,10 +133,6 @@ object MPlayerPlayback : CoroutineScope, Player.Listener {
 //            is PlayerAction.CustomAction -> {}
             is PlayerAction.PauseWhenCompletion -> {
                 pauseWhenCompletion = !action.cancel
-            }
-
-            is PlayerAction.SetPlayMode -> {
-                browser.playMode = action.playMode
             }
 
             is PlayerAction.AddToNext -> {
@@ -185,15 +161,108 @@ object MPlayerPlayback : CoroutineScope, Player.Listener {
         }
     }
 
+    override fun currentPosition(): Long {
+        return runCatching { if (browserFuture.isDone) browserFuture.get()?.currentPosition else null }
+            .getOrNull() ?: 0L
+    }
+
+    override suspend fun play() {
+        val browser = browserFuture.await()
+        browser.play()
+    }
+
+    override suspend fun pause() {
+        val browser = browserFuture.await()
+        browser.pause()
+    }
+
+    override suspend fun togglePlayPause() {
+        val browser = browserFuture.await()
+        if (browser.isPlaying) browser.pause() else browser.play()
+    }
+
+    override suspend fun stop() {
+        val browser = browserFuture.await()
+        browser.stop()
+    }
+
+    override suspend fun skipTo(index: Int) {
+        val browser = browserFuture.await()
+
+        if (index == -1) {
+            // TODO
+//            val item = browser.getItem(id)
+//                .await().value ?: return
+//
+//            browser.addMediaItem(0, item)
+//            browser.prepare()
+//            browser.play()
+        } else {
+            browser.seekTo(index, 0)
+            browser.play()
+        }
+    }
+
+    override suspend fun skipToNext() {
+        val browser = browserFuture.await()
+        if (browser.playMode == PlayMode.Shuffle) {
+            browser.sendCustomCommand(
+                CustomCommand.SeekToNext.toSessionCommand(),
+                Bundle.EMPTY
+            )
+        } else {
+            browser.seekToNext()
+        }
+    }
+
+    override suspend fun skipToPrevious() {
+        val browser = browserFuture.await()
+        if (browser.playMode == PlayMode.Shuffle) {
+            browser.sendCustomCommand(
+                CustomCommand.SeekToPrevious.toSessionCommand(),
+                Bundle.EMPTY
+            )
+        } else {
+            browser.seekToPrevious()
+        }
+    }
+
+    override suspend fun seekTo(positionMs: Long) {
+        val browser = browserFuture.await()
+        browser.seekTo(positionMs)
+    }
+
+    override suspend fun updatePlaylist(playlist: List<LItem>) {
+        val browser = browserFuture.await()
+
+        val items = MMedia.mapItems(playlist.map { item -> item.id })
+        browser.setMediaItems(items, 0, 0)
+    }
+
+    override suspend fun clearPlaylist() {
+        val browser = browserFuture.await()
+        browser.setMediaItems(emptyList())
+    }
+
+    override suspend fun setPlaybackMode(mode: PlaybackMode) {
+        val browser = browserFuture.await()
+        browser.playMode = when (mode) {
+            PlaybackMode.SEQUENTIAL -> PlayMode.ListRecycle
+            PlaybackMode.LOOP -> PlayMode.ListRecycle
+            PlaybackMode.SINGLE_LOOP -> PlayMode.RepeatOne
+            PlaybackMode.SHUFFLE -> PlayMode.Shuffle
+        }
+    }
+
     override fun onIsPlayingChanged(isPlaying: Boolean) {
-        this@MPlayerPlayback.isPlaying = isPlaying
+        this@MPlayerPlayback._isPlaying.value = isPlaying
 
         loopJob?.cancel()
         if (isPlaying) {
             loopJob = launch {
                 while (isActive) {
                     withContext(Dispatchers.Main) {
-                        LPlayerKV.historyPlayPosition.value = currentPosition
+                        LPlayerKV.historyPlayPosition.value = currentPosition()
                     }
                     delay(1000)
                 }
@@ -207,7 +276,7 @@ object MPlayerPlayback : CoroutineScope, Player.Listener {
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        currentMediaItem = mediaItem
+        _currentItemIndex.value = browserInstance?.currentMediaItemIndex ?: 0
         updateItems()
 
         if (pauseWhenCompletion) {
@@ -217,28 +286,26 @@ object MPlayerPlayback : CoroutineScope, Player.Listener {
     }
 
     override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-        currentMediaItem = browserInstance?.currentMediaItem
-        currentMediaMetadata = mediaMetadata
-        currentDuration = mediaMetadata.durationMs ?: browserInstance?.duration ?: 0L
+        _currentDuration.value = mediaMetadata.durationMs ?: browserInstance?.duration ?: 0L
         // TODO 此处获取到的duration仍然可能是上一首歌曲的时长
     }
 
     override fun onPlaylistMetadataChanged(mediaMetadata: MediaMetadata) {
-        currentPlaylistMetadata = mediaMetadata
+
     }
 
     override fun onTimelineChanged(timeline: Timeline, reason: Int) {
         updateItems(timeline)
     }
 
-    fun updateItems(
+    private fun updateItems(
         timeline: Timeline? = browserInstance?.currentTimeline,
         currentIndex: Int = browserInstance?.currentMediaItemIndex ?: 0
     ) {
         val items = timeline?.toMediaItems() ?: emptyList()
-        currentTimelineItems = items.drop(currentIndex) + items.take(currentIndex)
+        val results = items.drop(currentIndex) + items.take(currentIndex)
+        val ids = results.map { it.mediaId }
 
-        val ids = currentTimelineItems.map { it.mediaId }
         saveHistoryIds(mediaIds = ids)
     }
 }

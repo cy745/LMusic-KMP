@@ -23,7 +23,7 @@ abstract class Library : ReadyState by readyStateImpl() {
     ): StateFlow<Map<String, T>> {
         return snapshotStateFlow
             .map { it.func().associateBy(LItem::id) }
-            .stateIn(coroutineScope, SharingStarted.Lazily, emptyMap())
+            .stateIn(coroutineScope, SharingStarted.Eagerly, emptyMap())
     }
 
     abstract fun <T : LItem> getSourceFlowByClass(clazz: KClass<T>): StateFlow<Map<String, T>>?

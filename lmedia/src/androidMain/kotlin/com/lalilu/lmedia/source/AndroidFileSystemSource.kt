@@ -186,6 +186,10 @@ class AndroidFileSystemSource(
                 MediaData.Url(sourceItem.path)
             }
 
+            is SourceItem.UriItem -> {
+                MediaData.Url(sourceItem.uri.toString())
+            }
+
             else -> null
         }
     }
