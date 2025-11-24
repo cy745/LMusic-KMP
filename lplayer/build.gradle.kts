@@ -74,6 +74,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.media3.session)
             implementation(libs.media3.exoplayer)
+            implementation(libs.kotlinx.coroutines.guava)
         }
         jvmMain.dependencies {
             implementation(libs.vlcj)

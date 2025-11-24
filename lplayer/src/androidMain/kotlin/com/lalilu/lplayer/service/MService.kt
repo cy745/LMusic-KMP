@@ -1,27 +1,47 @@
 package com.lalilu.lplayer.service
 
-import android.annotation.SuppressLint
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
-import androidx.media3.common.Player
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import androidx.annotation.OptIn
+import androidx.media3.common.*
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.session.MediaLibraryService
-import androidx.media3.session.MediaNotification
-import androidx.media3.session.MediaSession
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.session.*
+import androidx.media3.session.MediaLibraryService.LibraryParams
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
+import androidx.media3.session.MediaSession.ConnectionResult.AcceptedResultBuilder
+import com.blankj.utilcode.util.ActivityUtils
+import com.blankj.utilcode.util.AppUtils
+import com.google.common.collect.ImmutableList
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import com.lalilu.common.kv.KVContext
+import com.lalilu.lplayer.LPlayerKV
+import com.lalilu.lplayer.extensions.*
+import com.lalilu.lplayer.extensions.setUpQueueControl
+import com.lalilu.lplayer.service.CustomCommand.SeekToNext
+import com.lalilu.lplayer.service.CustomCommand.SeekToPrevious
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import org.koin.android.ext.android.getKoin
+import org.koin.core.qualifier.named
+import org.koin.mp.KoinPlatform
 import kotlin.coroutines.CoroutineContext
 
-
-@SuppressLint("UnsafeOptInUsageError")
+@OptIn(UnstableApi::class)
 class MService : MediaLibraryService(), CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob()
+    private val historyAnalyticsListener by getKoin().injectOrNull<AnalyticsListener>(named("history_analytics_listener"))
 
     private var player: Player? = null
     private var exoPlayer: ExoPlayer? = null
     private var mediaSession: MediaLibrarySession? = null
-    private var notificationProvider: MediaNotification.Provider? = null
+    private var eqHelper: EQHelper? = null
+    private var notificationProvider: MNotificationProvider? = null
     private val defaultAudioAttributes by lazy {
         AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -31,12 +51,257 @@ class MService : MediaLibraryService(), CoroutineScope {
             .build()
     }
 
-    override fun onGetSession(p0: MediaSession.ControllerInfo): MediaLibrarySession? = mediaSession
-
     override fun onCreate() {
         super.onCreate()
-
+        eqHelper = KoinPlatform.getKoin().getOrNull<EQHelper>()
         notificationProvider = MNotificationProvider(this)
             .also { setMediaNotificationProvider(it) }
+
+        player = ExoPlayer.Builder(this)
+            .setRenderersFactory(FadeTransitionRenderersFactory(this, this))
+            .setHandleAudioBecomingNoisy(LPlayerKV.handleBecomeNoisy.value)
+            .setAudioAttributes(defaultAudioAttributes, LPlayerKV.handleAudioFocus.value)
+            .setMaxSeekToPreviousPositionMs(Long.MAX_VALUE) // 避免播放上一首需要点两次
+            .build()
+            .apply {
+                exoPlayer = this
+                historyAnalyticsListener?.let { addAnalyticsListener(it) }
+                addListener(
+                    MPlayerListener(
+                        player = this,
+                        onSessionIdChange = { eqHelper?.audioSessionId = it }
+                    )
+                )
+            }
+            .setUpQueueControl()
+
+        mediaSession = MediaLibrarySession
+            .Builder(this, player!!, MServiceCallback(player!!))
+            .setSessionActivity(getLauncherPendingIntent())
+            .build()
+
+        startListenForValuesUpdate()
     }
+
+    override fun onDestroy() {
+        // 释放相关实例
+        player?.stop()
+        player?.release()
+        player = null
+        mediaSession?.release()
+        mediaSession = null
+        super.onDestroy()
+    }
+
+    override fun onGetSession(
+        controllerInfo: MediaSession.ControllerInfo
+    ): MediaLibrarySession? = mediaSession
+
+    private fun startListenForValuesUpdate() = launch {
+        LPlayerKV.handleAudioFocus.flow().onEach {
+            withContext(Dispatchers.Main) {
+                player?.setAudioAttributes(defaultAudioAttributes, it)
+            }
+        }.launchIn(this)
+
+        LPlayerKV.handleBecomeNoisy.flow().onEach {
+            withContext(Dispatchers.Main) {
+                exoPlayer?.setHandleAudioBecomingNoisy(it)
+            }
+        }.launchIn(this)
+
+        LPlayerKV.playMode.flow().onEach {
+            withContext(Dispatchers.Main) {
+                player?.playMode = PlayMode.from(it)
+            }
+        }.launchIn(this)
+
+        KVContext.obtainStatic<Boolean>("enable_system_eq", false, "settings").flow().onEach {
+            eqHelper?.setSystemEqEnable(it)
+        }.launchIn(this)
+
+        KVContext.obtainStatic<Boolean>("enable_status_lyric", false, "settings").flow().onEach {
+            notificationProvider?.flymeStatusLyricHelper?.updateEnable(it)
+        }.launchIn(this)
+    }
+}
+
+private class MPlayerListener(
+    val player: Player,
+    val onSessionIdChange: (Int) -> Unit = {}
+) : Player.Listener {
+    @UnstableApi
+    override fun onAudioSessionIdChanged(audioSessionId: Int) {
+        super.onAudioSessionIdChanged(audioSessionId)
+        onSessionIdChange(audioSessionId)
+    }
+
+    override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+        val playMode = playModeOf(
+            repeatMode = player.repeatMode,
+            shuffleModeEnabled = shuffleModeEnabled
+        )
+        LPlayerKV.playMode.value = playMode.name
+    }
+
+    override fun onRepeatModeChanged(repeatMode: Int) {
+        val playMode = playModeOf(
+            repeatMode = repeatMode,
+            shuffleModeEnabled = player.shuffleModeEnabled
+        )
+        LPlayerKV.playMode.value = playMode.name
+    }
+}
+
+@OptIn(UnstableApi::class)
+private class MServiceCallback(private val player: Player) : MediaLibrarySession.Callback {
+    override fun onConnect(
+        session: MediaSession,
+        controller: MediaSession.ControllerInfo
+    ): MediaSession.ConnectionResult {
+        val sessionCommands = MediaSession.ConnectionResult
+            .DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
+            .registerCustomCommands()
+            .build()
+
+        return AcceptedResultBuilder(session)
+            .setAvailableSessionCommands(sessionCommands)
+            .build()
+    }
+
+    override fun onCustomCommand(
+        session: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        customCommand: SessionCommand,
+        args: Bundle
+    ): ListenableFuture<SessionResult> {
+        val action = customCommand.toCustomCommendOrNull()
+            ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
+
+        when (action) {
+            SeekToNext -> player.seekToNext()
+            SeekToPrevious -> player.seekToPrevious()
+        }
+
+        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+    }
+
+    private fun buildBrowsableItem(id: String, title: String): MediaItem {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(title)
+            .setIsBrowsable(true)
+            .setIsPlayable(false)
+            .build()
+
+        return MediaItem.Builder()
+            .setMediaId(id)
+            .setMediaMetadata(metadata)
+            .build()
+    }
+
+    private fun resolveMediaItems(mediaItems: List<MediaItem>): List<MediaItem> {
+        return mediaItems.mapNotNull { item -> MMedia.getItem(item.mediaId) }
+    }
+
+    override fun onGetLibraryRoot(
+        session: MediaLibrarySession,
+        browser: MediaSession.ControllerInfo,
+        params: LibraryParams?
+    ): ListenableFuture<LibraryResult<MediaItem>> = Futures.immediateFuture(
+        LibraryResult.ofItem(buildBrowsableItem(MMedia.ROOT, "LMedia Library"), params)
+    )
+
+    override fun onGetChildren(
+        session: MediaLibrarySession,
+        browser: MediaSession.ControllerInfo,
+        parentId: String,
+        page: Int,
+        pageSize: Int,
+        params: LibraryParams?
+    ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+        if (parentId == MMedia.ROOT) {
+            return Futures.immediateFuture(
+                LibraryResult.ofItemList(
+                    listOf(
+                        buildBrowsableItem(MMedia.ALL_SONGS, "All Songs"),
+                        buildBrowsableItem(MMedia.ALL_ARTISTS, "All Artists"),
+                        buildBrowsableItem(MMedia.ALL_ALBUMS, "All Albums")
+                    ),
+                    params
+                )
+            )
+        }
+
+        return Futures.immediateFuture(
+            LibraryResult.ofItemList(MMedia.getChildren(parentId), params)
+        )
+    }
+
+    override fun onGetItem(
+        session: MediaLibrarySession,
+        browser: MediaSession.ControllerInfo,
+        mediaId: String
+    ): ListenableFuture<LibraryResult<MediaItem>> {
+        val item = MMedia.getItem(mediaId)
+
+        return Futures.immediateFuture(
+            if (item != null) LibraryResult.ofItem(item, null)
+            else LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
+        )
+    }
+
+    override fun onSetMediaItems(
+        mediaSession: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        mediaItems: MutableList<MediaItem>,
+        startIndex: Int,
+        startPositionMs: Long
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = Futures.immediateFuture(
+        MediaSession.MediaItemsWithStartPosition(
+            resolveMediaItems(mediaItems),
+            startIndex,
+            startPositionMs
+        )
+    )
+
+    override fun onAddMediaItems(
+        mediaSession: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        mediaItems: MutableList<MediaItem>
+    ): ListenableFuture<MutableList<MediaItem>> = Futures.immediateFuture(
+        resolveMediaItems(mediaItems).toMutableList()
+    )
+
+    override fun onPlaybackResumption(
+        mediaSession: MediaSession,
+        controller: MediaSession.ControllerInfo
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        return Futures.submitAsync({
+            Futures.immediateFuture(
+                MediaSession.MediaItemsWithStartPosition(getHistoryItems(), 0, 0L)
+            )
+        }, Dispatchers.IO.asExecutor())
+    }
+}
+
+private fun Context.getLauncherPendingIntent(): PendingIntent {
+    return PendingIntent.getActivity(
+        this, 0, Intent().apply {
+            setClassName(
+                AppUtils.getAppPackageName(),
+                ActivityUtils.getLauncherActivity()
+            )
+        }, PendingIntent.FLAG_IMMUTABLE
+    )
+}
+
+internal fun getHistoryItems(): List<MediaItem> {
+    val history = LPlayerKV.historyPlaylistIds.getData()
+
+    return if (history.isNotEmpty()) MMedia.mapItems(history)
+    else MMedia.getChildren(MMedia.ALL_SONGS)
+}
+
+internal fun saveHistoryIds(mediaIds: List<String>) {
+    LPlayerKV.historyPlaylistIds.setData(mediaIds)
 }

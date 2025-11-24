@@ -15,13 +15,20 @@ sealed class PlayerAction() : Action {
 
     data object Play : PlayerAction()
     data object Pause : PlayerAction()
+    data object PlayOrPause : PlayerAction()
     data object SkipToNext : PlayerAction()
     data object SkipToPrevious : PlayerAction()
     data class SkipToIndex(val index: Int) : PlayerAction()
+    data class AddToNext(val id: String) : PlayerAction()
     data class PlayById(val id: String) : PlayerAction()
     data class SeekTo(val positionMs: Long) : PlayerAction()
     data class SetPlayMode(val playMode: PlayMode) : PlayerAction()
     data class PauseWhenCompletion(val cancel: Boolean = false) : PlayerAction()
+    data class UpdateList(
+        val ids: List<String>,
+        val id: String? = null,
+        val start: Boolean = false
+    ) : PlayerAction()
 }
 
 expect fun handlePlatformPlayerAction(action: PlayerAction)
@@ -32,6 +39,9 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
         when (action) {
             PlayerAction.Play -> LPlayer.instance.play()
             PlayerAction.Pause -> LPlayer.instance.pause()
+            PlayerAction.PlayOrPause -> LPlayer.instance
+                .apply { if (isPlaying.value) play() else pause() }
+
             PlayerAction.SkipToNext -> LPlayer.instance.skipToNext()
             PlayerAction.SkipToPrevious -> LPlayer.instance.skipToPrevious()
             is PlayerAction.SkipToIndex -> LPlayer.instance.skipTo(action.index)
