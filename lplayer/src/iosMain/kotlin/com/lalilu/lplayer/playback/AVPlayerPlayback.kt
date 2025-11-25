@@ -5,6 +5,7 @@ import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.util.flatten
+import com.lalilu.lplayer.extensions.VolumeFadeHelper
 import com.lalilu.lplayer.helper.*
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
 import com.lalilu.lplayer.notifacation.RemoteCommandHandler
@@ -33,6 +34,12 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
     private val avPlayer: AVPlayer = AVPlayer()
     private var audioPlayer: AVAudioPlayer? = null
+    private var volumeFadeHelper = VolumeFadeHelper(
+        onSetVolume = {
+            audioPlayer?.volume = it
+            avPlayer.setVolume(it)
+        }
+    )
 
     init {
         NowPlayingInfoNotification.bindPlayback(this)
@@ -147,6 +154,7 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
                 // 停止并清除avplayer
                 avPlayer.pause()
                 avPlayer.replaceCurrentItemWithPlayerItem(null)
+                player.volume = avPlayer.volume
                 player.prepareToPlay()
                 player.play()
 
@@ -166,6 +174,7 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
     }
 
     override suspend fun play() {
+        volumeFadeHelper.play()
         try {
             AudioSessionHelper.ensureAudioSessionActive()
             // 若audioPlayer存在，则直接播放
@@ -199,17 +208,18 @@ class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
     }
 
     override suspend fun pause() {
-        try {
-            if (audioPlayer != null) {
-                audioPlayer?.pause()
-            } else {
-                avPlayer.pause()
+        _isPlaying.value = false
+        volumeFadeHelper.pause {
+            try {
+                if (audioPlayer != null) {
+                    audioPlayer?.pause()
+                } else {
+                    avPlayer.pause()
+                }
+            } catch (e: Exception) {
+                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                emitError(e)
             }
-
-            _isPlaying.value = false
-        } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-            emitError(e)
         }
     }
 
