@@ -37,7 +37,7 @@ class HomeScreenModel(
                     addAll(snapshot.artists.filter { it.id in list })
                     addAll(snapshot.genres.filter { it.id in list })
                     addAll(snapshot.folders.filter { it.id in list })
-                }
+                }.distinctBy { it.id }
             }
         }
         .toState(emptyList(), viewModelScope)
