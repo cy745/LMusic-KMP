@@ -11,69 +11,21 @@ import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioSink
 import androidx.media3.exoplayer.audio.TeeAudioProcessor
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.ensureActive
 
 @OptIn(UnstableApi::class)
-class FadeTransitionAudioSink(
-    sink: AudioSink,
-    val scope: CoroutineScope,
-) : ForwardingAudioSink(sink) {
-    private var volumeOverride = 0f
-        set(value) {
-            field = value
-            super.setVolume((value / 100f).coerceIn(0f..1f))
-        }
+class FadeTransitionAudioSink(sink: AudioSink) : ForwardingAudioSink(sink) {
+    private val volumeHelper = VolumeFadeHelper(onSetVolume = { super.setVolume(it) })
 
-    private val animator = Animatable(initialValue = 0f, visibilityThreshold = 0.001f)
-    private var animationJob: Job? = null
+    override fun setVolume(volume: Float) = volumeHelper.updateVolume(volume)
 
-    override fun setVolume(volume: Float) {
-        volumeOverride = volume
-    }
+    override fun play() = volumeHelper.play { super.play() }
 
-    override fun play() {
-        animationJob?.cancel()
-        animationJob = scope.launch(Dispatchers.Main) {
-            animator.animateTo(
-                targetValue = 100f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessLow
-                ),
-                block = { volumeOverride = value }
-            )
-        }
-        super.play()
-    }
-
-    override fun pause() {
-        animationJob?.cancel()
-        animationJob = scope.launch(Dispatchers.Main) {
-            animator.animateTo(
-                targetValue = 0f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessLow
-                ),
-                block = { volumeOverride = value }
-            )
-            ensureActive()
-            super.pause()
-        }
-    }
+    override fun pause() = volumeHelper.pause { super.pause() }
 }
 
 @OptIn(UnstableApi::class)
 class FadeTransitionRenderersFactory(
     context: Context,
-    val scope: CoroutineScope,
     teeBufferListener: TeeAudioProcessor.AudioBufferSink? = null,
 ) : DefaultRenderersFactory(context), AudioProcessorChain {
 
@@ -91,7 +43,7 @@ class FadeTransitionRenderersFactory(
             .setAudioProcessorChain(this)
             .build()
 
-        return FadeTransitionAudioSink(defaultAudioSink, scope)
+        return FadeTransitionAudioSink(defaultAudioSink)
     }
 
     override fun getAudioProcessors(): Array<AudioProcessor> {
