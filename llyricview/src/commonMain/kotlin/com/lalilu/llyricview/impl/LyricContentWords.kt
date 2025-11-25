@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -35,6 +36,7 @@ import com.lalilu.llyricview.LyricSettings
 import com.lalilu.llyricview.utils.blur
 import com.lalilu.llyricview.utils.getPathForProgress
 import com.lalilu.llyricview.utils.normalized
+import com.skydoves.compose.stability.runtime.TraceRecomposition
 import org.koin.core.annotation.Named
 import org.koin.core.annotation.Single
 import kotlin.math.abs
@@ -72,6 +74,7 @@ class LyricWordsContent : LyricItemLayout<LyricItem.WordsLyric> {
     }
 }
 
+@TraceRecomposition
 @Composable
 fun LyricContentWords(
     index: Int,
@@ -84,13 +87,18 @@ fun LyricContentWords(
 ) {
     val isCurrent = context.currentIndex() == index
     val fullSentence = remember { lyric.getSentenceContent() }
+    val scaleValue = remember {
+        derivedStateOf {
+            when {
+                context.currentIndex() == index -> settings.scaleRange.endInclusive
+                context.currentTime() in lyric.startTime..lyric.endTime -> 0.95f
+                else -> settings.scaleRange.start
+            }
+        }
+    }
 
     val scale = animateFloatAsState(
-        targetValue = when {
-            isCurrent -> settings.scaleRange.endInclusive
-            context.currentTime() in lyric.startTime..lyric.endTime -> 0.95f
-            else -> settings.scaleRange.start
-        },
+        targetValue = scaleValue.value,
         visibilityThreshold = 0.001f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,

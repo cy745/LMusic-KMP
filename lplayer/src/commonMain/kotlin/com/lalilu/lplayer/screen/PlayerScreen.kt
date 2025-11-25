@@ -237,7 +237,9 @@ class PlayerScreen : Screen {
                         screenConstraints = constraints,
                         lyricEntry = vm.lyricItems,
                         isUserClickEnable = { false },
-                        isUserScrollEnable = { false }
+                        isUserScrollEnable = { false },
+                        onItemClick = { PlayerAction.SeekTo(it.time).action() },
+                        onItemLongClick = {}
                     )
                 }
             },
