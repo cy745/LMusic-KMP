@@ -75,6 +75,7 @@ kotlin {
             implementation(libs.media3.session)
             implementation(libs.media3.exoplayer)
             implementation(libs.kotlinx.coroutines.guava)
+            implementation(project(":lplayer:lib-decoder-flac"))
         }
         jvmMain.dependencies {
             implementation(libs.vlcj)
