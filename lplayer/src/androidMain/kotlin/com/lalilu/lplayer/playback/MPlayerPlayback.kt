@@ -166,29 +166,25 @@ object MPlayerPlayback : CoroutineScope, Player.Listener, Playback {
             .getOrNull() ?: 0L
     }
 
-    override suspend fun play() {
-        val browser = browserFuture.await()
-        browser.play()
+    override suspend fun play() = runWithBrowser {
+        play()
     }
 
-    override suspend fun pause() {
-        val browser = browserFuture.await()
-        browser.pause()
+    override suspend fun pause() = runWithBrowser {
+        pause()
     }
 
-    override suspend fun togglePlayPause() {
-        val browser = browserFuture.await()
-        if (browser.isPlaying) browser.pause() else browser.play()
+    override suspend fun togglePlayPause() = runWithBrowser {
+        if (isPlaying) pause() else play()
     }
 
-    override suspend fun stop() {
-        val browser = browserFuture.await()
-        browser.stop()
+    override suspend fun stop() = runWithBrowser {
+        stop()
     }
 
-    override suspend fun skipTo(index: Int) {
-        val browser = browserFuture.await()
-
+    override suspend fun skipTo(
+        index: Int
+    ) = runWithBrowser {
         if (index == -1) {
             // TODO
 //            val item = browser.getItem(id)
@@ -198,55 +194,54 @@ object MPlayerPlayback : CoroutineScope, Player.Listener, Playback {
 //            browser.prepare()
 //            browser.play()
         } else {
-            browser.seekTo(index, 0)
-            browser.play()
+            seekTo(index, 0)
+            play()
         }
     }
 
-    override suspend fun skipToNext() {
-        val browser = browserFuture.await()
-        if (browser.playMode == PlayMode.Shuffle) {
-            browser.sendCustomCommand(
+    override suspend fun skipToNext() = runWithBrowser {
+        if (playMode == PlayMode.Shuffle) {
+            sendCustomCommand(
                 CustomCommand.SeekToNext.toSessionCommand(),
                 Bundle.EMPTY
             )
         } else {
-            browser.seekToNext()
+            seekToNext()
         }
     }
 
-    override suspend fun skipToPrevious() {
-        val browser = browserFuture.await()
-        if (browser.playMode == PlayMode.Shuffle) {
-            browser.sendCustomCommand(
+    override suspend fun skipToPrevious() = runWithBrowser {
+        if (playMode == PlayMode.Shuffle) {
+            sendCustomCommand(
                 CustomCommand.SeekToPrevious.toSessionCommand(),
                 Bundle.EMPTY
             )
         } else {
-            browser.seekToPrevious()
+            seekToPrevious()
         }
     }
 
-    override suspend fun seekTo(positionMs: Long) {
-        val browser = browserFuture.await()
-        browser.seekTo(positionMs)
+    override suspend fun seekTo(
+        positionMs: Long
+    ) = runWithBrowser {
+        seekTo(positionMs)
     }
 
-    override suspend fun updatePlaylist(playlist: List<LItem>) {
-        val browser = browserFuture.await()
-
+    override suspend fun updatePlaylist(
+        playlist: List<LItem>
+    ) = runWithBrowser {
         val items = MMedia.mapItems(playlist.map { item -> item.id })
-        browser.setMediaItems(items, 0, 0)
+        setMediaItems(items, 0, 0)
     }
 
-    override suspend fun clearPlaylist() {
-        val browser = browserFuture.await()
-        browser.setMediaItems(emptyList())
+    override suspend fun clearPlaylist() = runWithBrowser {
+        setMediaItems(emptyList())
     }
 
-    override suspend fun setPlaybackMode(mode: PlaybackMode) {
-        val browser = browserFuture.await()
-        browser.playMode = when (mode) {
+    override suspend fun setPlaybackMode(
+        mode: PlaybackMode
+    ) = runWithBrowser {
+        playMode = when (mode) {
             PlaybackMode.SEQUENTIAL -> PlayMode.ListRecycle
             PlaybackMode.LOOP -> PlayMode.ListRecycle
             PlaybackMode.SINGLE_LOOP -> PlayMode.RepeatOne
@@ -303,10 +298,20 @@ object MPlayerPlayback : CoroutineScope, Player.Listener, Playback {
         currentIndex: Int = browserInstance?.currentMediaItemIndex ?: 0
     ) {
         val items = timeline?.toMediaItems() ?: emptyList()
-        val results = items.drop(currentIndex) + items.take(currentIndex)
-        val ids = results.map { it.mediaId }
+        val ids = items.map { it.mediaId }
 
+        _playlist.value = LMedia.instance.mapBy<LAudio>(ids)
+        _currentItemIndex.value = currentIndex
         saveHistoryIds(mediaIds = ids)
+    }
+
+    suspend fun runWithBrowser(
+        block: MediaBrowser.() -> Unit = {}
+    ) = withContext(Dispatchers.IO) {
+        val browser = browserFuture.await()
+        withContext(Dispatchers.Main) {
+            browser.block()
+        }
     }
 }
 
