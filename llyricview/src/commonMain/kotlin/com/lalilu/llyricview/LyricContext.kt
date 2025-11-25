@@ -1,5 +1,6 @@
 package com.lalilu.llyricview
 
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.unit.Constraints
 
@@ -11,6 +12,7 @@ import androidx.compose.ui.unit.Constraints
  * @param screenConstraints 屏幕约束条件
  * @param textMeasurer 文本测量器
  */
+@Stable
 data class LyricContext(
     val currentTime: () -> Long,
     val currentIndex: () -> Int,

@@ -8,6 +8,7 @@
 package com.lalilu.llyricview
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -34,6 +35,7 @@ internal val DEFAULT_TEXT_SHADOW = Shadow(
 )
 
 @Serializable
+@Immutable
 data class LyricSettings(
     // 布局样式配置
     val textAlign: TextAlign = TextAlign.Start,
