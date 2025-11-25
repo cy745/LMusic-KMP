@@ -132,6 +132,7 @@ dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
 swiftklib = { id = "io.github.ttypic.swiftklib", version = "0.6.4" }
 osdetector = { id = "com.google.osdetector", version = "1.7.3" }
 ktorfit = { id = "de.jensklingenberg.ktorfit", version.ref = "ktorfit" }
+stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.6.0" }
 
 [bundles]
 coil = ["coil-compose", "coil-ktor", "coil-svg"]

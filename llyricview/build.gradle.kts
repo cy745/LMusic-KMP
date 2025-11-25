@@ -18,6 +18,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.swiftklib)
     alias(libs.plugins.osdetector)
+    alias(libs.plugins.stability.analyzer)
 }
 
 group = "com.lalilu.llyricview"
