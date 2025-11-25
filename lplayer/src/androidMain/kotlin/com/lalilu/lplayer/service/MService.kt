@@ -9,6 +9,7 @@ import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.*
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
@@ -19,6 +20,7 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.lalilu.common.kv.KVContext
+import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.*
 import com.lalilu.lplayer.extensions.setUpQueueControl
@@ -27,21 +29,24 @@ import com.lalilu.lplayer.service.CustomCommand.SeekToPrevious
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import org.koin.android.ext.android.getKoin
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import org.koin.core.qualifier.named
 import org.koin.mp.KoinPlatform
 import kotlin.coroutines.CoroutineContext
 
 @OptIn(UnstableApi::class)
-class MService : MediaLibraryService(), CoroutineScope {
+class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
     override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob()
-    private val historyAnalyticsListener by getKoin().injectOrNull<AnalyticsListener>(named("history_analytics_listener"))
+    private val historyAnalyticsListener by getKoin()
+        .injectOrNull<AnalyticsListener>(named("history_analytics_listener"))
 
     private var player: Player? = null
     private var exoPlayer: ExoPlayer? = null
     private var mediaSession: MediaLibrarySession? = null
     private var eqHelper: EQHelper? = null
     private var notificationProvider: MNotificationProvider? = null
+    private val platformMediaSource by inject<PlatformMediaSource>()
     private val defaultAudioAttributes by lazy {
         AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -58,7 +63,8 @@ class MService : MediaLibraryService(), CoroutineScope {
             .also { setMediaNotificationProvider(it) }
 
         player = ExoPlayer.Builder(this)
-            .setRenderersFactory(FadeTransitionRenderersFactory(this, this))
+            .setRenderersFactory(FadeTransitionRenderersFactory(this))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(LMediaDataSource.Factory(this, platformMediaSource)))
             .setHandleAudioBecomingNoisy(LPlayerKV.handleBecomeNoisy.value)
             .setAudioAttributes(defaultAudioAttributes, LPlayerKV.handleAudioFocus.value)
             .setMaxSeekToPreviousPositionMs(Long.MAX_VALUE) // 避免播放上一首需要点两次

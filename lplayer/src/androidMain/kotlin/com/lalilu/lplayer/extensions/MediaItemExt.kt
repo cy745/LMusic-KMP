@@ -11,11 +11,19 @@ import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LFolder
 import com.lalilu.lmedia.entity.LGenre
+import android.net.Uri
+import io.ktor.http.encodeURLPathPart
 
 fun LAudio.toMediaItem(): MediaItem {
+    val uri = Uri.Builder()
+        .scheme("lmusic")
+        .path("audio")
+        .appendQueryParameter("id", id.encodeURLPathPart())
+        .build()
+
     return MediaItem.Builder()
         .setMediaId(id)
-        .setUri(id)
+        .setUri(uri)
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
