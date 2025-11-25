@@ -124,6 +124,17 @@ class AndroidFileSystemSource(
                 lyric
             }
 
+            is SourceItem.UriItem -> {
+                val uri = sourceItem.uri
+
+                val lyric = context.contentResolver
+                    .openFileDescriptor(uri, "r")
+                    ?.use { Taglib.getLyric(fd = it.detachFd()) }
+                    ?: throw FileNotFoundException("Not found lyric for $uri")
+
+                lyric
+            }
+
             else -> null
         }
     }
