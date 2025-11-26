@@ -10,7 +10,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -18,22 +19,15 @@ import com.lalilu.component.LazyGridContent
 import com.lalilu.component.rememberGridItemPadding
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.NavIntent
+import com.lalilu.navigation.Screen
 
 
 object EntryPanel : LazyGridContent {
+
+    val screenEntry = mutableStateOf<List<Screen>>(emptyList())
+
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
-        val screenEntry = remember {
-            val targetScreen = listOf(
-                "/pages/songs",
-                "/pages/artists",
-                "/pages/albums",
-                "/pages/history",
-                "/media_source",
-                "/log"
-            )
-            targetScreen.mapNotNull { AppRouter.route(it).get() }
-        }
         val gridItemPaddings = rememberGridItemPadding(
             count = 2,
             gapVertical = 8.dp,
@@ -41,9 +35,22 @@ object EntryPanel : LazyGridContent {
             paddingValues = PaddingValues(horizontal = 16.dp)
         )
 
+        LaunchedEffect(Unit) {
+            if (screenEntry.value.isEmpty()) {
+                screenEntry.value = listOf(
+                    "/pages/songs",
+                    "/pages/artists",
+                    "/pages/albums",
+                    "/pages/history",
+                    "/media_source",
+                    "/log"
+                ).mapNotNull { AppRouter.route(it).get() }
+            }
+        }
+
         return fun LazyGridScope.() {
             itemsIndexed(
-                items = screenEntry,
+                items = screenEntry.value,
                 key = { index, item -> item.key },
                 contentType = { index, item -> this@EntryPanel::class.qualifiedName },
                 span = { index, item -> GridItemSpan(maxLineSpan / 2) }
