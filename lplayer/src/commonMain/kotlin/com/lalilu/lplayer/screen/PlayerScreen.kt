@@ -20,13 +20,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import co.touchlab.kermit.Logger
 import com.lalilu.LocalSeedColor
 import com.lalilu.common.ext.io
 import com.lalilu.extensions.bindToLifecycle
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.llyricview.LyricLayout
-import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.*
@@ -252,16 +252,7 @@ class PlayerScreen : Screen {
                 PlaylistLayout(
                     modifier = modifier,
                     listState = listState,
-                    items = {
-                        val indexOfFirst = playlist.value
-                            .indexOfFirst { item -> item.id == currentItem.value?.id }
-                            .coerceAtLeast(0)
-
-                        playlist.value.runCatching { drop(indexOfFirst) + take(indexOfFirst) }
-                            .getOrNull()
-                            ?.mapNotNull { item -> item as? LAudio }
-                            ?: emptyList()
-                    },
+                    items = { vm.currentPlaylist.value },
                 )
             },
             overlayContent = {

@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.*
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
+import com.lalilu.extensions.toState
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.LyricUtils
 import com.lalilu.lmedia.LMedia
@@ -11,6 +12,7 @@ import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -25,6 +27,21 @@ class PlayerViewModel(
     val currentItem = LPlayer.instance.currentItem
     val currentTime = mutableStateOf(0L)
     val lyricItems = mutableStateOf<List<LyricItem>>(emptyList())
+    val currentPlaylist = LPlayer.instance.playlist
+        .combine(LPlayer.instance.currentItem) { list, item ->
+            val indexOfFirst = list
+                .indexOfFirst { it.id == item?.id }
+                .coerceAtLeast(0)
+
+            list.runCatching { drop(indexOfFirst) + take(indexOfFirst) }
+                .getOrNull()
+                ?.mapNotNull { item -> item as? LAudio }
+                ?: emptyList()
+        }
+        .toState(
+            scope = viewModelScope,
+            defaultValue = emptyList()
+        )
 
     init {
         LMedia.instance.whenReady {
