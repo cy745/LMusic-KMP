@@ -1,6 +1,8 @@
 package com.lalilu.lplayer.action
 
 import com.lalilu.common.ext.io
+import com.lalilu.lmedia.LMedia
+import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.extensions.PlayMode
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -51,6 +53,14 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
                     .indexOfFirst { item -> item.id == action.id }
 
                 LPlayer.instance.skipTo(index)
+            }
+
+            is PlayerAction.UpdateList -> {
+                LPlayer.instance.updatePlaylist(
+                    playlist = LMedia.instance.mapBy<LAudio>(action.ids),
+                    startIndex = action.id?.let { action.ids.indexOf(it) }?.coerceAtLeast(0) ?: 0,
+                    start = action.start
+                )
             }
 
             else -> {

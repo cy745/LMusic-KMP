@@ -234,6 +234,16 @@ object MPlayerPlayback : CoroutineScope, Player.Listener, Playback {
         setMediaItems(items, 0, 0)
     }
 
+    override suspend fun updatePlaylist(
+        playlist: List<LItem>,
+        startIndex: Int,
+        start: Boolean
+    ) = runWithBrowser {
+        val items = MMedia.mapItems(playlist.map { it.id })
+        setMediaItems(items, startIndex, 0)
+        if (start) play()
+    }
+
     override suspend fun clearPlaylist() = runWithBrowser {
         setMediaItems(emptyList())
     }

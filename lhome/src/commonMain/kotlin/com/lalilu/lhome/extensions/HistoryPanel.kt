@@ -20,7 +20,9 @@ import com.lalilu.component.LazyGridContent
 import com.lalilu.lhome.component.AudioItemCard
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
+import com.lalilu.lmedia.LMedia
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
 import org.koin.compose.viewmodel.koinViewModel
@@ -63,7 +65,7 @@ object HistoryPanel : LazyGridContent {
                         .combinedClickable(
                             onClick = {
                                 PlayerAction.UpdateList(
-                                    ids = items.map(LAudio::id),
+                                    ids = LMedia.instance.get<LAudio>().map(LItem::id),
                                     id = it.id,
                                     start = true
                                 ).action()

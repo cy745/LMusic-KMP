@@ -128,6 +128,11 @@ abstract class AbstractPlayback(
         updateNavigationCapabilities()
     }
 
+    override suspend fun updatePlaylist(playlist: List<LItem>, startIndex: Int, start: Boolean) {
+        updatePlaylist(playlist)
+        skipTo(startIndex) // TODO start 逻辑实现
+    }
+
     override suspend fun clearPlaylist() {
         _playlist.value = emptyList()
         _currentItemIndex.value = 0

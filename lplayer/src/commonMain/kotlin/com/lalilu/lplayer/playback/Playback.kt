@@ -13,6 +13,8 @@ interface Playback {
     suspend fun togglePlayPause()
     suspend fun stop()
     suspend fun skipTo(index: Int)
+
+    // TODO suspend fun skipTo(index: Int, start: Boolean)
     suspend fun skipToNext()
     suspend fun skipToPrevious()
     suspend fun seekTo(positionMs: Long)
@@ -23,6 +25,7 @@ interface Playback {
     val currentItemIndex: StateFlow<Int>
 
     suspend fun updatePlaylist(playlist: List<LItem>)
+    suspend fun updatePlaylist(playlist: List<LItem>, startIndex: Int, start: Boolean)
     suspend fun clearPlaylist()
 
     // Playback State
