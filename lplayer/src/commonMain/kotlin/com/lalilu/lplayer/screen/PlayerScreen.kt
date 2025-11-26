@@ -120,9 +120,14 @@ class PlayerScreen : Screen {
             }
         }
 
-        LaunchedEffect(isPlaying.value) {
-            while (isActive && isPlaying.value) {
-                withFrameMillis { currentTime.value = LPlayer.instance.currentPosition() }
+        LifecycleResumeEffect(isPlaying.value) {
+            val job = scope.launch {
+                while (isActive && isPlaying.value) {
+                    withFrameMillis { currentTime.value = LPlayer.instance.currentPosition() }
+                }
+            }
+            onPauseOrDispose {
+                job.cancel()
             }
         }
 
