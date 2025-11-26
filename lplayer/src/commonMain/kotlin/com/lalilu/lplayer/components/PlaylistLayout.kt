@@ -14,12 +14,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import coil3.SingletonImageLoader
+import coil3.compose.LocalPlatformContext
+import coil3.request.Options
+import com.lalilu.extensions.Item
+import com.lalilu.extensions.diff
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.SongCard
 import com.lalilu.lplayer.action.PlayerAction
-import com.lalilu.extensions.Item
-import com.lalilu.extensions.diff
+import com.lalilu.navigation.AppRouter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,6 +37,7 @@ fun PlaylistLayout(
     items: () -> List<LAudio> = { emptyList() }
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalPlatformContext.current
 
     var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
@@ -86,16 +91,20 @@ fun PlaylistLayout(
                 modifier = Modifier
                     .animateItem()
                     .drawBehind { drawRect(color = bgColor.value) },
+                id = item.data.id,
                 imageData = item.data,
                 title = item.data.title,
                 subtitle = item.data.subtitle,
                 onClick = { PlayerAction.PlayById(item.data.id).action() },
-                onLongClick = {
-//                    AppRouter.route("/pages/songs/detail")
-//                        .with("mediaId", item.data.mediaId)
-//                        .withSingleTop()
-//                        .withSingleInstance()
-//                        .jump()
+                onLongClick = { sharedMap ->
+                    val imageLoader = SingletonImageLoader.get(context)
+                    val coverMemoryKey = imageLoader.components.key(item, Options(context))
+
+                    AppRouter.route("/song/detail")
+                        .with("mediaId", item.data.id)
+                        .with("sharedMap", sharedMap)
+                        .with("coverCacheKey", coverMemoryKey)
+                        .jump()
                 }
             )
         }
