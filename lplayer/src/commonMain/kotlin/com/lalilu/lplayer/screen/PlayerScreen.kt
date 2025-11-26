@@ -24,7 +24,6 @@ import co.touchlab.kermit.Logger
 import com.lalilu.LocalSeedColor
 import com.lalilu.common.ext.io
 import com.lalilu.extensions.bindToLifecycle
-import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.llyricview.LyricLayout
 import com.lalilu.lmedia.entity.LAudio
@@ -33,6 +32,7 @@ import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.*
 import com.lalilu.lplayer.extensions.PlayMode
 import com.lalilu.lplayer.viewmodel.PlayerViewModel
+import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.LocalBackStack
 import com.lalilu.navigation.LocalNavSeekableTransitionState
 import com.lalilu.navigation.Screen
@@ -56,7 +56,7 @@ class PlayerScreen : Screen {
         val haptic = LocalHapticFeedback.current
         val seedColor = LocalSeedColor.current
         val transitionState = LocalNavSeekableTransitionState.current
-        val homeScreen = remember { KRouter.route<Screen>("/home") }
+        val homeScreen = remember { AppRouter.route("/home").get() }
 
         val vm = koinViewModel<PlayerViewModel>()
         vm.bindToLifecycle()

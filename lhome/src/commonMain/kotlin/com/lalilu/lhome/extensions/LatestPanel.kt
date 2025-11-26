@@ -11,21 +11,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import coil3.SingletonImageLoader
+import coil3.compose.LocalPlatformContext
+import coil3.request.Options
 import com.lalilu.component.LazyGridContent
-import com.lalilu.krouter.KRouter
 import com.lalilu.lhome.component.RecommendCard
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
-import com.lalilu.navigation.LocalBackStack
-import com.lalilu.navigation.Screen
+import com.lalilu.navigation.AppRouter
 import org.koin.compose.viewmodel.koinViewModel
 
 object LatestPanel : LazyGridContent {
 
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
-        val backStack = LocalBackStack.current
+        val context = LocalPlatformContext.current
         val vm = koinViewModel<HomeScreenModel>()
         val items by vm.recentlyAdded
 
@@ -43,9 +44,8 @@ object LatestPanel : LazyGridContent {
                         selected = true,
                         shape = RoundedCornerShape(50),
                         onClick = {
-                            runCatching { KRouter.route<Screen>("/pages/songs") }
-                                .getOrNull()
-                                ?.let { backStack.add(it) }
+                            AppRouter.route("/pages/songs")
+                                .jump()
                         },
                         label = {
                             Text(
@@ -73,18 +73,14 @@ object LatestPanel : LazyGridContent {
                         subTitle = item.subtitle,
                         imageData = item,
                         onClick = { sharedMap ->
-                            val screen = runCatching {
-                                KRouter.route<Screen>(
-                                    router = "/song/detail",
-                                    extraParams = mapOf(
-                                        "mediaId" to item.id,
-                                        "sharedMap" to sharedMap
-                                    )
-                                )
-                            }.getOrNull()
-                                ?: return@RecommendCard
+                            val imageLoader = SingletonImageLoader.get(context)
+                            val coverMemoryKey = imageLoader.components.key(item, Options(context))
 
-                            backStack.add(screen)
+                            AppRouter.route("/song/detail")
+                                .with("mediaId", item.id)
+                                .with("sharedMap", sharedMap)
+                                .with("coverCacheKey", coverMemoryKey)
+                                .jump()
                         }
                     )
                 }

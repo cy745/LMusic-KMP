@@ -19,6 +19,7 @@ import com.lalilu.lmedia.rpc.RemoteServerPanel
 import com.lalilu.navigation.LocalBackStack
 import com.lalilu.navigation.LocalSharedTransitionScope
 import com.lalilu.navigation.Screen
+import com.lalilu.navigation.isType
 import com.lalilu.remixicon.Arrows
 import com.lalilu.remixicon.arrows.arrowLeftLine
 import org.koin.compose.koinInject
@@ -54,7 +55,7 @@ object MediaSourceScreen : Screen {
                             .height(48.dp)
                             .sharedElementWithCallerManagedVisibility(
                                 sharedContentState = rememberSharedContentState("test"),
-                                visible = backStack.last() is MediaSourceScreen
+                                visible = backStack.last().isType(MediaSourceScreen::class)
                             ),
                         onClick = { if (backStack.size >= 2) backStack.removeLastOrNull() }
                     ) {

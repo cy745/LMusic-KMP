@@ -40,6 +40,7 @@ kotlin {
             dependencies {
                 implementation(project(":component"))
                 implementation(project(":lmedia"))
+                implementation(project(":lplayer"))
                 implementation(libs.remixicon.kmp)
                 api(compose.preview)
             }

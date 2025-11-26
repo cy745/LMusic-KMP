@@ -18,6 +18,7 @@ import androidx.compose.ui.preferredFrameRate
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -25,7 +26,6 @@ import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.OverrideNavDisplay
 import com.lalilu.LMusicTheme
-import com.lalilu.krouter.KRouter
 import com.lalilu.lmusic.screen.ExceptionScreen
 import com.lalilu.navigation.*
 
@@ -35,11 +35,15 @@ import com.lalilu.navigation.*
 @Preview
 fun App() {
     val backStack = remember {
-        mutableStateListOf<Screen>(
-            KRouter.route("/player")
-                ?: KRouter.route("/home")
+        NavBackStack(
+            AppRouter.route("/player").get()
+                ?: AppRouter.route("/home").get()
                 ?: ExceptionScreen.SCREEN_NOT_FOUND
         )
+    }
+
+    LaunchedEffect(Unit) {
+        AppRouter.bind(backStack)
     }
 
     LMusicTheme {

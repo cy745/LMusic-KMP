@@ -16,7 +16,6 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.Options
 import com.lalilu.component.LazyGridContent
 import com.lalilu.extensions.SharedMap
-import com.lalilu.krouter.KRouter
 import com.lalilu.lhome.component.RecommendCard
 import com.lalilu.lhome.component.RecommendGroupCard
 import com.lalilu.lhome.component.RecommendRow
@@ -24,15 +23,13 @@ import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
 import com.lalilu.lmedia.entity.LGroupItem
 import com.lalilu.lmedia.entity.LItem
-import com.lalilu.navigation.LocalBackStack
-import com.lalilu.navigation.Screen
+import com.lalilu.navigation.AppRouter
 import org.koin.compose.viewmodel.koinViewModel
 
 object DailyRecommend : LazyGridContent {
 
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
-        val navigator = LocalBackStack.current
         val homeVM = koinViewModel<HomeScreenModel>()
         val context = LocalPlatformContext.current
 
@@ -60,22 +57,14 @@ object DailyRecommend : LazyGridContent {
             dailyRecommendForSideCompat(
                 items = { homeVM.dailyRecommends.value },
                 onClick = { item, sharedMap ->
-                    val screen = runCatching {
-                        val imageLoader = SingletonImageLoader.get(context)
-                        val coverMemoryKey = imageLoader.components.key(item, Options(context))
+                    val imageLoader = SingletonImageLoader.get(context)
+                    val coverMemoryKey = imageLoader.components.key(item, Options(context))
 
-                        KRouter.route<Screen>(
-                            router = "/song/detail",
-                            extraParams = mapOf(
-                                "mediaId" to item.id,
-                                "sharedMap" to sharedMap,
-                                "coverCacheKey" to coverMemoryKey
-                            )
-                        )
-                    }.getOrNull()
-                        ?: return@dailyRecommendForSideCompat
-
-                    navigator.add(screen)
+                    AppRouter.route("/song/detail")
+                        .with("mediaId", item.id)
+                        .with("sharedMap", sharedMap)
+                        .with("coverCacheKey", coverMemoryKey)
+                        .jump()
                 }
             )
         }

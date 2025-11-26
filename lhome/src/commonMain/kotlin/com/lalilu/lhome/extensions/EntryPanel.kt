@@ -16,24 +16,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lalilu.component.LazyGridContent
 import com.lalilu.component.rememberGridItemPadding
-import com.lalilu.krouter.KRouter
-import com.lalilu.navigation.LocalBackStack
-import com.lalilu.navigation.Screen
+import com.lalilu.navigation.AppRouter
+import com.lalilu.navigation.NavIntent
 
 
 object EntryPanel : LazyGridContent {
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
-        val backStack = LocalBackStack.current
         val screenEntry = remember {
-            listOfNotNull(
-                requireScreenOrNull("/pages/songs"),
-                requireScreenOrNull("/pages/artists"),
-                requireScreenOrNull("/pages/albums"),
-                requireScreenOrNull("/pages/history"),
-                requireScreenOrNull("/media_source"),
-                requireScreenOrNull("/log")
+            val targetScreen = listOf(
+                "/pages/songs",
+                "/pages/artists",
+                "/pages/albums",
+                "/pages/history",
+                "/media_source",
+                "/log"
             )
+            targetScreen.mapNotNull { AppRouter.route(it).get() }
         }
         val gridItemPaddings = rememberGridItemPadding(
             count = 2,
@@ -59,7 +58,7 @@ object EntryPanel : LazyGridContent {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { backStack.add(item) }
+                            .clickable { AppRouter.intent(NavIntent.Jump(item)) }
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -82,9 +81,4 @@ object EntryPanel : LazyGridContent {
             }
         }
     }
-}
-
-fun requireScreenOrNull(key: String): Screen? {
-    return runCatching { KRouter.route<Screen>(key) }
-        .getOrNull()
 }

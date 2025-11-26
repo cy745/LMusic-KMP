@@ -1,6 +1,6 @@
 package com.lalilu.lhome.extensions
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -13,19 +13,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import coil3.SingletonImageLoader
+import coil3.compose.LocalPlatformContext
+import coil3.request.Options
 import com.lalilu.component.LazyGridContent
-import com.lalilu.krouter.KRouter
 import com.lalilu.lhome.component.AudioItemCard
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
-import com.lalilu.navigation.LocalBackStack
-import com.lalilu.navigation.Screen
+import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lplayer.action.PlayerAction
+import com.lalilu.navigation.AppRouter
 import org.koin.compose.viewmodel.koinViewModel
 
 object HistoryPanel : LazyGridContent {
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
-        val backStack = LocalBackStack.current
+        val context = LocalPlatformContext.current
         val vm = koinViewModel<HomeScreenModel>()
         val items by vm.histories
 
@@ -36,9 +39,8 @@ object HistoryPanel : LazyGridContent {
                         selected = true,
                         shape = RoundedCornerShape(50),
                         onClick = {
-                            runCatching { KRouter.route<Screen>("/pages/songs") }
-                                .getOrNull()
-                                ?.let { backStack.add(it) }
+                            AppRouter.route("/pages/songs")
+                                .jump()
                         },
                         label = {
                             Text(
@@ -58,9 +60,24 @@ object HistoryPanel : LazyGridContent {
             ) {
                 AudioItemCard(
                     modifier = Modifier
-                        .clickable {
+                        .combinedClickable(
+                            onClick = {
+                                PlayerAction.UpdateList(
+                                    ids = items.map(LAudio::id),
+                                    id = it.id,
+                                    start = true
+                                ).action()
+                            },
+                            onLongClick = {
+                                val imageLoader = SingletonImageLoader.get(context)
+                                val coverMemoryKey = imageLoader.components.key(it, Options(context))
 
-                        }
+                                AppRouter.route("/song/detail")
+                                    .with("mediaId", it.id)
+                                    .with("coverCacheKey", coverMemoryKey)
+                                    .jump()
+                            }
+                        )
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     title = it.title,
                     subtitle = it.subtitle,
