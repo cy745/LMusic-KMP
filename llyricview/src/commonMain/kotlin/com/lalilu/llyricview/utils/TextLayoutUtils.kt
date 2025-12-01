@@ -65,6 +65,7 @@ data class WordsLayoutResult(
  * @param length    长度
  */
 fun TextLayoutResult.getPathForProgress(
+    path: Path,
     progress: Float,
     offset: Int = 0,
     length: Int? = null
@@ -80,7 +81,6 @@ fun TextLayoutResult.getPathForProgress(
     val targetWidth = offsetWidth + (maxWidth - offsetWidth) * progress
     var addedWidth = 0f
 
-    val path = Path()
     var rect: Rect? = null
     var position = 0f
     for (lineIndex in 0 until lineCount) {

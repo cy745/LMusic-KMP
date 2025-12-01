@@ -16,10 +16,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.toRect
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.layout.layout
@@ -33,9 +30,7 @@ import com.lalilu.llyricview.DEFAULT_TEXT_SHADOW
 import com.lalilu.llyricview.LyricContext
 import com.lalilu.llyricview.LyricItemLayout
 import com.lalilu.llyricview.LyricSettings
-import com.lalilu.llyricview.utils.blur
-import com.lalilu.llyricview.utils.getPathForProgress
-import com.lalilu.llyricview.utils.normalized
+import com.lalilu.llyricview.utils.*
 import com.skydoves.compose.stability.runtime.TraceRecomposition
 import org.koin.core.annotation.Named
 import org.koin.core.annotation.Single
@@ -151,6 +146,7 @@ fun LyricContentWords(
             },
     ) {
         val textResult = remember { mutableStateOf<TextLayoutResult?>(null) }
+        val tempPath = remember { Path() }
 
         Canvas(
             modifier = modifier
@@ -194,7 +190,9 @@ fun LyricContentWords(
             val offset = lyric.words.take(wordIndex)
                 .sumOf { it.content.length }
 
+            tempPath.reset()
             val (path, rect, position) = textLayout.getPathForProgress(
+                path = tempPath,
                 progress = progress,
                 offset = offset,
                 length = word?.content?.length
@@ -234,7 +232,7 @@ fun LyricContentWords(
                     )
 
                     clipPath(path) {
-                        withLayer {
+                        withSaveLayer {
                             drawText(
                                 color = Color.White,
                                 textLayoutResult = textLayout,
@@ -250,9 +248,9 @@ fun LyricContentWords(
                                 endX = rightBound
                             )
 
-                            clipPath(path = rect.toPath()) {
-                                drawPath(
-                                    path = rectForGradient.toPath(),
+                            clipRect(rect = rect) {
+                                drawRect(
+                                    rect = rectForGradient,
                                     brush = gradient,
                                     blendMode = BlendMode.DstIn
                                 )
@@ -281,13 +279,4 @@ fun LyricContentWords(
             }
         }
     }
-}
-
-fun Rect.toPath(): Path {
-    return Path().apply { addRect(this@toPath) }
-}
-
-private val EMPTY_PAINT = Paint()
-private inline fun DrawScope.withLayer(crossinline block: DrawScope.() -> Unit) {
-    drawContext.canvas.withSaveLayer(size.toRect(), EMPTY_PAINT) { block() }
 }
