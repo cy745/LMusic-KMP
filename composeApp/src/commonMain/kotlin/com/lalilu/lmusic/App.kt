@@ -23,7 +23,6 @@ import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.Scene
-import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.OverrideNavDisplay
 import com.lalilu.LMusicTheme
 import com.lalilu.lmusic.screen.ExceptionScreen
@@ -48,20 +47,6 @@ fun App() {
 
     LMusicTheme {
         SharedTransitionLayout {
-            val sharedEntryInSceneNavEntryDecorator = remember {
-                NavEntryDecorator<NavKey> { entry ->
-                    with(LocalSharedTransitionScope.current) {
-                        Box(
-                            Modifier.sharedElement(
-                                rememberSharedContentState(entry.contentKey),
-                                animatedVisibilityScope = LocalNavAnimatedContentScope.current,
-                            ),
-                        ) {
-                            entry.Content()
-                        }
-                    }
-                }
-            }
             val screenBackgroundDecorator = remember {
                 NavEntryDecorator<NavKey> { entry ->
                     Box(
@@ -98,7 +83,7 @@ fun App() {
                                 .also { transitionState.value = it }
                         },
                         entryDecorators = listOf(
-                            sharedEntryInSceneNavEntryDecorator,
+                            rememberSharedEntryDecorator(),
                             rememberSaveableStateHolderNavEntryDecorator(),
                             rememberViewModelStoreNavEntryDecorator(),
                             screenBackgroundDecorator
