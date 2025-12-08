@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.lalilu.LocalFontFamily
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.findPlayingIndexForWords
 import com.lalilu.llyricview.LyricContext
@@ -240,7 +241,7 @@ fun LyricContentWords(
                     }
                 },
             text = fullSentence,
-            style = settings.mainTextStyle,
+            style = settings.mainTextStyle.copy(fontFamily = LocalFontFamily.current),
             onTextLayout = { textResult.value = it },
         )
 
