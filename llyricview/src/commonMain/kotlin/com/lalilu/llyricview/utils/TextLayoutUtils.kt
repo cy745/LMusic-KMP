@@ -4,10 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.BlurEffect
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Dp
 import kotlin.math.abs
@@ -133,6 +130,21 @@ fun normalized(start: Float, end: Float, current: Float): Float {
 }
 
 private val blurEffectMap = mutableMapOf<Int, BlurEffect>()
+
+fun GraphicsLayerScope.blur(radius: Dp) {
+    val px = radius.roundToPx()
+    this.renderEffect =
+        if (px > 0f) blurEffectMap.getOrPut(px) {
+            BlurEffect(
+                px.toFloat(),
+                px.toFloat(),
+                TileMode.Decal
+            )
+        }
+        else null
+    this.clip = false
+}
+
 internal fun Modifier.blur(radius: () -> Dp) = graphicsLayer {
     val px = radius().roundToPx()
     this.renderEffect =

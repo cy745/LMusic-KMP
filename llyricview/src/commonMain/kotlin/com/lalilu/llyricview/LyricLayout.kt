@@ -14,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -24,6 +23,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lalilu.common.kv.KVItem
+import com.lalilu.extensions.ClassicBackHandler
 import com.lalilu.extensions.ItemRecorder
 import com.lalilu.extensions.rememberLazyListAnimateScroller
 import com.lalilu.extensions.startRecord
@@ -80,11 +80,14 @@ fun LyricLayout(
         }
     }
 
-    BackHandler(enabled = isUserScrolling.value) {
-        isUserScrolling.value = false
-        currentItem.value?.key?.let(scroller::animateTo)
-        onPositionReset()
-    }
+    ClassicBackHandler(
+        enabled = isUserScrolling.value,
+        onBack = {
+            isUserScrolling.value = false
+            currentItem.value?.key?.let(scroller::animateTo)
+            onPositionReset()
+        }
+    )
 
     LaunchedEffect(Unit) {
         snapshotFlow { currentItem.value }

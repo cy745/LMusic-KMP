@@ -3,7 +3,6 @@ package com.lalilu.lplayer.components
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -15,11 +14,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Velocity
-import androidx.navigationevent.NavigationEventInfo
-import androidx.navigationevent.NavigationEventTransitionState
-import androidx.navigationevent.compose.NavigationEventHandler
-import androidx.navigationevent.compose.rememberNavigationEventState
-import co.touchlab.kermit.Logger
+import com.lalilu.extensions.ClassicBackHandler
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.roundToInt
 
@@ -34,33 +29,15 @@ fun NestedScrollBaseLayout(
     overlayContent: @Composable (BoxScope.() -> Unit) = {},
 ) {
     val haptic = LocalHapticFeedback.current
-    val navEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
 
-    NavigationEventHandler(
-        state = navEventState,
-        isBackEnabled = draggable.state.value == DragAnchor.Max,
-        onBackCancelled = {
-
-        },
-        onBackCompleted = {
+    ClassicBackHandler(
+        enabled = draggable.state.value == DragAnchor.Max,
+        onBack = {
             if (draggable.state.value == DragAnchor.Max) {
                 draggable.animateToState(DragAnchor.Middle)
             }
         }
     )
-
-    LaunchedEffect(navEventState.transitionState) {
-        val state = navEventState.transitionState
-        when (state) {
-            NavigationEventTransitionState.Idle -> {
-                Logger.i("NavigationEventTransitionState.Idle")
-            }
-
-            is NavigationEventTransitionState.InProgress -> {
-                Logger.i("NavigationEventTransitionState.InProgress: ${state.latestEvent}, ${state.direction}")
-            }
-        }
-    }
 
     val lyricViewNestedScrollConnection = remember {
         object : NestedScrollConnection {

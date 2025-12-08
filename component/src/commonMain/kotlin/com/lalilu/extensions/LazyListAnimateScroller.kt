@@ -1,6 +1,7 @@
 package com.lalilu.extensions
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.*
@@ -160,7 +161,7 @@ class LazyListAnimateScroller internal constructor(
                 scope.launch {
                     try {
                         if (!canceled && enable()) {
-                            listState.scroll { scrollBy(dy) }
+                            listState.scrollBy(dy)
                         }
                     } catch (e: Exception) {
                         if (e is CancellationException) {

@@ -1,5 +1,6 @@
 package com.lalilu.extensions
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -10,6 +11,9 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationEventHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 
 /**
  * 创建一个修饰符，用于在组件边缘添加渐隐效果
@@ -101,4 +105,27 @@ fun Modifier.clipFade(
                 }
             }
         }
+}
+
+/**
+ * 经典返回处理器，处理系统的返回事件（如返回键或手势）
+ *
+ * @param enabled 是否启用返回处理，默认为true
+ * @param onBack 当触发返回事件时执行的回调函数，默认为空实现
+ */
+@Composable
+fun ClassicBackHandler(
+    enabled: Boolean = true,
+    onBack: () -> Unit = {}
+) {
+    // 记住导航事件状态，初始化为无导航信息
+    val navEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
+
+    // 处理导航事件，监听返回手势或按键
+    NavigationEventHandler(
+        state = navEventState,
+        isBackEnabled = enabled,        // 是否启用返回功能
+        onBackCancelled = {},           // 返回被取消时的回调（空实现）
+        onBackCompleted = onBack        // 返回完成时执行的回调
+    )
 }
