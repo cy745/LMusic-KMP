@@ -171,7 +171,12 @@ object AppRouter : CoroutineScope {
         private val baseUrl: String,
         private val params: MutableNavParams = mutableMapOf()
     ) {
-        fun <T : Any?> with(key: String, value: T) = apply { params[key] = value }
+        fun <T : Any?> with(key: String, value: T) =
+            apply { params[key] = value }
+
+        fun withParams(params: Map<String, Any?>) =
+            apply { this.params.putAll(params) }
+
         fun withSingleInstance(singleInstance: Boolean = true) =
             apply { params[NavIntent.SINGLE_INSTANCE] = singleInstance }
 
