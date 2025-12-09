@@ -1,11 +1,7 @@
 package com.lalilu.lplayer.screen
 
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
@@ -14,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
@@ -21,6 +18,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.navigation3.ui.OverrideNavDisplay
 import co.touchlab.kermit.Logger
 import com.lalilu.LocalSeedColor
 import com.lalilu.common.ext.io
@@ -56,7 +54,28 @@ class PlayerScreen : Screen {
         val haptic = LocalHapticFeedback.current
         val seedColor = LocalSeedColor.current
         val transitionState = LocalNavSeekableTransitionState.current
-        val homeScreen = remember { AppRouter.route("/home").get() }
+        val homeScreen = remember {
+            val transition = OverrideNavDisplay.transitionSpec {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                    animationSpec = tween(300)
+                ) togetherWith ExitTransition.None
+            } + OverrideNavDisplay.popTransitionSpec {
+                EnterTransition.None togetherWith slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                    animationSpec = tween(300)
+                )
+            } + OverrideNavDisplay.predictivePopTransitionSpec {
+                EnterTransition.None togetherWith slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                    animationSpec = tween(300)
+                )
+            }
+
+            AppRouter.route("/home")
+                .withParams(transition)
+                .get()
+        }
 
         val vm = koinViewModel<PlayerViewModel>()
         vm.bindToLifecycle()
@@ -260,6 +279,18 @@ class PlayerScreen : Screen {
                     targetValue = if (!isLyricScrollEnable.value) 100f else 0f,
                     animationSpec = spring(stiffness = Spring.StiffnessLow),
                     label = ""
+                )
+
+                Spacer(
+                    modifier = Modifier.fillMaxSize()
+                        .drawBehind {
+                            val state = transitionState.value ?: return@drawBehind
+                            val back = state.targetState.key != homeScreen?.key
+                            val progress = if (back) 1f - state.fraction else state.fraction
+                            if (state.targetState != state.currentState) {
+                                drawRect(color = Color.Black.copy(0.8f * progress))
+                            }
+                        }
                 )
 
                 Box(
