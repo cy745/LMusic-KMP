@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.source
+package com.lalilu.lmedia.source.filesystem
 
 import android.annotation.SuppressLint
 import android.app.Application
@@ -21,6 +21,9 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.buildSnapshot
+import com.lalilu.lmedia.source.MediaData
+import com.lalilu.lmedia.source.MediaDataSource
+import com.lalilu.lmedia.source.MediaSource
 import io.github.vinceglb.filekit.*
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import kotlinx.coroutines.*

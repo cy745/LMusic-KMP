@@ -1,6 +1,6 @@
 package com.lalilu.lmedia
 
-import com.lalilu.lmedia.source.AndroidFileSystemSource
+import com.lalilu.lmedia.source.filesystem.AndroidFileSystemSource
 import com.lalilu.lmedia.source.RemoteSource
 import com.lalilu.lmedia.source.mediastore.MediaStoreSource
 import com.lalilu.lmedia.source.subsonic.SubsonicSource
