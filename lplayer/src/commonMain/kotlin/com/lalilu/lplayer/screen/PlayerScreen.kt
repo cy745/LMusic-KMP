@@ -99,7 +99,6 @@ class PlayerScreen : Screen {
             }
         }
         val listState = rememberLazyListState()
-        val playlist = LPlayer.instance.playlist.collectAsState(emptyList())
         val duration = LPlayer.instance.currentDuration.collectAsState(0L)
         val animation = remember { Animatable(currentTime.value.toFloat()) }
         val navigationBar = WindowInsets.navigationBars
@@ -260,7 +259,7 @@ class PlayerScreen : Screen {
                         currentTime = { animation.value.toLong() },
                         screenConstraints = constraints,
                         lyricEntry = vm.lyricItems,
-                        isUserClickEnable = { false },
+                        isUserClickEnable = { true },
                         isUserScrollEnable = { false },
                         onItemClick = { PlayerAction.SeekTo(it.time).action() },
                         onItemLongClick = {}

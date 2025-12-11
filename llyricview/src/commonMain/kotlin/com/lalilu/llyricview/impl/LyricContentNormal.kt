@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.lalilu.LocalFontFamily
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyricview.LyricContext
 import com.lalilu.llyricview.LyricItemLayout
@@ -120,7 +121,6 @@ fun LyricContentNormal(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .blur { animateBlurRadius.value }
             .combinedClickable(onLongClick = onLongClick, onClick = onClick ?: {})
             .padding(settings.containerPadding)
             .graphicsLayer {
@@ -129,12 +129,13 @@ fun LyricContentNormal(
                 transformOrigin = pivot
                 scaleX = scale.value
                 scaleY = scaleX
+                blur(animateBlurRadius.value)
             },
     ) {
         Text(
             modifier = Modifier.fillMaxWidth(),
             text = lyric.content,
-            style = settings.mainTextStyle,
+            style = settings.mainTextStyle.copy(fontFamily = LocalFontFamily.current),
             color = color.value
         )
 
