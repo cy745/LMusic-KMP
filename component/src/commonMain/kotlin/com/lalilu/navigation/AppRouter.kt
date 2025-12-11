@@ -2,14 +2,11 @@ package com.lalilu.navigation
 
 import androidx.navigation3.runtime.NavBackStack
 import co.touchlab.kermit.Logger
-import com.lalilu.common.ext.io
 import com.lalilu.krouter.KRouter
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
-import kotlin.coroutines.CoroutineContext
 
 typealias NavParams = Map<String, Any?>
 typealias MutableNavParams = MutableMap<String, Any?>
@@ -137,8 +134,8 @@ val DefaultHandler = NavHandler { backstack, intent ->
     }
 }
 
-object AppRouter : CoroutineScope {
-    override val coroutineContext: CoroutineContext = Dispatchers.io + SupervisorJob()
+@OptIn(DelicateCoroutinesApi::class)
+object AppRouter {
     private val sharedFlow = MutableSharedFlow<NavIntent>()
     private var handler: NavHandler = DefaultHandler
     private val interceptors = mutableListOf(
@@ -157,12 +154,12 @@ object AppRouter : CoroutineScope {
         onHandler()
     }
 
-    fun intent(intent: NavIntent) = launch {
+    fun intent(intent: NavIntent) = GlobalScope.launch {
         sharedFlow.emit(intent)
     }
 
-    fun intent(block: AppRouter.() -> NavIntent?) = launch {
-        this@AppRouter.block()?.let { sharedFlow.emit(it) }
+    fun intent(block: AppRouter.() -> NavIntent?) = GlobalScope.launch {
+        block()?.let { sharedFlow.emit(it) }
     }
 
     fun route(baseUrl: String): Request = Request(baseUrl)

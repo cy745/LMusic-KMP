@@ -2,17 +2,12 @@ package com.lalilu.lmedia.source.filesystem
 
 import android.annotation.SuppressLint
 import android.app.Application
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.MagicNumber
@@ -27,81 +22,182 @@ import com.lalilu.lmedia.source.MediaSource
 import io.github.vinceglb.filekit.*
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.io.buffered
+import pro.respawn.flowmvi.annotation.InternalFlowMVIAPI
+import pro.respawn.flowmvi.api.MVIAction
+import pro.respawn.flowmvi.api.MVIIntent
+import pro.respawn.flowmvi.api.MVIState
+import pro.respawn.flowmvi.api.PipelineContext
+import pro.respawn.flowmvi.dsl.store
+import pro.respawn.flowmvi.plugins.recover
+import pro.respawn.flowmvi.plugins.reduce
 import java.io.FileNotFoundException
-import kotlin.coroutines.CoroutineContext
+
+internal data class AndroidFileSystemSourceState(
+    val uiState: FileSystemScannerCardState = FileSystemScannerCardState.NotSelected
+) : MVIState
+
+internal fun FileSystemScannerCardState.state() = AndroidFileSystemSourceState(this)
+
+internal sealed interface AndroidFileSystemSourceIntent : MVIIntent {
+    data class SelectFile(val path: String) : AndroidFileSystemSourceIntent
+    data object CancelScanning : AndroidFileSystemSourceIntent
+    data object ReStartScanning : AndroidFileSystemSourceIntent
+}
+
+private typealias Ctx = PipelineContext<AndroidFileSystemSourceState, AndroidFileSystemSourceIntent, MVIAction>
 
 @SuppressLint("NewApi")
 @OptIn(ExperimentalCoroutinesApi::class)
 class AndroidFileSystemSource(
     private val context: Application,
-    private val lMediaKV: LMediaKV
-) : MediaSource, MediaDataSource, CoroutineScope {
-    override val coroutineContext: CoroutineContext = Dispatchers.io + SupervisorJob()
+    lMediaKV: LMediaKV
+) : MediaSource, MediaDataSource {
+    private val scope = CoroutineScope(Dispatchers.Default)
     override val name: String = "AndroidFileSystemSource"
+    private val filePath = lMediaKV.obtain<String>("file_path")
+    private val stateFlow = MutableStateFlow(Snapshot.Loading)
+    private var runningJob: Job? = null
 
-    private val filePathState = lMediaKV.obtain<String>("file_path")
-    private val selectedFile = filePathState.flow()
-        .mapLatest { path ->
-            runCatching {
-                PlatformFile.fromBookmarkData(path.encodeToByteArray())
-            }.getOrElse {
-                Logger.i(tag = name, messageString = "访问失败：${it.message}")
-                PlatformFile(path)
-            }.takeIf { it.exists() }
+    override fun source(): Flow<Snapshot> = stateFlow
+    override val dataSource: MediaDataSource = this
+
+    private val store = store<AndroidFileSystemSourceState, AndroidFileSystemSourceIntent, MVIAction>(
+        initial = AndroidFileSystemSourceState(FileSystemScannerCardState.NotSelected),
+        scope = scope
+    ) {
+        configure {
+            name = this@AndroidFileSystemSource.name
+        }
+        recover {
+            updateState {
+                FileSystemScannerCardState.Error(
+                    error = it,
+                    path = filePath.value
+                ).state()
+            }
+            null
+        }
+        reduce { intent ->
+            when (intent) {
+                is AndroidFileSystemSourceIntent.SelectFile -> {
+                    runningJob?.cancel()
+                    runningJob = launch { stateFlow.value = loadPath(path = intent.path) }
+                }
+
+                is AndroidFileSystemSourceIntent.ReStartScanning -> {
+                    runningJob?.cancel()
+                    runningJob = launch { stateFlow.value = loadPath(path = filePath.value) }
+                }
+
+                is AndroidFileSystemSourceIntent.CancelScanning -> {
+                    runningJob?.cancel()
+                    updateState {
+                        FileSystemScannerCardState.Error(
+                            error = RuntimeException("Cancel"),
+                            path = filePath.value
+                        ).state()
+                    }
+                }
+            }
+        }
+    }
+
+    init {
+        scope.launch {
+            store.awaitStartup()
+            store.intent(AndroidFileSystemSourceIntent.SelectFile(filePath.value))
+        }
+    }
+
+    private suspend fun Ctx.loadPath(
+        path: String
+    ): Snapshot = withContext(Dispatchers.Unconfined) {
+        val progressState = mutableStateOf(0f)
+        val messageState = mutableStateOf("")
+
+        filePath.value = path
+
+        updateState {
+            FileSystemScannerCardState.Scanning(
+                progress = { progressState.value },
+                message = { messageState.value },
+                path = path
+            ).state()
         }
 
-    private val sourceStateFlow = selectedFile.map { root ->
-        root?.filterChildren { file ->
+        val root = PlatformFile.fromBookmarkData(path.encodeToByteArray())
+        val files = root.filterChildren { file ->
             if (file.isDirectory()) return@filterChildren false
             if (file.size() < 10) return@filterChildren false
 
+            messageState.value = file.name
             MagicNumber.match(
                 ext = file.extension,
                 source = file.source().buffered()
             ) != null
         }
-    }.map { files ->
-        files?.map { it.androidFile }?.mapNotNull { file ->
-            when (file) {
-                is AndroidFile.FileWrapper -> {
-                    val metadata = Taglib.readMetadata(path = file.file.absolutePath)
-                        ?: return@mapNotNull null
 
-                    SourceItem.FileItem(file.file) to metadata
-                }
+        val results = files.map { it.androidFile }.mapIndexed { index, file ->
+            async(Dispatchers.io) {
+                when (file) {
+                    is AndroidFile.FileWrapper -> {
+                        val metadata = Taglib.readMetadata(path = file.file.absolutePath)
+                            ?: return@async null
+                        ensureActive()
 
-                is AndroidFile.UriWrapper -> {
-                    val metadata = context.contentResolver
-                        .openFileDescriptor(file.uri, "r")
-                        ?.use { Taglib.readMetadata(fd = it.detachFd()) }
-                        ?: return@mapNotNull null
+                        val newProgress = (index + 1).toFloat() / files.size.toFloat()
+                        progressState.value = maxOf(progressState.value, newProgress)
 
-                    SourceItem.UriItem(file.uri) to metadata
+                        messageState.value = metadata.title
+                        SourceItem.FileItem(file.file) to metadata
+                    }
+
+                    is AndroidFile.UriWrapper -> {
+                        val metadata = context.contentResolver
+                            .openFileDescriptor(file.uri, "r")
+                            ?.use { Taglib.readMetadata(fd = it.detachFd()) }
+                            ?: return@async null
+                        ensureActive()
+
+                        val newProgress = (index + 1).toFloat() / files.size.toFloat()
+                        progressState.value = maxOf(progressState.value, newProgress)
+
+                        messageState.value = metadata.title
+                        SourceItem.UriItem(file.uri) to metadata
+                    }
                 }
             }
-        } ?: emptyList()
-    }.map { result ->
-        val songs = result.map { (source, metadata) ->
-            LAudio(
-                id = source.key,
-                title = metadata.title,
-                subtitle = metadata.artist,
-                sourceItem = source,
-                metadata = metadata,
-                mediaSourceName = this@AndroidFileSystemSource.name
-            )
         }
 
-        songs.buildSnapshot()
-    }.stateIn(this, SharingStarted.Lazily, Snapshot.Loading)
+        val songs = results
+            .awaitAll()
+            .filterNotNull()
+            .map { (source, metadata) ->
+                LAudio(
+                    id = source.key,
+                    title = metadata.title,
+                    subtitle = metadata.artist,
+                    sourceItem = source,
+                    metadata = metadata,
+                    mediaSourceName = this@AndroidFileSystemSource.name
+                )
+            }
 
-    override fun source(): Flow<Snapshot> = sourceStateFlow
-    override val dataSource: MediaDataSource = this
+        songs.buildSnapshot().also {
+            updateState {
+                FileSystemScannerCardState.Success(
+                    result = it,
+                    path = path
+                ).state()
+            }
+        }
+    }
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
+        val audio = stateFlow.value.audios.firstOrNull { it.id == song.id }
 
         val sourceItem = audio?.sourceItem
             ?: throw IllegalArgumentException("Invalid id: ${song.id}")
@@ -143,7 +239,7 @@ class AndroidFileSystemSource(
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? = withContext(Dispatchers.io) {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
+        val audio = stateFlow.value.audios.firstOrNull { it.id == song.id }
 
         val sourceItem = audio?.sourceItem
             ?: throw IllegalArgumentException("Invalid id: ${song.id}")
@@ -185,7 +281,7 @@ class AndroidFileSystemSource(
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? = withContext(Dispatchers.io) {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
+        val audio = stateFlow.value.audios.firstOrNull { it.id == song.id }
 
         val sourceItem = audio?.sourceItem
             ?: throw IllegalArgumentException("Invalid id: ${song.id}")
@@ -208,66 +304,61 @@ class AndroidFileSystemSource(
         }
     }
 
+    @OptIn(InternalFlowMVIAPI::class)
     @Composable
     override fun Content(modifier: Modifier) {
         val scope = rememberCoroutineScope()
+        val state = store.states.collectAsState()
         val launcher = rememberDirectoryPickerLauncher {
             if (it == null) {
-                filePathState.value = ""
                 return@rememberDirectoryPickerLauncher
             }
 
             scope.launch(Dispatchers.io) {
-                filePathState.value = it.bookmarkData()
-                    .bytes.decodeToString()
+                val path = it.bookmarkData().bytes.decodeToString()
+                store.intent(AndroidFileSystemSourceIntent.SelectFile(path))
             }
         }
-        val source by remember { source() }
-            .collectAsState(Snapshot.Empty)
 
-        Card(modifier = modifier) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(text = name)
-
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                ) {
-                    source.audios.forEach {
-                        Text(text = "${it.title} - ${it.subtitle}")
-                    }
-                }
-
-                Button(onClick = { launcher.launch() }) {
-                    Text(text = "Select Directory")
+        FileSystemScannerCard(
+            modifier = modifier,
+            state = state.value.uiState,
+            onIntent = { intent ->
+                when (intent) {
+                    FileSystemScannerCardIntent.Select -> launcher.launch()
+                    FileSystemScannerCardIntent.Cancel -> store.intent(AndroidFileSystemSourceIntent.CancelScanning)
+                    FileSystemScannerCardIntent.ReScan -> store.intent(AndroidFileSystemSourceIntent.ReStartScanning)
                 }
             }
-        }
+        )
     }
 }
 
-private fun PlatformFile.filterChildren(block: (file: PlatformFile) -> Boolean): Collection<PlatformFile> {
+private suspend fun PlatformFile.filterChildren(
+    block: suspend (file: PlatformFile) -> Boolean
+): Collection<PlatformFile> = withContext(Dispatchers.io) {
     // 若不是文件夹，则无法遍历
-    if (!this.isDirectory()) {
+    if (!this@filterChildren.isDirectory()) {
         // 若根元素即满足要求，且其不是文件夹，则直接返回根元素，否则直接返回空数组
-        return if (block(this)) listOf(this) else emptyList()
+        return@withContext if (block(this@filterChildren)) listOf(this@filterChildren) else emptyList()
     }
 
-    val directory = mutableSetOf<PlatformFile>(this)
-    val result = mutableSetOf<PlatformFile>()
+    val directory = mutableSetOf(this@filterChildren)
+    val list = mutableSetOf<PlatformFile>()
 
-    while (directory.isNotEmpty()) {
-        val children = directory.map { it.list() }
+    while (isActive && directory.isNotEmpty()) {
+        val files = directory.map { it.list() }
             .flatten()
 
+        val results = files
+            .map { async { Triple(it, it.isDirectory(), block(it)) } }
+            .awaitAll()
+
         directory.clear()
-        children.forEach {
-            if (it.isDirectory()) directory.add(it)
-            if (block(it)) result.add(it)
+        for ((item, isDirectory, satisfy) in results) {
+            if (isDirectory) directory.add(item)
+            if (satisfy) list.add(item)
         }
     }
-
-    return result
+    list
 }
