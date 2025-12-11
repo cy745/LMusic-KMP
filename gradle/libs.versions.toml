@@ -28,6 +28,7 @@ rococoa = "4d401915af"
 human-readable = "1.12.0"
 xmlutil = "0.91.2"
 materialKolor = "4.0.4"
+flowmvi = "3.2.1"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -117,6 +118,13 @@ media3-common = { module = "androidx.media3:media3-common", version.ref = "media
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 
+flowmvi-core = { module = "pro.respawn.flowmvi:core", version.ref = "flowmvi" }
+flowmvi-test = { module = "pro.respawn.flowmvi:test", version.ref = "flowmvi" }
+flowmvi-compose = { module = "pro.respawn.flowmvi:compose", version.ref = "flowmvi" }
+flowmvi-android = { module = "pro.respawn.flowmvi:android", version.ref = "flowmvi" }
+flowmvi-savedstate = { module = "pro.respawn.flowmvi:savedstate", version.ref = "flowmvi" }
+flowmvi-debugger = { module = "pro.respawn.flowmvi:debugger-plugin", version.ref = "flowmvi" }
+
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
@@ -138,6 +146,7 @@ stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", ve
 coil = ["coil-compose", "coil-ktor", "coil-svg"]
 settings = ["settings", "settings-coroutines", "settings-make-observable", "settings-no-arg", "settings-serialization"]
 rococoa = ["rococoa-cocoa", "rococoa-contrib", "rococoa-core"]
+flowmvi = ["flowmvi-core", "flowmvi-test", "flowmvi-compose", "flowmvi-android", "flowmvi-savedstate"]
 jbx = [
     "jbx-navigation3-ui",
     "jbx-lifecycle-viewmodel-compose",

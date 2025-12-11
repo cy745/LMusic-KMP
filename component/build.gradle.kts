@@ -64,6 +64,7 @@ kotlin {
                 api(libs.bundles.jbx)
                 api(libs.bundles.coil)
                 api(libs.bundles.settings)
+                api(libs.bundles.flowmvi)
                 api(libs.koin.compose)
                 api(libs.koin.compose.viewmodel)
                 api(libs.remixicon.kmp)
