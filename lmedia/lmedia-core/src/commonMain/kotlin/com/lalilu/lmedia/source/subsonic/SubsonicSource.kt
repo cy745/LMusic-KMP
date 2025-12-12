@@ -1,7 +1,5 @@
 package com.lalilu.lmedia.source.subsonic
 
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.retrieveAllPage
@@ -37,7 +35,7 @@ class SubsonicSource(
     /**
      * 客户端配置参数
      */
-    private val configItem = lMediaKV.obtain<SubsonicConfig>(
+    val configItem = lMediaKV.obtain<SubsonicConfig>(
         key = "SUBSONIC_CONFIG",
         defaultValue = SubsonicConfig.Empty
     ).apply { disableAutoSave() }
@@ -177,13 +175,5 @@ class SubsonicSource(
                 "&c=${configItem.value.client}" +
                 "&f=${configItem.value.format}" +
                 extraStr
-    }
-
-    @Composable
-    override fun Content(modifier: Modifier) {
-        SubsonicSourceContent(
-            modifier = modifier,
-            configItem = configItem
-        )
     }
 }

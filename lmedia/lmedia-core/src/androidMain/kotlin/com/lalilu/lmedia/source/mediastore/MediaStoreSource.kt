@@ -7,13 +7,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.source.MediaSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,7 +14,6 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -60,15 +52,6 @@ class MediaStoreSource(
                 send(scanner.scan())
             }
             awaitClose {
-            }
-        }
-    }
-
-    @Composable
-    override fun Content(modifier: Modifier) {
-        Card(modifier = modifier) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = name)
             }
         }
     }

@@ -1,7 +1,5 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
@@ -54,12 +52,12 @@ class RemoteSource(
     /**
      * 客户端配置参数
      */
-    private val configItem = lMediaKV.obtain<RemoteSourceConfig>(
+    val configItem = lMediaKV.obtain<RemoteSourceConfig>(
         key = "REMOTE_CONFIG",
         defaultValue = RemoteSourceConfig.Empty
     )
 
-    private val configFlow = configItem.flow()
+    val configFlow = configItem.flow()
 
     /**
      * 客户端对象，使用Flow封装，当上游配置改变时，会重新创建客户端对象
@@ -173,36 +171,4 @@ class RemoteSource(
 
     override val dataSource: MediaDataSource = this
     override fun source(): Flow<Snapshot> = snapshotStateFlow
-
-    @Composable
-    override fun Content(modifier: Modifier) {
-        val config by configFlow.collectAsState(RemoteSourceConfig.Empty)
-        val enable = remember(config) { mutableStateOf(config.enable) }
-        val url = remember(config) { mutableStateOf(config.url) }
-        val password = remember(config) { mutableStateOf(config.password) }
-        val edited = remember(config) {
-            derivedStateOf { enable.value != config.enable || url.value != config.url || password.value != config.password }
-        }
-        val source by remember { source() }.collectAsState(
-            initial = Snapshot.Empty,
-            context = Dispatchers.io
-        )
-
-        RemoteSourceContent(
-            modifier = modifier,
-            title = name,
-            url = url,
-            password = password,
-            enable = enable,
-            enableUpdateConfig = { edited.value },
-            itemsCount = source.audios.size,
-            onUpdateConfig = {
-                configItem.value = RemoteSourceConfig(
-                    enable = enable.value,
-                    url = url.value,
-                    password = password.value
-                )
-            }
-        )
-    }
 }

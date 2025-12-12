@@ -1,8 +1,5 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import kotlinx.coroutines.flow.Flow
@@ -68,9 +65,4 @@ interface MediaSource : MediaSourceBase {
      * 媒体数据源
      */
     val dataSource: MediaDataSource get() = MediaDataSource.Empty
-
-    @Composable
-    fun Content(modifier: Modifier = Modifier) {
-        Text("$name not implemented")
-    }
 }

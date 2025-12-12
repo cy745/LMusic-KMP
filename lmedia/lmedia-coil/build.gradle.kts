@@ -35,17 +35,7 @@ kotlin {
             iosX64(),
             iosArm64(),
             iosSimulatorArm64()
-        ).forEach {
-            it.compilations.getByName("main") {
-                cinterops {
-                    create("MusicKitWrapper")
-                    create("Taglib") {
-                        definitionFile.set(file("src/nativeInterop/taglib/Taglib.def"))
-                        headers(file("src/nativeInterop/taglib/include/taglib/tag_c.h"))
-                    }
-                }
-            }
-        }
+        )
     }
     wasmJs {
         browser()
@@ -55,20 +45,8 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                api(project(":common"))
-                api(libs.bundles.flowmvi)
-                api(libs.koin.core)
-                api(libs.koin.annotations)
-                api(libs.kotlinx.coroutines.core)
-                api(libs.kotlinx.io)
-                api(libs.filekit.core)
-                api(libs.bundles.settings)
-                api(libs.ktor.server.core)
-                api(libs.ktor.server.cors)
-                api(libs.ktor.server.cio)
-                api(libs.ktor.server.content.negotiation)
-                api(libs.ktorfit)
-                api(kotlincrypto.hash.md)
+                api(project(":component"))
+                api(project(":lmedia:lmedia-core"))
             }
         }
         val commonTest by getting {
@@ -81,19 +59,8 @@ kotlin {
         androidMain.dependencies {
         }
         jvmMain.dependencies {
-            implementation(libs.native.lib.loader)
         }
         wasmJsMain.dependencies {
-            implementation(npm("taglib-wasm", "0.5.4"))
-        }
-    }
-}
-
-XcodeDetector.whenXcodeInstalled {
-    swiftklib {
-        create("MusicKitWrapper") {
-            path = file("src/nativeInterop/MusicKitWrapper")
-            packageName("com.lalilu.lmedia")
         }
     }
 }
@@ -117,7 +84,7 @@ mavenPublishing {
     coordinates(
         groupId = group.toString(),
         version = version.toString(),
-        artifactId = "core",
+        artifactId = "coil",
     )
 
     configure(

@@ -2,11 +2,9 @@ package com.lalilu.lmedia.source.filesystem
 
 import android.annotation.SuppressLint
 import android.app.Application
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Modifier
 import androidx.core.net.toUri
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
@@ -20,12 +18,10 @@ import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaDataSource
 import com.lalilu.lmedia.source.MediaSource
 import io.github.vinceglb.filekit.*
-import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.io.buffered
-import pro.respawn.flowmvi.annotation.InternalFlowMVIAPI
 import pro.respawn.flowmvi.api.MVIAction
 import pro.respawn.flowmvi.api.MVIIntent
 import pro.respawn.flowmvi.api.MVIState
@@ -35,13 +31,25 @@ import pro.respawn.flowmvi.plugins.recover
 import pro.respawn.flowmvi.plugins.reduce
 import java.io.FileNotFoundException
 
-internal data class AndroidFileSystemSourceState(
-    val uiState: FileSystemScannerCardState = FileSystemScannerCardState.NotSelected
-) : MVIState
+@Stable
+@Immutable
+sealed interface AndroidFileSystemSourceState : MVIState {
+    data object NotSelected : AndroidFileSystemSourceState
+    abstract class Selected(open val path: String) : AndroidFileSystemSourceState
+    abstract class Finished(override val path: String) : Selected(path = path)
 
-internal fun FileSystemScannerCardState.state() = AndroidFileSystemSourceState(this)
+    data class Scanning(
+        val progress: () -> Float,
+        val message: (() -> String)? = null,
+        override val path: String
+    ) : Selected(path = path)
 
-internal sealed interface AndroidFileSystemSourceIntent : MVIIntent {
+    data class Success(val result: Snapshot, override val path: String) : Finished(path = path)
+    data class Error(val error: Throwable, override val path: String) : Finished(path = path)
+}
+
+
+sealed interface AndroidFileSystemSourceIntent : MVIIntent {
     data class SelectFile(val path: String) : AndroidFileSystemSourceIntent
     data object CancelScanning : AndroidFileSystemSourceIntent
     data object ReStartScanning : AndroidFileSystemSourceIntent
@@ -64,8 +72,8 @@ class AndroidFileSystemSource(
     override fun source(): Flow<Snapshot> = stateFlow
     override val dataSource: MediaDataSource = this
 
-    private val store = store<AndroidFileSystemSourceState, AndroidFileSystemSourceIntent, MVIAction>(
-        initial = AndroidFileSystemSourceState(FileSystemScannerCardState.NotSelected),
+    val store = store<AndroidFileSystemSourceState, AndroidFileSystemSourceIntent, MVIAction>(
+        initial = AndroidFileSystemSourceState.NotSelected,
         scope = scope
     ) {
         configure {
@@ -73,10 +81,10 @@ class AndroidFileSystemSource(
         }
         recover {
             updateState {
-                FileSystemScannerCardState.Error(
+                AndroidFileSystemSourceState.Error(
                     error = it,
                     path = filePath.value
-                ).state()
+                )
             }
             null
         }
@@ -95,10 +103,10 @@ class AndroidFileSystemSource(
                 is AndroidFileSystemSourceIntent.CancelScanning -> {
                     runningJob?.cancel()
                     updateState {
-                        FileSystemScannerCardState.Error(
+                        AndroidFileSystemSourceState.Error(
                             error = RuntimeException("Cancel"),
                             path = filePath.value
-                        ).state()
+                        )
                     }
                 }
             }
@@ -121,11 +129,11 @@ class AndroidFileSystemSource(
         filePath.value = path
 
         updateState {
-            FileSystemScannerCardState.Scanning(
+            AndroidFileSystemSourceState.Scanning(
                 progress = { progressState.value },
                 message = { messageState.value },
                 path = path
-            ).state()
+            )
         }
 
         val root = PlatformFile.fromBookmarkData(path.encodeToByteArray())
@@ -188,10 +196,10 @@ class AndroidFileSystemSource(
 
         songs.buildSnapshot().also {
             updateState {
-                FileSystemScannerCardState.Success(
+                AndroidFileSystemSourceState.Success(
                     result = it,
                     path = path
-                ).state()
+                )
             }
         }
     }
@@ -302,35 +310,6 @@ class AndroidFileSystemSource(
 
             else -> null
         }
-    }
-
-    @OptIn(InternalFlowMVIAPI::class)
-    @Composable
-    override fun Content(modifier: Modifier) {
-        val scope = rememberCoroutineScope()
-        val state = store.states.collectAsState()
-        val launcher = rememberDirectoryPickerLauncher {
-            if (it == null) {
-                return@rememberDirectoryPickerLauncher
-            }
-
-            scope.launch(Dispatchers.io) {
-                val path = it.bookmarkData().bytes.decodeToString()
-                store.intent(AndroidFileSystemSourceIntent.SelectFile(path))
-            }
-        }
-
-        FileSystemScannerCard(
-            modifier = modifier,
-            state = state.value.uiState,
-            onIntent = { intent ->
-                when (intent) {
-                    FileSystemScannerCardIntent.Select -> launcher.launch()
-                    FileSystemScannerCardIntent.Cancel -> store.intent(AndroidFileSystemSourceIntent.CancelScanning)
-                    FileSystemScannerCardIntent.ReScan -> store.intent(AndroidFileSystemSourceIntent.ReStartScanning)
-                }
-            }
-        )
     }
 }
 
