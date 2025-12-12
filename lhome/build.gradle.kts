@@ -39,7 +39,7 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation(project(":component"))
-                implementation(project(":lmedia"))
+                implementation(project(":lmedia:lmedia-core"))
                 implementation(project(":lplayer"))
                 implementation(libs.remixicon.kmp)
                 api(compose.preview)

@@ -54,7 +54,7 @@ kotlin {
                 api(compose.preview)
                 api(compose.components.resources)
                 api(project(":component"))
-                api(project(":lmedia"))
+                api(project(":lmedia:lmedia-core"))
                 api(project(":llyricview"))
                 api(libs.koin.core)
                 api(libs.koin.annotations)

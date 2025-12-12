@@ -73,7 +73,7 @@ kotlin {
         }
         commonMain.dependencies {
             implementation(project(":component"))
-            implementation(project(":lmedia"))
+            implementation(project(":lmedia:lmedia-core"))
             implementation(project(":lplayer"))
             implementation(project(":llyricview"))
             implementation(project(":lhome"))
