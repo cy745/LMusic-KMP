@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.rpc
+package com.lalilu.lmedia.remote
 
 import kotlinx.serialization.Serializable
 

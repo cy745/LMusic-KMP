@@ -6,7 +6,7 @@ import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.rpc.RemoteServerConfig
+import com.lalilu.lmedia.remote.RemoteServerConfig
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaSource
 import io.ktor.http.ContentType

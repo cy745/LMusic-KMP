@@ -48,6 +48,9 @@ kotlin {
                 api(compose.components.resources)
                 api(project(":component"))
                 api(project(":lmedia:lmedia-core"))
+                api(project(":lmedia:lmedia-server"))
+                api(project(":lmedia:lmedia-client"))
+
 //                api(libs.compose.adaptive)
                 api(libs.koin.core)
                 api(libs.koin.annotations)
@@ -57,11 +60,6 @@ kotlin {
                 api(libs.filekit.dialogs)
                 api(libs.filekit.dialogs.compose)
                 api(libs.bundles.settings)
-                api(libs.ktor.server.core)
-                api(libs.ktor.server.cors)
-                api(libs.ktor.server.cio)
-                api(libs.ktor.server.content.negotiation)
-                api(libs.ktorfit)
                 api(kotlincrypto.hash.md)
             }
         }

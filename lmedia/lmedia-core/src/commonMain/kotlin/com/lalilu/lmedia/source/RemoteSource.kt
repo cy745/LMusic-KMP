@@ -6,6 +6,7 @@ import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItemDefaults
+import com.lalilu.lmedia.remote.RemoteSourceConfig
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.*
@@ -17,20 +18,9 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.coroutines.CoroutineContext
 
-@Serializable
-data class RemoteSourceConfig(
-    val enable: Boolean = false,
-    val url: String = "",
-    val password: String = ""
-) {
-    companion object {
-        val Empty = RemoteSourceConfig()
-    }
-}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSource(
