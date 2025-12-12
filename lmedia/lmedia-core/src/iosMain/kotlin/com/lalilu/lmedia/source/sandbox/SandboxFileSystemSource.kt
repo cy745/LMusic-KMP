@@ -1,7 +1,5 @@
 package com.lalilu.lmedia.source.sandbox
 
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import com.lalilu.common.ext.io
 import com.lalilu.common.flow.toUpdatableFlow
 import com.lalilu.lmedia.MagicNumber
@@ -109,14 +107,6 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
         }
 
         MediaData.Bytes(file.readBytes())
-    }
-
-    @Composable
-    override fun Content(modifier: Modifier) {
-        SandBoxFileSystemSourceContent(
-            modifier = modifier,
-            onSourceUpdate = { sourceFlow.requireUpdate() }
-        )
     }
 }
 

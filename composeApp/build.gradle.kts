@@ -74,6 +74,8 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":component"))
             implementation(project(":lmedia:lmedia-core"))
+            implementation(project(":lmedia:lmedia-coil"))
+            implementation(project(":lmedia:lmedia-ui"))
             implementation(project(":lplayer"))
             implementation(project(":llyricview"))
             implementation(project(":lhome"))

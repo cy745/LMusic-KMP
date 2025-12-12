@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.lmedia.generated.resources.Res
+//import com.lalilu.lmedia.lmedia.generated.resources.Res
 import com.lalilu.lmedia.rpc.EngineServer
 import com.lalilu.lmedia.rpc.serverEngineFactory
 import io.github.vinceglb.filekit.*
@@ -130,10 +130,10 @@ object SandBoxFileSystemServer : CoroutineScope, KoinComponent {
 
             routing {
                 get("/") {
-                    call.respondBytes(
-                        contentType = ContentType.Text.Html,
-                        bytes = Res.readBytes("files/index.html")
-                    )
+//                    call.respondBytes(
+//                        contentType = ContentType.Text.Html,
+//                        bytes = Res.readBytes("files/index.html")
+//                    )
                 }
 
                 // 获取文件列表
