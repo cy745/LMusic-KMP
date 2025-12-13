@@ -2,6 +2,7 @@ package com.lalilu.lmusic
 
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.chunked
+import com.lalilu.common.ext.KModule
 import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.generated.KRouterInjectMap
 import com.lalilu.lhome.LHomeModule
@@ -15,6 +16,7 @@ import com.russhwolf.settings.ObservableSettings
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.observable.makeObservable
 import com.skydoves.compose.stability.runtime.ComposeStabilityAnalyzer
+import dev.whyoleg.sweetspi.ServiceLoader
 import kotlinx.serialization.json.Json
 import org.koin.core.KoinApplication
 import org.koin.core.annotation.ComponentScan
@@ -34,6 +36,10 @@ fun KoinApplication.koinSetup() {
     modules(LMediaModule.module)
     modules(LHomeModule.module)
     modules(LPlayerModule.module)
+    modules(
+        ServiceLoader.load(KModule::class)
+            .map(KModule::get)
+    )
 }
 
 private val SharedModule = module {

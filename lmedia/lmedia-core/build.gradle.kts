@@ -20,6 +20,7 @@ plugins {
     alias(libs.plugins.ktorfit)
 }
 
+val artifactId = "core"
 group = "com.lalilu.lmedia"
 version = "1.0.0"
 
@@ -103,7 +104,7 @@ dependencies {
 }
 
 android {
-    namespace = group.toString()
+    namespace = "$group.$artifactId"
     compileSdk = libs.versions.android.targetSdk.get().toInt()
 
     defaultConfig {
@@ -117,7 +118,7 @@ mavenPublishing {
     coordinates(
         groupId = group.toString(),
         version = version.toString(),
-        artifactId = "core",
+        artifactId = artifactId,
     )
 
     configure(

@@ -72,6 +72,7 @@ kotlin {
             implementation(libs.androidx.activity.compose)
         }
         commonMain.dependencies {
+            implementation(project(":common"))
             implementation(project(":component"))
             implementation(project(":lmedia:lmedia-core"))
             implementation(project(":lmedia:lmedia-coil"))
@@ -129,7 +130,11 @@ android {
     }
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // 合并所有META-INF/services下的文件，而不是覆盖
+            merges += "/META-INF/services/*"
+            pickFirsts += "/META-INF/{AL2.0,LGPL2.1}"
+            pickFirsts += "/META-INF/INDEX.LIST"
+            pickFirsts += "/META-INF/io.netty.versions.properties"
         }
     }
     buildTypes {
@@ -148,10 +153,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-    packaging {
-        resources.pickFirsts.add("META-INF/INDEX.LIST")
-        resources.pickFirsts.add("META-INF/io.netty.versions.properties")
     }
 }
 

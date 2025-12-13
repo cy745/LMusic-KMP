@@ -20,6 +20,7 @@ plugins {
     alias(libs.plugins.ktorfit)
 }
 
+val artifactId = "server"
 group = "com.lalilu.lmedia"
 version = "1.0.0"
 
@@ -78,11 +79,14 @@ kotlin {
 }
 
 dependencies {
+    add("kspJvm", libs.sweetspi.processor)
+    add("kspAndroid", libs.sweetspi.processor)
+    kspCommonMainMetadata(libs.sweetspi.processor)
     kspCommonMainMetadata(libs.koin.compiler)
 }
 
 android {
-    namespace = group.toString()
+    namespace = "$group.$artifactId"
     compileSdk = libs.versions.android.targetSdk.get().toInt()
 
     defaultConfig {
@@ -96,7 +100,7 @@ mavenPublishing {
     coordinates(
         groupId = group.toString(),
         version = version.toString(),
-        artifactId = "server",
+        artifactId = artifactId,
     )
 
     configure(
