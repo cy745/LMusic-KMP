@@ -12,6 +12,7 @@ plugins {
     alias(libs.plugins.composeMultiplatform) apply false
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
+    alias(libs.plugins.kotlinSerialization) apply false
     alias(libs.plugins.androidMultiplatformLibrary) apply false
     alias(libs.plugins.vanniktech.pulish) apply false
     alias(libs.plugins.dokka) apply false
@@ -19,6 +20,7 @@ plugins {
     alias(libs.plugins.ktorfit) apply false
     alias(libs.plugins.stability.analyzer) apply false
     alias(libs.plugins.krouter.plugin)
+    id("build-logic")
 }
 
 // 配置注入遍历的起点项目
