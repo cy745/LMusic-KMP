@@ -6,6 +6,7 @@ import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
+import org.jetbrains.kotlin.gradle.plugin.KotlinTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinCommonCompilation
 import kotlin.jvm.optionals.getOrNull
 
@@ -26,21 +27,32 @@ fun Project.applySweetSpi() {
         ?.let { "${it.module}:${it.version}" }
         ?: throw IllegalStateException("sweetSpiRuntime is not found for alias [${Constants.SWEET_SPI_RUNTIME_ALIAS}]")
 
-
     plugins.withId(Constants.KOTLIN_MULTIPLATFORM_PLUGIN) {
         extensions.configure<KotlinMultiplatformExtension> {
+            project.dependencies.apply {
+                add("kspCommonMainMetadata", sweetSpiProcessor)
+            }
 
             targets.forEach { target ->
-                target.compilations.forEach { compilation ->
-                    val configurationName = getKotlinConfigurationName(compilation) ?: return@forEach
+                getKspConfigurationName(target).forEach { configurationName ->
+                    project.dependencies.add(configurationName, sweetSpiProcessor)
+                }
 
-                    project.dependencies.apply {
-                        add(configurationName, sweetSpiProcessor)
-                        add(compilation.defaultSourceSet.implementationConfigurationName, sweetSpiRuntime)
-                    }
+                target.compilations.forEach { compilation ->
+                    val configurationName = compilation.defaultSourceSet.implementationConfigurationName
+                    project.dependencies.add(configurationName, sweetSpiRuntime)
                 }
             }
         }
+    }
+}
+
+private fun getKspConfigurationName(target: KotlinTarget): List<String> {
+    val targetName = target.name
+
+    return when {
+        targetName == "android" -> listOf("kspAndroid", "kspAndroidTest")
+        else -> target.compilations.mapNotNull { getKotlinConfigurationName(it) }
     }
 }
 
