@@ -20,7 +20,7 @@ kotlin {
     jvm()
     androidTarget {
         compilerOptions {
-            jvmTarget = JvmTarget.JVM_11
+            // jvmTarget = JvmTarget.JVM_11
         }
     }
     XcodeDetector.whenXcodeInstalled {

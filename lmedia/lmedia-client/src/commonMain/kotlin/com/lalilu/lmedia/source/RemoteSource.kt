@@ -19,9 +19,11 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.Json
+import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
 
 
+@Single(createdAtStart = true)
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSource(
     lMediaKV: LMediaKV,

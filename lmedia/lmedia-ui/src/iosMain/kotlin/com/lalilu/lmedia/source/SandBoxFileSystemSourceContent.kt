@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.source.sandbox
+package com.lalilu.lmedia.source
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -9,16 +9,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.lalilu.common.ext.io
 import com.lalilu.lmedia.util.IfAddresses
-import com.lalilu.lmedia.util.IfaddrsInteractor
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import qrcode.QRCode
-import qrcode.color.Colors
 
 @OptIn(ExperimentalForeignApi::class)
 @Composable
@@ -31,46 +23,46 @@ fun SandBoxFileSystemSourceContent(
     val qrCodeData = remember { mutableStateOf<ByteArray?>(null) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        delay(2000)
-        if (isActive) {
-            SandBoxFileSystemServer.start(
-                onStart = { urls ->
-                    scope.launch(Dispatchers.io) {
-                        val url = urls.firstOrNull() ?: "hello world"
-                        address.value = IfaddrsInteractor.get(setOf("wlan0", "en0")).toList()
-                        val ip = address.value.firstOrNull { it.afInet?.startsWith("192") == true }
-                            ?.afInet ?: ""
+//    LaunchedEffect(Unit) {
+//        delay(2000)
+//        if (isActive) {
+//            SandBoxFileSystemServer.start(
+//                onStart = { urls ->
+//                    scope.launch(Dispatchers.io) {
+//                        val url = urls.firstOrNull() ?: "hello world"
+//                        address.value = IfaddrsInteractor.get(setOf("wlan0", "en0")).toList()
+//                        val ip = address.value.firstOrNull { it.afInet?.startsWith("192") == true }
+//                            ?.afInet ?: ""
+//
+//                        val actualUrl = url.replace("0.0.0.0", ip)
+//                        currentIp.value = actualUrl
+//
+//                        val qrCode = QRCode.ofSquares()
+//                            .withColor(Colors.BLACK)
+//                            .withSize(10)
+//                            .build(actualUrl)
+//
+//                        val bytes = qrCode.renderToBytes()
+//
+//                        qrCodeData.value = bytes
+//                    }
+//                },
+//                onSourceUpdate = {
+//                    onSourceUpdate()
+//                }
+//            )
+//        }
+//    }
 
-                        val actualUrl = url.replace("0.0.0.0", ip)
-                        currentIp.value = actualUrl
-
-                        val qrCode = QRCode.ofSquares()
-                            .withColor(Colors.BLACK)
-                            .withSize(10)
-                            .build(actualUrl)
-
-                        val bytes = qrCode.renderToBytes()
-
-                        qrCodeData.value = bytes
-                    }
-                },
-                onSourceUpdate = {
-                    onSourceUpdate()
-                }
-            )
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose { SandBoxFileSystemServer.stop() }
-    }
+//    DisposableEffect(Unit) {
+//        onDispose { SandBoxFileSystemServer.stop() }
+//    }
 
     Card(modifier = modifier) {
         Box(modifier = Modifier.padding(16.dp)) {
             Column {
                 Text(text = "SandBoxFileSystemSource", style = MaterialTheme.typography.headlineLarge)
-                Text(text = "Server status: isRunning: ${SandBoxFileSystemServer.server != null}")
+//                Text(text = "Server status: isRunning: ${SandBoxFileSystemServer.server != null}")
                 Text(text = "Server url: ${currentIp.value}")
 
                 qrCodeData.value?.let {

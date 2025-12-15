@@ -1,6 +1,5 @@
 package com.lalilu.lmedia
 
-import com.lalilu.lmedia.source.RemoteSource
 import com.lalilu.lmedia.source.sandbox.SandboxFileSystemSource
 import com.lalilu.lmedia.source.subsonic.SubsonicSource
 import org.koin.core.scope.Scope
@@ -9,6 +8,6 @@ actual fun Scope.provideMediaSources(): PlatformMediaSource = PlatformMediaSourc
 //    MediaLibrarySource,
 //    MusicKitSource,
     SandboxFileSystemSource,
-    ::RemoteSource.reverseInject(),
+//    ::RemoteSource.reverseInject(),
     ::SubsonicSource.reverseInject(),
 )

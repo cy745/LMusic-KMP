@@ -1,10 +1,9 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
+import com.lalilu.*
 import com.lalilu.gradle.XcodeDetector
-import com.vanniktech.maven.publish.JavadocJar
-import com.vanniktech.maven.publish.KotlinMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCompilation
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -20,24 +19,14 @@ plugins {
     alias(libs.plugins.ktorfit)
 }
 
-val artifactId = "core"
 group = "com.lalilu.lmedia"
 version = "1.0.0"
+extra.set("artifactId", "core")
 
-kotlin {
-    jvm()
-    androidTarget {
-        compilerOptions {
-            jvmTarget = JvmTarget.JVM_11
-        }
-    }
-    XcodeDetector.whenXcodeInstalled {
-        listOf(
-            iosX64(),
-            iosArm64(),
-            iosSimulatorArm64()
-        ).forEach {
-            it.compilations.getByName("main") {
+applyMultiplatform(configureBlock = {
+    targets.filter { it.name.startsWith("ios") }
+        .forEach {
+            it.compilations.getByName<KotlinNativeCompilation>("main") {
                 cinterops {
                     create("MusicKitWrapper")
                     create("Taglib") {
@@ -47,46 +36,31 @@ kotlin {
                 }
             }
         }
+}) {
+    main.dependencies {
+        api(project(":common"))
+        api(libs.bundles.flowmvi)
+        api(libs.koin.core)
+        api(libs.koin.annotations)
+        api(libs.kotlinx.coroutines.core)
+        api(libs.kotlinx.io)
+        api(libs.filekit.core)
+        api(libs.bundles.settings)
+        api(libs.ktor.server.core)
+        api(libs.ktor.server.cors)
+        api(libs.ktor.server.cio)
+        api(libs.ktor.server.content.negotiation)
+        api(libs.ktorfit)
+        api(kotlincrypto.hash.md)
     }
-    wasmJs {
-        browser()
-        binaries.executable()
+    test.dependencies {
+        implementation(libs.kotlin.test)
     }
-
-    sourceSets {
-        val commonMain by getting {
-            dependencies {
-                api(project(":common"))
-                api(libs.bundles.flowmvi)
-                api(libs.koin.core)
-                api(libs.koin.annotations)
-                api(libs.kotlinx.coroutines.core)
-                api(libs.kotlinx.io)
-                api(libs.filekit.core)
-                api(libs.bundles.settings)
-                api(libs.ktor.server.core)
-                api(libs.ktor.server.cors)
-                api(libs.ktor.server.cio)
-                api(libs.ktor.server.content.negotiation)
-                api(libs.ktorfit)
-                api(kotlincrypto.hash.md)
-            }
-        }
-        val commonTest by getting {
-            dependencies {
-                implementation(libs.kotlin.test)
-            }
-        }
-        iosMain.dependencies {
-        }
-        androidMain.dependencies {
-        }
-        jvmMain.dependencies {
-            implementation(libs.native.lib.loader)
-        }
-        wasmJsMain.dependencies {
-            implementation(npm("taglib-wasm", "0.5.4"))
-        }
+    jvmMain.dependencies {
+        implementation(libs.native.lib.loader)
+    }
+    wasmJsMain.dependencies {
+        implementation(npm("taglib-wasm", "0.5.4"))
     }
 }
 
@@ -97,43 +71,4 @@ XcodeDetector.whenXcodeInstalled {
             packageName("com.lalilu.lmedia")
         }
     }
-}
-
-dependencies {
-    kspCommonMainMetadata(libs.koin.compiler)
-}
-
-android {
-    namespace = "$group.$artifactId"
-    compileSdk = libs.versions.android.targetSdk.get().toInt()
-
-    defaultConfig {
-        ndk {
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v7a", "arm64-v8a", "x86", "x86_64"))
-        }
-    }
-}
-
-mavenPublishing {
-    coordinates(
-        groupId = group.toString(),
-        version = version.toString(),
-        artifactId = artifactId,
-    )
-
-    configure(
-        KotlinMultiplatform(
-            javadocJar = JavadocJar.Dokka("dokkaGenerate"),
-            sourcesJar = true,
-        )
-    )
-
-    pom {
-        name = "LMedia"
-        description = "LMedia"
-        inceptionYear = "2025"
-    }
-
-    publishToMavenCentral(true)
-//    signAllPublications()
 }

@@ -27,9 +27,6 @@ version = "1.0.0"
 kotlin {
     jvm()
     androidTarget {
-        compilerOptions {
-            jvmTarget = JvmTarget.JVM_11
-        }
     }
     XcodeDetector.whenXcodeInstalled {
         listOf(

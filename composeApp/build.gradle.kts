@@ -21,7 +21,7 @@ kotlin {
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_11)
+            jvmTarget.set(JvmTarget.JVM_21)
         }
     }
     XcodeDetector.whenXcodeInstalled {
@@ -131,7 +131,7 @@ android {
     packaging {
         resources {
             // 合并所有META-INF/services下的文件，而不是覆盖
-            merges += "/META-INF/services/*"
+            merges += "/META-INF/services/**"
             pickFirsts += "/META-INF/{AL2.0,LGPL2.1}"
             pickFirsts += "/META-INF/INDEX.LIST"
             pickFirsts += "/META-INF/io.netty.versions.properties"

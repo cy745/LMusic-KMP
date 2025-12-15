@@ -16,7 +16,8 @@ data class PlatformMediaSource(
 
 @Single(createdAtStart = true)
 fun provideMediaSource(scope: Scope): PlatformMediaSource {
-    return scope.provideMediaSources()
+    val source = scope.getKoin().getAll<MediaSource>()
+    return PlatformMediaSource(scope.provideMediaSources().sources + source)
 }
 
 expect fun Scope.provideMediaSources(): PlatformMediaSource

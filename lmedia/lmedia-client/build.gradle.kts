@@ -7,14 +7,10 @@ import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
-    alias(libs.plugins.composeMultiplatform)
-    alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.swiftklib)
-    alias(libs.plugins.osdetector)
     alias(libs.plugins.ktorfit)
 }
 
