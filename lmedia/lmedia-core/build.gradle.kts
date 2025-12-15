@@ -57,7 +57,7 @@ applyMultiplatform(configureBlock = {
         implementation(libs.kotlin.test)
     }
     jvmMain.dependencies {
-        implementation(libs.native.lib.loader)
+        api(libs.native.lib.loader)
     }
     wasmJsMain.dependencies {
         implementation(npm("taglib-wasm", "0.5.4"))

@@ -6,10 +6,13 @@ import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
-import com.lalilu.lmedia.entity.Metadata
+import com.lalilu.common.ext.KModule
+import dev.whyoleg.sweetspi.ServiceLoader
 import io.github.vinceglb.filekit.*
 import kotlinx.io.buffered
-import org.scijava.nativelib.NativeLoader
+import org.koin.core.context.startKoin
+import org.koin.core.logger.Level
+import org.koin.core.logger.Logger
 
 suspend fun main(args: Array<String>) {
     LMediaServer.main(args)
@@ -27,6 +30,15 @@ object LMediaServer : SuspendingCliktCommand() {
 
     override suspend fun run() {
         echo("Hello World!: $path listen on $host$port")
+
+        startKoin {
+            printLogger(Level.DEBUG)
+            modules(
+                ServiceLoader.load(KModule::class)
+                    .map(KModule::get)
+            )
+        }
+
         loadFile(path)
     }
 }
@@ -59,19 +71,4 @@ suspend fun SuspendingCliktCommand.loadFile(path: String) {
     }.forEach {
         echo("${it.second.title}: ${it.second.artist}")
     }
-}
-
-object TaglibWrapper {
-    init {
-        runCatching { NativeLoader.loadLibrary("zlib1") }
-        NativeLoader.loadLibrary("tag")
-    }
-
-    external fun version(): String
-    external suspend fun readMetadataWithFD(fd: Int): Metadata?
-    external suspend fun readMetadataWithPath(path: String): Metadata?
-    external suspend fun getLyricWithFD(fd: Int): String?
-    external suspend fun getLyricWithPath(path: String): String?
-    external suspend fun getPictureWithFD(fd: Int): ByteArray?
-    external suspend fun getPictureWithPath(path: String): ByteArray?
 }
