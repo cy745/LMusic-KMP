@@ -1,3 +1,5 @@
+package com.lalilu.lmedia
+
 import com.lalilu.common.kv.KVContext
 import com.lalilu.common.kv.KVSaver
 import com.russhwolf.settings.Settings
