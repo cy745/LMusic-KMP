@@ -1,5 +1,9 @@
 package com.lalilu.lmedia.source
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableStateOf
+import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.kv.KVContext
 import com.lalilu.lmedia.MagicNumber
@@ -8,131 +12,254 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.buildSnapshot
-import com.russhwolf.settings.ExperimentalSettingsApi
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.io.buffered
+import pro.respawn.flowmvi.api.MVIAction
+import pro.respawn.flowmvi.api.MVIIntent
+import pro.respawn.flowmvi.api.MVIState
+import pro.respawn.flowmvi.api.PipelineContext
+import pro.respawn.flowmvi.dsl.store
+import pro.respawn.flowmvi.plugins.recover
+import pro.respawn.flowmvi.plugins.reduce
 import java.io.FileNotFoundException
-import kotlin.coroutines.CoroutineContext
 
-@OptIn(ExperimentalSettingsApi::class, ExperimentalCoroutinesApi::class)
+@Stable
+@Immutable
+sealed interface FileSystemSourceState : MVIState {
+    data object NotSelected : FileSystemSourceState
+    abstract class Selected(open val path: String) : FileSystemSourceState
+    abstract class Finished(override val path: String) : Selected(path = path)
+
+    data class Scanning(
+        val progress: () -> Float,
+        val message: (() -> String)? = null,
+        override val path: String
+    ) : Selected(path = path)
+
+    data class Success(val result: Snapshot, override val path: String) : Finished(path = path)
+    data class Error(val error: Throwable, override val path: String) : Finished(path = path)
+}
+
+
+sealed interface FileSystemSourceIntent : MVIIntent {
+    data class SelectFile(val path: String) : FileSystemSourceIntent
+    data object CancelScanning : FileSystemSourceIntent
+    data object ReStartScanning : FileSystemSourceIntent
+}
+
+private typealias Ctx = PipelineContext<FileSystemSourceState, FileSystemSourceIntent, MVIAction>
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class JvmFileSystemSource(
-    kv: KVContext
-) : MediaSource, MediaDataSource, CoroutineScope {
-    override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob()
-
-    companion object {
-        const val KEY_PATH = "path"
-    }
-
+    lMediaKV: KVContext
+) : MediaSource, MediaDataSource {
+    private val scope = CoroutineScope(Dispatchers.Default)
     override val name: String = "JvmFileSystemSource"
+    private val filePath = lMediaKV.obtain<String>("file_path")
+    private val stateFlow = MutableStateFlow(Snapshot.Loading)
+    private var runningJob: Job? = null
 
-    val pathKV = kv.obtain<String>(KEY_PATH)
-    val fileFlow = pathKV.flow().mapLatest { path ->
-        PlatformFile.fromBookmarkData(path.encodeToByteArray())
-            .takeIf { it.exists() }
+    override fun source(): Flow<Snapshot> = stateFlow
+    override val dataSource: MediaDataSource = this
+
+    val store = store<FileSystemSourceState, FileSystemSourceIntent, MVIAction>(
+        initial = FileSystemSourceState.NotSelected,
+        scope = scope
+    ) {
+        configure { name = this@JvmFileSystemSource.name }
+        recover {
+            Logger.e(throwable = it, tag = name, messageString = "Error")
+            updateState {
+                FileSystemSourceState.Error(
+                    error = it,
+                    path = filePath.value
+                )
+            }
+            null
+        }
+        reduce { intent ->
+            when (intent) {
+                is FileSystemSourceIntent.SelectFile -> {
+                    runningJob?.cancel()
+                    runningJob = launch { stateFlow.value = loadPath(path = intent.path) }
+                }
+
+                is FileSystemSourceIntent.ReStartScanning -> {
+                    runningJob?.cancel()
+                    runningJob = launch { stateFlow.value = loadPath(path = filePath.value) }
+                }
+
+                is FileSystemSourceIntent.CancelScanning -> {
+                    runningJob?.cancel()
+                    updateState {
+                        FileSystemSourceState.Error(
+                            error = RuntimeException("Cancel"),
+                            path = filePath.value
+                        )
+                    }
+                }
+            }
+        }
     }
 
-    private val sourceStateFlow = fileFlow.map { root ->
-        root?.filterChildren { file ->
+    override fun start() {
+        scope.launch {
+            store.awaitStartup()
+            store.intent(FileSystemSourceIntent.SelectFile(filePath.value))
+        }
+    }
+
+    private suspend fun Ctx.loadPath(
+        path: String
+    ): Snapshot = withContext(Dispatchers.Unconfined) {
+        val progressState = mutableStateOf(0f)
+        val messageState = mutableStateOf("")
+
+        filePath.value = path
+
+        updateState {
+            FileSystemSourceState.Scanning(
+                progress = { progressState.value },
+                message = { messageState.value },
+                path = path
+            )
+        }
+
+        val root = PlatformFile.fromBookmarkData(path.encodeToByteArray())
+        val files = root.filterChildren { file ->
             if (file.isDirectory()) return@filterChildren false
             if (file.size() < 10) return@filterChildren false
 
+            messageState.value = file.name
             MagicNumber.match(
                 ext = file.extension,
                 source = file.source().buffered()
             ) != null
         }
-    }.map { files ->
-        files?.mapNotNull { file ->
-            val metadata = Taglib.readMetadata(path = file.absolutePath()) ?: return@mapNotNull null
-            file to metadata
-        } ?: emptyList()
-    }.map { songs ->
-        val songs = songs.map { (file, metadata) ->
-            LAudio(
-                id = file.absolutePath(),
-                title = metadata.title,
-                subtitle = metadata.artist,
-                sourceItem = SourceItem.FileItem(file.file),
-                mediaSourceName = this@JvmFileSystemSource.name,
-                metadata = metadata
-            )
+
+        val results = files.map { it.file }.mapIndexed { index, file ->
+            async(Dispatchers.io) {
+                val metadata = Taglib.readMetadata(path = file.absolutePath)
+                    ?: return@async null
+                ensureActive()
+
+                val newProgress = (index + 1).toFloat() / files.size.toFloat()
+                progressState.value = maxOf(progressState.value, newProgress)
+
+                messageState.value = metadata.title
+                SourceItem.FileItem(file) to metadata
+            }
         }
-        songs.buildSnapshot()
-    }.stateIn(this, SharingStarted.Lazily, Snapshot.Loading)
 
-    override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
+        val songs = results
+            .awaitAll()
+            .filterNotNull()
+            .map { (source, metadata) ->
+                LAudio(
+                    id = source.key,
+                    title = metadata.title,
+                    subtitle = metadata.artist,
+                    sourceItem = source,
+                    metadata = metadata,
+                    mediaSourceName = this@JvmFileSystemSource.name
+                )
+            }
 
-        val fileItem = audio?.sourceItem as? SourceItem.FileItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
-
-        val path = fileItem.file.path
-        if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
-
-        Taglib.getLyric(path = path)
-            ?: throw FileNotFoundException("Not found lyric for $path")
+        songs.buildSnapshot().also {
+            updateState {
+                FileSystemSourceState.Success(
+                    result = it,
+                    path = path
+                )
+            }
+        }
     }
 
-    override suspend fun getPicture(song: LAudio): MediaData? {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
+    override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
+        val audio = stateFlow.value.audios.firstOrNull { it.id == song.id }
 
-        val fileItem = audio?.sourceItem as? SourceItem.FileItem
+        val sourceItem = audio?.sourceItem
             ?: throw IllegalArgumentException("Invalid id: ${song.id}")
 
-        val path = fileItem.file.path
-        if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
+        when (sourceItem) {
+            is SourceItem.FileItem -> {
+                val file = sourceItem.file
 
-        val bytes = Taglib.getPicture(path = path)
-            ?: throw FileNotFoundException("Not found picture for $path")
+                val lyric = Taglib.getLyric(path = file.absolutePath)
+                    ?: throw FileNotFoundException("Not found lyric for $file")
 
-        return MediaData.Bytes(bytes)
+                lyric
+            }
+
+            else -> null
+        }
+    }
+
+    override suspend fun getPicture(song: LAudio): MediaData? = withContext(Dispatchers.io) {
+        val audio = stateFlow.value.audios.firstOrNull { it.id == song.id }
+
+        val sourceItem = audio?.sourceItem
+            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
+
+        when (sourceItem) {
+            is SourceItem.FileItem -> {
+                val file = sourceItem.file
+
+                val picture = Taglib.getPicture(path = file.absolutePath)
+                    ?: throw FileNotFoundException("Not found picture for $file")
+
+                MediaData.Bytes(picture)
+            }
+
+            else -> null
+        }
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? = withContext(Dispatchers.io) {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.id == song.id }
+        val audio = stateFlow.value.audios.firstOrNull { it.id == song.id }
 
-        val fileItem = audio?.sourceItem as? SourceItem.FileItem
+        val sourceItem = audio?.sourceItem
             ?: throw IllegalArgumentException("Invalid id: ${song.id}")
 
-        val file = fileItem.file
-        if (!file.exists()) {
-            throw FileNotFoundException("File not found: ${file.absolutePath}")
-        }
+        when (sourceItem) {
+            is SourceItem.FileItem -> {
+                val file = sourceItem.file
+                MediaData.Bytes(file.readBytes())
+            }
 
-        if (!file.canRead()) {
-            throw SecurityException("Cannot read file: ${file.absolutePath}")
+            else -> null
         }
-
-        MediaData.Bytes(file.readBytes())
     }
-
-    override val dataSource: MediaDataSource = this
-    override fun source(): Flow<Snapshot> = sourceStateFlow
 }
 
-private fun PlatformFile.filterChildren(block: (file: PlatformFile) -> Boolean): Collection<PlatformFile> {
+private suspend fun PlatformFile.filterChildren(
+    block: suspend (file: PlatformFile) -> Boolean
+): Collection<PlatformFile> = withContext(Dispatchers.io) {
     // 若不是文件夹，则无法遍历
-    if (!this.isDirectory()) {
+    if (!this@filterChildren.isDirectory()) {
         // 若根元素即满足要求，且其不是文件夹，则直接返回根元素，否则直接返回空数组
-        return if (block(this)) listOf(this) else emptyList()
+        return@withContext if (block(this@filterChildren)) listOf(this@filterChildren) else emptyList()
     }
 
-    val directory = mutableSetOf<PlatformFile>(this)
-    val result = mutableSetOf<PlatformFile>()
+    val directory = mutableSetOf(this@filterChildren)
+    val list = mutableSetOf<PlatformFile>()
 
-    while (directory.isNotEmpty()) {
-        val children = directory.map { it.list() }
+    while (isActive && directory.isNotEmpty()) {
+        val files = directory.map { it.list() }
             .flatten()
 
+        val results = files
+            .map { async { Triple(it, it.isDirectory(), block(it)) } }
+            .awaitAll()
+
         directory.clear()
-        children.forEach {
-            if (it.isDirectory()) directory.add(it)
-            if (block(it)) result.add(it)
+        for ((item, isDirectory, satisfy) in results) {
+            if (isDirectory) directory.add(item)
+            if (satisfy) list.add(item)
         }
     }
-
-    return result
+    list
 }

@@ -88,7 +88,7 @@ enum class MagicNumber(
                 val magicNumber = extMap[ext?.uppercase()]
                 if (magicNumber != null) {
                     for (i in magicNumber.header.indices) {
-                        if (readByteArray[magicNumber.offset + i] != magicNumber.header[i]) {
+                        if (readByteArray.isEmpty() || readByteArray[magicNumber.offset + i] != magicNumber.header[i]) {
                             break
                         }
                         if (i == magicNumber.header.lastIndex) {
@@ -100,7 +100,7 @@ enum class MagicNumber(
                 // 尝试匹配header
                 for (magicNumber in entries) {
                     for (i in magicNumber.header.indices) {
-                        if (readByteArray[magicNumber.offset + i] != magicNumber.header[i]) {
+                        if (readByteArray.isEmpty() || readByteArray[magicNumber.offset + i] != magicNumber.header[i]) {
                             break
                         }
                         if (i == magicNumber.header.lastIndex) {

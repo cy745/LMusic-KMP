@@ -1,125 +1,71 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.tooling.preview.Preview
-import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.source.JvmFileSystemSource.Companion.KEY_PATH
-import io.github.vinceglb.filekit.absolutePath
+import com.lalilu.common.ext.io
+import com.lalilu.lmedia.component.FileSystemScannerCard
+import com.lalilu.lmedia.component.FileSystemScannerCardIntent
+import com.lalilu.lmedia.component.FileSystemScannerCardState
+import io.github.vinceglb.filekit.bookmarkData
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
-import io.github.vinceglb.filekit.name
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import pro.respawn.flowmvi.annotation.InternalFlowMVIAPI
 
+private fun FileSystemSourceState.toCardState(): FileSystemScannerCardState {
+    return when (this) {
+        FileSystemSourceState.NotSelected -> FileSystemScannerCardState.NotSelected
+
+        is FileSystemSourceState.Success -> FileSystemScannerCardState.Success(
+            result = result,
+            path = path
+        )
+
+        is FileSystemSourceState.Error -> FileSystemScannerCardState.Error(
+            error = error,
+            path = path
+        )
+
+        is FileSystemSourceState.Scanning -> FileSystemScannerCardState.Scanning(
+            progress = progress,
+            message = message,
+            path = path
+        )
+
+        else -> FileSystemScannerCardState.Error(
+            error = IllegalArgumentException("Unknown state"),
+            path = "Empty path"
+        )
+    }
+}
+
+@OptIn(InternalFlowMVIAPI::class)
 @Composable
 fun JvmFileSystemSource.JvmFileSystemSourceContent(modifier: Modifier) {
     val scope = rememberCoroutineScope()
-    val path = fileFlow.collectAsState(null)
-    val source by remember { source() }.collectAsState(
-        initial = Snapshot.Empty,
-        context = Dispatchers.IO
-    )
-
+    val state = store.states.collectAsState()
     val launcher = rememberDirectoryPickerLauncher {
-        scope.launch(Dispatchers.IO) {
-            settings.putString(KEY_PATH, it?.absolutePath() ?: "")
+        if (it == null) {
+            return@rememberDirectoryPickerLauncher
+        }
+
+        scope.launch(Dispatchers.io) {
+            val path = it.bookmarkData().bytes.decodeToString()
+            store.intent(FileSystemSourceIntent.SelectFile(path))
         }
     }
 
-    JvmFileSystemSourceContent(
+    FileSystemScannerCard(
         modifier = modifier,
-        title = name,
-        path = path.value?.name ?: "",
-        itemsCount = source.audios.size,
-        onSelectDirectory = { launcher.launch() }
-    )
-}
-
-@Composable
-fun JvmFileSystemSourceContent(
-    modifier: Modifier = Modifier,
-    title: String,
-    path: String = "",
-    itemsCount: Int = 0,
-    onSelectDirectory: () -> Unit = {}
-) {
-    Card {
-        Column(
-            modifier = modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                modifier = Modifier.padding(vertical = 12.dp),
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Button(
-                onClick = onSelectDirectory,
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text(
-                    text = "Select Directory"
-                )
-            }
-
-            if (path.isNotBlank()) {
-                Text(
-                    modifier = Modifier.alpha(0.8f),
-                    text = path,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            Column(
-                modifier = Modifier.align(Alignment.End)
-                    .padding(top = 16.dp),
-                horizontalAlignment = Alignment.End
-            ) {
-                Text(
-                    modifier = Modifier,
-                    text = "扫描到的元素总数:",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    modifier = Modifier,
-                    text = "$itemsCount",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = 10.sp
-                )
+        state = state.value.toCardState(),
+        onIntent = { intent ->
+            when (intent) {
+                FileSystemScannerCardIntent.Select -> launcher.launch()
+                FileSystemScannerCardIntent.Cancel -> store.intent(FileSystemSourceIntent.CancelScanning)
+                FileSystemScannerCardIntent.ReScan -> store.intent(FileSystemSourceIntent.ReStartScanning)
             }
         }
-    }
-}
-
-@Preview
-@Composable
-private fun JvmFileSystemSourceContentPreview() {
-    JvmFileSystemSourceContent(
-        title = "JvmFileSystemSource",
-        itemsCount = 11,
-        path = "/user/qiu/music"
     )
 }

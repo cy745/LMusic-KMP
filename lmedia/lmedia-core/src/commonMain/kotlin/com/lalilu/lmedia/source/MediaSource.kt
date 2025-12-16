@@ -46,6 +46,11 @@ interface MediaDataSource {
 interface MediaSourceBase {
 
     /**
+     * 启动媒体源
+     */
+    fun start() {}
+
+    /**
      * 媒体源的流
      * 未实现的情况不可使用 [kotlinx.coroutines.flow.emptyFlow] 占位
      * 会导致其他Flow使用combine合并该Flow时一直等待此Flow返回

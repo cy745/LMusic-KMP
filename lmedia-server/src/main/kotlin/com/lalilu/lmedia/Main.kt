@@ -10,6 +10,7 @@ import com.github.ajalt.clikt.parameters.types.int
 import com.lalilu.common.kv.KVContext
 import com.lalilu.lmedia.server.LMediaServer
 import com.lalilu.lmedia.server.entity.RemoteServerConfig
+import com.lalilu.lmedia.source.FileSystemSourceIntent
 import com.lalilu.lmedia.source.JvmFileSystemSource
 import com.russhwolf.settings.Settings
 import kotlinx.serialization.json.Json
@@ -34,7 +35,8 @@ object LMediaServerCommand : SuspendingCliktCommand() {
 
         val json = Json { ignoreUnknownKeys = true }
         val jvmSource = JvmFileSystemSource(kv)
-        jvmSource.pathKV.value = path
+        jvmSource.start()
+        jvmSource.store.intent(FileSystemSourceIntent.SelectFile(path))
 
         val server = LMediaServer(
             config = RemoteServerConfig(
