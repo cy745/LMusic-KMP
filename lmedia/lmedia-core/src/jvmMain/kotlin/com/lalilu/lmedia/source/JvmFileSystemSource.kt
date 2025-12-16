@@ -58,7 +58,7 @@ class JvmFileSystemSource(
 ) : MediaSource, MediaDataSource {
     private val scope = CoroutineScope(Dispatchers.Default)
     override val name: String = "JvmFileSystemSource"
-    private val filePath = lMediaKV.obtain<String>("file_path")
+    val filePath = lMediaKV.obtain<String>("file_path")
     private val stateFlow = MutableStateFlow(Snapshot.Loading)
     private var runningJob: Job? = null
 

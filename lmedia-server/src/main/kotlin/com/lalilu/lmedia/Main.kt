@@ -35,8 +35,8 @@ object LMediaServerCommand : SuspendingCliktCommand() {
 
         val json = Json { ignoreUnknownKeys = true }
         val jvmSource = JvmFileSystemSource(kv)
+        jvmSource.filePath.value = path
         jvmSource.start()
-        jvmSource.store.intent(FileSystemSourceIntent.SelectFile(path))
 
         val server = LMediaServer(
             config = RemoteServerConfig(

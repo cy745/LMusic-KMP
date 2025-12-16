@@ -7,10 +7,7 @@ import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.server.LMediaServer
 import com.lalilu.lmedia.server.entity.RemoteServerConfig
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.serialization.json.Json
@@ -33,21 +30,33 @@ class RemoteServer(
             Logger.e(TAG, throwable)
         }
 
-
     val config by lazy { kv.obtain<RemoteServerConfig>(CONFIG_KEY, RemoteServerConfig.Empty) }
     val running by lazy { mutableStateOf(false) }
+    private var server: LMediaServer? = null
 
     init {
         config.flow()
-            .onEach {
-                val server = LMediaServer(
-                    config = it,
-                    sources = sources,
-                    json = json
-                )
-                server.startSync()
-                server.stopAndRelease()
-            }
+            .onEach(::startServer)
             .launchIn(this)
+    }
+
+    private suspend fun startServer(
+        config: RemoteServerConfig
+    ) = withContext(Dispatchers.Unconfined) {
+        running.value = false
+        server?.stopAndRelease()
+
+        if (!config.enable) {
+            return@withContext
+        }
+
+        server = LMediaServer(
+            config = config,
+            sources = sources,
+            json = json
+        )
+
+        running.value = true
+        server?.startAsync()
     }
 }
