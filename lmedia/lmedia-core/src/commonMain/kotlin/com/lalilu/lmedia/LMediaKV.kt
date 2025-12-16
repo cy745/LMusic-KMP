@@ -4,7 +4,7 @@ import com.lalilu.common.kv.KVContext
 import com.lalilu.common.kv.KVSaver
 import org.koin.core.annotation.Single
 
-@Single
+@Single(binds = [KVContext::class])
 class LMediaKV(saver: KVSaver) : KVContext(_prefix = "lmedia", _saver = saver) {
 
 }

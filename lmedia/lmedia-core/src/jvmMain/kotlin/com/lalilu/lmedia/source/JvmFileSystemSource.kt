@@ -1,6 +1,7 @@
 package com.lalilu.lmedia.source
 
 import com.lalilu.common.ext.io
+import com.lalilu.common.kv.KVContext
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.LAudio
@@ -8,8 +9,6 @@ import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.buildSnapshot
 import com.russhwolf.settings.ExperimentalSettingsApi
-import com.russhwolf.settings.ObservableSettings
-import com.russhwolf.settings.coroutines.getStringOrNullFlow
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -19,7 +18,7 @@ import kotlin.coroutines.CoroutineContext
 
 @OptIn(ExperimentalSettingsApi::class, ExperimentalCoroutinesApi::class)
 class JvmFileSystemSource(
-    val settings: ObservableSettings
+    kv: KVContext
 ) : MediaSource, MediaDataSource, CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob()
 
@@ -29,10 +28,10 @@ class JvmFileSystemSource(
 
     override val name: String = "JvmFileSystemSource"
 
-    val fileFlow = settings.getStringOrNullFlow(KEY_PATH)
+    val fileFlow = kv.obtain<String>(KEY_PATH).flow()
         .mapLatest { path ->
-            path?.let { PlatformFile(it) }
-                ?.takeIf { it.exists() }
+            PlatformFile.fromBookmarkData(path.encodeToByteArray())
+                .takeIf { it.exists() }
         }
 
     private val sourceStateFlow = fileFlow.map { root ->
