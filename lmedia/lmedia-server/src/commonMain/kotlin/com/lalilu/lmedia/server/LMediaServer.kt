@@ -1,127 +1,86 @@
 package com.lalilu.lmedia.server
 
 import co.touchlab.kermit.Logger
-import com.lalilu.common.ext.io
-import com.lalilu.lmedia.LMediaKV
+import com.lalilu.lmedia.EngineServer
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.RemoteServerConfig
 import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.remote.RemoteServerConfig
+import com.lalilu.lmedia.SERVER_ENGINE_FACTORY
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaSource
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
-import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.serialization.json.Json
-import org.koin.core.annotation.Single
-import kotlin.coroutines.CoroutineContext
+import org.koin.core.component.KoinComponent
 
-typealias EngineFactory = ApplicationEngineFactory<ApplicationEngine, out ApplicationEngine.Configuration>
-typealias EngineServer = EmbeddedServer<ApplicationEngine, out ApplicationEngine.Configuration>
+class LMediaServer(
+    val config: RemoteServerConfig,
+    val sources: PlatformMediaSource,
+    val json: Json
+) : KServer, KoinComponent {
+    private var serverInstance: EngineServer? = null
+    private suspend fun doInit() {
+        val port = config.port
+        val password = config.password
+        val sourceName = config.sourceName
 
-expect val serverEngineFactory: EngineFactory?
-
-
-@OptIn(ExperimentalCoroutinesApi::class)
-@Single(createdAtStart = true)
-class RemoteServer(
-    lMediaKV: LMediaKV,
-    platformMediaSource: PlatformMediaSource,
-    json: Json
-) : CoroutineScope {
-    private val TAG = "RemoteServer"
-    override val coroutineContext: CoroutineContext =
-        Dispatchers.io + SupervisorJob() + CoroutineExceptionHandler { context, throwable ->
-            Logger.e(TAG, throwable)
-        }
-
-    /**
-     * 筛选本机中可供外部远程访问的数据源
-     */
-    val remotableMediaSource by lazy { platformMediaSource.sources }
-
-    /**
-     * 服务器配置参数
-     */
-    val configItem = lMediaKV.obtain<RemoteServerConfig>(
-        key = "REMOTE_SERVER_CONFIG",
-        defaultValue = RemoteServerConfig.Empty
-    )
-
-    val configFlow = configItem.flow()
-
-    /**
-     * 服务器对象，使用Flow封装，当上游配置改变时，会重新创建服务器对象
-     */
-    val serverFlow = configFlow.flatMapLatest { config ->
-        val targetMediaSource = remotableMediaSource
-            .firstOrNull { it.name == config.selectedSourceKey }
-
-        if (!config.enable) {
-            return@flatMapLatest flowOf(null)
-        }
+        val targetSource = sources.sources
+            .firstOrNull { it.name == sourceName }
 
         if (config.port !in 1024..65535) {
-            Logger.i(tag = TAG, messageString = "Invalid server config: port must be in range [1024, 65535]")
-            return@flatMapLatest flowOf(null)
+            throw IllegalArgumentException("Invalid server config: [$port] port must be in range [1024, 65535]")
         }
 
-        if (targetMediaSource == null) {
-            Logger.i(tag = TAG, messageString = "Invalid server config: targetMediaSource not set")
-            return@flatMapLatest flowOf(null)
+        if (targetSource == null) {
+            throw IllegalArgumentException("No source found for name: $sourceName")
         }
 
-        callbackFlow<EngineServer?> {
-            val server = provideRpcServer(
-                port = config.port,
-                mediaSource = targetMediaSource,
-                config = { install(ContentNegotiation) { json(json) } }
-            )?.startSuspend(wait = false)
+        serverInstance = provideServer(
+            port = port,
+            mediaSource = { targetSource },
+            config = { install(ContentNegotiation) { json(json) } }
+        )
+    }
 
-            if (server != null) {
-                Logger.i(
-                    tag = TAG,
-                    messageString = "New Server instance created: ${server.hashCode()}"
-                )
-            }
+    override suspend fun startAsync() {
+        doInit()
+        serverInstance?.start()
+    }
 
-            send(server)
+    override suspend fun startSync() {
+        doInit()
+        serverInstance?.startSuspend()
+    }
 
-            awaitClose {
-                server?.stop()
-                Logger.i(
-                    tag = TAG,
-                    messageString = "Server instance stopped: ${server?.hashCode()}"
-                )
-            }
-        }
-    }.stateIn(this, SharingStarted.Eagerly, null)
+    override suspend fun stopAndRelease() {
+        serverInstance?.stopSuspend()
+        serverInstance = null
+    }
 }
 
-
-private fun provideRpcServer(
+private fun provideServer(
     port: Int,
-    mediaSource: MediaSource,
+    mediaSource: () -> MediaSource?,
     config: Application.() -> Unit = {}
-): EngineServer? {
-    val factory = serverEngineFactory ?: return null
-
+): EngineServer {
     suspend fun getAudioById(id: String): LAudio {
-        return mediaSource.source()
-            .firstOrNull()?.audios
+
+        return mediaSource()
+            ?.source()
+            ?.firstOrNull()?.audios
             ?.firstOrNull { it.id == id }
             ?: throw IllegalArgumentException("No audio found for id: $id")
     }
 
-    return embeddedServer(factory, port) {
+    return embeddedServer(SERVER_ENGINE_FACTORY, port) {
         install(CORS) {
             anyHost()
             anyMethod()
@@ -132,12 +91,16 @@ private fun provideRpcServer(
                 call.respondText("Hello World!")
             }
             get("/source") {
+                val mediaSource = mediaSource()
+                    ?: throw IllegalArgumentException("No media source")
                 call.respond<Snapshot>(mediaSource.source().firstOrNull() ?: Snapshot.Empty)
             }
             get("/lyric/{id}") {
                 try {
                     val id = call.parameters["id"]
                         ?: throw IllegalArgumentException("Invalid id")
+                    val mediaSource = mediaSource()
+                        ?: throw IllegalArgumentException("No media source")
 
                     val audio = getAudioById(id)
                     val lyric = mediaSource.dataSource.getLyric(audio)
@@ -157,6 +120,8 @@ private fun provideRpcServer(
                 try {
                     val id = call.parameters["id"]
                         ?: throw IllegalArgumentException("Invalid id")
+                    val mediaSource = mediaSource()
+                        ?: throw IllegalArgumentException("No media source")
 
                     val audio = getAudioById(id)
                     val picture = mediaSource.dataSource.getPicture(audio)
@@ -179,6 +144,8 @@ private fun provideRpcServer(
                 try {
                     val id = call.parameters["id"]
                         ?: throw IllegalArgumentException("Invalid id")
+                    val mediaSource = mediaSource()
+                        ?: throw IllegalArgumentException("No media source")
 
                     val audio = getAudioById(id)
                     val media = mediaSource.dataSource.getMedia(audio)

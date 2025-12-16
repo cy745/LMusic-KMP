@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.server
+package com.lalilu.lmedia
 
 import com.lalilu.common.ext.KModule
 import com.lalilu.common.ext.KoinModule
@@ -10,6 +10,6 @@ import org.koin.ksp.generated.module
 @Module
 @ServiceProvider
 @ComponentScan("com.lalilu.lmedia")
-object LMediaServerModule : KModule {
+object LMediaUiModule : KModule {
     override fun get(): KoinModule = this.module
 }
