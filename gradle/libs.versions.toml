@@ -152,7 +152,7 @@ swiftklib = { id = "io.github.ttypic.swiftklib", version = "0.6.4" }
 osdetector = { id = "com.google.osdetector", version = "1.7.3" }
 ktorfit = { id = "de.jensklingenberg.ktorfit", version.ref = "ktorfit" }
 stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.6.0" }
-sweetspi = { id = "dev.whyoleg.sweetspi", version.ref = "sweetspi" }
+shadowJar = { id = "com.gradleup.shadow", version = "9.3.0" }
 
 [bundles]
 coil = ["coil-compose", "coil-ktor", "coil-svg"]

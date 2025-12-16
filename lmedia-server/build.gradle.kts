@@ -2,6 +2,7 @@ plugins {
     kotlin("jvm")
     application
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.shadowJar)
 }
 
 group = "com.lalilu.lmedia"
@@ -30,14 +31,8 @@ application.apply {
     mainClass.set("com.lalilu.lmedia.MainKt")
 }
 
-tasks.jar {
-    manifest {
-        attributes["Main-Class"] = "com.lalilu.lmedia.MainKt"
-    }
-
-    configurations["compileClasspath"].forEach { file: File ->
-        from(zipTree(file.absoluteFile))
-    }
-
+tasks.shadowJar {
+    mainClass.set("com.lalilu.lmedia.MainKt")
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    mergeServiceFiles()
 }

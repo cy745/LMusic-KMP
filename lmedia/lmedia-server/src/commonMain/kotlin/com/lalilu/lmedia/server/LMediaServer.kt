@@ -1,12 +1,10 @@
 package com.lalilu.lmedia.server
 
 import co.touchlab.kermit.Logger
-import com.lalilu.lmedia.EngineServer
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.RemoteServerConfig
+import com.lalilu.lmedia.server.entity.RemoteServerConfig
 import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.SERVER_ENGINE_FACTORY
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaSource
 import io.ktor.http.*
@@ -57,7 +55,7 @@ class LMediaServer(
 
     override suspend fun startSync() {
         doInit()
-        serverInstance?.startSuspend()
+        serverInstance?.startSuspend(wait = true)
     }
 
     override suspend fun stopAndRelease() {

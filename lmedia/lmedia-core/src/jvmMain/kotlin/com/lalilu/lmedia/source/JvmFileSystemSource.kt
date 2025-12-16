@@ -28,11 +28,11 @@ class JvmFileSystemSource(
 
     override val name: String = "JvmFileSystemSource"
 
-    val fileFlow = kv.obtain<String>(KEY_PATH).flow()
-        .mapLatest { path ->
-            PlatformFile.fromBookmarkData(path.encodeToByteArray())
-                .takeIf { it.exists() }
-        }
+    val pathKV = kv.obtain<String>(KEY_PATH)
+    val fileFlow = pathKV.flow().mapLatest { path ->
+        PlatformFile.fromBookmarkData(path.encodeToByteArray())
+            .takeIf { it.exists() }
+    }
 
     private val sourceStateFlow = fileFlow.map { root ->
         root?.filterChildren { file ->

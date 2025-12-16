@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.entity
+package com.lalilu.lmedia.server.entity
 
 import kotlinx.serialization.Serializable
 

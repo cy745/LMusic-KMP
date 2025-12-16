@@ -5,7 +5,7 @@ import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.kv.KVContext
 import com.lalilu.lmedia.PlatformMediaSource
-import com.lalilu.lmedia.entity.RemoteServerConfig
+import com.lalilu.lmedia.server.entity.RemoteServerConfig
 import com.lalilu.lmedia.server.LMediaServer
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
