@@ -8,6 +8,5 @@ import org.koin.core.scope.Scope
 actual fun Scope.provideMediaSources(): PlatformMediaSource = PlatformMediaSource.provide(
     ::MediaStoreSource.reverseInject(),
     ::AndroidFileSystemSource.reverseInject(),
-//    ::RemoteSource.reverseInject(),
     ::SubsonicSource.reverseInject(),
 )

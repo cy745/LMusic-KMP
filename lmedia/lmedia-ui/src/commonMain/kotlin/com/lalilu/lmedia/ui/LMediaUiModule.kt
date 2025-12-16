@@ -1,4 +1,4 @@
-package com.lalilu.lmedia
+package com.lalilu.lmedia.ui
 
 import com.lalilu.common.ext.KModule
 import com.lalilu.common.ext.KoinModule
