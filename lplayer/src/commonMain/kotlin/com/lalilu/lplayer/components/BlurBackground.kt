@@ -5,11 +5,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
@@ -22,15 +21,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.Bitmap
 import coil3.SingletonImageLoader
-import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.toBitmap
 import com.lalilu.common.ext.io
 import com.materialkolor.ktx.themeColorOrNull
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 expect fun Bitmap.toImageBitmap(): ImageBitmap
@@ -53,9 +51,10 @@ fun DefaultBlurBackground(
     val context = LocalPlatformContext.current
     val blur = rememberUpdatedState(blurProgress())
     val blurRadius = remember { { ((blur.value * 50f)).roundToInt().dp } }
+    val image = remember { mutableStateOf<ImageBitmap?>(null) }
 
     LaunchedEffect(imageData()) {
-        withContext(Dispatchers.io) {
+        val paletteFetch = async(Dispatchers.io) {
             val request = ImageRequest.Builder(context)
                 .data(imageData())
                 .size(400)
@@ -78,6 +77,26 @@ fun DefaultBlurBackground(
                 Color.White.compositeOver(color)
             )
         }
+
+        val coverFetch = async(Dispatchers.io) {
+            val request = ImageRequest.Builder(context)
+                .data(imageData())
+                .build()
+
+            ensureActive()
+
+            val imageLoader = SingletonImageLoader.get(context)
+            val result = imageLoader.execute(request)
+
+            ensureActive()
+
+            image.value = result.image
+                ?.toBitmap()
+                ?.toImageBitmap()
+        }
+
+        paletteFetch.await()
+        coverFetch.await()
     }
 
     AnimatedContent(
@@ -89,14 +108,19 @@ fun DefaultBlurBackground(
                 drawContent()
                 drawRect(color = Color.Black.copy(alpha = blurProgress() * (100f / 255f)))
             },
-        targetState = imageData(),
+        targetState = image.value,
         transitionSpec = {
             fadeIn(tween(500)) togetherWith fadeOut(tween(300, 500))
         }
     ) { data ->
-        AsyncImage(
+        if (data == null) {
+            Spacer(modifier = Modifier.fillMaxSize())
+            return@AnimatedContent
+        }
+
+        Image(
             modifier = Modifier.fillMaxSize(),
-            model = data,
+            bitmap = data,
             contentScale = ContentScale.Crop,
             contentDescription = ""
         )
