@@ -1,3 +1,5 @@
 package com.lalilu.lplayer.playback
 
-expect fun platformPlayback(): Playback
+import com.lalilu.lmedia.source.Library
+
+expect fun platformPlayback(library: Library): Playback
