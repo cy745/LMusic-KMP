@@ -1,5 +1,5 @@
 package com.lalilu.lplayer.playback
 
-actual fun platformPlayback(): Playback {
-    return AVPlayerPlayback()
-}
+import com.lalilu.lmedia.source.Library
+
+actual fun platformPlayback(library: Library): Playback = AVPlayerPlayback(library)

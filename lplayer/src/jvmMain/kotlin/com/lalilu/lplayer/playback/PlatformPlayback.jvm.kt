@@ -1,5 +1,5 @@
 package com.lalilu.lplayer.playback
 
-actual fun platformPlayback(): Playback {
-    return VLCPlayback()
-}
+import com.lalilu.lmedia.source.Library
+
+actual fun platformPlayback(library: Library): Playback = VLCPlayback(library)

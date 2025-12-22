@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.source.Library
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.menu.MacOSMenu
@@ -17,7 +18,9 @@ import org.koin.core.component.inject
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 
-class VLCPlayback : AbstractPlayback(), KoinComponent {
+class VLCPlayback(
+    private val library: Library
+) : AbstractPlayback(), KoinComponent {
     private val platformMediaSource: PlatformMediaSource by inject()
     private var playerInstance: MediaPlayer? = null
     val player: MediaPlayer

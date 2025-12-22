@@ -3,6 +3,7 @@ package com.lalilu.lplayer.playback
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.source.Library
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.extensions.VolumeFadeHelper
@@ -20,7 +21,9 @@ import platform.CoreMedia.CMTimeMake
 import platform.Foundation.*
 
 @OptIn(ExperimentalForeignApi::class)
-class AVPlayerPlayback : AbstractPlayback(), KoinComponent {
+class AVPlayerPlayback(
+    private val library: Library
+) : AbstractPlayback(), KoinComponent {
     companion object Companion {
         const val TAG = "AVPlayerPlayback"
     }

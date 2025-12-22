@@ -15,9 +15,9 @@ import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import com.blankj.utilcode.util.LogUtils
 import com.blankj.utilcode.util.Utils
-import com.lalilu.lmedia.LMedia
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.source.Library
 import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.action.Action
@@ -30,20 +30,14 @@ import com.lalilu.lplayer.service.MService
 import com.lalilu.lplayer.service.getHistoryItems
 import com.lalilu.lplayer.service.saveHistoryIds
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.guava.await
 import kotlin.coroutines.CoroutineContext
 
 @OptIn(UnstableApi::class)
-object MPlayerPlayback : CoroutineScope, Player.Listener, Playback {
+class MPlayerPlayback(
+    private val library: Library
+) : CoroutineScope, Player.Listener, Playback {
     override val coroutineContext: CoroutineContext = Dispatchers.IO
     private val sessionToken by lazy {
         SessionToken(Utils.getApp(), ComponentName(Utils.getApp(), MService::class.java))
@@ -98,7 +92,7 @@ object MPlayerPlayback : CoroutineScope, Player.Listener, Playback {
         .stateIn(this, SharingStarted.WhileSubscribed(), null)
 
     init {
-        LMedia.instance.whenReady {
+        library.whenReady {
             init()
         }
     }
@@ -310,7 +304,7 @@ object MPlayerPlayback : CoroutineScope, Player.Listener, Playback {
         val items = timeline?.toMediaItems() ?: emptyList()
         val ids = items.map { it.mediaId }
 
-        _playlist.value = LMedia.instance.mapBy<LAudio>(ids)
+        _playlist.value = library.mapBy<LAudio>(ids)
         _currentItemIndex.value = currentIndex
         saveHistoryIds(mediaIds = ids)
     }

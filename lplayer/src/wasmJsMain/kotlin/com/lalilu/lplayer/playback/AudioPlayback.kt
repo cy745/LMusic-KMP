@@ -3,6 +3,7 @@ package com.lalilu.lplayer.playback
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.source.Library
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.notification.BrowserMediaSessionHelper
@@ -15,7 +16,9 @@ import org.w3c.dom.url.URL
 import org.w3c.files.Blob
 import org.w3c.files.BlobPropertyBag
 
-class AudioPlayback : AbstractPlayback(), KoinComponent {
+class AudioPlayback(
+    private val library: Library
+) : AbstractPlayback(), KoinComponent {
     companion object {
         const val TAG = "AudioPlayback"
     }
@@ -132,7 +135,7 @@ class AudioPlayback : AbstractPlayback(), KoinComponent {
             emitError(e)
         }
     }
-    
+
     override fun currentPosition(): Long {
         return (player.currentTime * 1000).toLong()
     }

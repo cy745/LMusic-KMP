@@ -33,7 +33,6 @@ fun KoinApplication.koinSetup() {
     logger(KermitKoinLogger(Logger.withTag("Koin")))
     modules(SharedModule)
     modules(AppModule.module)
-    modules(LMediaModule.module)
     modules(LHomeModule.module)
     modules(LPlayerModule.module)
     modules(
