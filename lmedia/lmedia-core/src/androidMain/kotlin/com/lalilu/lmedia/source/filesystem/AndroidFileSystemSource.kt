@@ -16,7 +16,10 @@ import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.buildSnapshot
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaDataSource
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.source.MediaSourceConfig
+import com.lalilu.lmedia.source.MediaSourceParam
+import com.lalilu.lmedia.source.MediaSourceV2
+import com.lalilu.lmedia.source.buildConfig
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
@@ -62,7 +65,11 @@ private typealias Ctx = PipelineContext<AndroidFileSystemSourceState, AndroidFil
 class AndroidFileSystemSource(
     private val context: Application,
     lMediaKV: LMediaKV
-) : MediaSource, MediaDataSource {
+) : MediaSourceV2, MediaDataSource {
+    override val config: MediaSourceConfig = buildConfig {
+        declareParam("filePath", type = MediaSourceParam.StringV::class)
+    }
+
     private val scope = CoroutineScope(Dispatchers.Default)
     override val name: String = "AndroidFileSystemSource"
     private val filePath = lMediaKV.obtain<String>("file_path")

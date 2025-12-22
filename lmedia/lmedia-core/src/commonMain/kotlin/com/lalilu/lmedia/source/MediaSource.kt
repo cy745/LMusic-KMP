@@ -71,3 +71,7 @@ interface MediaSource : MediaSourceBase {
      */
     val dataSource: MediaDataSource get() = MediaDataSource.Empty
 }
+
+interface MediaSourceV2 : MediaSource {
+    val config: MediaSourceConfig
+}
