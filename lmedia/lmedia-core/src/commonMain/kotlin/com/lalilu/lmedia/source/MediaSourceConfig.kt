@@ -7,38 +7,51 @@ data class MediaSourceConfig(
     val key: String,
     val name: String = key,
     val description: String = "",
-    val params: Map<String, MediaSourceParam> = emptyMap(),
+    val initialParams: Map<String, Any> = emptyMap(),
     val paramsDeclarations: List<ParamsDeclaration> = emptyList(),
     val onConfigUpdateCallback: () -> Unit = {}
 ) {
-    class Builder {
-        private var key: String = ""
-        private var name: String = ""
-        private var description: String = ""
-        private val params = mutableMapOf<String, MediaSourceParam>()
-        private val paramsDeclarations = mutableListOf<ParamsDeclaration>()
-        private var onConfigUpdateCallback: (() -> Unit)? = null
+    private val _params = initialParams.toMutableMap()
+    val params: Map<String, Any> get() = _params
 
-        fun declare(
+    class Builder(
+        val key: String = "",
+        val name: String = "",
+        val description: String = "",
+    ) {
+        val initialParams = mutableMapOf<String, Any>()
+        val paramsDeclarations = mutableListOf<ParamsDeclaration>()
+        var onConfigUpdateCallback: (() -> Unit)? = null
+
+        fun declare(declaration: ParamsDeclaration) = apply {
+            paramsDeclarations.add(declaration)
+        }
+
+        inline fun <reified T : Any> declare(
             key: String,
             name: String = key,
             description: String = "",
             mutable: Boolean = true,
             required: Boolean = false,
-            type: KClass<out MediaSourceParam>
-        ) = declare(
-            ParamsDeclaration(
-                key = key,
-                name = name,
-                description = description,
-                mutable = mutable,
-                required = required,
-                type = type
-            )
-        )
+            type: KClass<T> = T::class
+        ) = ParamsDeclaration(
+            key = key,
+            name = name,
+            description = description,
+            mutable = mutable,
+            required = required,
+            type = type
+        ).also { declare(it) }
 
-        fun declare(declaration: ParamsDeclaration) = apply {
-            paramsDeclarations.add(declaration)
+        inline infix fun <reified T : Any> ParamsDeclaration.provide(value: T) {
+            provide<T>(key, value)
+        }
+
+        inline fun <reified T : Any> provide(key: String, value: T) = apply {
+            val declaration = paramsDeclarations.firstOrNull { it.key == key }
+            require(declaration != null) { "[]param with key $key not found" }
+            require(declaration.type.isInstance(value)) { "[${this.key}]param with key $key is type ${declaration.type.simpleName}, but got $value" }
+            initialParams[key] = value
         }
 
         fun callback(block: () -> Unit) = apply {
@@ -53,23 +66,69 @@ data class MediaSourceConfig(
                 key = key,
                 name = name,
                 description = description,
-                params = params,
+                initialParams = initialParams,
                 paramsDeclarations = paramsDeclarations,
                 onConfigUpdateCallback = onConfigUpdateCallback!!
             )
         }
     }
 
-    fun update() {
+    fun update(
+        block: (setter: (key: String, value: Any?) -> Unit) -> Unit
+    ) {
+        block { key, value ->
+            val declaration = requireParam(key)
+            require(declaration.mutable) { "[${this.key}]param with key $key is not mutable" }
+            require(declaration.type.isInstance(value)) {
+                "[${this.key}]param with key $key is type ${declaration.type.simpleName}, but got $value"
+            }
+
+            if (value == null) {
+                _params.remove(key)
+            } else {
+                _params[key] = value
+            }
+        }
         onConfigUpdateCallback.invoke()
     }
+
+    inline fun <reified T : Any> require(key: String): T {
+        // 校验检查该参数是否已存在声明
+        val declaration = requireParam(key)
+
+        // 获取参数值
+        val value = params[declaration.key]
+
+        // 校验参数值
+        require(value != null) { "[${this.key}]param with key got null ${if (declaration.required) ", for required param" else ""}" }
+        require(declaration.type.isInstance(value)) { "[${this.key}]param with key $key is type ${declaration.type.simpleName}, but got $value" }
+        require(T::class.isInstance(value)) { "[${this.key}]param with key $key is not of type ${T::class.simpleName}" }
+
+        return value as T
+    }
+
+    inline fun <reified T : Any> get(key: String): Result<T> = runCatching { require<T>(key) }
+
+    fun requireParam(key: String): ParamsDeclaration {
+        val declaration = paramsDeclarations.firstOrNull { it.key == key }
+        require(declaration != null) { "[${this.key}]param with key $key not found" }
+        return declaration
+    }
+
+    fun getParam(key: String): Result<ParamsDeclaration> = runCatching { requireParam(key) }
 }
 
 fun MediaSource.buildConfig(
+    key: String,
+    name: String = key,
+    description: String = "",
     block: MediaSourceConfig.Builder.() -> Unit
 ): MediaSourceConfig {
-    return MediaSourceConfig.Builder()
-        .apply(block)
+    return MediaSourceConfig.Builder(
+        key = key,
+        name = name,
+        description = description
+    ).apply(block)
         .callback(::onConfigChange)
         .build()
 }

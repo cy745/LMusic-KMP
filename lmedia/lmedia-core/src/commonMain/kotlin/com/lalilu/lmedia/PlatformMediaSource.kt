@@ -20,7 +20,7 @@ fun provideMediaSource(scope: Scope): PlatformMediaSource {
     val source = scope.getKoin().getAll<MediaSource>()
 
     return PlatformMediaSource(platformMediaSource + source)
-        .apply { sources.forEach { it.start() } }
+        .apply { sources.forEach { it.init() } }
 }
 
 expect fun Scope.provideMediaSources(): PlatformMediaSource

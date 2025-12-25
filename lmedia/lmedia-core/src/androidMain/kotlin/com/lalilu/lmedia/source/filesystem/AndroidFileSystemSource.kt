@@ -14,12 +14,7 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.buildSnapshot
-import com.lalilu.lmedia.source.MediaData
-import com.lalilu.lmedia.source.MediaDataSource
-import com.lalilu.lmedia.source.MediaSource
-import com.lalilu.lmedia.source.MediaSourceConfig
-import com.lalilu.lmedia.source.MediaSourceParam
-import com.lalilu.lmedia.source.buildConfig
+import com.lalilu.lmedia.source.*
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
@@ -66,16 +61,17 @@ class AndroidFileSystemSource(
     private val context: Application,
     lMediaKV: LMediaKV
 ) : MediaSource, MediaDataSource {
-    override val config: MediaSourceConfig = buildConfig {
-        declare("filePath", type = MediaSourceParam.StringV::class)
+    private val kv = lMediaKV.obtain<String>("file_path")
+    override val name: String = "AndroidFileSystemSource"
+    override val config: MediaSourceConfig = buildConfig(key = name) {
+        declare<String>(key = "file_path") provide lMediaKV.obtain<String>("file_path").value
     }
 
     override fun onConfigChange() {
+        kv.value = config.get<String>("file_path").getOrElse { "" }
     }
 
     private val scope = CoroutineScope(Dispatchers.Default)
-    override val name: String = "AndroidFileSystemSource"
-    private val filePath = lMediaKV.obtain<String>("file_path")
     private val stateFlow = MutableStateFlow(Snapshot.Loading)
     private var runningJob: Job? = null
 
@@ -90,15 +86,18 @@ class AndroidFileSystemSource(
             name = this@AndroidFileSystemSource.name
         }
         recover {
+            val filePath = this@AndroidFileSystemSource.config.get<String>("file_path").getOrElse { "" }
             updateState {
                 AndroidFileSystemSourceState.Error(
                     error = it,
-                    path = filePath.value
+                    path = filePath
                 )
             }
             null
         }
         reduce { intent ->
+            val filePath = this@AndroidFileSystemSource.config.get<String>("file_path").getOrElse { "" }
+
             when (intent) {
                 is AndroidFileSystemSourceIntent.SelectFile -> {
                     runningJob?.cancel()
@@ -107,7 +106,7 @@ class AndroidFileSystemSource(
 
                 is AndroidFileSystemSourceIntent.ReStartScanning -> {
                     runningJob?.cancel()
-                    runningJob = launch { stateFlow.value = loadPath(path = filePath.value) }
+                    runningJob = launch { stateFlow.value = loadPath(path = filePath) }
                 }
 
                 is AndroidFileSystemSourceIntent.CancelScanning -> {
@@ -115,7 +114,7 @@ class AndroidFileSystemSource(
                     updateState {
                         AndroidFileSystemSourceState.Error(
                             error = RuntimeException("Cancel"),
-                            path = filePath.value
+                            path = filePath
                         )
                     }
                 }
@@ -125,8 +124,9 @@ class AndroidFileSystemSource(
 
     init {
         scope.launch {
+            val filePath = this@AndroidFileSystemSource.config.get<String>("file_path").getOrElse { "" }
             store.awaitStartup()
-            store.intent(AndroidFileSystemSourceIntent.SelectFile(filePath.value))
+            store.intent(AndroidFileSystemSourceIntent.SelectFile(filePath))
         }
     }
 
@@ -136,7 +136,9 @@ class AndroidFileSystemSource(
         val progressState = mutableStateOf(0f)
         val messageState = mutableStateOf("")
 
-        filePath.value = path
+        this@AndroidFileSystemSource.config.update { setter ->
+            setter("file_path", path)
+        }
 
         updateState {
             AndroidFileSystemSourceState.Scanning(
