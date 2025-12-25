@@ -43,12 +43,28 @@ interface MediaDataSource {
     suspend fun getMedia(song: LAudio): MediaData? = null
 }
 
-interface MediaSourceBase {
+/**
+ * 媒体源（没有状态的数据源，只有传入参数获取数据的逻辑）
+ *
+ * @property name 数据源名称，兼具唯一标识的作用
+ */
+interface MediaSource {
+    /**
+     * 数据源名称，兼具唯一标识的作用
+     */
+    val name: String
 
     /**
-     * 启动媒体源
+     * 媒体源配置
      */
-    fun start() {}
+    val config: MediaSourceConfig
+        get() = MediaSourceConfig(key = name, name = name)
+
+    /**
+     * 媒体数据源
+     */
+    val dataSource: MediaDataSource
+        get() = MediaDataSource.Empty
 
     /**
      * 媒体源的流
@@ -56,22 +72,19 @@ interface MediaSourceBase {
      * 会导致其他Flow使用combine合并该Flow时一直等待此Flow返回
      */
     fun source(): Flow<Snapshot> = flowOf(Snapshot.Empty)
-}
-
-/**
- * 媒体源
- *
- * @property name 数据源名称，兼具唯一标识的作用
- */
-interface MediaSource : MediaSourceBase {
-    val name: String
 
     /**
-     * 媒体数据源
+     * 获取媒体源快照
      */
-    val dataSource: MediaDataSource get() = MediaDataSource.Empty
-}
+    suspend fun getSnapshot(params: Map<String, Any>): Snapshot = Snapshot.Empty
 
-interface MediaSourceV2 : MediaSource {
-    val config: MediaSourceConfig
+    /**
+     * 媒体源初始化
+     */
+    fun init() {}
+
+    /**
+     * 配置改变
+     */
+    fun onConfigChange() {}
 }

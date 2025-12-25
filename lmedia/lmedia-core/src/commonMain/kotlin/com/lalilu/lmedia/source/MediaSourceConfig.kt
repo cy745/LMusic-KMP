@@ -1,52 +1,75 @@
 package com.lalilu.lmedia.source
 
-import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
 
 
-@Serializable
 data class MediaSourceConfig(
     val key: String,
-    val name: String,
+    val name: String = key,
     val description: String = "",
-    val params: Map<String, MediaSourceParam>,
-    val paramsDeclarations: List<MediaSourceParamsDeclaration>
+    val params: Map<String, MediaSourceParam> = emptyMap(),
+    val paramsDeclarations: List<ParamsDeclaration> = emptyList(),
+    val onConfigUpdateCallback: () -> Unit = {}
 ) {
     class Builder {
         private var key: String = ""
         private var name: String = ""
         private var description: String = ""
         private val params = mutableMapOf<String, MediaSourceParam>()
-        private val paramsDeclarations = mutableListOf<MediaSourceParamsDeclaration>()
+        private val paramsDeclarations = mutableListOf<ParamsDeclaration>()
+        private var onConfigUpdateCallback: (() -> Unit)? = null
 
-        fun declareParam(
+        fun declare(
             key: String,
+            name: String = key,
+            description: String = "",
+            mutable: Boolean = true,
+            required: Boolean = false,
             type: KClass<out MediaSourceParam>
-        ) = MediaSourceParamsDeclaration(
-            key = key,
-            name = key,
-            description = "",
-            type = type
-        ).also { paramsDeclarations.add(it) }
+        ) = declare(
+            ParamsDeclaration(
+                key = key,
+                name = name,
+                description = description,
+                mutable = mutable,
+                required = required,
+                type = type
+            )
+        )
 
-        fun MediaSourceParamsDeclaration.initParam(value: MediaSourceParam) {
-            params[this.key] = value
+        fun declare(declaration: ParamsDeclaration) = apply {
+            paramsDeclarations.add(declaration)
         }
 
-        fun build(): MediaSourceConfig = MediaSourceConfig(
-            key = key,
-            name = name,
-            description = description,
-            params = params,
-            paramsDeclarations = paramsDeclarations
-        )
+        fun callback(block: () -> Unit) = apply {
+            onConfigUpdateCallback = block
+        }
+
+        fun build(): MediaSourceConfig {
+            require(key.isNotBlank()) { "MediaSourceConfig key cannot be blank" }
+            require(onConfigUpdateCallback != null) { "MediaSourceConfig callback cannot be null" }
+
+            return MediaSourceConfig(
+                key = key,
+                name = name,
+                description = description,
+                params = params,
+                paramsDeclarations = paramsDeclarations,
+                onConfigUpdateCallback = onConfigUpdateCallback!!
+            )
+        }
+    }
+
+    fun update() {
+        onConfigUpdateCallback.invoke()
     }
 }
 
-fun buildConfig(
+fun MediaSource.buildConfig(
     block: MediaSourceConfig.Builder.() -> Unit
 ): MediaSourceConfig {
     return MediaSourceConfig.Builder()
         .apply(block)
+        .callback(::onConfigChange)
         .build()
 }

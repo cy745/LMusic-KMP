@@ -105,7 +105,7 @@ class JvmFileSystemSource(
         }
     }
 
-    override fun start() {
+    override fun init() {
         scope.launch {
             store.awaitStartup()
             store.intent(FileSystemSourceIntent.SelectFile(filePath.value))

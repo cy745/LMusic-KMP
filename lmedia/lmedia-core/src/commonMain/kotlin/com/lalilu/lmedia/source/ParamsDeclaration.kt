@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
 
 @Serializable
-data class MediaSourceParamsDeclaration(
+data class ParamsDeclaration(
     val key: String,
     val name: String,
     val description: String,
