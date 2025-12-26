@@ -8,8 +8,6 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCompilation
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
-    alias(libs.plugins.composeMultiplatform)
-    alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
@@ -39,7 +37,6 @@ applyMultiplatform(configureBlock = {
 }) {
     main.dependencies {
         api(project(":common"))
-        api(libs.bundles.flowmvi)
         api(libs.koin.core)
         api(libs.koin.annotations)
         api(libs.kotlinx.coroutines.core)
@@ -52,6 +49,9 @@ applyMultiplatform(configureBlock = {
         api(libs.ktor.server.content.negotiation)
         api(libs.ktorfit)
         api(kotlincrypto.hash.md)
+    }
+    androidMain.dependencies {
+        api(libs.androidx.core.ktx)
     }
     test.dependencies {
         implementation(libs.kotlin.test)

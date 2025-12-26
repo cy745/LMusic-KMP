@@ -2,7 +2,8 @@
 agp = "8.11.1"
 android-targetSdk = "36"
 android-minSdk = "23"
-androidx-activity = "1.11.0"
+androidx-activity = "1.12.2"
+androidx-core = "1.17.0"
 androidx-lifecycle = "2.9.5"
 composeMultiplatform = "1.10.0-beta01"
 kotlinx-serialization = "1.9.0"
@@ -37,6 +38,7 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
 
 # kotlinx
 kotlinx-io = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }

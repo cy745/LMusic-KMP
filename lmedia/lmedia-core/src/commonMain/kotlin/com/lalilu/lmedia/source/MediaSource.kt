@@ -74,11 +74,6 @@ interface MediaSource {
     fun source(): Flow<Snapshot> = flowOf(Snapshot.Empty)
 
     /**
-     * 获取媒体源快照
-     */
-    suspend fun getSnapshot(params: Map<String, Any>): Snapshot = Snapshot.Empty
-
-    /**
      * 媒体源初始化
      */
     fun init() {}

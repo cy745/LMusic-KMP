@@ -1,9 +1,52 @@
 package com.lalilu.lmedia.entity
 
 import kotlinx.serialization.Serializable
+import kotlin.reflect.KClass
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
-import kotlinx.serialization.Transient
+
+
+@Serializable
+@OptIn(ExperimentalTime::class)
+sealed interface SnapshotState {
+    @Serializable
+    data object Idle : SnapshotState
+
+    @Serializable
+    data object Empty : SnapshotState
+
+    @Serializable
+    data object Success : SnapshotState
+
+    @Serializable
+    data class Loading(
+        val message: String = "Loading...",
+        val progress: Float = 0f
+    ) : SnapshotState
+
+    // 避免在序列化传输时使用
+    data class LoadingDynamic(
+        val message: () -> String = { "Loading..." },
+        val progress: () -> Float = { 0f }
+    ) : SnapshotState
+
+    @Serializable
+    data class Error(
+        val message: String = "Error"
+    ) : SnapshotState
+}
+
+inline fun <reified T : SnapshotState> T.priority(): Int = T::class.priority()
+inline fun <reified T : SnapshotState> KClass<T>.priority(): Int {
+    return when (T::class) {
+        SnapshotState.Idle::class -> 0
+        SnapshotState.Empty::class -> 1
+        SnapshotState.Success::class -> 2
+        SnapshotState.Loading::class -> 3
+        SnapshotState.Error::class -> 4
+        else -> -1
+    }
+}
 
 @OptIn(ExperimentalTime::class)
 @Serializable
@@ -13,36 +56,26 @@ data class Snapshot(
     val artists: List<LArtist> = emptyList(),
     val folders: List<LFolder> = emptyList(),
     val genres: List<LGenre> = emptyList(),
+    val state: SnapshotState = SnapshotState.Idle,
     val updateTime: Long = Clock.System.now().toEpochMilliseconds()
 ) {
-    @Transient
-    var isLoading = false
-        internal set
-
     companion object {
-        val Loading = Snapshot().also { it.isLoading = true }
-        val Empty = Snapshot()
+        val Loading = Snapshot(state = SnapshotState.Loading())
+        val Empty = Snapshot(state = SnapshotState.Empty)
     }
 }
 
 @OptIn(ExperimentalTime::class)
 fun Array<Snapshot>.combineToOne(): Snapshot {
-    val isLoading = any { it.isLoading }
-    var updateTime = maxOf { it.updateTime }
-
-    // 如果加载成功，则更新时间
-    if (!isLoading) {
-        updateTime = Clock.System.now().toEpochMilliseconds()
-    }
-
     return Snapshot(
         audios = map { it.audios }.flatten().distinctBy { it.id },
         albums = map { it.albums }.flatten().distinctBy { it.id },
         artists = map { it.artists }.flatten().distinctBy { it.id },
         folders = map { it.folders }.flatten().distinctBy { it.id },
         genres = map { it.genres }.flatten().distinctBy { it.id },
-        updateTime = updateTime
-    ).also { it.isLoading = isLoading }
+        state = maxBy { it.state.priority() }.state,  // 显示优先级最高的状态
+        updateTime = maxOf { it.updateTime }
+    )
 }
 
 fun List<LAudio>.buildSnapshot(): Snapshot {
@@ -89,6 +122,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
         albums = albums,
         artists = artists,
         genres = genres,
+        state = SnapshotState.Success
     )
 }
 

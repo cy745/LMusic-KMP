@@ -1,180 +1,116 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
-import com.lalilu.common.kv.KVContext
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.entity.SourceItem
-import com.lalilu.lmedia.entity.buildSnapshot
+import com.lalilu.lmedia.entity.*
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.io.buffered
-import pro.respawn.flowmvi.api.MVIAction
-import pro.respawn.flowmvi.api.MVIIntent
-import pro.respawn.flowmvi.api.MVIState
-import pro.respawn.flowmvi.api.PipelineContext
-import pro.respawn.flowmvi.dsl.store
-import pro.respawn.flowmvi.plugins.recover
-import pro.respawn.flowmvi.plugins.reduce
 import java.io.FileNotFoundException
 
-@Stable
-@Immutable
-sealed interface FileSystemSourceState : MVIState {
-    data object NotSelected : FileSystemSourceState
-    abstract class Selected(open val path: String) : FileSystemSourceState
-    abstract class Finished(override val path: String) : Selected(path = path)
-
-    data class Scanning(
-        val progress: () -> Float,
-        val message: (() -> String)? = null,
-        override val path: String
-    ) : Selected(path = path)
-
-    data class Success(val result: Snapshot, override val path: String) : Finished(path = path)
-    data class Error(val error: Throwable, override val path: String) : Finished(path = path)
-}
-
-
-sealed interface FileSystemSourceIntent : MVIIntent {
-    data class SelectFile(val path: String) : FileSystemSourceIntent
-    data object CancelScanning : FileSystemSourceIntent
-    data object ReStartScanning : FileSystemSourceIntent
-}
-
-private typealias Ctx = PipelineContext<FileSystemSourceState, FileSystemSourceIntent, MVIAction>
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class JvmFileSystemSource(
-    lMediaKV: KVContext
-) : MediaSource, MediaDataSource {
-    private val scope = CoroutineScope(Dispatchers.Default)
+class JvmFileSystemSource() : MediaSource, MediaDataSource {
     override val name: String = "JvmFileSystemSource"
-    val filePath = lMediaKV.obtain<String>("file_path")
+    private val scope = CoroutineScope(Dispatchers.Default)
     private val stateFlow = MutableStateFlow(Snapshot.Loading)
-    private var runningJob: Job? = null
 
     override fun source(): Flow<Snapshot> = stateFlow
     override val dataSource: MediaDataSource = this
 
-    val store = store<FileSystemSourceState, FileSystemSourceIntent, MVIAction>(
-        initial = FileSystemSourceState.NotSelected,
-        scope = scope
-    ) {
-        configure { name = this@JvmFileSystemSource.name }
-        recover {
-            Logger.e(throwable = it, tag = name, messageString = "Error")
-            updateState {
-                FileSystemSourceState.Error(
-                    error = it,
-                    path = filePath.value
-                )
-            }
-            null
-        }
-        reduce { intent ->
-            when (intent) {
-                is FileSystemSourceIntent.SelectFile -> {
-                    runningJob?.cancel()
-                    runningJob = launch { stateFlow.value = loadPath(path = intent.path) }
-                }
+    private var loadingJob: Job? = null
 
-                is FileSystemSourceIntent.ReStartScanning -> {
-                    runningJob?.cancel()
-                    runningJob = launch { stateFlow.value = loadPath(path = filePath.value) }
-                }
+    override val config: MediaSourceConfig = buildConfig(key = name) {
+        declare<String>(key = "file_path")
+    }
 
-                is FileSystemSourceIntent.CancelScanning -> {
-                    runningJob?.cancel()
-                    updateState {
-                        FileSystemSourceState.Error(
-                            error = RuntimeException("Cancel"),
-                            path = filePath.value
-                        )
-                    }
-                }
-            }
+    override fun onConfigChange() {
+        loadingJob?.cancel()
+        loadingJob = scope.launch {
+            stateFlow.value = load { stateFlow.value = it }
         }
     }
 
     override fun init() {
-        scope.launch {
-            store.awaitStartup()
-            store.intent(FileSystemSourceIntent.SelectFile(filePath.value))
+        loadingJob?.cancel()
+        loadingJob = scope.launch {
+            stateFlow.value = load { stateFlow.value = it }
         }
     }
 
-    private suspend fun Ctx.loadPath(
-        path: String
-    ): Snapshot = withContext(Dispatchers.Unconfined) {
-        val progressState = mutableStateOf(0f)
-        val messageState = mutableStateOf("")
+    private suspend fun load(
+        update: suspend (Snapshot) -> Unit = {}
+    ): Snapshot = withContext(scope.coroutineContext) {
+        runCatching {
+            val path = config.require<String>("file_path")
+            val messageState = mutableStateOf("Loading...")
+            val progressState = mutableStateOf(0f)
 
-        filePath.value = path
-
-        updateState {
-            FileSystemSourceState.Scanning(
-                progress = { progressState.value },
-                message = { messageState.value },
-                path = path
+            update(
+                Snapshot(
+                    state = SnapshotState.LoadingDynamic(
+                        message = { messageState.value },
+                        progress = { progressState.value }
+                    )
+                )
             )
-        }
 
-        val root = PlatformFile.fromBookmarkData(path.encodeToByteArray())
-        val files = root.filterChildren { file ->
-            if (file.isDirectory()) return@filterChildren false
-            if (file.size() < 10) return@filterChildren false
-
-            messageState.value = file.name
-            MagicNumber.match(
-                ext = file.extension,
-                source = file.source().buffered()
-            ) != null
-        }
-
-        val results = files.map { it.file }.mapIndexed { index, file ->
-            async(Dispatchers.io) {
-                val metadata = Taglib.readMetadata(path = file.absolutePath)
-                    ?: return@async null
-                ensureActive()
-
-                val newProgress = (index + 1).toFloat() / files.size.toFloat()
-                progressState.value = maxOf(progressState.value, newProgress)
-
-                messageState.value = metadata.title
-                SourceItem.FileItem(file) to metadata
-            }
-        }
-
-        val songs = results
-            .awaitAll()
-            .filterNotNull()
-            .map { (source, metadata) ->
-                LAudio(
-                    id = source.key,
-                    title = metadata.title,
-                    subtitle = metadata.artist,
-                    sourceItem = source,
-                    metadata = metadata,
-                    mediaSourceName = this@JvmFileSystemSource.name
-                )
+            fun updateLoadingState(
+                message: String,
+                progress: Float = 0f
+            ) {
+                messageState.value = message
+                progressState.value = maxOf(progress, progressState.value)
             }
 
-        songs.buildSnapshot().also {
-            updateState {
-                FileSystemSourceState.Success(
-                    result = it,
-                    path = path
-                )
+            val root = PlatformFile.fromBookmarkData(path.encodeToByteArray())
+            val files = root.filterChildren { file ->
+                if (file.isDirectory()) return@filterChildren false
+                if (file.size() < 10) return@filterChildren false
+
+                updateLoadingState(message = file.name)
+                MagicNumber.match(
+                    ext = file.extension,
+                    source = file.source().buffered()
+                ) != null
             }
+
+            val results = files.map { it.file }.mapIndexed { index, file ->
+                async(Dispatchers.io) {
+                    val metadata = Taglib.readMetadata(path = file.absolutePath)
+                        ?: return@async null
+                    ensureActive()
+
+                    val newProgress = (index + 1).toFloat() / files.size.toFloat()
+                    updateLoadingState(
+                        message = metadata.title,
+                        progress = newProgress
+                    )
+                    SourceItem.FileItem(file) to metadata
+                }
+            }
+
+            val songs = results
+                .awaitAll()
+                .filterNotNull()
+                .map { (source, metadata) ->
+                    LAudio(
+                        id = source.key,
+                        title = metadata.title,
+                        subtitle = metadata.artist,
+                        sourceItem = source,
+                        metadata = metadata,
+                        mediaSourceName = this@JvmFileSystemSource.name
+                    )
+                }
+
+            songs.buildSnapshot()
+        }.getOrElse {
+            Snapshot(state = SnapshotState.Error(message = it.message ?: "Unknown error"))
         }
     }
 

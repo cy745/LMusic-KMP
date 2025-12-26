@@ -7,11 +7,9 @@ import com.github.ajalt.clikt.parameters.arguments.default
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
-import com.lalilu.common.kv.KVContext
 import com.lalilu.lmedia.server.LMediaServer
 import com.lalilu.lmedia.server.entity.RemoteServerConfig
 import com.lalilu.lmedia.source.JvmFileSystemSource
-import com.russhwolf.settings.Settings
 import kotlinx.serialization.json.Json
 
 suspend fun main(args: Array<String>) {
@@ -28,14 +26,10 @@ object LMediaServerCommand : SuspendingCliktCommand() {
 
     override suspend fun run() {
         echo("Hello World!: $path listen on $port")
-        val settings = Settings()
-        val saver = KvSettingsSaver(settings)
-        val kv = object : KVContext(_saver = saver) {}
 
         val json = Json { ignoreUnknownKeys = true }
-        val jvmSource = JvmFileSystemSource(kv)
-        jvmSource.filePath.value = path
-        jvmSource.start()
+        val jvmSource = JvmFileSystemSource()
+        jvmSource.config.update { setter -> setter("file_path", path) }
 
         val server = LMediaServer(
             config = RemoteServerConfig(
