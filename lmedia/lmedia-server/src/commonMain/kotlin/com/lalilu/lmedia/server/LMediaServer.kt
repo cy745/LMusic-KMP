@@ -33,13 +33,8 @@ class LMediaServer(
         val targetSource = sources.sources
             .firstOrNull { it.name == sourceName }
 
-        if (config.port !in 1024..65535) {
-            throw IllegalArgumentException("Invalid server config: [$port] port must be in range [1024, 65535]")
-        }
-
-        if (targetSource == null) {
-            throw IllegalArgumentException("No source found for name: $sourceName")
-        }
+        require(config.port in 1024..65535) { "Invalid server config: [$port] port must be in range [1024, 65535]" }
+        require(targetSource != null) { "No source found for name: $sourceName" }
 
         serverInstance = provideServer(
             port = port,

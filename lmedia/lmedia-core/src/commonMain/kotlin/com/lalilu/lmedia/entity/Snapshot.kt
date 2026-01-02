@@ -65,6 +65,15 @@ data class Snapshot(
     }
 }
 
+fun Snapshot.redirectToNewSource(sourceName: String) {
+    // 重定向数据源至另外一个Source
+    audios.forEach { audio -> audio.mediaSourceName = sourceName }
+    albums.forEach { album -> album.items.forEach { it.mediaSourceName = sourceName } }
+    artists.forEach { artist -> artist.items.forEach { it.mediaSourceName = sourceName } }
+    folders.forEach { folder -> folder.items.forEach { it.mediaSourceName = sourceName } }
+    genres.forEach { genre -> genre.items.forEach { it.mediaSourceName = sourceName } }
+}
+
 @OptIn(ExperimentalTime::class)
 fun Array<Snapshot>.combineToOne(): Snapshot {
     return Snapshot(

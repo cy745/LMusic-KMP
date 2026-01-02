@@ -6,7 +6,6 @@ import com.lalilu.common.ext.KModule
 import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.generated.KRouterInjectMap
 import com.lalilu.lhome.LHomeModule
-import com.lalilu.lmedia.LMediaModule
 import com.lalilu.lmusic.util.DebugRecomposeLogger
 import com.lalilu.lmusic.util.KermitKoinLogger
 import com.lalilu.lmusic.util.MemoryLogWriter

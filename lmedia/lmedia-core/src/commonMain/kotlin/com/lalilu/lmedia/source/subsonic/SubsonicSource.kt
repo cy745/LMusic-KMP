@@ -23,8 +23,10 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.Json
+import org.koin.core.annotation.Single
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Single(createdAtStart = true)
 class SubsonicSource(
     lMediaKV: LMediaKV,
     json: Json
