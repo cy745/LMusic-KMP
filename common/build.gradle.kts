@@ -1,8 +1,7 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
-import com.lalilu.gradle.XcodeDetector
+import com.lalilu.*
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -16,80 +15,45 @@ plugins {
 group = "com.lalilu.common"
 version = "1.0.0"
 
-kotlin {
-    jvm()
-    androidTarget {
-        compilerOptions {
-            // jvmTarget = JvmTarget.JVM_11
-        }
+applyMultiplatform {
+    main.dependencies {
+        api(libs.compose.runtime)
+        api(libs.kermit)
+        api(libs.kotlin.logging)
+        api(libs.human.readable)
+        api(libs.krouter.core)
+        api(libs.kotlinx.serialization)
+        api(libs.kotlinx.coroutines.core)
+        api(libs.kotlinx.datetime)
+        api(libs.koin.core)
+        api(libs.koin.annotations)
+
+        api(libs.ktor.client.core)
+        api(libs.ktor.client.content.negotiation)
+        api(libs.ktor.client.serialization)
+        api(libs.ktor.serialization.json)
+        api(libs.ktor.client.logging)
+        api(libs.ktorfit)
+
+        // kotlin crypto
+        api(kotlincrypto.hash.md)
+        api(libs.sweetspi.runtime)
     }
-    XcodeDetector.whenXcodeInstalled {
-        listOf(
-            iosX64(),
-            iosArm64(),
-            iosSimulatorArm64()
-        )
+    test.dependencies {
+        implementation(libs.kotlin.test)
     }
-    wasmJs {
-        browser()
-        binaries.executable()
+    androidMain.dependencies {
+        api("com.blankj:utilcodex:1.31.1")
+        api(libs.ktor.client.okhttp)
     }
-
-    sourceSets {
-        val commonMain by getting {
-            dependencies {
-                api(compose.runtime)
-                api(libs.kermit)
-                api(libs.kotlin.logging)
-                api(libs.human.readable)
-                api(libs.krouter.core)
-                api(libs.kotlinx.serialization)
-                api(libs.kotlinx.coroutines.core)
-                api(libs.kotlinx.datetime)
-                api(libs.koin.core)
-                api(libs.koin.annotations)
-
-                api(libs.ktor.client.core)
-                api(libs.ktor.client.content.negotiation)
-                api(libs.ktor.client.serialization)
-                api(libs.ktor.serialization.json)
-                api(libs.ktor.client.logging)
-                api(libs.ktorfit)
-
-                // kotlin crypto
-                api(kotlincrypto.hash.md)
-                api(libs.sweetspi.runtime)
-            }
-        }
-        val commonTest by getting {
-            dependencies {
-                implementation(libs.kotlin.test)
-            }
-        }
-        androidMain.dependencies {
-            api("com.blankj:utilcodex:1.31.1")
-            api(libs.ktor.client.okhttp)
-        }
-        jvmMain.dependencies {
-            api(libs.ktor.client.okhttp)
-            api("ch.qos.logback:logback-classic:1.5.18")
-        }
-        iosMain.dependencies {
-            api(libs.ktor.client.darwin)
-        }
-        wasmJsMain.dependencies {
-            api(libs.ktor.client.js)
-        }
+    jvmMain.dependencies {
+        api(libs.ktor.client.okhttp)
+        api("ch.qos.logback:logback-classic:1.5.18")
     }
-}
-
-dependencies {
-    kspCommonMainMetadata(libs.sweetspi.processor)
-    add("kspJvm", libs.sweetspi.processor)
-    add("kspAndroid", libs.sweetspi.processor)
-}
-
-android {
-    namespace = group.toString()
-    compileSdk = libs.versions.android.targetSdk.get().toInt()
+    iosMain?.dependencies {
+        api(libs.ktor.client.darwin)
+    }
+    wasmJsMain.dependencies {
+        api(libs.ktor.client.js)
+    }
 }

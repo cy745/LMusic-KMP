@@ -122,7 +122,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.lalilu.lmusic"
+        applicationId = "com.lalilu.lmusic.kmp"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1

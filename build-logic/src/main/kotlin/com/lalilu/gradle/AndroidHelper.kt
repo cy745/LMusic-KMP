@@ -22,7 +22,7 @@ fun Project.applyAndroidLibrary() {
 
     plugins.withId(Constants.ANDROID_LIBRARY_PLUGIN) {
         extensions.configure<LibraryExtension> {
-            val artifactId = "${extra.get("artifactId") ?: ""}"
+            val artifactId = "${runCatching { extra.get("artifactId") }.getOrNull() ?: ""}"
             namespace = if (artifactId.isNotBlank()) "$group.$artifactId" else "$group"
             compileSdk = targetSdk?.toIntOrNull() ?: Constants.FALLBACK_TARGET_SDK
         }
