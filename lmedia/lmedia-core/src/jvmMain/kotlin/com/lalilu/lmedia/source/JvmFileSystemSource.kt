@@ -1,6 +1,7 @@
 package com.lalilu.lmedia.source
 
 import androidx.compose.runtime.mutableStateOf
+import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
@@ -25,14 +26,22 @@ class JvmFileSystemSource() : MediaSource, MediaDataSource {
     private var loadingJob: Job? = null
 
     override val config: MediaSourceConfig = buildConfig(key = name) {
-        declare<String>(key = "file_path")
+        property<String>(key = "file_path").provide("")
+
+        function<Unit>(key = "Cancel", description = "Cancel current task").onCall { params ->
+            Logger.i(tag = name, messageString = "on cancel $params")
+            loadingJob?.cancel()
+        }
+
+        function<Unit>(key = "Reload", description = "Rescan all files").onCall { params ->
+            Logger.i(tag = name, messageString = "on rescan $params")
+            init()
+        }
     }
 
+    private val filePath get() = config.get<String>("file_path").getOrThrow()
+
     override fun onConfigChange() {
-        loadingJob?.cancel()
-        loadingJob = scope.launch {
-            stateFlow.value = load { stateFlow.value = it }
-        }
     }
 
     override fun init() {
@@ -46,7 +55,7 @@ class JvmFileSystemSource() : MediaSource, MediaDataSource {
         update: suspend (Snapshot) -> Unit = {}
     ): Snapshot = withContext(scope.coroutineContext) {
         runCatching {
-            val path = config.require<String>("file_path")
+            val path = filePath
             val messageState = mutableStateOf("Loading...")
             val progressState = mutableStateOf(0f)
 

@@ -1,13 +1,16 @@
 package com.lalilu.lmedia.source
 
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.lalilu.lmedia.component.FileSystemScannerCard
-import com.lalilu.lmedia.component.FileSystemScannerCardIntent
-import com.lalilu.lmedia.component.FileSystemScannerCardState
+import com.lalilu.lmedia.component.SourceCard
+import com.lalilu.lmedia.component.SourceState
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SnapshotState
 import io.github.vinceglb.filekit.bookmarkData
@@ -27,20 +30,23 @@ fun JvmFileSystemSource.JvmFileSystemSourceContent(modifier: Modifier) {
 
         scope.launch {
             val path = it.bookmarkData().bytes.decodeToString()
-            config.update { setter ->
-                setter("file_path", path)
-            }
+            config.update { setter -> setter("file_path", path) }
+            config.call<Unit>("Reload")
         }
     }
 
-    FileSystemScannerCard(
+    SourceCard(
         modifier = modifier,
         state = state.value.toCardState { config },
-        onIntent = { intent ->
-            when (intent) {
-                FileSystemScannerCardIntent.Select -> launcher.launch()
-                FileSystemScannerCardIntent.Cancel -> {}
-                FileSystemScannerCardIntent.ReScan -> {}
+        sourceActions = {
+            TextButton(
+                onClick = { launcher.launch() },
+                colors = ButtonDefaults.filledTonalButtonColors(),
+            ) {
+                Text(
+                    text = "Select",
+                    style = MaterialTheme.typography.titleSmall
+                )
             }
         }
     )
@@ -49,29 +55,29 @@ fun JvmFileSystemSource.JvmFileSystemSourceContent(modifier: Modifier) {
 @Composable
 fun Snapshot.toCardState(
     config: () -> MediaSourceConfig
-): FileSystemScannerCardState {
+): SourceState {
     return remember(this) {
         val path = config().get<String>("file_path").getOrElse { "" }
 
         when (val snapshotState = state) {
-            is SnapshotState.Success -> FileSystemScannerCardState.Success(result = this, path = path)
-            is SnapshotState.Empty -> FileSystemScannerCardState.Success(result = this, path = path)
-            is SnapshotState.Error -> FileSystemScannerCardState.Error(
+            is SnapshotState.Success -> SourceState.Success(result = this, state = path)
+            is SnapshotState.Empty -> SourceState.Success(result = this, state = path)
+            is SnapshotState.Error -> SourceState.Error(
                 error = IllegalArgumentException(snapshotState.message),
-                path = path
+                state = path
             )
 
-            is SnapshotState.Idle -> FileSystemScannerCardState.NotSelected
-            is SnapshotState.LoadingDynamic -> FileSystemScannerCardState.Scanning(
+            is SnapshotState.Idle -> SourceState.Idle
+            is SnapshotState.LoadingDynamic -> SourceState.Loading(
                 progress = snapshotState.progress,
                 message = snapshotState.message,
-                path = path
+                state = path
             )
 
-            is SnapshotState.Loading -> FileSystemScannerCardState.Scanning(
+            is SnapshotState.Loading -> SourceState.Loading(
                 progress = { snapshotState.progress },
                 message = { snapshotState.message },
-                path = path
+                state = path
             )
         }
     }

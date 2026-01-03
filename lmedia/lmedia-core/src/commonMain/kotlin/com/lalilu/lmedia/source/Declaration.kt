@@ -75,7 +75,7 @@ sealed class Declaration(
          * 获取属性值
          * @return 属性的当前值，如果不存在则返回 null
          */
-        fun get(): T? = instance.getValue(key, type) as T?
+        fun get(): T? = instance.getValue(key, type) as? T?
     }
 
     /**

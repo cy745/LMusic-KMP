@@ -50,6 +50,7 @@ class MediaSourceConfigBuilder(
         key: String,
         name: String = key,
         description: String = "",
+        priority: Int = 0,
         mutable: Boolean = true,
         required: Boolean = false,
         type: KClass<T> = T::class
@@ -57,6 +58,7 @@ class MediaSourceConfigBuilder(
         key = key,
         name = name,
         description = description,
+        priority = priority,
         mutable = mutable,
         required = required,
         type = type,
@@ -76,12 +78,14 @@ class MediaSourceConfigBuilder(
         key: String,
         name: String = key,
         description: String = "",
+        priority: Int = 0,
         parameters: List<Parameter<*>> = listOf(),
         returnType: KClass<T> = T::class
     ) = Declaration.Function(
         key = key,
         name = name,
         description = description,
+        priority = priority,
         parameters = parameters,
         returnType = returnType,
     ).also { declare(it) }

@@ -150,12 +150,12 @@ class MediaSourceConfig(
 
     @InternalLMedia
     override fun getValue(key: String, clazz: KClass<*>): Any? = when (clazz) {
-        Int::class -> get<Int>(key)
-        Long::class -> get<Long>(key)
-        Float::class -> get<Float>(key)
-        Double::class -> get<Double>(key)
-        Boolean::class -> get<Boolean>(key)
-        String::class -> get<String>(key)
+        Int::class -> get<Int>(key).getOrThrow()
+        Long::class -> get<Long>(key).getOrThrow()
+        Float::class -> get<Float>(key).getOrThrow()
+        Double::class -> get<Double>(key).getOrThrow()
+        Boolean::class -> get<Boolean>(key).getOrThrow()
+        String::class -> get<String>(key).getOrThrow()
         else -> throw IllegalArgumentException("[${this.key}][$key]Unsupported type ${clazz.simpleName}")
     } as Any?
 
