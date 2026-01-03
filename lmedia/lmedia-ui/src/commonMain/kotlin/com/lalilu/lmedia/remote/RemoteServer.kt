@@ -45,18 +45,28 @@ class RemoteServer(
     ) = withContext(Dispatchers.Unconfined) {
         running.value = false
         server?.stopAndRelease()
+        if (server != null) {
+            Logger.i(tag = TAG, messageString = "Remote server is stopping")
+        }
 
         if (!config.enable) {
+            Logger.i(tag = TAG, messageString = "Remote server is disabled")
             return@withContext
         }
 
-        server = LMediaServer(
-            config = config,
-            sources = sources,
-            json = json
-        )
+        runCatching {
+            server = LMediaServer(
+                config = config,
+                sources = sources,
+                json = json
+            )
 
-        running.value = true
-        server?.startAsync()
+            running.value = true
+            server?.startAsync()
+            Logger.i(tag = TAG, messageString = "Remote server is started")
+        }.getOrElse {
+            running.value = false
+            Logger.e(tag = TAG, messageString = "Remote server is failed to start", throwable = it)
+        }
     }
 }

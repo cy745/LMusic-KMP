@@ -5,42 +5,53 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.PlatformMediaSource
 import org.koin.compose.koinInject
+import kotlin.time.ExperimentalTime
 
+
+@OptIn(ExperimentalTime::class)
 @Composable
 fun RemoteServerPanel(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val removeServer = koinInject<RemoteServer>()
     val sources = koinInject<PlatformMediaSource>()
     val config = removeServer.config
 
-    Card {
+    Card(
+        modifier = modifier,
+    ) {
         Column(
-            modifier = modifier
-                .padding(16.dp)
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .padding(top = 16.dp, bottom = 12.dp)
                 .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                modifier = Modifier.padding(vertical = 12.dp),
-                text = "Remote Server: ${if (removeServer.running.value) "Running" else "Not Running"}",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
             Row(
-                modifier = Modifier,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.Top
             ) {
-                Text(
-                    text = "总开关",
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Remote Server",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Text(
+                        modifier = Modifier
+                            .alpha(0.6f)
+                            .padding(top = 8.dp),
+                        text = if (removeServer.running.value) "Running at port: ${config.value.port}"
+                        else "Not Running",
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+
                 Switch(
                     checked = config.value.enable,
                     onCheckedChange = { config.value = config.value.copy(enable = it) }
@@ -49,7 +60,7 @@ fun RemoteServerPanel(
 
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 sources.sources.forEach {
