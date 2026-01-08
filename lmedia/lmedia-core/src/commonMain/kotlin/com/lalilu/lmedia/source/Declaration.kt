@@ -14,7 +14,7 @@ interface Instance {
      * @return 对应的值，如果不存在则返回 null
      */
     fun getValue(key: String, clazz: KClass<*>): Any? = Unit
-    
+
     /**
      * 设置指定键和类型的值
      * @param key 键名
@@ -70,7 +70,7 @@ sealed class Declaration(
          * @param value 要设置的值
          */
         fun set(value: T?) = instance.setValue(key, type, value)
-        
+
         /**
          * 获取属性值
          * @return 属性的当前值，如果不存在则返回 null
@@ -109,6 +109,7 @@ sealed class Declaration(
      * @param priority 优先级
      * @param parameters 函数参数列表
      * @param returnType 返回值类型
+     * @param isAvailable 是否可用的检测回调
      * @param callback 函数执行回调
      */
     data class Function<T : Any>(
@@ -116,9 +117,10 @@ sealed class Declaration(
         override val name: String,
         override val description: String,
         override val priority: Int = 0,
-        val parameters: List<Parameter<*>>, // 函数参数列表
-        val returnType: KClass<T>,          // 返回值类型
-        val callback: ((args: List<Any?>) -> T?)? = null, // 函数执行回调
+        val parameters: List<Parameter<*>>,                 // 函数参数列表
+        val returnType: KClass<T>,                          // 返回值类型
+        val isAvailable: () -> Boolean = { true },          // 是否可用的检测回调
+        val callback: ((args: List<Any?>) -> T?)? = null,   // 函数执行回调
     ) : Declaration(
         key = key,
         name = name,

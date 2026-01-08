@@ -60,6 +60,7 @@ data class Snapshot(
     val updateTime: Long = Clock.System.now().toEpochMilliseconds()
 ) {
     companion object {
+        val Idle = Snapshot(state = SnapshotState.Idle)
         val Loading = Snapshot(state = SnapshotState.Loading())
         val Empty = Snapshot(state = SnapshotState.Empty)
     }

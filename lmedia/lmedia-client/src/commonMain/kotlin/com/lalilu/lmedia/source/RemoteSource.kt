@@ -2,11 +2,7 @@ package com.lalilu.lmedia.source
 
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.LMediaKV
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.entity.SourceItemDefaults
-import com.lalilu.lmedia.remote.RemoteSourceConfig
+import com.lalilu.lmedia.entity.*
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.*
@@ -26,7 +22,6 @@ import kotlin.coroutines.CoroutineContext
 @Single(createdAtStart = true)
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSource(
-    lMediaKV: LMediaKV,
     json: Json
 ) : MediaSource, MediaDataSource, CoroutineScope {
 
@@ -35,40 +30,46 @@ class RemoteSource(
     }
 
     override val coroutineContext: CoroutineContext =
-        Dispatchers.io + SupervisorJob() + CoroutineExceptionHandler { context, throwable ->
+        Dispatchers.io + SupervisorJob() + CoroutineExceptionHandler { _, throwable ->
             Logger.e(tag = TAG, throwable = throwable, messageString = "${throwable.message}")
         }
 
     override val name: String = TAG
+    override val config: MediaSourceConfig = buildConfig(name) {
+        property<String>("url")
+        property<String>("password")
 
-    /**
-     * 客户端配置参数
-     */
-    val configItem = lMediaKV.obtain<RemoteSourceConfig>(
-        key = "REMOTE_CONFIG",
-        defaultValue = RemoteSourceConfig.Empty
-    )
+        function<Unit>("Reset").onCall {
 
-    val configFlow = configItem.flow()
+        }
+    }
+
+    private val url = config.get<String>("url").getOrElse { "" }
+
+    override fun onConfigChange() {
+
+    }
 
     /**
      * 客户端对象，使用Flow封装，当上游配置改变时，会重新创建客户端对象
      */
-    private val clientFlow = configFlow.flatMapLatest { config ->
+    private val clientFlow = config.holder.flatMapLatest { config ->
         Logger.i(tag = TAG, messageString = "Config update: $config")
 
-        if (!config.enable || config.url.isBlank()) {
+        if (url.isBlank()) {
             Logger.i(tag = TAG, messageString = "Invalid client config")
-            return@flatMapLatest flowOf(null)
+            return@flatMapLatest flowOf(
+                Result.failure(IllegalArgumentException("Invalid client config"))
+            )
         }
 
-        callbackFlow<HttpClient> {
+        callbackFlow {
             val client = HttpClient {
-                defaultRequest { url("http://${config.url}") }
+                defaultRequest { url("http://${url}") }
                 install(ContentNegotiation) { json(json = json) }
             }
 
-            send(client)
+            send(Result.success(client))
             Logger.i(
                 tag = TAG,
                 messageString = "New Client instance created: ${client.hashCode()}"
@@ -88,46 +89,31 @@ class RemoteSource(
      * 远程获取到的source的Flow，stateIn使其持久化，避免重复请求
      */
     val snapshotStateFlow = clientFlow
-        .flatMapLatest { client ->
+        .flatMapLatest { result ->
             flow {
+                val client = result?.getOrElse { error ->
+                    emit(Snapshot(state = SnapshotState.Error(message = "[$name]${error.message}")))
+                    null
+                } ?: return@flow
+
                 // 先返回Loading，避免下游长时间等待
                 emit(Snapshot.Loading)
                 emit(
-                    client?.get("/source")
-                        ?.body<Snapshot>()
-                        ?: Snapshot.Empty
+                    client
+                        .get("/source")
+                        .body<Snapshot>()
                 )
             }.onEach {
                 // 重定向数据源至RemoteSource
-                it.audios.forEach { audio ->
-                    audio.mediaSourceName = this@RemoteSource.name
-                }
-                it.albums.forEach { album ->
-                    album.items.forEach { audio ->
-                        audio.mediaSourceName = this@RemoteSource.name
-                    }
-                }
-                it.artists.forEach { artist ->
-                    artist.items.forEach { audio ->
-                        audio.mediaSourceName = this@RemoteSource.name
-                    }
-                }
-                it.folders.forEach { folder ->
-                    folder.items.forEach { audio ->
-                        audio.mediaSourceName = this@RemoteSource.name
-                    }
-                }
-                it.genres.forEach { genre ->
-                    genre.items.forEach { audio ->
-                        audio.mediaSourceName = this@RemoteSource.name
-                    }
-                }
+                it.redirectToNewSource(this@RemoteSource.name)
             }
         }.stateIn(this, SharingStarted.Eagerly, Snapshot.Empty)
 
     override suspend fun getLyric(song: LAudio): String? {
         val targetUrl = "lyric/${song.id.encodeURLPathPart()}"
-        val lyric = clientFlow.value?.get(targetUrl)
+        val lyric = clientFlow.value
+            ?.getOrNull()
+            ?.get(targetUrl)
             ?.bodyAsText()
 
         return lyric
@@ -137,6 +123,7 @@ class RemoteSource(
         val targetUrl = "picture/${song.id.encodeURLPathPart()}"
 
         val picture = clientFlow.value
+            ?.getOrNull()
             ?.get(targetUrl)
             ?.bodyAsBytes()
             ?.takeIf { it.isNotEmpty() }
@@ -149,10 +136,11 @@ class RemoteSource(
         val targetUrl = "media/${song.id.encodeURLPathPart()}"
 
         if (song.sourceItem is SourceItemDefaults.RequestUrl) {
-            return MediaData.Url("http://${configItem.value.url}/media/${song.id.encodeURLPathPart()}")
+            return MediaData.Url("http://${url}/media/${song.id.encodeURLPathPart()}")
         }
 
         val media = clientFlow.value
+            ?.getOrNull()
             ?.get(targetUrl)
             ?.bodyAsBytes()
             ?.takeIf { it.isNotEmpty() }

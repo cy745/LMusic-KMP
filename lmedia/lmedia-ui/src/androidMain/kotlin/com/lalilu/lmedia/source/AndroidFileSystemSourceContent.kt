@@ -5,9 +5,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.lalilu.lmedia.component.FileSystemScannerCard
-import com.lalilu.lmedia.component.FileSystemScannerCardIntent
-import com.lalilu.lmedia.component.FileSystemScannerCardState
+import com.lalilu.lmedia.component.SourceCard
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SnapshotState
 import io.github.vinceglb.filekit.bookmarkData
@@ -25,52 +23,32 @@ fun MediaSource.AndroidFileSystemSourceContent(modifier: Modifier) {
 
         scope.launch {
             val path = it.bookmarkData().bytes.decodeToString()
-            config.update { setter ->
-                setter("file_path", path)
-            }
+            config.update { setter -> setter("file_path", path) }
+            config.call<Unit>("Rescan")
         }
     }
 
-    FileSystemScannerCard(
+    val extraFunctions = remember {
+        listOf<Declaration.Function<*>>(
+            Declaration.Function(
+                key = "Select Directory",
+                name = "Select Directory",
+                description = "Select Directory",
+                parameters = emptyList(),
+                returnType = Unit::class,
+                isAvailable = { state.value.state is SnapshotState.Idle },
+                callback = { launcher.launch() }
+            )
+        )
+    }
+
+    SourceCard(
         modifier = modifier,
-        state = state.value.toCardState(config = { config }),
-        onIntent = { intent ->
-            when (intent) {
-                FileSystemScannerCardIntent.Select -> launcher.launch()
-                FileSystemScannerCardIntent.Cancel -> {}
-                FileSystemScannerCardIntent.ReScan -> {}
-            }
+        state = { state.value },
+        extraFunctions = { extraFunctions },
+        extraMessage = msg@{
+            if (state.value.state is SnapshotState.Idle) return@msg null
+            config.get<String>("file_path").getOrNull()
         }
     )
-}
-
-@Composable
-fun Snapshot.toCardState(
-    config: () -> MediaSourceConfig
-): FileSystemScannerCardState {
-    return remember(this) {
-        val path = config().get<String>("file_path").getOrElse { "" }
-
-        when (val snapshotState = state) {
-            is SnapshotState.Success -> FileSystemScannerCardState.Success(result = this, path = path)
-            is SnapshotState.Empty -> FileSystemScannerCardState.Success(result = this, path = path)
-            is SnapshotState.Error -> FileSystemScannerCardState.Error(
-                error = IllegalArgumentException(snapshotState.message),
-                path = path
-            )
-
-            is SnapshotState.Idle -> FileSystemScannerCardState.NotSelected
-            is SnapshotState.LoadingDynamic -> FileSystemScannerCardState.Scanning(
-                progress = snapshotState.progress,
-                message = snapshotState.message,
-                path = path
-            )
-
-            is SnapshotState.Loading -> FileSystemScannerCardState.Scanning(
-                progress = { snapshotState.progress },
-                message = { snapshotState.message },
-                path = path
-            )
-        }
-    }
 }

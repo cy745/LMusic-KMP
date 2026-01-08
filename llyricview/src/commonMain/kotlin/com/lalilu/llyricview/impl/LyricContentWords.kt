@@ -29,7 +29,6 @@ import com.lalilu.llyricview.LyricContext
 import com.lalilu.llyricview.LyricItemLayout
 import com.lalilu.llyricview.LyricSettings
 import com.lalilu.llyricview.utils.*
-import com.skydoves.compose.stability.runtime.TraceRecomposition
 import org.koin.core.annotation.Named
 import org.koin.core.annotation.Single
 import kotlin.math.abs
@@ -67,7 +66,6 @@ class LyricWordsContent : LyricItemLayout<LyricItem.WordsLyric> {
     }
 }
 
-@TraceRecomposition
 @Composable
 fun LyricContentWords(
     index: Int,

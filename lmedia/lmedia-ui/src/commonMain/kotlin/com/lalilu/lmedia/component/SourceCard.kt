@@ -10,9 +10,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
@@ -21,45 +20,36 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lmedia.entity.SnapshotState
+import com.lalilu.lmedia.source.Declaration
 import com.lalilu.lmedia.source.MediaSource
 import com.lalilu.preview.preview
 import kotlin.time.ExperimentalTime
 
 
-@Stable
-@Immutable
-sealed interface SourceState {
-    abstract class Selected(open val state: String) : SourceState
-    abstract class Finished(override val state: String) : Selected(state = state)
-
-    object Idle : SourceState
-
-    data class Loading(
-        val progress: () -> Float,
-        val message: (() -> String)? = null,
-        override val state: String
-    ) : Selected(state = state)
-
-    data class Success(val result: Snapshot, override val state: String) : Finished(state = state)
-    data class Error(val error: Throwable, override val state: String) : Finished(state = state)
-}
-
 @OptIn(ExperimentalTime::class)
 @Composable
 fun MediaSource.SourceCard(
     modifier: Modifier = Modifier,
-    state: SourceState = SourceState.Idle,
+    state: () -> Snapshot = { Snapshot.Idle },
     configForm: @Composable MediaSource.() -> Unit = { PropertyComponent() },
-    configActions: @Composable MediaSource.(Modifier) -> Unit = { FunctionComponent(it) },
-    sourceActions: @Composable MediaSource.(SourceState) -> Unit = {}
+    configActions: @Composable MediaSource.(Modifier, () -> List<Declaration.Function<*>>) -> Unit = { modifier, extraFunctions ->
+        FunctionComponent(
+            modifier,
+            extraFunctions
+        )
+    },
+    extraMessage: () -> String? = { null },
+    extraFunctions: () -> List<Declaration.Function<*>> = { EMPTY_LIST }
 ) {
     val title = remember { config.name }
     val subtitle = remember { config.description }
+    val stateRef = rememberUpdatedState(state())
 
     BaseSourceCard(
         modifier = modifier,
         title = title,
-        subtitle = "Selected Path: ${(state as? SourceState.Selected)?.state}",
+        subtitle = subtitle,
         subtitleContent = {
             Column(
                 modifier = Modifier.fillMaxWidth()
@@ -75,58 +65,76 @@ fun MediaSource.SourceCard(
                     )
                 }
 
-                val msg = (state as? SourceState.Selected)?.state
-                AnimatedVisibility(visible = !msg.isNullOrBlank()) {
+                AnimatedVisibility(visible = !extraMessage().isNullOrBlank()) {
                     Text(
                         modifier = Modifier
                             .alpha(0.6f),
-                        text = "$msg",
+                        text = "${extraMessage()}",
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
             }
         }
     ) {
-        AnimatedContent(targetState = state) { stateValue ->
-            when (stateValue) {
-                is SourceState.Idle -> Column(
+        AnimatedContent(targetState = stateRef.value) { stateValue ->
+            when (val snapshotState = stateValue.state) {
+                is SnapshotState.Idle -> Column(
                     modifier = Modifier.fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
                     configForm()
                 }
 
-                is SourceState.Loading -> Column {
+                is SnapshotState.Loading -> Column {
                     LinearProgressIndicator(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 12.dp),
-                        progress = stateValue.progress
+                        progress = { snapshotState.progress }
                     )
 
-                    stateValue.message?.let {
-                        Text(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp)
-                                .alpha(0.3f),
-                            text = it.invoke(),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
+                    Text(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                            .alpha(0.3f),
+                        text = snapshotState.message,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
                 }
 
-                is SourceState.Success -> SnapshotPreviewCard(
+                is SnapshotState.LoadingDynamic -> Column {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        progress = snapshotState.progress
+                    )
+
+                    Text(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                            .alpha(0.3f),
+                        text = snapshotState.message.invoke(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+
+                is SnapshotState.Empty,
+                is SnapshotState.Success -> SnapshotPreviewCard(
                     modifier = Modifier.padding(top = 4.dp),
-                    snapshot = { stateValue.result }
+                    snapshot = { stateValue }
                 )
 
-                is SourceState.Error -> {
+                is SnapshotState.Error -> {
                     Text(
                         modifier = Modifier.padding(top = 4.dp),
-                        text = "${stateValue.error.message}",
+                        text = snapshotState.message,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.error
@@ -141,8 +149,7 @@ fun MediaSource.SourceCard(
             Modifier.padding(top = 8.dp)
                 .fillMaxWidth()
         ) {
-            configActions(Modifier)
-            sourceActions(state)
+            configActions(Modifier, extraFunctions)
         }
     }
 }
@@ -156,7 +163,7 @@ private fun SourceCardPreviewDefault() = preview(isDarkMode = true) {
     ) {
         PreviewMediaSource.SourceCard(
             modifier = Modifier,
-            state = SourceState.Idle,
+            state = { Snapshot.Idle },
         )
     }
 }
@@ -170,11 +177,7 @@ private fun SourceCardPreviewScanning() = preview(isDarkMode = true) {
     ) {
         PreviewMediaSource.SourceCard(
             modifier = Modifier,
-            state = SourceState.Loading(
-                progress = { 0.5f },
-                message = { "Scanning..." },
-                state = "/Users/miku/Documents/IdeaProjects/LMusic-KMP/lmedia/src/androidMain/kotlin/com/lalilu/lmedia/source/filesystem"
-            )
+            state = { Snapshot.Loading }
         )
     }
 }
@@ -188,12 +191,7 @@ private fun SourceCardPreviewSuccess() = preview(isDarkMode = true) {
     ) {
         PreviewMediaSource.SourceCard(
             modifier = Modifier,
-            state = SourceState.Success(
-                result = Snapshot.Empty.copy(
-                    updateTime = 0L
-                ),
-                state = "/Users/miku/Documents/IdeaProjects/LMusic-KMP/lmedia/src/androidMain/kotlin/com/lalilu/lmedia/source/filesystem"
-            )
+            state = { Snapshot(state = SnapshotState.Success) }
         )
     }
 }
@@ -207,10 +205,7 @@ private fun SourceCardPreviewError() = preview(isDarkMode = true) {
     ) {
         PreviewMediaSource.SourceCard(
             modifier = Modifier,
-            state = SourceState.Error(
-                error = IllegalArgumentException("Invalid path"),
-                state = "/Users/miku/Documents/IdeaProjects/LMusic-KMP/lmedia/src/androidMain/kotlin/com/lalilu/lmedia/source/filesystem"
-            )
+            state = { Snapshot(state = SnapshotState.Error("Test Error")) }
         )
     }
 }

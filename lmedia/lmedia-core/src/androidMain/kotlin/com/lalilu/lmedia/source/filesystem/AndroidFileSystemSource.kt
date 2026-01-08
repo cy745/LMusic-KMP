@@ -2,8 +2,10 @@ package com.lalilu.lmedia.source.filesystem
 
 import android.annotation.SuppressLint
 import android.app.Application
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.net.toUri
+import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
@@ -24,7 +26,7 @@ class AndroidFileSystemSource(
 ) : MediaSource, MediaDataSource {
     override val name: String = "AndroidFileSystemSource"
     private val scope = CoroutineScope(Dispatchers.Default)
-    private val stateFlow = MutableStateFlow(Snapshot.Loading)
+    private val stateFlow = MutableStateFlow(Snapshot.Idle)
 
     override fun source(): Flow<Snapshot> = stateFlow
     override val dataSource: MediaDataSource = this
@@ -32,14 +34,41 @@ class AndroidFileSystemSource(
     private var loadingJob: Job? = null
 
     override val config: MediaSourceConfig = buildConfig(key = name) {
-        declare<String>(key = "file_path")
+        property<String>(key = "file_path").provide("")
+
+        function<Unit>(
+            key = "cancel",
+            isAvailable = { stateFlow.value.state.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic } }
+        ).onCall {
+            Logger.i(tag = name, messageString = "On Cancel")
+            loadingJob?.cancel()
+        }
+
+        function<Unit>(
+            key = "Reset",
+            isAvailable = { stateFlow.value.state.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
+        ).onCall {
+            Logger.i(tag = name, messageString = "On Reset")
+            stateFlow.value = stateFlow.value.copy(state = SnapshotState.Idle)
+        }
+
+        function<Unit>(
+            key = "Rescan",
+            isAvailable = { stateFlow.value.state.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
+        ).onCall {
+            Logger.i(tag = name, messageString = "On Rescan")
+
+            loadingJob?.cancel()
+            loadingJob = scope.launch {
+                stateFlow.value = load { stateFlow.value = it }
+            }
+        }
     }
 
+    private val filePath get() = config.get<String>("file_path").getOrThrow()
+
     override fun onConfigChange() {
-        loadingJob?.cancel()
-        loadingJob = scope.launch {
-            stateFlow.value = load { stateFlow.value = it }
-        }
+
     }
 
     override fun init() {
@@ -53,15 +82,14 @@ class AndroidFileSystemSource(
         update: suspend (Snapshot) -> Unit = {}
     ): Snapshot = withContext(scope.coroutineContext) {
         runCatching {
-            val path = config.require<String>("file_path")
             val messageState = mutableStateOf("Loading...")
-            val progressState = mutableStateOf(0f)
+            val progressState = mutableFloatStateOf(0f)
 
             update(
                 Snapshot(
                     state = SnapshotState.LoadingDynamic(
                         message = { messageState.value },
-                        progress = { progressState.value }
+                        progress = { progressState.floatValue }
                     )
                 )
             )
@@ -71,10 +99,10 @@ class AndroidFileSystemSource(
                 progress: Float = 0f
             ) {
                 messageState.value = message
-                progressState.value = maxOf(progress, progressState.value)
+                progressState.floatValue = maxOf(progress, progressState.floatValue)
             }
 
-            val root = PlatformFile.fromBookmarkData(path.encodeToByteArray())
+            val root = PlatformFile.fromBookmarkData(filePath.encodeToByteArray())
             val files = root.filterChildren { file ->
                 if (file.isDirectory()) return@filterChildren false
                 if (file.size() < 10) return@filterChildren false

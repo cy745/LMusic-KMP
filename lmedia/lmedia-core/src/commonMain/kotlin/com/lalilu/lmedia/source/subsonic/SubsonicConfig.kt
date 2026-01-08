@@ -16,7 +16,7 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class SubsonicConfig(
-    val url: String = "http://192.168.31.204:4533/rest/",
+    val url: String = "http://192.168.3.6:4533/rest/",
     val username: String = "qiu745",
     val salt: String = "",
     val token: String = "",

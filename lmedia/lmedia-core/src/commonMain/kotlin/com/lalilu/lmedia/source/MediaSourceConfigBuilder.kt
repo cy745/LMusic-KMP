@@ -73,6 +73,7 @@ class MediaSourceConfigBuilder(
      * @param description 函数的描述信息
      * @param parameters 函数的参数列表
      * @param returnType 函数的返回类型，默认为泛型T的类型
+     * @param isAvailable 函数是否可用的检测回调
      */
     inline fun <reified T : Any> function(
         key: String,
@@ -80,7 +81,8 @@ class MediaSourceConfigBuilder(
         description: String = "",
         priority: Int = 0,
         parameters: List<Parameter<*>> = listOf(),
-        returnType: KClass<T> = T::class
+        returnType: KClass<T> = T::class,
+        noinline isAvailable: () -> Boolean = { true }
     ) = Declaration.Function(
         key = key,
         name = name,
@@ -88,6 +90,7 @@ class MediaSourceConfigBuilder(
         priority = priority,
         parameters = parameters,
         returnType = returnType,
+        isAvailable = isAvailable,
     ).also { declare(it) }
 
     /**

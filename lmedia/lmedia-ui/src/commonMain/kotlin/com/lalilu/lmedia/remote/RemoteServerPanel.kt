@@ -1,13 +1,16 @@
 package com.lalilu.lmedia.remote
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.component.BaseSourceCard
 import org.koin.compose.koinInject
 import kotlin.time.ExperimentalTime
 
@@ -21,43 +24,17 @@ fun RemoteServerPanel(
     val sources = koinInject<PlatformMediaSource>()
     val config = removeServer.config
 
-    Card(
+    BaseSourceCard(
         modifier = modifier,
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .padding(top = 16.dp, bottom = 12.dp)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Remote Server",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-
-                    Text(
-                        modifier = Modifier
-                            .alpha(0.6f)
-                            .padding(top = 8.dp),
-                        text = if (removeServer.running.value) "Running at port: ${config.value.port}"
-                        else "Not Running",
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-
-                Switch(
-                    checked = config.value.enable,
-                    onCheckedChange = { config.value = config.value.copy(enable = it) }
-                )
-            }
-
+        title = "Remote Server",
+        subtitle = if (removeServer.running.value) "Running at port: ${config.value.port}" else "Not Running",
+        actionContent = {
+            Switch(
+                checked = config.value.enable,
+                onCheckedChange = { config.value = config.value.copy(enable = it) }
+            )
+        },
+        content = {
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -72,5 +49,5 @@ fun RemoteServerPanel(
                 }
             }
         }
-    }
+    )
 }

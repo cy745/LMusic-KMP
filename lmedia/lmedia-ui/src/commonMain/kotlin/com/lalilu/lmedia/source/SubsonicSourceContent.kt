@@ -2,13 +2,10 @@ package com.lalilu.lmedia.source
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -42,76 +39,94 @@ fun SubsonicSourceContent(
     var isSaving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    Column(modifier = modifier.padding(16.dp)) {
-        Text(
-            text = "Subsonic Configuration",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+    Card(
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .padding(top = 16.dp, bottom = 12.dp)
+                .fillMaxWidth()
+        ) {
+            Text(
+                text = "SubsonicSource",
+                style = MaterialTheme.typography.titleMedium
+            )
 
-        TextField(
-            value = username,
-            onValueChange = { username = it },
-            label = { Text("Username") },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
-        )
+            Text(
+                modifier = Modifier
+                    .alpha(0.6f)
+                    .padding(top = 8.dp),
+                text = "connect to Subsonic API or Navidrome",
+                style = MaterialTheme.typography.labelSmall,
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        TextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
-        )
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                label = { Text("Server URL") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        TextField(
-            value = url,
-            onValueChange = { url = it },
-            label = { Text("Server URL") },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
-        )
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Username") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+            )
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Row {
-            Button(
-                onClick = {
-                    scope.launch {
-                        isSaving = true
-                        // 生成随机salt
-                        val salt = Random.nextBytes(16).toHexString()
-                        // 生成token: md5(password + salt)
-                        val token = (password + salt).md5()
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+            )
 
-                        // 更新配置
-                        configItem.value = configItem.value.copy(
-                            username = username,
-                            url = url,
-                            salt = salt,
-                            token = token
-                        )
+            Spacer(modifier = Modifier.height(16.dp))
 
-                        // 清空密码字段
-                        password = ""
+            Row {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isSaving = true
+                            // 生成随机salt
+                            val salt = Random.nextBytes(16).toHexString()
+                            // 生成token: md5(password + salt)
+                            val token = (password + salt).md5()
 
-                        // 保存配置
-                        configItem.save()
-                        delay(500L)
+                            // 更新配置
+                            configItem.value = configItem.value.copy(
+                                username = username,
+                                url = url,
+                                salt = salt,
+                                token = token
+                            )
 
-                        isSaving = false
-                    }
-                },
-                enabled = username.isNotBlank() && password.isNotBlank() && url.isNotBlank() && !isSaving,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (isSaving) "Saving..." else "Save Configuration")
+                            // 清空密码字段
+                            password = ""
+
+                            // 保存配置
+                            configItem.save()
+                            delay(500L)
+
+                            isSaving = false
+                        }
+                    },
+                    enabled = username.isNotBlank() && password.isNotBlank() && url.isNotBlank() && !isSaving,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (isSaving) "Saving..." else "Save Configuration")
+                }
             }
         }
     }

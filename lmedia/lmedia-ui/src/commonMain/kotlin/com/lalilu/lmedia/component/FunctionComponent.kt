@@ -15,10 +15,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
+import com.lalilu.lmedia.source.Declaration
 import com.lalilu.lmedia.source.MediaSource
 
+internal val EMPTY_LIST = emptyList<Declaration.Function<*>>()
+
 @Composable
-fun MediaSource.FunctionComponent(modifier: Modifier = Modifier) {
+fun MediaSource.FunctionComponent(
+    modifier: Modifier = Modifier,
+    extraFunctions: () -> List<Declaration.Function<*>> = { EMPTY_LIST }
+) {
     if (config.functions.isEmpty()) return
     val functions = remember {
         config.functions
@@ -28,35 +34,38 @@ fun MediaSource.FunctionComponent(modifier: Modifier = Modifier) {
 
     FlowRow(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        functions.forEach { function ->
-            TextButton(
-                onClick = { function.call() },
-                colors = ButtonDefaults.filledTonalButtonColors(),
-                shape = RoundedCornerShape(8.dp),
-            ) {
-                Column(
-                    modifier = Modifier,
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    horizontalAlignment = Alignment.Start
+        (extraFunctions().sortedByDescending { it.priority } + functions)
+            .filter { it.isAvailable.invoke() } // 筛选出此时可用的函数
+            .forEach { function ->
+                TextButton(
+                    onClick = { function.call() },
+                    colors = ButtonDefaults.filledTonalButtonColors(),
+                    shape = RoundedCornerShape(8.dp),
                 ) {
-                    Text(
-                        text = function.name,
-                        style = MaterialTheme.typography.titleSmall
-                    )
-
-                    if (!function.description.isBlank()) {
+                    Column(
+                        modifier = Modifier,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        horizontalAlignment = Alignment.Start
+                    ) {
                         Text(
-                            modifier = Modifier
-                                .padding(bottom = 2.dp)
-                                .alpha(0.6f),
-                            text = function.description,
-                            style = MaterialTheme.typography.bodySmall
+                            text = function.name,
+                            style = MaterialTheme.typography.titleSmall
                         )
+
+                        if (!function.description.isBlank()) {
+                            Text(
+                                modifier = Modifier
+                                    .padding(bottom = 2.dp)
+                                    .alpha(0.6f),
+                                text = function.description,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
                 }
             }
-        }
     }
 }
