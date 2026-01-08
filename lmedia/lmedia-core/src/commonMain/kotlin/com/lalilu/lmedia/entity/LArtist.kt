@@ -16,7 +16,8 @@ class LArtist(
  * 根据特殊的符号将[LArtist.title]拆分成多个[LArtist]
  */
 fun List<LArtist>.separate(): List<LArtist> = flatMap {
-    it.title.split('/', ';', '、', ',', '，').map { name ->
+    it.title.split('/', ';', '、', ',', '，').map { artist ->
+        val name = artist.trim()
         LArtist(
             id = name,
             title = name,

@@ -94,9 +94,10 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
     val albums = list
         .groupBy { song -> song.metadata.album }
         .map { (album, songs) ->
+            val name = album.takeIf { it.isNotBlank() } ?: "Unknown"
             LAlbum(
-                id = album,
-                title = album,
+                id = name,
+                title = name,
                 subtitle = "",
                 items = songs
             )
@@ -105,9 +106,10 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
     val artists = list
         .groupBy { song -> song.metadata.artist }
         .map { (artist, songs) ->
+            val name = artist.takeIf { it.isNotBlank() } ?: "Unknown"
             LArtist(
-                id = artist,
-                title = artist,
+                id = name,
+                title = name,
                 subtitle = "",
                 items = songs
             )
@@ -119,9 +121,10 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
     val genres = list
         .groupBy { song -> song.metadata.genre }
         .map { (genre, songs) ->
+            val name = genre.takeIf { it.isNotBlank() } ?: "Unknown"
             LGenre(
-                id = genre,
-                title = genre,
+                id = name,
+                title = name,
                 subtitle = "",
                 items = songs
             )
