@@ -31,9 +31,9 @@ fun MediaSource.AndroidFileSystemSourceContent(modifier: Modifier) {
     val extraFunctions = remember {
         listOf<Declaration.Function<*>>(
             Declaration.Function(
-                key = "Select Directory",
-                name = "Select Directory",
-                description = "Select Directory",
+                key = "Select",
+                name = "Select",
+                description = "选择扫描目录",
                 parameters = emptyList(),
                 returnType = Unit::class,
                 isAvailable = { state.value.state is SnapshotState.Idle },

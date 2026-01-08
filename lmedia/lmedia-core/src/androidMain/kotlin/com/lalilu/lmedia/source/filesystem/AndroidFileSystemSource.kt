@@ -33,11 +33,16 @@ class AndroidFileSystemSource(
 
     private var loadingJob: Job? = null
 
-    override val config: MediaSourceConfig = buildConfig(key = name) {
+    override val config: MediaSourceConfig = buildConfig(
+        key = name,
+        name = "Android文件系统源",
+        description = "选择文件夹后，通过文件系统扫描音频文件"
+    ) {
         property<String>(key = "file_path").provide("")
 
         function<Unit>(
-            key = "cancel",
+            key = "Cancel",
+            description = "取消当前任务",
             isAvailable = { stateFlow.value.state.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic } }
         ).onCall {
             Logger.i(tag = name, messageString = "On Cancel")
@@ -46,6 +51,7 @@ class AndroidFileSystemSource(
 
         function<Unit>(
             key = "Reset",
+            description = "重置",
             isAvailable = { stateFlow.value.state.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
         ).onCall {
             Logger.i(tag = name, messageString = "On Reset")
@@ -54,6 +60,7 @@ class AndroidFileSystemSource(
 
         function<Unit>(
             key = "Rescan",
+            description = "重新扫描",
             isAvailable = { stateFlow.value.state.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
         ).onCall {
             Logger.i(tag = name, messageString = "On Rescan")
