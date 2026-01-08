@@ -39,10 +39,16 @@ object MediaSourceScreen : Screen {
             windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND) -> 2
             else -> 1
         }
+        val statusBar = WindowInsets.statusBars.asPaddingValues()
+        val navigationBar = WindowInsets.navigationBars.asPaddingValues()
 
         LazyVerticalStaggeredGrid(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp, end = 16.dp,
+                top = statusBar.calculateTopPadding() + 16.dp,
+                bottom = navigationBar.calculateBottomPadding() + 16.dp
+            ),
             columns = StaggeredGridCells.Fixed(column),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalItemSpacing = 16.dp
