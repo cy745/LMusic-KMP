@@ -31,7 +31,7 @@ fun MediaSource.PropertyComponent(
             when (property.type) {
                 String::class -> {
                     val property = property as Declaration.Property<String>
-                    var value by remember { mutableStateOf(property.get() ?: "") }
+                    var value by remember { mutableStateOf(runCatching { property.get() }.getOrNull() ?: "") }
 
                     OutlinedTextField(
                         modifier = Modifier.fillMaxWidth(),
@@ -44,7 +44,7 @@ fun MediaSource.PropertyComponent(
 
                 Boolean::class -> {
                     val property = property as Declaration.Property<Boolean>
-                    var value by remember { mutableStateOf(property.get() ?: false) }
+                    var value by remember { mutableStateOf(runCatching { property.get() }.getOrNull() ?: false) }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),

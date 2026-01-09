@@ -1,5 +1,11 @@
 package com.lalilu.lmedia.entity
 
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
 import kotlin.time.Clock
@@ -63,6 +69,13 @@ data class Snapshot(
         val Idle = Snapshot(state = SnapshotState.Idle)
         val Loading = Snapshot(state = SnapshotState.Loading())
         val Empty = Snapshot(state = SnapshotState.Empty)
+    }
+}
+
+fun StateFlow<Snapshot>.toComposeState(scope: CoroutineScope): State<SnapshotState> {
+    return mutableStateOf(value.state).also { state ->
+        onEach { runCatching { state.value = it.state } }
+            .launchIn(scope)
     }
 }
 

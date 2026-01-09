@@ -1,10 +1,11 @@
 package com.lalilu.lmedia.source
 
+import androidx.compose.runtime.getValue
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.entity.*
 import io.ktor.client.*
-import io.ktor.client.call.*
+import io.ktor.client.call.body
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
@@ -12,7 +13,6 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
@@ -22,7 +22,7 @@ import kotlin.coroutines.CoroutineContext
 @Single(createdAtStart = true)
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSource(
-    json: Json
+    private val json: Json
 ) : MediaSource, MediaDataSource, CoroutineScope {
 
     companion object {
@@ -35,86 +35,135 @@ class RemoteSource(
         }
 
     override val name: String = TAG
-    override val config: MediaSourceConfig = buildConfig(name) {
+
+
+    private var client: HttpClient? = null
+    private val snapshotFlow = MutableStateFlow(Snapshot.Idle)
+    private val stateValue by snapshotFlow.toComposeState(this)
+
+    override val config: MediaSourceConfig = buildConfig(
+        key = name,
+        description = "连接其他开放的Remote Server实例"
+    ) {
         property<String>("url")
         property<String>("password")
 
-        function<Unit>("Reset").onCall {
+        function<Unit>(
+            key = "Connect",
+            description = "连接远程媒体源",
+            isAvailable = { stateValue is SnapshotState.Idle }
+        ).onCall {
+            loadData()
+        }
 
+        function<Unit>(
+            key = "Cancel",
+            description = "取消当前执行任务",
+            isAvailable = {
+                stateValue.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic }
+            }
+        ).onCall {
+            loadData()
+        }
+
+        function<Unit>(
+            key = "Reset",
+            description = "重置远程媒体源",
+            isAvailable = { stateValue !is SnapshotState.Idle }
+        ).onCall {
+            client?.close()
+            client = null
+            snapshotFlow.value = Snapshot.Idle
+        }
+
+        function<Unit>(
+            key = "Refresh",
+            description = "刷新远程媒体源",
+            isAvailable = {
+                stateValue.let { it is SnapshotState.Success || it is SnapshotState.Empty || it is SnapshotState.Error }
+            }
+        ).onCall {
+            loadData()
         }
     }
 
-    private val url = config.get<String>("url").getOrElse { "" }
+    private suspend fun requireClient(): HttpClient {
+        client?.let { return it }
+        return client ?: reCreateHttpClient()
+    }
+
 
     override fun onConfigChange() {
-
+        client?.close()
+        client = null
     }
 
-    /**
-     * 客户端对象，使用Flow封装，当上游配置改变时，会重新创建客户端对象
-     */
-    private val clientFlow = config.holder.flatMapLatest { config ->
-        Logger.i(tag = TAG, messageString = "Config update: $config")
+    override fun init() {
+        loadData(isInitialize = true)
+    }
 
-        if (url.isBlank()) {
-            Logger.i(tag = TAG, messageString = "Invalid client config")
-            return@flatMapLatest flowOf(
-                Result.failure(IllegalArgumentException("Invalid client config"))
-            )
-        }
+    suspend fun reCreateHttpClient() = withContext(Dispatchers.io) {
+        client?.close()
+        val url = config.get<String>("url").getOrThrow()
 
-        callbackFlow {
-            val client = HttpClient {
-                defaultRequest { url("http://${url}") }
-                install(ContentNegotiation) { json(json = json) }
-            }
+        HttpClient {
+            defaultRequest { url("http://${url}") }
+            install(ContentNegotiation) { json(json = json) }
+        }.also { client = it }
+    }
 
-            send(Result.success(client))
-            Logger.i(
-                tag = TAG,
-                messageString = "New Client instance created: ${client.hashCode()}"
-            )
-
-            awaitClose {
-                client.close()
-                Logger.i(
-                    tag = TAG,
-                    messageString = "Client instance closed: ${client.hashCode()}"
-                )
-            }
-        }
-    }.stateIn(this, SharingStarted.Eagerly, null)
 
     /**
-     * 远程获取到的source的Flow，stateIn使其持久化，避免重复请求
+     * 加载数据
+     *
+     * @param isInitialize 是否是初始化阶段
      */
-    val snapshotStateFlow = clientFlow
-        .flatMapLatest { result ->
-            flow {
-                val client = result?.getOrElse { error ->
-                    emit(Snapshot(state = SnapshotState.Error(message = "[$name]${error.message}")))
-                    null
-                } ?: return@flow
-
-                // 先返回Loading，避免下游长时间等待
-                emit(Snapshot.Loading)
-                emit(
-                    client
-                        .get("/source")
-                        .body<Snapshot>()
-                )
-            }.onEach {
-                // 重定向数据源至RemoteSource
-                it.redirectToNewSource(this@RemoteSource.name)
+    fun loadData(
+        isInitialize: Boolean = false
+    ) = launch(Dispatchers.io) {
+        safeDoAsync(
+            onError = {
+                // 如果是初始化阶段失败的，则重置为Idle状态
+                if (isInitialize) {
+                    snapshotFlow.value = snapshotFlow.value.copy(state = SnapshotState.Idle)
+                }
             }
-        }.stateIn(this, SharingStarted.Eagerly, Snapshot.Empty)
+        ) {
+            val client = requireClient()
+
+            snapshotFlow.emit(Snapshot.Loading)
+
+            ensureActive()
+            val result = client
+                .get("/source")
+                .body<Snapshot>()
+                .also { it.redirectToNewSource(this@RemoteSource.name) }
+
+            ensureActive()
+            snapshotFlow.emit(result)
+        }
+    }
+
+    private suspend fun safeDoAsync(
+        onError: suspend (Throwable) -> Unit = {},
+        action: suspend () -> Unit
+    ) {
+        runCatching { action() }.getOrElse {
+            Logger.e(tag = TAG, messageString = "${it.message}", throwable = it)
+
+            snapshotFlow.value = snapshotFlow.value.copy(
+                state = SnapshotState.Error(message = "[$name]${it.message}")
+            )
+
+            onError(it)
+        }
+    }
 
     override suspend fun getLyric(song: LAudio): String? {
         val targetUrl = "lyric/${song.id.encodeURLPathPart()}"
-        val lyric = clientFlow.value
-            ?.getOrNull()
-            ?.get(targetUrl)
-            ?.bodyAsText()
+        val lyric = requireClient()
+            .get(targetUrl)
+            .bodyAsText()
 
         return lyric
     }
@@ -122,11 +171,10 @@ class RemoteSource(
     override suspend fun getPicture(song: LAudio): MediaData? {
         val targetUrl = "picture/${song.id.encodeURLPathPart()}"
 
-        val picture = clientFlow.value
-            ?.getOrNull()
-            ?.get(targetUrl)
-            ?.bodyAsBytes()
-            ?.takeIf { it.isNotEmpty() }
+        val picture = requireClient()
+            .get(targetUrl)
+            .bodyAsBytes()
+            .takeIf { it.isNotEmpty() }
             ?: return null
 
         return MediaData.Bytes(picture)
@@ -134,21 +182,21 @@ class RemoteSource(
 
     override suspend fun getMedia(song: LAudio): MediaData? {
         val targetUrl = "media/${song.id.encodeURLPathPart()}"
+        val url = config.get<String>("url").getOrThrow()
 
         if (song.sourceItem is SourceItemDefaults.RequestUrl) {
             return MediaData.Url("http://${url}/media/${song.id.encodeURLPathPart()}")
         }
 
-        val media = clientFlow.value
-            ?.getOrNull()
-            ?.get(targetUrl)
-            ?.bodyAsBytes()
-            ?.takeIf { it.isNotEmpty() }
+        val media = requireClient()
+            .get(targetUrl)
+            .bodyAsBytes()
+            .takeIf { it.isNotEmpty() }
             ?: return null
 
         return MediaData.Bytes(media)
     }
 
     override val dataSource: MediaDataSource = this
-    override fun source(): Flow<Snapshot> = snapshotStateFlow
+    override fun source(): Flow<Snapshot> = snapshotFlow
 }
