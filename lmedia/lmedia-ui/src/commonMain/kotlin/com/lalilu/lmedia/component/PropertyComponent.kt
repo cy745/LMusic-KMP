@@ -21,7 +21,12 @@ import com.lalilu.lmedia.source.MediaSource
 fun MediaSource.PropertyComponent(
     modifier: Modifier = Modifier,
 ) {
-    val properties = remember { config.properties.sortedByDescending { it.priority } }
+    // 只显示 visibleInUI = true 的属性，隐藏对用户不可见的配置参数
+    val properties = remember {
+        config.properties
+            .filter { it.visibleInUI }
+            .sortedByDescending { it.priority }
+    }
 
     Column(
         modifier = modifier,

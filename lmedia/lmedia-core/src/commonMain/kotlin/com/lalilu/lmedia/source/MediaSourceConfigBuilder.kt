@@ -44,6 +44,7 @@ class MediaSourceConfigBuilder(
      * @param description 属性的描述信息
      * @param mutable 属性是否可变
      * @param required 属性是否必需
+     * @param visibleInUI 是否在UI中显示，默认为true
      * @param type 属性的类型，默认为泛型T的类型
      */
     inline fun <reified T : Any> property(
@@ -53,6 +54,7 @@ class MediaSourceConfigBuilder(
         priority: Int = 0,
         mutable: Boolean = true,
         required: Boolean = false,
+        visibleInUI: Boolean = true,
         type: KClass<T> = T::class
     ) = Declaration.Property(
         key = key,
@@ -61,6 +63,7 @@ class MediaSourceConfigBuilder(
         priority = priority,
         mutable = mutable,
         required = required,
+        visibleInUI = visibleInUI,
         type = type,
         instance = EMPTY_INSTANCE
     ).also { declare(it) }

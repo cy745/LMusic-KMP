@@ -48,6 +48,7 @@ sealed class Declaration(
      * @param instance 存储属性值的实例
      * @param mutable 是否可变，默认为true
      * @param required 是否必需，默认为false
+     * @param visibleInUI 是否在UI中显示，默认为true
      * @param type 属性类型
      */
     data class Property<T : Any>(
@@ -58,6 +59,7 @@ sealed class Declaration(
         var instance: Instance,    // 存储属性值的实例
         val mutable: Boolean = true,   // 是否可变
         val required: Boolean = false, // 是否必需
+        val visibleInUI: Boolean = true, // 是否在UI中显示
         val type: KClass<T>,           // 属性类型
     ) : Declaration(
         key = key,

@@ -1,14 +1,12 @@
 package com.lalilu.lmedia.source.subsonic
 
+import androidx.compose.runtime.getValue
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
+import com.lalilu.common.ext.md5
 import com.lalilu.common.ext.retrieveAllPage
-import com.lalilu.lmedia.LMediaKV
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.source.MediaData
-import com.lalilu.lmedia.source.MediaDataSource
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.entity.*
+import com.lalilu.lmedia.source.*
 import com.lalilu.lmedia.source.subsonic.entity.toLrcContent
 import de.jensklingenberg.ktorfit.ktorfit
 import io.ktor.client.*
@@ -17,103 +15,247 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
+import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Single(createdAtStart = true)
 class SubsonicSource(
-    lMediaKV: LMediaKV,
-    json: Json
-) : MediaSource, MediaDataSource {
-    override val name: String = "SubsonicSource"
+    private val json: Json
+) : MediaSource, MediaDataSource, CoroutineScope {
+
+    companion object {
+        private const val TAG = "SubsonicSource"
+    }
+
+    override val coroutineContext: CoroutineContext =
+        Dispatchers.io + SupervisorJob() + CoroutineExceptionHandler { _, throwable ->
+            Logger.e(tag = TAG, throwable = throwable, messageString = "${throwable.message}")
+        }
+
+    override val name: String = TAG
     private val logger = Logger.withTag(name)
 
-    /**
-     * 客户端配置参数
-     */
-    val configItem = lMediaKV.obtain<SubsonicConfig>(
-        key = "SUBSONIC_CONFIG",
-        defaultValue = SubsonicConfig.Empty
-    ).apply { disableAutoSave() }
+    private var client: HttpClient? = null
+    private var subsonicApi: SubsonicApi? = null
+    private val snapshotFlow = MutableStateFlow(Snapshot.Idle)
+    private val stateValue by snapshotFlow.toComposeState(this)
 
-    private val subsonicPlugin by lazy {
-        createClientPlugin("SUBSONIC_PAYLOAD_PLUGIN") {
-            onRequest { request, _ ->
-                request.parameter("u", configItem.value.username)
-                request.parameter("v", configItem.value.version)
-                request.parameter("c", configItem.value.client)
-                request.parameter("f", configItem.value.format)
-                request.parameter("s", configItem.value.salt)
-                request.parameter("t", configItem.value.token)
+    override val config: MediaSourceConfig = buildConfig(
+        key = name,
+        name = "Subsonic/Navidrome",
+        description = "连接 Subsonic API 或 Navidrome 服务器"
+    ) {
+        // 用户可见的属性
+        property<String>("url")
+            .provide("http://192.168.3.6:4533/rest/")
+        property<String>("username")
+            .provide("qiu745")
+        property<String>("password", mutable = true)
+            .provide("")
+
+        // 用户不可见的属性（计算得到）
+        property<String>("salt", mutable = true, visibleInUI = false)
+            .provide("")
+        property<String>("token", mutable = true, visibleInUI = false)
+            .provide("")
+        property<String>("client", mutable = false, visibleInUI = false)
+            .provide("LMusic")
+        property<String>("version", mutable = false, visibleInUI = false)
+            .provide("6.1.4")
+        property<String>("format", mutable = false, visibleInUI = false)
+            .provide("json")
+
+        // 连接功能
+        function<Unit>(
+            key = "Connect",
+            description = "连接 Subsonic 服务器",
+            isAvailable = { stateValue is SnapshotState.Idle }
+        ).onCall {
+            connect()
+        }
+
+        // 取消功能
+        function<Unit>(
+            key = "Cancel",
+            description = "取消当前执行任务",
+            isAvailable = {
+                stateValue.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic }
             }
+        ).onCall {
+            // TODO: 实现取消逻辑
+            logger.i(messageString = "Cancel requested")
+        }
+
+        // 重置功能
+        function<Unit>(
+            key = "Reset",
+            description = "重置 Subsonic 连接",
+            isAvailable = {
+                stateValue.let { it is SnapshotState.Success || it is SnapshotState.Empty || it is SnapshotState.Error }
+            }
+        ).onCall {
+            reset()
+        }
+
+        // 刷新功能
+        function<Unit>(
+            key = "Refresh",
+            description = "刷新媒体库",
+            isAvailable = {
+                stateValue.let { it is SnapshotState.Success || it is SnapshotState.Empty || it is SnapshotState.Error }
+            }
+        ).onCall {
+            loadData()
         }
     }
-    private val ktorClient by lazy {
-        HttpClient {
+
+    override fun onConfigChange() {
+
+    }
+
+    override fun init() {
+        connect(isInitialize = true)
+    }
+
+    private fun connect(isInitialize: Boolean = false) = launch {
+        client?.close()
+        client = null
+        subsonicApi = null
+
+        try {
+            if (isInitialize) {
+                // 初始化连接时，只校验salt和token
+                val salt = config.get<String>("salt").getOrThrow()
+                val token = config.get<String>("token").getOrThrow()
+
+                if (salt.isEmpty() || token.isEmpty()) {
+                    throw IllegalArgumentException("配置参数错误")
+                }
+            } else {
+                // 1. 获取配置，并进行校验
+                val url = config.get<String>("url").getOrThrow()
+                val username = config.get<String>("username").getOrThrow()
+                val password = config.get<String>("password").getOrNull() ?: ""
+
+                if (url.isEmpty() || username.isEmpty() || password.isEmpty()) {
+                    throw IllegalArgumentException("请填写完整的配置")
+                }
+
+                // 2. 生成 salt 和 token
+                val salt = generateSalt()
+                val token = generateToken(password, salt)
+
+                // 3. 更新配置（清除密码，保存 salt 和 token）
+                config.update { setter ->
+                    setter("password", "")  // 清除密码
+                    setter("salt", salt)    // 保存 salt
+                    setter("token", token)  // 保存 token
+                }
+            }
+
+            // 4. 创建客户端和 API
+            recreateClient()
+
+            // 5. 测试连接
+            testConnection()
+
+            // 6. 加载数据
+            loadData()
+        } catch (e: Exception) {
+            logger.e(messageString = "连接失败: ${e.message}", throwable = e)
+            snapshotFlow.value = Snapshot(state = SnapshotState.Error("[${name}]${e.message}"))
+        }
+    }
+
+    private fun reset() {
+        client?.close()
+        client = null
+        subsonicApi = null
+        snapshotFlow.value = Snapshot.Idle
+
+        // 重置配置（保留 url 和 username，清除认证信息）
+        config.update { setter ->
+            setter("password", "")
+            setter("salt", "")
+            setter("token", "")
+        }
+    }
+
+    private fun loadData() = launch {
+        snapshotFlow.value = Snapshot.Loading
+
+        try {
+            val api = subsonicApi ?: throw IllegalStateException("Not connected")
+
+            // 获取歌曲数据
+            val audios = getSongs(api)
+
+            snapshotFlow.value = Snapshot(audios = audios, state = SnapshotState.Success)
+        } catch (e: Exception) {
+            logger.e(messageString = "加载数据失败: ${e.message}", throwable = e)
+            snapshotFlow.value = Snapshot(state = SnapshotState.Error("[${name}]${e.message}"))
+        }
+    }
+
+    private fun generateSalt(): String {
+        // 生成16字节的随机 salt
+        return Random.nextBytes(16).toHexString()
+    }
+
+    private fun generateToken(password: String, salt: String): String {
+        // Subsonic 认证方式：md5(password + salt)
+        return (password + salt).md5()
+    }
+
+    private fun recreateClient() {
+        client?.close()
+
+        val url = config.get<String>("url").getOrThrow()
+        val username = config.get<String>("username").getOrThrow()
+        val salt = config.get<String>("salt").getOrThrow()
+        val token = config.get<String>("token").getOrThrow()
+        val clientName = config.get<String>("client").getOrThrow()
+        val version = config.get<String>("version").getOrThrow()
+        val format = config.get<String>("format").getOrThrow()
+
+        // 创建 Subsonic 认证插件
+        val subsonicPlugin = createClientPlugin("SUBSONIC_PAYLOAD_PLUGIN") {
+            onRequest { request, _ ->
+                request.parameter("u", username)
+                request.parameter("v", version)
+                request.parameter("c", clientName)
+                request.parameter("f", format)
+                request.parameter("s", salt)
+                request.parameter("t", token)
+            }
+        }
+
+        client = HttpClient {
             install(ContentNegotiation) { json(json) }
             install(subsonicPlugin)
         }
-    }
-    private var subsonicApi: Pair<String, SubsonicApi>? = null
 
-    private val actionFlow = configItem.flow().flatMapLatest { config ->
-        logger.i(messageString = "config: $config")
-
-        // 若当前配置的url改变或者api为null，则重新创建api
-        if (subsonicApi?.first != config.url || subsonicApi?.second == null) {
-            runCatching {
-                val ktorfit = ktorfit {
-                    httpClient(ktorClient)
-                    baseUrl(config.url)
-                }
-                subsonicApi = config.url to ktorfit.createSubsonicApi()
-            }.getOrElse {
-                logger.i(messageString = "${it.message}")
-                it.printStackTrace()
-            }
-            logger.i(messageString = "recreate api result: $subsonicApi")
+        val ktorfit = ktorfit {
+            httpClient(client!!)
+            baseUrl(url)
         }
 
-        val api = subsonicApi?.second
-            ?: return@flatMapLatest flowOf(Snapshot.Empty)
+        subsonicApi = ktorfit.createSubsonicApi()
+    }
 
-        callbackFlow {
-            // 先返回一次空，让下游能快速响应
-            send(Snapshot.Loading)
+    private suspend fun testConnection() {
+        val api = subsonicApi ?: throw IllegalStateException("API not initialized")
 
-            // 首先通过ping的结果来判断当前输入的配置是否正确
-            val pingResp = runCatching { api.ping().response }
-                .getOrNull()
+        val pingResp = runCatching { api.ping().response }
+            .getOrElse { throw Exception("Ping failed: ${it.message}") }
 
-            if (pingResp == null) {
-                logger.i(messageString = "Request ping failed")
-                send(Snapshot.Empty)
-                awaitClose {}
-                return@callbackFlow
-            }
-
-            if (pingResp.isError) {
-                logger.i(messageString = "Request ping failed: ${pingResp.error}")
-                send(Snapshot.Empty)
-                awaitClose {}
-                return@callbackFlow
-            }
-
-            val audios = runCatching {
-                getSongs(api)
-            }.getOrElse {
-                logger.e(messageString = "getSongs failed: ${it.message}", throwable = it)
-                emptyList()
-            }
-
-            send(Snapshot(audios = audios))
-            awaitClose {}
+        if (pingResp.isError) {
+            throw Exception("Ping error: ${pingResp.error?.message}")
         }
     }
 
@@ -139,6 +281,14 @@ class SubsonicSource(
                 id = song.id,
                 title = song.title,
                 subtitle = song.artist,
+                metadata = Metadata(
+                    title = song.title,
+                    album = song.album,
+                    artist = song.artist,
+                    duration = song.duration * 1000L,
+                    date = "${song.year}",
+                    track = "${song.track}"
+                ),
                 mediaSourceName = this@SubsonicSource.name
             )
         }
@@ -146,10 +296,10 @@ class SubsonicSource(
     }
 
     override val dataSource: MediaDataSource = this
-    override fun source(): Flow<Snapshot> = actionFlow
+    override fun source(): Flow<Snapshot> = snapshotFlow
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
-        val api = subsonicApi?.second ?: return@withContext null
+        val api = subsonicApi ?: return@withContext null
         val lyric = api.getLyricsBySongId(song.id)
 
         lyric.response.lyricsList.structuredLyrics.firstOrNull()
@@ -169,13 +319,22 @@ class SubsonicSource(
 
     private fun buildSubsonicUrl(path: String, extras: Map<String, String>): String {
         val extraStr = extras.toList().joinToString(separator = "") { "&${it.first}=${it.second}" }
-        return "${configItem.value.url}$path" +
-                "?u=${configItem.value.username}" +
-                "&t=${configItem.value.token}" +
-                "&s=${configItem.value.salt}" +
-                "&v=${configItem.value.version}" +
-                "&c=${configItem.value.client}" +
-                "&f=${configItem.value.format}" +
+
+        val url = config.get<String>("url").getOrNull() ?: ""
+        val username = config.get<String>("username").getOrNull() ?: ""
+        val token = config.get<String>("token").getOrNull() ?: ""
+        val salt = config.get<String>("salt").getOrNull() ?: ""
+        val version = config.get<String>("version").getOrNull() ?: ""
+        val client = config.get<String>("client").getOrNull() ?: ""
+        val format = config.get<String>("format").getOrNull() ?: ""
+
+        return "${url}$path" +
+                "?u=$username" +
+                "&t=$token" +
+                "&s=$salt" +
+                "&v=$version" +
+                "&c=$client" +
+                "&f=$format" +
                 extraStr
     }
 }
