@@ -1,15 +1,6 @@
 package com.lalilu.lmedia
 
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LFolder
-import com.lalilu.lmedia.entity.LGenre
-import com.lalilu.lmedia.entity.LItem
-import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.entity.SnapshotState
-import com.lalilu.lmedia.entity.combineToOne
-import com.lalilu.lmedia.entity.priority
+import com.lalilu.lmedia.entity.*
 import com.lalilu.lmedia.source.Library
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -25,8 +16,8 @@ class LMedia(platformSource: PlatformMediaSource) : Library() {
         combine(
             flows = platformSource.sources.map { it.source() },
             transform = { it.combineToOne() }
-        ).distinctUntilChangedBy { it.updateTime }
-            .onEach { if (it.state.priority() > SnapshotState.Loading::class.priority()) onReady() }
+        ).onEach { if (it.state.priority() < SnapshotState.Loading::class.priority()) onReady() }
+            .distinctUntilChangedBy { it.updateTime }
             .stateIn(coroutineScope, SharingStarted.Eagerly, Snapshot.Loading)
 
     private val _songsFlow = singleStateFlow(Snapshot::audios)
