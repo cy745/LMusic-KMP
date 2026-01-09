@@ -1,5 +1,6 @@
 package com.lalilu.lmedia.source
 
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
@@ -22,24 +23,48 @@ class JvmFileSystemSource() : MediaSource, MediaDataSource {
 
     override fun source(): Flow<Snapshot> = stateFlow
     override val dataSource: MediaDataSource = this
+    private val stateValue by stateFlow.toComposeState(scope)
 
     private var loadingJob: Job? = null
 
-    override val config: MediaSourceConfig = buildConfig(key = name) {
+    override val config: MediaSourceConfig = buildConfig(
+        key = name,
+        name = "文件系统源",
+        description = "选择文件夹后，通过文件系统扫描音频文件"
+    ) {
         property<String>(key = "file_path").provide("")
 
-        function<Unit>(key = "Cancel", description = "Cancel current task").onCall { params ->
-            Logger.i(tag = name, messageString = "on cancel $params")
+        function<Unit>(
+            key = "Cancel",
+            description = "取消当前任务",
+            isAvailable = { stateValue.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic } }
+        ).onCall {
+            Logger.i(tag = name, messageString = "On Cancel")
             loadingJob?.cancel()
         }
 
-        function<Unit>(key = "Reload", description = "Rescan all files").onCall { params ->
-            Logger.i(tag = name, messageString = "on rescan $params")
-            init()
+        function<Unit>(
+            key = "Reset",
+            description = "重置",
+            isAvailable = { stateValue.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
+        ).onCall {
+            Logger.i(tag = name, messageString = "On Reset")
+            stateFlow.value = stateFlow.value.copy(state = SnapshotState.Idle)
+        }
+
+        function<Unit>(
+            key = "Rescan",
+            description = "重新扫描",
+            isAvailable = { stateValue.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
+        ).onCall {
+            Logger.i(tag = name, messageString = "On Rescan")
+
+            loadingJob?.cancel()
+            loadingJob = scope.launch {
+                stateFlow.value = load { stateFlow.value = it }
+            }
         }
     }
-
-    private val filePath get() = config.get<String>("file_path").getOrThrow()
 
     override fun onConfigChange() {
     }
@@ -55,7 +80,7 @@ class JvmFileSystemSource() : MediaSource, MediaDataSource {
         update: suspend (Snapshot) -> Unit = {}
     ): Snapshot = withContext(scope.coroutineContext) {
         runCatching {
-            val path = filePath
+            val path = config.get<String>("file_path").getOrThrow()
             val messageState = mutableStateOf("Loading...")
             val progressState = mutableStateOf(0f)
 

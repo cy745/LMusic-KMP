@@ -2,6 +2,7 @@ package com.lalilu.lmedia.source.filesystem
 
 import android.annotation.SuppressLint
 import android.app.Application
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.net.toUri
@@ -30,6 +31,7 @@ class AndroidFileSystemSource(
 
     override fun source(): Flow<Snapshot> = stateFlow
     override val dataSource: MediaDataSource = this
+    private val stateValue by stateFlow.toComposeState(scope)
 
     private var loadingJob: Job? = null
 
@@ -43,7 +45,7 @@ class AndroidFileSystemSource(
         function<Unit>(
             key = "Cancel",
             description = "取消当前任务",
-            isAvailable = { stateFlow.value.state.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic } }
+            isAvailable = { stateValue.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic } }
         ).onCall {
             Logger.i(tag = name, messageString = "On Cancel")
             loadingJob?.cancel()
@@ -52,7 +54,7 @@ class AndroidFileSystemSource(
         function<Unit>(
             key = "Reset",
             description = "重置",
-            isAvailable = { stateFlow.value.state.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
+            isAvailable = { stateValue.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
         ).onCall {
             Logger.i(tag = name, messageString = "On Reset")
             stateFlow.value = stateFlow.value.copy(state = SnapshotState.Idle)
@@ -61,7 +63,7 @@ class AndroidFileSystemSource(
         function<Unit>(
             key = "Rescan",
             description = "重新扫描",
-            isAvailable = { stateFlow.value.state.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
+            isAvailable = { stateValue.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
         ).onCall {
             Logger.i(tag = name, messageString = "On Rescan")
 

@@ -15,7 +15,7 @@ import pro.respawn.flowmvi.annotation.InternalFlowMVIAPI
 
 @OptIn(InternalFlowMVIAPI::class)
 @Composable
-fun JvmFileSystemSource.JvmFileSystemSourceContent(modifier: Modifier) {
+fun MediaSource.JvmFileSystemSourceContent(modifier: Modifier) {
     val scope = rememberCoroutineScope()
     val state = source().collectAsStateWithLifecycle(initialValue = Snapshot.Loading)
     val launcher = rememberDirectoryPickerLauncher {
@@ -26,15 +26,15 @@ fun JvmFileSystemSource.JvmFileSystemSourceContent(modifier: Modifier) {
         scope.launch {
             val path = it.bookmarkData().bytes.decodeToString()
             config.update { setter -> setter("file_path", path) }
-            config.call<Unit>("Reload")
+            config.call<Unit>("Rescan")
         }
     }
     val extraFunctions = remember {
         listOf<Declaration.Function<*>>(
             Declaration.Function(
-                key = "Select Directory",
-                name = "Select Directory",
-                description = "Select Directory",
+                key = "Select",
+                name = "Select",
+                description = "选择扫描目录",
                 parameters = emptyList(),
                 returnType = Unit::class,
                 isAvailable = { state.value.state is SnapshotState.Idle },
@@ -47,6 +47,10 @@ fun JvmFileSystemSource.JvmFileSystemSourceContent(modifier: Modifier) {
         modifier = modifier,
         state = { state.value },
         extraFunctions = { extraFunctions },
+        extraMessage = msg@{
+            if (state.value.state is SnapshotState.Idle) return@msg null
+            config.get<String>("file_path").getOrNull()
+        }
     )
 }
 
