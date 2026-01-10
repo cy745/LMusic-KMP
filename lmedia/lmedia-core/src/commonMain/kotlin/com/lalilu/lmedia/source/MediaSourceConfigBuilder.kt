@@ -15,11 +15,8 @@ class MediaSourceConfigBuilder(
     val key: String = "",
     val name: String = "",
     val description: String = "",
+    val saver: Saver? = null
 ) {
-    companion object {
-        val EMPTY_INSTANCE = object : Instance {}
-    }
-
     val initialProperties = mutableMapOf<String, Any>()
     val properties = mutableListOf<Declaration.Property<*>>()
     val functions = mutableListOf<Declaration.Function<*>>()
@@ -65,7 +62,7 @@ class MediaSourceConfigBuilder(
         required = required,
         visibleInUI = visibleInUI,
         type = type,
-        instance = EMPTY_INSTANCE
+        saver = Saver.Empty
     ).also { declare(it) }
 
     /**
@@ -181,13 +178,14 @@ class MediaSourceConfigBuilder(
             key = key,
             name = name,
             description = description,
+            saver = saver,
             initialProperties = initialProperties,
             properties = properties,
             functions = functions,
             onConfigUpdateCallback = onConfigUpdateCallback!!
         ).apply {
             // 绑定实例
-            properties.forEach { it.instance = this }
+            properties.forEach { it.saver = actualSaver }
         }
     }
 }
@@ -205,12 +203,14 @@ fun MediaSource.buildConfig(
     key: String,
     name: String = key,
     description: String = "",
+    saver: Saver? = null,
     block: MediaSourceConfigBuilder.() -> Unit
 ): MediaSourceConfig {
     return MediaSourceConfigBuilder(
         key = key,
         name = name,
-        description = description
+        description = description,
+        saver = saver
     ).apply(block)
         .callback(::onConfigChange)
         .build()

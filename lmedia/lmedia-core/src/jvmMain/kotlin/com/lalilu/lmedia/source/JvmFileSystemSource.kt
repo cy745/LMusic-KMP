@@ -16,7 +16,9 @@ import java.io.FileNotFoundException
 
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class JvmFileSystemSource() : MediaSource, MediaDataSource {
+class JvmFileSystemSource(
+    private val saver: Saver? = null
+) : MediaSource, MediaDataSource {
     override val name: String = "JvmFileSystemSource"
     private val scope = CoroutineScope(Dispatchers.Default)
     private val stateFlow = MutableStateFlow(Snapshot.Loading)
@@ -30,7 +32,8 @@ class JvmFileSystemSource() : MediaSource, MediaDataSource {
     override val config: MediaSourceConfig = buildConfig(
         key = name,
         name = "文件系统源",
-        description = "选择文件夹后，通过文件系统扫描音频文件"
+        description = "选择文件夹后，通过文件系统扫描音频文件",
+        saver = saver
     ) {
         property<String>(key = "file_path").provide("")
 

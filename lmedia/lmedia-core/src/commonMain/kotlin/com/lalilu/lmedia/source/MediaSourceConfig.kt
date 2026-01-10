@@ -1,8 +1,5 @@
 package com.lalilu.lmedia.source
 
-import com.lalilu.lmedia.InternalLMedia
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlin.reflect.KClass
 
 /**
@@ -21,41 +18,30 @@ class MediaSourceConfig(
     val key: String,
     val name: String = key,
     val description: String = "",
+    val saver: Saver? = null,
     val initialProperties: Map<String, Any> = emptyMap(),
     val properties: List<Declaration.Property<*>> = emptyList(),
     val functions: List<Declaration.Function<*>> = emptyList(),
     val onConfigUpdateCallback: () -> Unit = {}
-) : Instance {
-
+) {
     /**
-     * 配置值持有者类，用于存储和获取配置值
+     * 实际的属性保存器，用于保存和获取属性值
      */
-    inner class ValueHolder(
-        val valueMap: Map<String, Any>
-    ) {
-        /**
-         * 获取指定键的配置值，如果值不存在或类型不匹配则抛出异常
-         *
-         * @param key 配置键
-         * @return 配置值
-         */
-        inline fun <reified T : Any> require(key: String): T {
-            val configKey = this@MediaSourceConfig.key
-
-            // 校验检查该参数是否已存在声明
-            val declaration = requireProperty<T>(key)
-
-            // 获取参数值
-            val value = valueMap[declaration.key]
-
-            // 校验参数值
-            require(value != null) { "[$configKey]property with key $key got null ${if (declaration.required) ", for required property" else ""}" }
-            require(declaration.type.isInstance(value)) { "[$configKey]property with key $key is type ${declaration.type.simpleName}, but got $value" }
-            require(T::class.isInstance(value)) { "[$configKey]property with key $key is not of type ${T::class.simpleName}" }
-
-            return value as T
+    val actualSaver: Saver = object : Saver {
+        private val _saver = saver ?: MemorySaver
+        override fun appendDefaultValues(values: Map<String, Any>) {
+            val newMap = values.mapKeys { "${this@MediaSourceConfig.key}_${it.key}" }
+            _saver.appendDefaultValues(newMap)
         }
-    }
+
+        override fun getValue(key: String, clazz: KClass<*>): Any? {
+            return _saver.getValue("${this@MediaSourceConfig.key}_$key", clazz)
+        }
+
+        override fun setValue(key: String, clazz: KClass<*>, value: Any?) {
+            _saver.setValue("${this@MediaSourceConfig.key}_$key", clazz, value)
+        }
+    }.also { it.appendDefaultValues(initialProperties) }
 
     /**
      * 获取指定键的属性声明，如果属性不存在则抛出异常
@@ -91,9 +77,6 @@ class MediaSourceConfig(
         return function as Declaration.Function<T>
     }
 
-    private val _holder = MutableStateFlow(ValueHolder(initialProperties))
-    val holder: StateFlow<ValueHolder> get() = _holder
-
 
     /**
      * 获取指定键的配置值
@@ -101,7 +84,22 @@ class MediaSourceConfig(
      * @param key 配置键
      * @return 包含配置值的结果对象
      */
-    inline fun <reified T : Any> get(key: String): Result<T> = holder.value.runCatching { require<T>(key) }
+    inline fun <reified T : Any> get(key: String): Result<T> = runCatching {
+        val configKey = this@MediaSourceConfig.key
+
+        // 校验检查该参数是否已存在声明
+        val declaration = requireProperty<T>(key)
+
+        // 获取参数值
+        val value = actualSaver.getValue(declaration.key, declaration.type)
+
+        // 校验参数值
+        require(value != null) { "[$configKey]property with key $key got null ${if (declaration.required) ", for required property" else ""}" }
+        require(declaration.type.isInstance(value)) { "[$configKey]property with key $key is type ${declaration.type.simpleName}, but got $value" }
+        require(T::class.isInstance(value)) { "[$configKey]property with key $key is not of type ${T::class.simpleName}" }
+
+        value as T
+    }
 
     /**
      * 设置指定键的配置值
@@ -129,44 +127,14 @@ class MediaSourceConfig(
     fun update(
         block: (setter: (key: String, value: Any?) -> Unit) -> Unit
     ) {
-        val newMap = holder.value.valueMap.toMutableMap()
         block { key, value ->
             val declaration = requireProperty<Any>(key)
             require(declaration.mutable) { "[${this.key}]property with key $key is not mutable" }
             require(declaration.type.isInstance(value)) {
                 "[${this.key}]property with key $key is type ${declaration.type.simpleName}, but got $value"
             }
-
-            if (value == null) {
-                newMap.remove(key)
-            } else {
-                newMap[key] = value
-            }
+            actualSaver.setValue(key, declaration.type, value)
         }
-
-        _holder.value = ValueHolder(newMap)
         onConfigUpdateCallback.invoke()
-    }
-
-    @InternalLMedia
-    override fun getValue(key: String, clazz: KClass<*>): Any? = when (clazz) {
-        Int::class -> get<Int>(key).getOrThrow()
-        Long::class -> get<Long>(key).getOrThrow()
-        Float::class -> get<Float>(key).getOrThrow()
-        Double::class -> get<Double>(key).getOrThrow()
-        Boolean::class -> get<Boolean>(key).getOrThrow()
-        String::class -> get<String>(key).getOrThrow()
-        else -> throw IllegalArgumentException("[${this.key}][$key]Unsupported type ${clazz.simpleName}")
-    } as Any?
-
-    @InternalLMedia
-    override fun setValue(key: String, clazz: KClass<*>, value: Any?) = when (clazz) {
-        Int::class -> set<Int>(key, value as Int?)
-        Long::class -> set<Long>(key, value as Long?)
-        Float::class -> set<Float>(key, value as Float?)
-        Double::class -> set<Double>(key, value as Double?)
-        Boolean::class -> set<Boolean>(key, value as Boolean?)
-        String::class -> set<String>(key, value as String?)
-        else -> throw IllegalArgumentException("[${this.key}][$key]Unsupported type ${clazz.simpleName}")
     }
 }

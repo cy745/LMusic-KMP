@@ -25,7 +25,8 @@ import kotlin.random.Random
 @OptIn(ExperimentalCoroutinesApi::class)
 @Single(createdAtStart = true)
 class SubsonicSource(
-    private val json: Json
+    private val json: Json,
+    private val saver: Saver
 ) : MediaSource, MediaDataSource, CoroutineScope {
 
     companion object {
@@ -48,7 +49,8 @@ class SubsonicSource(
     override val config: MediaSourceConfig = buildConfig(
         key = name,
         name = "Subsonic/Navidrome",
-        description = "连接 Subsonic API 或 Navidrome 服务器"
+        description = "连接 Subsonic API 或 Navidrome 服务器",
+        saver = saver
     ) {
         // 用户可见的属性
         property<String>("url")

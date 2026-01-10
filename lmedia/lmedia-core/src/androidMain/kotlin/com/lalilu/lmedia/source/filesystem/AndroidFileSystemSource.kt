@@ -23,7 +23,8 @@ import java.io.FileNotFoundException
 @SuppressLint("NewApi")
 @OptIn(ExperimentalCoroutinesApi::class)
 class AndroidFileSystemSource(
-    private val context: Application
+    private val context: Application,
+    private val saver: Saver
 ) : MediaSource, MediaDataSource {
     override val name: String = "AndroidFileSystemSource"
     private val scope = CoroutineScope(Dispatchers.Default)
@@ -38,7 +39,8 @@ class AndroidFileSystemSource(
     override val config: MediaSourceConfig = buildConfig(
         key = name,
         name = "Android文件系统源",
-        description = "选择文件夹后，通过文件系统扫描音频文件"
+        description = "选择文件夹后，通过文件系统扫描音频文件",
+        saver = saver
     ) {
         property<String>(key = "file_path").provide("")
 

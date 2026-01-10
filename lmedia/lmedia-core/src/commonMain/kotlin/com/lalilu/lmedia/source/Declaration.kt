@@ -3,27 +3,6 @@ package com.lalilu.lmedia.source
 import kotlin.reflect.KClass
 
 
-/**
- * 实例接口，用于存储和获取特定键和类型的值
- */
-interface Instance {
-    /**
-     * 获取指定键和类型的值
-     * @param key 键名
-     * @param clazz 值的类型
-     * @return 对应的值，如果不存在则返回 null
-     */
-    fun getValue(key: String, clazz: KClass<*>): Any? = Unit
-
-    /**
-     * 设置指定键和类型的值
-     * @param key 键名
-     * @param clazz 值的类型
-     * @param value 要设置的值
-     */
-    fun setValue(key: String, clazz: KClass<*>, value: Any?) = Unit
-}
-
 @Suppress("UNCHECKED_CAST")
 /**
  * 声明基类，定义了所有声明的公共属性
@@ -45,7 +24,7 @@ sealed class Declaration(
      * @param name 声明的名称
      * @param description 声明的描述
      * @param priority 优先级
-     * @param instance 存储属性值的实例
+     * @param saver 存储属性值的实例
      * @param mutable 是否可变，默认为true
      * @param required 是否必需，默认为false
      * @param visibleInUI 是否在UI中显示，默认为true
@@ -56,7 +35,7 @@ sealed class Declaration(
         override val name: String,
         override val description: String,
         override val priority: Int = 0,
-        var instance: Instance,    // 存储属性值的实例
+        var saver: Saver,    // 存储属性值的实例
         val mutable: Boolean = true,   // 是否可变
         val required: Boolean = false, // 是否必需
         val visibleInUI: Boolean = true, // 是否在UI中显示
@@ -71,13 +50,13 @@ sealed class Declaration(
          * 设置属性值
          * @param value 要设置的值
          */
-        fun set(value: T?) = instance.setValue(key, type, value)
+        fun set(value: T?) = saver.setValue(key, type, value)
 
         /**
          * 获取属性值
          * @return 属性的当前值，如果不存在则返回 null
          */
-        fun get(): T? = instance.getValue(key, type) as? T?
+        fun get(): T? = saver.getValue(key, type) as? T?
     }
 
     /**

@@ -25,7 +25,8 @@ import kotlin.random.Random
 @Single(createdAtStart = true)
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSource(
-    private val json: Json
+    private val json: Json,
+    private val saver: Saver
 ) : MediaSource, MediaDataSource, CoroutineScope {
 
     companion object {
@@ -47,7 +48,8 @@ class RemoteSource(
 
     override val config: MediaSourceConfig = buildConfig(
         key = name,
-        description = "连接其他开放的Remote Server实例"
+        description = "连接其他开放的Remote Server实例",
+        saver = saver
     ) {
         property<String>("url")
         property<String>("password")
