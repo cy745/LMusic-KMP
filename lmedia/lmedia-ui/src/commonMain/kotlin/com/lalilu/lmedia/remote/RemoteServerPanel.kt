@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +36,13 @@ fun RemoteServerPanel(
             )
         },
         content = {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = config.value.password,
+                onValueChange = { config.value = config.value.copy(password = it) },
+                label = { Text("密码") },
+                placeholder = { Text("留空表示无需密码") },
+            )
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(0.dp),

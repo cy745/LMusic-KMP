@@ -11,7 +11,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
@@ -44,7 +43,6 @@ fun MediaSource.SourceCard(
 ) {
     val title = remember { config.name }
     val subtitle = remember { config.description }
-    val stateRef = rememberUpdatedState(state())
 
     BaseSourceCard(
         modifier = modifier,
@@ -76,7 +74,7 @@ fun MediaSource.SourceCard(
             }
         }
     ) {
-        AnimatedContent(targetState = stateRef.value) { stateValue ->
+        AnimatedContent(targetState = state()) { stateValue ->
             when (val snapshotState = stateValue.state) {
                 is SnapshotState.Idle -> Column(
                     modifier = Modifier.fillMaxWidth()

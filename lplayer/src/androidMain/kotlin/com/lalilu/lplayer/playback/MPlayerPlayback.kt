@@ -92,28 +92,34 @@ class MPlayerPlayback(
         .stateIn(this, SharingStarted.WhileSubscribed(), null)
 
     init {
-        library.whenReady {
-            init()
+        launch(Dispatchers.Main) {
+            preInit()
+            library.whenReady {
+                launch(Dispatchers.Main) {
+                    onLibraryReady()
+                }
+            }
         }
     }
 
-    internal fun init() {
-        launch(Dispatchers.Main) {
-            val browser = browserFuture.await()
-            browserInstance = browser
-            browser.addListener(this@MPlayerPlayback)
+    internal suspend fun preInit() {
+        val browser = browserFuture.await()
+        browserInstance = browser
+        browser.addListener(this@MPlayerPlayback)
+    }
 
-            val lastPosition = LPlayerKV.historyPlayPosition.value
-            val items = getHistoryItems()
-            if (items.isEmpty()) {
-                LogUtils.i("No songs found")
-                return@launch
-            }
-
-            browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
-            browser.setMediaItems(items, 0, lastPosition)
-            browser.prepare()
+    internal suspend fun onLibraryReady() {
+        val browser = browserFuture.await()
+        val lastPosition = LPlayerKV.historyPlayPosition.value
+        val items = getHistoryItems()
+        if (items.isEmpty()) {
+            LogUtils.i("No songs found")
+            return
         }
+
+        browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
+        browser.setMediaItems(items, 0, lastPosition)
+        browser.prepare()
     }
 
     fun doAction(action: Action) = launch(Dispatchers.Main) {

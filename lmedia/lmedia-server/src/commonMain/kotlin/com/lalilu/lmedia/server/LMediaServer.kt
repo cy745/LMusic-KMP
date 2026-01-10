@@ -1,6 +1,7 @@
 package com.lalilu.lmedia.server
 
 import co.touchlab.kermit.Logger
+import com.lalilu.common.ext.md5
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
@@ -39,6 +40,7 @@ class LMediaServer(
         serverInstance = provideServer(
             port = port,
             mediaSource = { targetSource },
+            serverConfig = config,
             config = { install(ContentNegotiation) { json(json) } }
         )
     }
@@ -62,6 +64,7 @@ class LMediaServer(
 private fun provideServer(
     port: Int,
     mediaSource: () -> MediaSource?,
+    serverConfig: RemoteServerConfig,
     config: Application.() -> Unit = {}
 ): EngineServer {
     suspend fun getAudioById(id: String): LAudio {
@@ -73,6 +76,21 @@ private fun provideServer(
             ?: throw IllegalArgumentException("No audio found for id: $id")
     }
 
+    fun validateRequest(call: ApplicationCall): Boolean {
+        val password = serverConfig.password
+        if (password.isEmpty()) {
+            // 无密码配置，跳过验证
+            return true
+        }
+        val salt = call.request.queryParameters["s"]
+        val token = call.request.queryParameters["t"]
+        if (salt == null || token == null) {
+            return false
+        }
+        val expectedToken = (password + salt).md5()
+        return expectedToken == token
+    }
+
     return embeddedServer(SERVER_ENGINE_FACTORY, port) {
         install(CORS) {
             anyHost()
@@ -81,14 +99,26 @@ private fun provideServer(
 
         routing {
             get("/") {
+                if (!validateRequest(call)) {
+                    call.respond(HttpStatusCode.Unauthorized, "Invalid or missing authentication")
+                    return@get
+                }
                 call.respondText("Hello World!")
             }
             get("/source") {
+                if (!validateRequest(call)) {
+                    call.respond(HttpStatusCode.Unauthorized, "Invalid or missing authentication")
+                    return@get
+                }
                 val mediaSource = mediaSource()
                     ?: throw IllegalArgumentException("No media source")
                 call.respond<Snapshot>(mediaSource.source().firstOrNull() ?: Snapshot.Empty)
             }
             get("/lyric/{id}") {
+                if (!validateRequest(call)) {
+                    call.respond(HttpStatusCode.Unauthorized, "Invalid or missing authentication")
+                    return@get
+                }
                 try {
                     val id = call.parameters["id"]
                         ?: throw IllegalArgumentException("Invalid id")
@@ -110,6 +140,10 @@ private fun provideServer(
                 }
             }
             get("/picture/{id}") {
+                if (!validateRequest(call)) {
+                    call.respond(HttpStatusCode.Unauthorized, "Invalid or missing authentication")
+                    return@get
+                }
                 try {
                     val id = call.parameters["id"]
                         ?: throw IllegalArgumentException("Invalid id")
@@ -134,6 +168,10 @@ private fun provideServer(
                 }
             }
             get("/media/{id}") {
+                if (!validateRequest(call)) {
+                    call.respond(HttpStatusCode.Unauthorized, "Invalid or missing authentication")
+                    return@get
+                }
                 try {
                     val id = call.parameters["id"]
                         ?: throw IllegalArgumentException("Invalid id")

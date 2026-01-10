@@ -3,9 +3,10 @@ package com.lalilu.lmedia.source
 import androidx.compose.runtime.getValue
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
+import com.lalilu.common.ext.md5
 import com.lalilu.lmedia.entity.*
 import io.ktor.client.*
-import io.ktor.client.call.body
+import io.ktor.client.call.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
@@ -13,10 +14,12 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
 
 
 @Single(createdAtStart = true)
@@ -40,6 +43,7 @@ class RemoteSource(
     private var client: HttpClient? = null
     private val snapshotFlow = MutableStateFlow(Snapshot.Idle)
     private val stateValue by snapshotFlow.toComposeState(this)
+    private var loadingJob: Job? = null
 
     override val config: MediaSourceConfig = buildConfig(
         key = name,
@@ -47,6 +51,8 @@ class RemoteSource(
     ) {
         property<String>("url")
         property<String>("password")
+        property<String>("salt", visibleInUI = false)
+        property<String>("token", visibleInUI = false)
 
         function<Unit>(
             key = "Connect",
@@ -63,7 +69,8 @@ class RemoteSource(
                 stateValue.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic }
             }
         ).onCall {
-            loadData()
+            loadingJob?.cancel()
+            loadingJob = null
         }
 
         function<Unit>(
@@ -71,9 +78,7 @@ class RemoteSource(
             description = "重置远程媒体源",
             isAvailable = { stateValue !is SnapshotState.Idle }
         ).onCall {
-            client?.close()
-            client = null
-            snapshotFlow.value = Snapshot.Idle
+            reset()
         }
 
         function<Unit>(
@@ -114,33 +119,71 @@ class RemoteSource(
 
 
     /**
+     * 重置
+     */
+    fun reset() {
+        client?.close()
+        client = null
+        loadingJob?.cancel()
+        loadingJob = null
+        snapshotFlow.value = Snapshot.Idle
+        // 清除认证信息
+        config.update { setter ->
+            setter("salt", "")
+            setter("token", "")
+        }
+    }
+
+    /**
      * 加载数据
      *
      * @param isInitialize 是否是初始化阶段
      */
     fun loadData(
         isInitialize: Boolean = false
-    ) = launch(Dispatchers.io) {
-        safeDoAsync(
-            onError = {
-                // 如果是初始化阶段失败的，则重置为Idle状态
-                if (isInitialize) {
-                    snapshotFlow.value = snapshotFlow.value.copy(state = SnapshotState.Idle)
+    ) {
+        loadingJob?.cancel()
+        loadingJob = launch(Dispatchers.io) {
+            safeDoAsync(
+                onError = {
+                    // 如果是初始化阶段失败的，则重置为Idle状态
+                    if (isInitialize) {
+                        snapshotFlow.value = snapshotFlow.value.copy(state = SnapshotState.Idle)
+                    }
                 }
+            ) {
+                // 处理密码认证
+                val password = config.get<String>("password").getOrNull() ?: ""
+                if (password.isNotEmpty()) {
+                    val salt = generateSalt()
+                    val token = generateToken(password, salt)
+                    config.update { setter ->
+                        setter("password", "")  // 清除密码
+                        setter("salt", salt)    // 保存 salt
+                        setter("token", token)  // 保存 token
+                    }
+                }
+
+                val client = requireClient()
+
+                snapshotFlow.emit(Snapshot.Loading)
+
+                ensureActive()
+                val salt = config.get<String>("salt").getOrNull()
+                val token = config.get<String>("token").getOrNull()
+                val result = client
+                    .get("/source") {
+                        if (salt != null && token != null) {
+                            parameter("s", salt)
+                            parameter("t", token)
+                        }
+                    }
+                    .body<Snapshot>()
+                    .also { it.redirectToNewSource(this@RemoteSource.name) }
+
+                ensureActive()
+                snapshotFlow.emit(result)
             }
-        ) {
-            val client = requireClient()
-
-            snapshotFlow.emit(Snapshot.Loading)
-
-            ensureActive()
-            val result = client
-                .get("/source")
-                .body<Snapshot>()
-                .also { it.redirectToNewSource(this@RemoteSource.name) }
-
-            ensureActive()
-            snapshotFlow.emit(result)
         }
     }
 
@@ -161,8 +204,15 @@ class RemoteSource(
 
     override suspend fun getLyric(song: LAudio): String? {
         val targetUrl = "lyric/${song.id.encodeURLPathPart()}"
+        val salt = config.get<String>("salt").getOrNull()
+        val token = config.get<String>("token").getOrNull()
         val lyric = requireClient()
-            .get(targetUrl)
+            .get(targetUrl) {
+                if (salt != null && token != null) {
+                    parameter("s", salt)
+                    parameter("t", token)
+                }
+            }
             .bodyAsText()
 
         return lyric
@@ -170,9 +220,16 @@ class RemoteSource(
 
     override suspend fun getPicture(song: LAudio): MediaData? {
         val targetUrl = "picture/${song.id.encodeURLPathPart()}"
+        val salt = config.get<String>("salt").getOrNull()
+        val token = config.get<String>("token").getOrNull()
 
         val picture = requireClient()
-            .get(targetUrl)
+            .get(targetUrl) {
+                if (salt != null && token != null) {
+                    parameter("s", salt)
+                    parameter("t", token)
+                }
+            }
             .bodyAsBytes()
             .takeIf { it.isNotEmpty() }
             ?: return null
@@ -183,13 +240,22 @@ class RemoteSource(
     override suspend fun getMedia(song: LAudio): MediaData? {
         val targetUrl = "media/${song.id.encodeURLPathPart()}"
         val url = config.get<String>("url").getOrThrow()
+        val salt = config.get<String>("salt").getOrNull()
+        val token = config.get<String>("token").getOrNull()
 
         if (song.sourceItem is SourceItemDefaults.RequestUrl) {
-            return MediaData.Url("http://${url}/media/${song.id.encodeURLPathPart()}")
+            val baseUrl = "http://${url}/media/${song.id.encodeURLPathPart()}"
+            val authParams = if (salt != null && token != null) "?s=$salt&t=$token" else ""
+            return MediaData.Url(baseUrl + authParams)
         }
 
         val media = requireClient()
-            .get(targetUrl)
+            .get(targetUrl) {
+                if (salt != null && token != null) {
+                    parameter("s", salt)
+                    parameter("t", token)
+                }
+            }
             .bodyAsBytes()
             .takeIf { it.isNotEmpty() }
             ?: return null
@@ -199,4 +265,14 @@ class RemoteSource(
 
     override val dataSource: MediaDataSource = this
     override fun source(): Flow<Snapshot> = snapshotFlow
+
+    private fun generateSalt(): String {
+        // 生成16字节的随机 salt
+        return Random.nextBytes(16).toHexString()
+    }
+
+    private fun generateToken(password: String, salt: String): String {
+        // 认证方式：md5(password + salt)
+        return (password + salt).md5()
+    }
 }
