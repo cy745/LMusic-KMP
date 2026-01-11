@@ -8,9 +8,7 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.buildSnapshot
-import com.lalilu.lmedia.source.MediaData
-import com.lalilu.lmedia.source.MediaDataSource
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.source.*
 import io.github.vinceglb.filekit.*
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +25,15 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
     override val name: String = "SandboxFileSystemSource"
     private val musicFolder = FileKit.filesDir
     private val fileFlow = flowOf(musicFolder.takeIf { it.exists() })
+
+    override val config: MediaSourceConfig = buildConfig(key = name) {
+        function<Unit>(
+            key = "Refresh",
+            description = "Refresh the sandbox folder"
+        ).onCall {
+            sourceFlow.requireUpdate()
+        }
+    }
 
     private val sourceFlow = fileFlow.map { root ->
         root?.filterChildren { file ->

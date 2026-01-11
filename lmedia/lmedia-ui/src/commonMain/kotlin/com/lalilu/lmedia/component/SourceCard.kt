@@ -39,7 +39,8 @@ fun MediaSource.SourceCard(
         )
     },
     extraMessage: () -> String? = { null },
-    extraFunctions: () -> List<Declaration.Function<*>> = { EMPTY_LIST }
+    extraFunctions: () -> List<Declaration.Function<*>> = { EMPTY_LIST },
+    extraContent: (@Composable () -> Unit)? = null
 ) {
     val title = remember { config.name }
     val subtitle = remember { config.description }
@@ -149,6 +150,8 @@ fun MediaSource.SourceCard(
         ) {
             configActions(Modifier, extraFunctions)
         }
+
+        extraContent?.invoke()
     }
 }
 
