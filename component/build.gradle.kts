@@ -2,7 +2,6 @@
 
 import com.lalilu.gradle.XcodeDetector
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -49,7 +48,7 @@ kotlin {
                 api(libs.compose.adaptive)
                 api(libs.compose.ui.backhandler)
 
-                api(libs.jbx.navigation3.ui)
+                api(project(":thirdparty:compose-multiplatform-core:navigation3:navigation3-ui"))
                 api(libs.androidx.navigation3.runtime)
                 implementation("androidx.collection:collection:1.5.0")
 

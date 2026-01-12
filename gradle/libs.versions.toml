@@ -56,12 +56,12 @@ compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.re
 compose-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 
 # jb-androidx
-androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version = "1.0.0-beta01" }
-jbx-navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version = "1.0.0-alpha03" }
+#jbx-navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version = "1.1.0-alpha01" }
+androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version = "1.1.0-alpha01" }
 jbx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
 jbx-lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
 jbx-lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3", version = "2.10.0-alpha03" }
-jbx-navigationevent-compose = { module = "org.jetbrains.androidx.navigationevent:navigationevent-compose", version = "1.0.0-beta01" }
+jbx-navigationevent-compose = { module = "org.jetbrains.androidx.navigationevent:navigationevent-compose", version = "1.0.0-rc02" }
 
 krouter-core = { module = "io.github.cy745.KRouter:core", version.ref = "krouter" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
@@ -163,7 +163,6 @@ settings = ["settings", "settings-coroutines", "settings-make-observable", "sett
 rococoa = ["rococoa-cocoa", "rococoa-contrib", "rococoa-core"]
 flowmvi = ["flowmvi-core", "flowmvi-test", "flowmvi-compose", "flowmvi-android", "flowmvi-savedstate"]
 jbx = [
-    "jbx-navigation3-ui",
     "jbx-lifecycle-viewmodel-compose",
     "jbx-lifecycle-runtime-compose",
     "jbx-lifecycle-viewmodel-navigation3",
