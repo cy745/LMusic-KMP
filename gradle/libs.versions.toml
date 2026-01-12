@@ -5,7 +5,7 @@ android-minSdk = "23"
 androidx-activity = "1.12.2"
 androidx-core = "1.17.0"
 androidx-lifecycle = "2.9.5"
-composeMultiplatform = "1.10.0-beta01"
+composeMultiplatform = "1.11.0-alpha01"
 kotlinx-serialization = "1.9.0"
 junit = "4.13.2"
 kotlin = "2.2.21"
@@ -53,6 +53,7 @@ compose-ui-backhandler = { module = "org.jetbrains.compose.ui:ui-backhandler", v
 compose-adaptive = { module = "org.jetbrains.compose.material3.adaptive:adaptive", version = "1.2.0-beta01" }
 compose-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
 compose-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 
 # jb-androidx

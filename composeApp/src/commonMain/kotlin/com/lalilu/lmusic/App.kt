@@ -23,7 +23,7 @@ import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.Scene
-import androidx.navigation3.ui.OverrideNavDisplay
+import androidx.navigation3.ui.NavDisplay
 import com.lalilu.LMusicTheme
 import com.lalilu.lmusic.screen.ExceptionScreen
 import com.lalilu.navigation.*
@@ -74,7 +74,7 @@ fun App() {
                     modifier = Modifier.fillMaxSize()
                         .background(MaterialTheme.colorScheme.background)
                 ) {
-                    OverrideNavDisplay(
+                    NavDisplay(
                         modifier = Modifier.fillMaxSize()
                             .preferredFrameRate(FrameRateCategory.High),
                         backStack = backStack,

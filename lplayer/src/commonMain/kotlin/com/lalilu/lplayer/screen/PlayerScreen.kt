@@ -18,7 +18,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import androidx.navigation3.ui.OverrideNavDisplay
+import androidx.navigation3.ui.NavDisplay
 import co.touchlab.kermit.Logger
 import com.lalilu.LocalSeedColor
 import com.lalilu.common.ext.io
@@ -55,17 +55,17 @@ class PlayerScreen : Screen {
         val seedColor = LocalSeedColor.current
         val transitionState = LocalNavSeekableTransitionState.current
         val homeScreen = remember {
-            val transition = OverrideNavDisplay.transitionSpec {
+            val transition = NavDisplay.transitionSpec {
                 slideIntoContainer(
                     towards = AnimatedContentTransitionScope.SlideDirection.Up,
                     animationSpec = tween(300)
                 ) togetherWith ExitTransition.None
-            } + OverrideNavDisplay.popTransitionSpec {
+            } + NavDisplay.popTransitionSpec {
                 EnterTransition.None togetherWith slideOutOfContainer(
                     towards = AnimatedContentTransitionScope.SlideDirection.Down,
                     animationSpec = tween(300)
                 )
-            } + OverrideNavDisplay.predictivePopTransitionSpec {
+            } + NavDisplay.predictivePopTransitionSpec {
                 EnterTransition.None togetherWith slideOutOfContainer(
                     towards = AnimatedContentTransitionScope.SlideDirection.Down,
                     animationSpec = tween(300)

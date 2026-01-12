@@ -15,7 +15,7 @@ kotlin {
     jvmToolchain(21)
     androidTarget {}
 
-    jvm()
+    jvm("desktop")
 
     js {
         browser()
@@ -31,10 +31,26 @@ kotlin {
         iosArm64(),
         iosSimulatorArm64()
     )
+
+    listOf(
+        macosArm64(),
+        macosX64()
+    )
+
+    sourceSets {
+        val commonMain by getting {
+            dependencies {
+                api(libs.androidx.navigation3.runtime)
+                api(libs.compose.runtime)
+                api(libs.compose.foundation)
+                api(libs.jbx.navigationevent.compose)
+            }
+        }
+    }
 }
 
 
 android {
     compileSdk = 35
-    namespace = "shared"
+    namespace = "org.jetbrains.androidx.navigation3"
 }

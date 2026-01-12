@@ -20,21 +20,12 @@
 package androidx.navigation3.ui
 
 import androidx.collection.mutableObjectFloatMapOf
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.*
 import androidx.compose.animation.core.SeekableTransitionState
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.util.fastForEach
@@ -46,13 +37,7 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.scene.LocalEntriesToExcludeFromCurrentScene
-import androidx.navigation3.scene.Scene
-import androidx.navigation3.scene.SceneInfo
-import androidx.navigation3.scene.SceneState
-import androidx.navigation3.scene.SceneStrategy
-import androidx.navigation3.scene.SinglePaneSceneStrategy
-import androidx.navigation3.scene.rememberSceneState
+import androidx.navigation3.scene.*
 import androidx.navigation3.ui.NavDisplay.POP_TRANSITION_SPEC
 import androidx.navigation3.ui.NavDisplay.PREDICTIVE_POP_TRANSITION_SPEC
 import androidx.navigation3.ui.NavDisplay.TRANSITION_SPEC
@@ -65,11 +50,11 @@ import androidx.navigationevent.NavigationEventTransitionState.InProgress
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.NavigationEventState
 import androidx.navigationevent.compose.rememberNavigationEventState
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 import kotlin.jvm.JvmMultifileClass
 import kotlin.jvm.JvmName
 import kotlin.reflect.KClass
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
 
 /** Object that indicates the features that can be handled by the [NavDisplay] */
 public object NavDisplay {
@@ -121,9 +106,9 @@ public object NavDisplay {
      */
     public fun predictivePopTransitionSpec(
         predictivePopTransitionSpec:
-            AnimatedContentTransitionScope<Scene<*>>.(
-                @NavigationEvent.SwipeEdge Int
-            ) -> ContentTransform?
+        AnimatedContentTransitionScope<Scene<*>>.(
+            @NavigationEvent.SwipeEdge Int
+        ) -> ContentTransform?
     ): Map<String, Any> = mapOf(PREDICTIVE_POP_TRANSITION_SPEC to predictivePopTransitionSpec)
 
     internal const val TRANSITION_SPEC = "transitionSpec"
@@ -194,9 +179,9 @@ public fun <T : Any> NavDisplay(
     popTransitionSpec: AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform =
         defaultPopTransitionSpec(),
     predictivePopTransitionSpec:
-        AnimatedContentTransitionScope<Scene<T>>.(
-            @NavigationEvent.SwipeEdge Int
-        ) -> ContentTransform =
+    AnimatedContentTransitionScope<Scene<T>>.(
+        @NavigationEvent.SwipeEdge Int
+    ) -> ContentTransform =
         defaultPredictivePopTransitionSpec(),
     entryProvider: (key: T) -> NavEntry<T>,
 ) {
@@ -268,6 +253,14 @@ public fun <T : Any> NavDisplay(
             backStack.removeLastOrNull()
         }
     },
+    transitionState: @Composable (Scene<T>) -> SeekableTransitionState<Scene<T>> = { scene ->
+        remember {
+            // The state returned here cannot be nullable cause it produces the input of the
+            // transitionSpec passed into the AnimatedContent and that must match the non-nullable
+            // scope exposed by the transitions on the NavHost and composable APIs.
+            SeekableTransitionState(scene)
+        }
+    },
     entryDecorators: List<NavEntryDecorator<T>> =
         listOf(rememberSaveableStateHolderNavEntryDecorator()),
     sceneStrategy: SceneStrategy<T> = SinglePaneSceneStrategy(),
@@ -278,9 +271,9 @@ public fun <T : Any> NavDisplay(
     popTransitionSpec: AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform =
         defaultPopTransitionSpec(),
     predictivePopTransitionSpec:
-        AnimatedContentTransitionScope<Scene<T>>.(
-            @NavigationEvent.SwipeEdge Int
-        ) -> ContentTransform =
+    AnimatedContentTransitionScope<Scene<T>>.(
+        @NavigationEvent.SwipeEdge Int
+    ) -> ContentTransform =
         defaultPredictivePopTransitionSpec(),
     entryProvider: (key: T) -> NavEntry<T>,
 ) {
@@ -298,6 +291,7 @@ public fun <T : Any> NavDisplay(
         sceneStrategy = sceneStrategy,
         sharedTransitionScope = sharedTransitionScope,
         modifier = modifier,
+        transitionState = transitionState,
         contentAlignment = contentAlignment,
         sizeTransform = sizeTransform,
         transitionSpec = transitionSpec,
@@ -364,14 +358,22 @@ public fun <T : Any> NavDisplay(
     contentAlignment: Alignment = Alignment.TopStart,
     sceneStrategy: SceneStrategy<T> = SinglePaneSceneStrategy(),
     sizeTransform: SizeTransform? = null,
+    transitionState: @Composable (Scene<T>) -> SeekableTransitionState<Scene<T>> = { scene ->
+        remember {
+            // The state returned here cannot be nullable cause it produces the input of the
+            // transitionSpec passed into the AnimatedContent and that must match the non-nullable
+            // scope exposed by the transitions on the NavHost and composable APIs.
+            SeekableTransitionState(scene)
+        }
+    },
     transitionSpec: AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform =
         defaultTransitionSpec(),
     popTransitionSpec: AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform =
         defaultPopTransitionSpec(),
     predictivePopTransitionSpec:
-        AnimatedContentTransitionScope<Scene<T>>.(
-            @NavigationEvent.SwipeEdge Int
-        ) -> ContentTransform =
+    AnimatedContentTransitionScope<Scene<T>>.(
+        @NavigationEvent.SwipeEdge Int
+    ) -> ContentTransform =
         defaultPredictivePopTransitionSpec(),
     onBack: () -> Unit,
 ) {
@@ -380,6 +382,7 @@ public fun <T : Any> NavDisplay(
         sceneStrategy = sceneStrategy,
         sharedTransitionScope = null,
         modifier = modifier,
+        transitionState = transitionState,
         contentAlignment = contentAlignment,
         sizeTransform = sizeTransform,
         transitionSpec = transitionSpec,
@@ -445,14 +448,22 @@ public fun <T : Any> NavDisplay(
     sceneStrategy: SceneStrategy<T> = SinglePaneSceneStrategy(),
     sharedTransitionScope: SharedTransitionScope? = null,
     sizeTransform: SizeTransform? = null,
+    transitionState: @Composable (Scene<T>) -> SeekableTransitionState<Scene<T>> = { scene ->
+        remember {
+            // The state returned here cannot be nullable cause it produces the input of the
+            // transitionSpec passed into the AnimatedContent and that must match the non-nullable
+            // scope exposed by the transitions on the NavHost and composable APIs.
+            SeekableTransitionState(scene)
+        }
+    },
     transitionSpec: AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform =
         defaultTransitionSpec(),
     popTransitionSpec: AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform =
         defaultPopTransitionSpec(),
     predictivePopTransitionSpec:
-        AnimatedContentTransitionScope<Scene<T>>.(
-            @NavigationEvent.SwipeEdge Int
-        ) -> ContentTransform =
+    AnimatedContentTransitionScope<Scene<T>>.(
+        @NavigationEvent.SwipeEdge Int
+    ) -> ContentTransform =
         defaultPredictivePopTransitionSpec(),
     onBack: () -> Unit,
 ) {
@@ -485,6 +496,7 @@ public fun <T : Any> NavDisplay(
         modifier,
         contentAlignment,
         sizeTransform,
+        transitionState,
         transitionSpec,
         popTransitionSpec,
         predictivePopTransitionSpec,
@@ -522,24 +534,27 @@ public fun <T : Any> NavDisplay(
     modifier: Modifier = Modifier,
     contentAlignment: Alignment = Alignment.TopStart,
     sizeTransform: SizeTransform? = null,
+    transitionState: @Composable (Scene<T>) -> SeekableTransitionState<Scene<T>> = { scene ->
+        remember {
+            // The state returned here cannot be nullable cause it produces the input of the
+            // transitionSpec passed into the AnimatedContent and that must match the non-nullable
+            // scope exposed by the transitions on the NavHost and composable APIs.
+            SeekableTransitionState(scene)
+        }
+    },
     transitionSpec: AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform =
         defaultTransitionSpec(),
     popTransitionSpec: AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform =
         defaultPopTransitionSpec(),
     predictivePopTransitionSpec:
-        AnimatedContentTransitionScope<Scene<T>>.(
-            @NavigationEvent.SwipeEdge Int
-        ) -> ContentTransform =
+    AnimatedContentTransitionScope<Scene<T>>.(
+        @NavigationEvent.SwipeEdge Int
+    ) -> ContentTransform =
         defaultPredictivePopTransitionSpec(),
 ) {
     // Calculate current Scene and set up transitions
     val scene = sceneState.currentScene
-    val transitionState = remember {
-        // The state returned here cannot be nullable cause it produces the input of the
-        // transitionSpec passed into the AnimatedContent and that must match the non-nullable
-        // scope exposed by the transitions on the NavHost and composable APIs.
-        SeekableTransitionState(scene)
-    }
+    val transitionState = transitionState(scene)
 
     val transition = rememberTransition(transitionState, label = "scene")
 
@@ -701,10 +716,12 @@ public fun <T : Any> NavDisplay(
                 transitionScene.predictivePopSpec()?.invoke(this, swipeEdge)
                     ?: predictivePopTransitionSpec(swipeEdge)
             }
+
             isPop -> {
                 transitionScene.contentTransform(POP_TRANSITION_SPEC)?.invoke(this)
                     ?: popTransitionSpec(this)
             }
+
             else -> {
                 transitionScene.contentTransform(TRANSITION_SPEC)?.invoke(this)
                     ?: transitionSpec(this)
@@ -738,7 +755,7 @@ public fun <T : Any> NavDisplay(
             LocalLifecycleOwner provides sceneLifecycleOwner,
             LocalNavAnimatedContentScope provides this,
             LocalEntriesToExcludeFromCurrentScene provides
-                sceneToExcludedEntryMap.getValue(targetScene::class to targetScene.key),
+                    sceneToExcludedEntryMap.getValue(targetScene::class to targetScene.key),
         ) {
             targetScene.content()
         }
@@ -766,7 +783,7 @@ public fun <T : Any> NavDisplay(
     overlayScenes.fastForEachReversed { overlayScene ->
         CompositionLocalProvider(
             LocalEntriesToExcludeFromCurrentScene provides
-                sceneToExcludedEntryMap.getValue(overlayScene::class to overlayScene.key)
+                    sceneToExcludedEntryMap.getValue(overlayScene::class to overlayScene.key)
         ) {
             overlayScene.content.invoke()
         }
@@ -795,24 +812,24 @@ private fun <T : Any> Scene<T>.contentTransform(
 
 @Suppress("UNCHECKED_CAST")
 private fun <T : Any> Scene<T>.predictivePopSpec():
-    (AnimatedContentTransitionScope<Scene<T>>.(
-        @NavigationEvent.SwipeEdge Int
-    ) -> ContentTransform)? {
-    return metadata[PREDICTIVE_POP_TRANSITION_SPEC]
-        as?
-        AnimatedContentTransitionScope<Scene<T>>.(
+        (AnimatedContentTransitionScope<Scene<T>>.(
             @NavigationEvent.SwipeEdge Int
-        ) -> ContentTransform
+        ) -> ContentTransform)? {
+    return metadata[PREDICTIVE_POP_TRANSITION_SPEC]
+            as?
+            AnimatedContentTransitionScope<Scene<T>>.(
+                @NavigationEvent.SwipeEdge Int
+            ) -> ContentTransform
 }
 
 /** Default [transitionSpec] for forward navigation to be used by [NavDisplay]. */
 public expect fun <T : Any> defaultTransitionSpec():
-    AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform
+        AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform
 
 /** Default [transitionSpec] for pop navigation to be used by [NavDisplay]. */
 public expect fun <T : Any> defaultPopTransitionSpec():
-    AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform
+        AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform
 
 /** Default [transitionSpec] for predictive pop navigation to be used by [NavDisplay]. */
 public expect fun <T : Any> defaultPredictivePopTransitionSpec():
-    AnimatedContentTransitionScope<Scene<T>>.(@NavigationEvent.SwipeEdge Int) -> ContentTransform
+        AnimatedContentTransitionScope<Scene<T>>.(@NavigationEvent.SwipeEdge Int) -> ContentTransform
