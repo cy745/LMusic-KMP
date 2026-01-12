@@ -46,7 +46,7 @@ fun App() {
     }
 
     LMusicTheme {
-        SharedTransitionLayout {
+        SharedTransitionLayout shareScope@{
             val screenBackgroundDecorator = remember {
                 NavEntryDecorator<NavKey> { entry ->
                     Box(
@@ -82,8 +82,8 @@ fun App() {
                             remember { SeekableTransitionState(scene) }
                                 .also { transitionState.value = it }
                         },
+                        sharedTransitionScope = this@shareScope,
                         entryDecorators = listOf(
-                            rememberSharedEntryDecorator(),
                             rememberSaveableStateHolderNavEntryDecorator(),
                             rememberViewModelStoreNavEntryDecorator(),
                             screenBackgroundDecorator
