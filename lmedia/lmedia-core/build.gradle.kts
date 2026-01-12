@@ -76,4 +76,4 @@ XcodeDetector.whenXcodeInstalled {
 // FIXME xcode的环境问题，直接在xcode中打包会出现报错，见https://github.com/ttypic/swift-klib-plugin/issues/65
 // 需要在其他ide中执行过一次以后，才能在xcode中运行
 tasks.named { it.startsWith("swiftklibMusicKitWrapper") || it.startsWith("cinteropMusicKitWrapper") }
-    .forEach { it.enabled = false }
+    .forEach { it.enabled = System.getenv("PLATFORM_NAME") != "iphoneos" }
