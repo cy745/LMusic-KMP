@@ -44,6 +44,10 @@ kotlin {
                 api(libs.compose.runtime)
                 api(libs.compose.foundation)
                 api(libs.jbx.navigationevent.compose)
+                api(libs.jbx.lifecycle.runtime.compose)
+
+                api("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
+                api("androidx.collection:collection:1.5.0")
             }
         }
     }

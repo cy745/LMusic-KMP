@@ -57,6 +57,6 @@ include(":lmedia:lmedia-server")
 include(":lmedia:lmedia-client")
 include(":lmedia:lmedia-coil")
 
-include(":thirdparty:compose-multiplatform-core:navigation3:navigation3-ui")
+include(":thirdparty:navigation3-ui")
 
 includeBuild("build-logic")
