@@ -4,8 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import coil3.ColorImage
+import coil3.annotation.ExperimentalCoilApi
+import coil3.compose.AsyncImagePreviewHandler
+import coil3.compose.LocalAsyncImagePreviewHandler
 import com.lalilu.LMusicTheme
 
 @Composable
@@ -17,7 +24,7 @@ fun preview(
     },
     background: @Composable (@Composable () -> Unit) -> Unit = { DefaultBackground(it) },
     content: @Composable PreviewScope.() -> Unit,
-) = previewWithConfiguration(
+) = PreviewWithConfiguration(
     configuration = { dataContext.addAll(data) },
     isDarkMode = isDarkMode,
     theme = theme,
@@ -25,8 +32,9 @@ fun preview(
     content = content
 )
 
+@OptIn(ExperimentalCoilApi::class)
 @Composable
-fun previewWithConfiguration(
+fun PreviewWithConfiguration(
     configuration: PreviewScope.() -> Unit = { },
     isDarkMode: Boolean = false,
     theme: @Composable (Boolean, @Composable () -> Unit) -> Unit = { darkMode, block ->
@@ -38,7 +46,15 @@ fun previewWithConfiguration(
     content: @Composable PreviewScope.() -> Unit,
 ) {
     val previewScope = remember { PreviewScope().apply(configuration) }
-    theme(isDarkMode) { background { previewScope.content() } }
+    val previewHandler = AsyncImagePreviewHandler {
+        ColorImage(Color.Magenta.toArgb())
+    }
+
+    CompositionLocalProvider(
+        LocalAsyncImagePreviewHandler provides previewHandler
+    ) {
+        theme(isDarkMode) { background { previewScope.content() } }
+    }
 }
 
 @Composable

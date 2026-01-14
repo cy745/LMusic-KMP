@@ -13,6 +13,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
@@ -55,6 +56,17 @@ class SharedContextScope(
     val defaultAnimationScope: AnimatedContentScope? = null,
     val defaultConfig: SharedContentConfig? = null
 ) {
+    companion object {
+        internal val PREVIEW_SCOPE by lazy {
+            SharedContextScope(
+                sharedMap = emptyMap(),
+                sharedTransitionScope = null,
+                defaultAnimationScope = null,
+                defaultConfig = null
+            )
+        }
+    }
+
     fun Modifier.sharedElementV2(
         key: String,
         config: SharedContentConfig = defaultConfig
@@ -195,6 +207,11 @@ fun SharedContext(
     defaultConfig: SharedContentConfig? = null,
     block: @Composable SharedContextScope.() -> Unit
 ) {
+    if (LocalInspectionMode.current) {
+        SharedContextScope.PREVIEW_SCOPE.block()
+        return
+    }
+
     val sharedScope = runCatching { sharedTransitionScope ?: LocalSharedTransitionScope.current }
         .getOrNull()
     val animationScope = runCatching { defaultAnimationScope ?: LocalNavAnimatedContentScope.current }

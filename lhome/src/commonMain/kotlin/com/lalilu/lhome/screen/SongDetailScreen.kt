@@ -10,7 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
@@ -21,7 +20,6 @@ import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.lalilu.extensions.SharedContext
-import com.lalilu.extensions.clipFade
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.SongAlbumInfoCard
 import com.lalilu.lhome.component.SongInformationCard
@@ -29,10 +27,12 @@ import com.lalilu.lmedia.LMedia
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.Metadata
 import com.lalilu.navigation.Screen
 import com.lalilu.preview.preview
+import kotlinx.serialization.Serializable
 
-
+@Serializable
 @Destination("/song/detail")
 data class SongDetailScreen(
     val mediaId: String,
@@ -86,42 +86,38 @@ fun SongDetailScreenContent(
                 AsyncImage(
                     modifier = Modifier.fillMaxWidth()
                         .aspectRatio(1f)
-                        .sharedElementV2("COVER")
-                        .clipFade(
-                            lengthDp = 300.dp,
-                            alignmentY = Alignment.Bottom
-                        ),
+                        .sharedElementV2("COVER"),
                     model = coverData,
                     contentDescription = null,
                 )
+            }
+        }
 
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                        .padding(16.dp)
-                        .align(Alignment.BottomCenter)
-                ) {
-                    Text(
-                        modifier = Modifier.padding(top = 8.dp)
-                            .sharedElementV2(
-                                key = "TITLE",
-                            ),
-                        text = song?.title ?: "",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.W600,
-                        maxLines = 1,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        modifier = Modifier.sharedElementV2("SUBTITLE")
-                            .alpha(0.6f),
-                        text = song?.subtitle ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    modifier = Modifier.padding(top = 8.dp)
+                        .sharedElementV2(key = "TITLE"),
+                    text = song?.title ?: "",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.W600,
+                    maxLines = 1,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    modifier = Modifier.sharedElementV2("SUBTITLE")
+                        .alpha(0.6f),
+                    text = song?.subtitle ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
 
@@ -138,8 +134,7 @@ fun SongDetailScreenContent(
 
         item {
             SongInformationCard(
-                modifier = Modifier.fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 extra = songsInfo
             )
         }
@@ -150,6 +145,30 @@ fun SongDetailScreenContent(
 @Preview
 @Composable
 private fun SongDetailScreenContentPreview() = preview {
-    SongDetailScreenContent()
+    SongDetailScreenContent(
+        song = LAudio(
+            id = "id",
+            title = "ライアーメイデン (feat. りぃふ)",
+            subtitle = "ヤバス/りぃふ",
+            extra = mapOf(),
+            metadata = Metadata(
+                title = "ライアーメイデン (feat. りぃふ)",
+                album = "ヤバス/りぃふ",
+                artist = "artist",
+                albumArtist = "albumArtist",
+                composer = "composer",
+                lyricist = "",
+                comment = "",
+                genre = "",
+                track = "",
+                disc = "",
+                date = "",
+                duration = 0,
+                dateAdded = 0,
+                dateModified = 0
+            ),
+            mediaSourceName = ""
+        )
+    )
 }
 
