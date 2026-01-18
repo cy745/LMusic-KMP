@@ -30,10 +30,7 @@ import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.*
 import com.lalilu.lplayer.extensions.PlayMode
 import com.lalilu.lplayer.viewmodel.PlayerViewModel
-import com.lalilu.navigation.AppRouter
-import com.lalilu.navigation.LocalBackStack
-import com.lalilu.navigation.LocalNavSeekableTransitionState
-import com.lalilu.navigation.Screen
+import com.lalilu.navigation.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -44,7 +41,10 @@ import kotlin.math.cos
 import kotlin.math.pow
 
 @Destination("/player")
-class PlayerScreen : Screen {
+class PlayerScreen : Screen, ScreenMetadataFactory {
+
+    override fun provideMetadata(): Map<String, Any> = Metadata.player()
+
 
     @OptIn(ExperimentalSharedTransitionApi::class)
     @Composable

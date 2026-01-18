@@ -93,6 +93,7 @@ kotlin {
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            implementation("com.formdev:flatlaf:3.7")
         }
     }
 }

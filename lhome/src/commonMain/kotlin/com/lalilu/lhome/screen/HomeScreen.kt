@@ -11,10 +11,13 @@ import com.lalilu.lhome.extensions.DailyRecommend
 import com.lalilu.lhome.extensions.EntryPanel
 import com.lalilu.lhome.extensions.HistoryPanel
 import com.lalilu.lhome.extensions.LatestPanel
+import com.lalilu.navigation.Metadata
 import com.lalilu.navigation.Screen
+import com.lalilu.navigation.ScreenMetadataFactory
 
 @Destination(router = ["/home"])
-data object HomeScreen : Screen {
+data object HomeScreen : Screen, ScreenMetadataFactory {
+    override fun provideMetadata(): Map<String, Any> = Metadata.home()
 
     @Composable
     override fun Content() {
