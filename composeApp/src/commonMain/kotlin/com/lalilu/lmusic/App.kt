@@ -15,23 +15,21 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.FrameRateCategory
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.preferredFrameRate
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntryDecorator
-import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import com.lalilu.LMusicTheme
 import com.lalilu.lmusic.screen.ExceptionScreen
+import com.lalilu.lplayer.screen.rememberCustomSceneStrategy
 import com.lalilu.navigation.*
 
 @Suppress("UNCHECKED_CAST")
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
 @Composable
-@Preview
 fun App() {
     val backStack = remember {
         NavBackStack(
@@ -47,15 +45,6 @@ fun App() {
 
     LMusicTheme {
         SharedTransitionLayout shareScope@{
-            val screenBackgroundDecorator = remember {
-                NavEntryDecorator<NavKey> { entry ->
-                    Box(
-                        modifier = Modifier.background(MaterialTheme.colorScheme.background),
-                        content = { entry.Content() }
-                    )
-                }
-            }
-
             val animationSpec = spring(
                 stiffness = Spring.StiffnessMediumLow,
                 visibilityThreshold = IntOffset.VisibilityThreshold
@@ -82,11 +71,12 @@ fun App() {
                             remember { SeekableTransitionState(scene) }
                                 .also { transitionState.value = it }
                         },
+                        sceneStrategy = rememberCustomSceneStrategy(),
                         sharedTransitionScope = this@shareScope,
                         entryDecorators = listOf(
                             rememberSaveableStateHolderNavEntryDecorator(),
                             rememberViewModelStoreNavEntryDecorator(),
-                            screenBackgroundDecorator
+                            rememberDefaultBackgroundColorNavEntryDecorator()
                         ) as List<NavEntryDecorator<Screen>>,
                         transitionSpec = {
                             slideInVertically(animationSpec) { 100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith

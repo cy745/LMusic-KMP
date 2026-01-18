@@ -51,8 +51,8 @@ fun Screen.toNavEntry(): NavEntry<Screen> {
         metadata = mutableMapOf()
     }
 
-    if (screen is ScreenTransitionFactory) {
-        metadata += screen.provideTransitionMetadata()
+    if (screen is ScreenMetadataFactory) {
+        metadata += screen.provideMetadata()
     }
 
     return NavEntry(
