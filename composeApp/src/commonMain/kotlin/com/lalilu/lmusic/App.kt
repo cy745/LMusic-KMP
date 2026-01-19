@@ -24,7 +24,7 @@ import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import com.lalilu.LMusicTheme
 import com.lalilu.lmusic.screen.ExceptionScreen
-import com.lalilu.lplayer.screen.rememberCustomSceneStrategy
+import com.lalilu.lmusic.screen.rememberCustomSceneStrategy
 import com.lalilu.navigation.*
 
 @Suppress("UNCHECKED_CAST")

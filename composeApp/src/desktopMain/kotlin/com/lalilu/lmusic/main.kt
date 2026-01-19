@@ -9,8 +9,6 @@ import androidx.compose.ui.platform.PlatformInsets
 import androidx.compose.ui.platform.PlatformWindowInsets
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import com.formdev.flatlaf.FlatIntelliJLaf
-import com.formdev.flatlaf.FlatLaf
 import io.github.vinceglb.filekit.FileKit
 import org.koin.core.context.startKoin
 import java.awt.Toolkit
@@ -22,7 +20,6 @@ fun main() {
     platformSetupCoil()
 
     System.setProperty("apple.awt.application.appearance", "system")
-    FlatLaf.setup(FlatIntelliJLaf())
 
     application {
         val windowState = WindowStateKeeper.rememberWindowState()
