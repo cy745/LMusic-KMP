@@ -1,0 +1,39 @@
+NOTICE
+======
+
+This program includes third-party software components under the following licenses:
+
+Third-Party Dependencies And Code
+------------------------
+
+1. AndroidX Navigation3 UI
+   - Location: thirdparty/navigation3-ui/
+   - License: Apache License 2.0
+   - Copyright: Copyright 2024-2025 The Android Open Source Project
+
+For the full text of the Apache License 2.0, see LICENSE-2.0 in the
+thirdparty/navigation3-ui/ directory.
+
+2. Compose Fluent
+   - Location: composeApp/src/desktopMain/
+   - Url: https://github.com/compose-fluent/compose-fluent-ui
+   - License: Apache License 2.0
+   - Notes: The code has no original copyright notice, and an Apache-2.0 license header has been added
+
+For the full text of the Apache License 2.0,
+see <https://www.apache.org/licenses/LICENSE-2.0.txt>.
+
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+

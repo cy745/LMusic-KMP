@@ -1,8 +1,22 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.lalilu.lmusic.jna.windows
 
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.graphics.Color
@@ -38,22 +52,10 @@ import com.lalilu.lmusic.window.findSkiaLayer
 import com.sun.jna.Native
 import com.sun.jna.NativeLibrary
 import com.sun.jna.Pointer
-import com.sun.jna.platform.win32.Advapi32Util
-import com.sun.jna.platform.win32.WinDef.HWND
-import com.sun.jna.platform.win32.WinDef.UINT
-import com.sun.jna.platform.win32.WinDef.LPARAM
-import com.sun.jna.platform.win32.WinDef.WPARAM
-import com.sun.jna.platform.win32.WinDef.LRESULT
+import com.sun.jna.platform.win32.*
 import com.sun.jna.platform.win32.BaseTSD.LONG_PTR
-import com.sun.jna.platform.win32.WinDef
-import com.sun.jna.platform.win32.WinDef.HMENU
-import com.sun.jna.platform.win32.WinNT
-import com.sun.jna.platform.win32.WinReg
-import com.sun.jna.platform.win32.WinUser
-import com.sun.jna.platform.win32.WinUser.WM_DESTROY
-import com.sun.jna.platform.win32.WinUser.WM_SIZE
-import com.sun.jna.platform.win32.WinUser.WS_CAPTION
-import com.sun.jna.platform.win32.WinUser.WS_SYSMENU
+import com.sun.jna.platform.win32.WinDef.*
+import com.sun.jna.platform.win32.WinUser.*
 import com.sun.jna.ptr.IntByReference
 import org.jetbrains.skiko.currentSystemTheme
 import java.awt.Window
@@ -80,7 +82,8 @@ internal class ComposeWindowProcedure(
     )
 
     //     The default window procedure to call its methods when the default method behaviour is desired/sufficient
-    private var defaultWindowProcedure = User32Extend.instance?.setWindowLong(windowHandle, WinUser.GWL_WNDPROC, this) ?: LONG_PTR(-1)
+    private var defaultWindowProcedure =
+        User32Extend.instance?.setWindowLong(windowHandle, WinUser.GWL_WNDPROC, this) ?: LONG_PTR(-1)
 
     private var dpi = UINT(0)
     private var width = 0
@@ -142,7 +145,8 @@ internal class ComposeWindowProcedure(
             // thus effectively making all the window our client area
             WM_NCCALCSIZE -> {
                 if (wParam.toInt() == 0) {
-                    User32Extend.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
+                    User32Extend.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam)
+                        ?: LRESULT(0)
                 } else {
                     val user32 = User32Extend.instance ?: return LRESULT(0)
                     dpi = user32.GetDpiForWindow(hWnd)
@@ -260,7 +264,7 @@ internal class ComposeWindowProcedure(
                     isWindowActive = wParam.toInt() != WA_INACTIVE
                 }
                 if (uMsg == WM_NCMOUSEMOVE) {
-                     skiaLayerProcedure?.let {
+                    skiaLayerProcedure?.let {
                         User32Extend.instance?.PostMessage(it.contentHandle, uMsg, wParam, lParam)
                     }
                 }
