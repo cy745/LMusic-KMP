@@ -1,17 +1,17 @@
 package com.lalilu.lmusic
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.InternalComposeUiApi
-import androidx.compose.ui.platform.LocalPlatformWindowInsets
-import androidx.compose.ui.platform.PlatformInsets
-import androidx.compose.ui.platform.PlatformWindowInsets
+import androidx.compose.ui.platform.*
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import com.lalilu.lmusic.window.WindowFrame
 import io.github.vinceglb.filekit.FileKit
+import org.jetbrains.skiko.hostOs
 import org.koin.core.context.startKoin
-import java.awt.Toolkit
 
 @OptIn(InternalComposeUiApi::class)
 fun main() {
@@ -19,7 +19,9 @@ fun main() {
     startKoin { koinSetup() }
     platformSetupCoil()
 
-    System.setProperty("apple.awt.application.appearance", "system")
+    if (hostOs.isMacOS) {
+        System.setProperty("apple.awt.application.appearance", "system")
+    }
 
     application {
         val windowState = WindowStateKeeper.rememberWindowState()
@@ -32,23 +34,27 @@ fun main() {
             state = windowState,
             title = "LMusic",
         ) {
-            window.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
-            window.rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
-            window.rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
             window.background = if (isSystemInDarkTheme()) java.awt.Color.BLACK else java.awt.Color.WHITE
 
-            val insets = LocalPlatformWindowInsets.current
-            val newInsets = remember(insets) {
-                object : PlatformWindowInsets by insets {
-                    val windowInsets = Toolkit.getDefaultToolkit().getScreenInsets(window.graphicsConfiguration)
+            WindowFrame(state = windowState) { windowInset: WindowInsets, captionBarInset: WindowInsets ->
+                val insets = LocalPlatformWindowInsets.current
+                val density = LocalDensity.current
+                val layoutDirection = LocalLayoutDirection.current
 
-                    override val statusBars: PlatformInsets =
-                        PlatformInsets(0, windowInsets.top, 0, 0)
+                val newInsets = remember(insets, windowInset) {
+                    object : PlatformWindowInsets by insets {
+                        override val statusBars: PlatformInsets = PlatformInsets(
+                            left = windowInset.getLeft(density, layoutDirection),
+                            top = windowInset.getTop(density),
+                            right = windowInset.getRight(density, layoutDirection),
+                            bottom = windowInset.getBottom(density)
+                        )
+                    }
                 }
-            }
 
-            CompositionLocalProvider(LocalPlatformWindowInsets provides newInsets) {
-                App()
+                CompositionLocalProvider(LocalPlatformWindowInsets provides newInsets) {
+                    App()
+                }
             }
         }
     }

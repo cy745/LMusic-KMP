@@ -1,0 +1,121 @@
+/*
+ * Copyright (c) 2026 lalilu. All rights reserved.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.lalilu.lmusic.window
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.window.FrameWindowScope
+import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowState
+import androidx.compose.ui.zIndex
+import com.lalilu.lmusic.jna.windows.ComposeWindowProcedure
+import com.lalilu.lmusic.jna.windows.structure.WinUserConst.HTCAPTION
+import com.lalilu.lmusic.jna.windows.structure.WinUserConst.HTCLIENT
+import com.lalilu.lmusic.jna.windows.structure.WinUserConst.HTCLOSE
+import com.lalilu.lmusic.jna.windows.structure.WinUserConst.HTMAXBUTTON
+import com.lalilu.lmusic.jna.windows.structure.WinUserConst.HTMINBUTTON
+import com.sun.jna.platform.win32.WinDef
+import java.awt.Window
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun FrameWindowScope.WindowsWindowFrame(
+    state: WindowState,
+    onCloseRequest: () -> Unit = {},
+    content: @Composable (windowInset: WindowInsets, captionBarInset: WindowInsets) -> Unit
+) {
+    val paddingInset = remember { MutableWindowInsets() }
+    val maxButtonRect = remember { mutableStateOf(Rect.Zero) }
+    val minButtonRect = remember { mutableStateOf(Rect.Zero) }
+    val closeButtonRect = remember { mutableStateOf(Rect.Zero) }
+    val captionBarRect = remember { mutableStateOf(Rect.Zero) }
+    val layoutHitTestOwner = rememberLayoutHitTestOwner()
+    val contentPaddingInset = remember { MutableWindowInsets() }
+    val procedure = remember(window) {
+        ComposeWindowProcedure(
+            window = window,
+            hitTest = { x, y ->
+                when {
+                    maxButtonRect.value.contains(Offset(x, y)) -> HTMAXBUTTON
+                    minButtonRect.value.contains(Offset(x, y)) -> HTMINBUTTON
+                    closeButtonRect.value.contains(Offset(x, y)) -> HTCLOSE
+                    captionBarRect.value.contains(Offset(x, y)) && !layoutHitTestOwner.hitTest(x, y) -> HTCAPTION
+
+                    else -> HTCLIENT
+                }
+            },
+            onWindowInsetUpdate = { paddingInset.insets = it }
+        )
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        content(paddingInset, contentPaddingInset)
+
+        Row(modifier = Modifier.align(Alignment.TopCenter)) {
+            window.CaptionButtonRow(
+                windowHandle = procedure.windowHandle,
+                isMaximize = state.placement == WindowPlacement.Maximized,
+                onCloseRequest = onCloseRequest,
+                onMaximizeButtonRectUpdate = { maxButtonRect.value = it },
+                onMinimizeButtonRectUpdate = { minButtonRect.value = it },
+                onCloseButtonRectUpdate = { closeButtonRect.value = it },
+                accentColor = procedure.windowFrameColor,
+                frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
+                isActive = procedure.isWindowActive,
+                modifier = Modifier.align(Alignment.Top).onSizeChanged {
+                    contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun Window.CaptionButtonRow(
+    windowHandle: WinDef.HWND,
+    isMaximize: Boolean,
+    isActive: Boolean,
+    accentColor: Color,
+    frameColorEnabled: Boolean,
+    onCloseRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    onMaximizeButtonRectUpdate: (Rect) -> Unit,
+    onMinimizeButtonRectUpdate: (Rect) -> Unit = {},
+    onCloseButtonRectUpdate: (Rect) -> Unit = {}
+) {
+    Row(
+        modifier = modifier
+            .zIndex(1f)
+    ) {
+        // TODO 在window端补上
+    }
+}
+
+fun Rect.contains(x: Float, y: Float): Boolean {
+    return x in left..<right && y >= top && y < bottom
+}
