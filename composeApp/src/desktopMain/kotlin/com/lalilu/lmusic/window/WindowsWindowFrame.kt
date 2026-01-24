@@ -18,6 +18,8 @@
 package com.lalilu.lmusic.window
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
@@ -37,7 +41,9 @@ import com.lalilu.lmusic.jna.windows.structure.WinUserConst.HTCLIENT
 import com.lalilu.lmusic.jna.windows.structure.WinUserConst.HTCLOSE
 import com.lalilu.lmusic.jna.windows.structure.WinUserConst.HTMAXBUTTON
 import com.lalilu.lmusic.jna.windows.structure.WinUserConst.HTMINBUTTON
+import com.sun.jna.platform.win32.User32
 import com.sun.jna.platform.win32.WinDef
+import com.sun.jna.platform.win32.WinUser
 import java.awt.Window
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -47,7 +53,7 @@ fun FrameWindowScope.WindowsWindowFrame(
     onCloseRequest: () -> Unit = {},
     content: @Composable (windowInset: WindowInsets, captionBarInset: WindowInsets) -> Unit
 ) {
-    val paddingInset = remember { MutableWindowInsets() }
+    val paddingInset = remember { mutableStateOf(WindowInsets(0)) }
     val maxButtonRect = remember { mutableStateOf(Rect.Zero) }
     val minButtonRect = remember { mutableStateOf(Rect.Zero) }
     val closeButtonRect = remember { mutableStateOf(Rect.Zero) }
@@ -67,16 +73,26 @@ fun FrameWindowScope.WindowsWindowFrame(
                     else -> HTCLIENT
                 }
             },
-            onWindowInsetUpdate = { paddingInset.insets = it }
+            onWindowInsetUpdate = { }
         )
     }
 
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
-        content(paddingInset, contentPaddingInset)
+        content(paddingInset.value, contentPaddingInset)
 
-        Row(modifier = Modifier.align(Alignment.TopCenter)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .onGloballyPositioned {
+                    captionBarRect.value = it.boundsInWindow()
+                    paddingInset.value = WindowInsets(top = captionBarRect.value.height.toInt())
+                }
+        ) {
+            Spacer(Modifier.weight(1f))
+
             window.CaptionButtonRow(
                 windowHandle = procedure.windowHandle,
                 isMaximize = state.placement == WindowPlacement.Maximized,
@@ -87,9 +103,10 @@ fun FrameWindowScope.WindowsWindowFrame(
                 accentColor = procedure.windowFrameColor,
                 frameColorEnabled = procedure.isWindowFrameAccentColorEnabled,
                 isActive = procedure.isWindowActive,
-                modifier = Modifier.align(Alignment.Top).onSizeChanged {
-                    contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
-                }
+                modifier = Modifier.align(Alignment.Top)
+                    .onSizeChanged {
+                        contentPaddingInset.insets = WindowInsets(right = it.width, top = it.height)
+                    }
             )
         }
     }
@@ -112,7 +129,32 @@ fun Window.CaptionButtonRow(
         modifier = modifier
             .zIndex(1f)
     ) {
-        // TODO 在window端补上
+        TextButton(
+            modifier = Modifier.onGloballyPositioned { onMinimizeButtonRectUpdate(it.boundsInWindow()) },
+            onClick = { User32.INSTANCE.ShowWindow(windowHandle, WinUser.SW_MINIMIZE) },
+            content = {
+                Text(text = "Minimize")
+            }
+        )
+        TextButton(
+            modifier = Modifier.onGloballyPositioned { onMaximizeButtonRectUpdate(it.boundsInWindow()) },
+            onClick = {
+                User32.INSTANCE.ShowWindow(
+                    windowHandle,
+                    if (isMaximize) WinUser.SW_RESTORE else WinUser.SW_MAXIMIZE
+                )
+            },
+            content = {
+                Text(text = if (isMaximize) "Restore" else "Maximize")
+            }
+        )
+        TextButton(
+            modifier = Modifier.onGloballyPositioned { onCloseButtonRectUpdate(it.boundsInWindow()) },
+            onClick = { onCloseRequest() },
+            content = {
+                Text(text = "Close")
+            }
+        )
     }
 }
 

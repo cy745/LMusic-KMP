@@ -27,8 +27,9 @@ import androidx.compose.ui.node.RootNodeOwner
 import androidx.compose.ui.scene.ComposeScene
 import androidx.compose.ui.scene.CopiedList
 import androidx.compose.ui.scene.LocalComposeScene
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.util.fastForEachReversed
-import androidx.compose.ui.util.packFloats
+import java.lang.reflect.Method
 
 @OptIn(InternalComposeUiApi::class)
 @Composable
@@ -36,13 +37,15 @@ fun rememberLayoutHitTestOwner(): LayoutHitTestOwner {
     // TODO Remove LocalComposeScene
     val scene = LocalComposeScene.current ?: error("no compose scene")
     return remember(scene) {
-        when(scene::class.qualifiedName) {
+        when (scene::class.qualifiedName) {
             "androidx.compose.ui.scene.CanvasLayersComposeSceneImpl" -> {
                 CanvasLayersLayoutHitTestOwner(scene)
             }
+
             "androidx.compose.ui.scene.PlatformLayersComposeSceneImpl" -> {
                 PlatformLayersLayoutHitTestOwner(scene)
             }
+
             else -> error("unsupported compose scene")
         }
     }
@@ -58,7 +61,7 @@ interface LayoutHitTestOwner {
 /*
 * reflect implementation for compose 1.8
  */
-internal abstract class ReflectLayoutHitTestOwner: LayoutHitTestOwner {
+internal abstract class ReflectLayoutHitTestOwner : LayoutHitTestOwner {
 
     @OptIn(InternalComposeUiApi::class)
     protected val classLoader = ComposeScene::class.java.classLoader!!
@@ -97,7 +100,8 @@ internal class PlatformLayersLayoutHitTestOwner(scene: ComposeScene) : ReflectLa
 @OptIn(InternalComposeUiApi::class)
 internal class CanvasLayersLayoutHitTestOwner(private val scene: ComposeScene) : ReflectLayoutHitTestOwner() {
     private val sceneClass = classLoader.loadClass("androidx.compose.ui.scene.CanvasLayersComposeSceneImpl")
-    private val layerClass = sceneClass.declaredClasses.first { it.name == "androidx.compose.ui.scene.CanvasLayersComposeSceneImpl\$AttachedComposeSceneLayer" }
+    private val layerClass = sceneClass.declaredClasses
+        .first { it.name == "androidx.compose.ui.scene.CanvasLayersComposeSceneImpl\$AttachedComposeSceneLayer" }
 
     private val mainOwnerRef = sceneClass.getDeclaredField("mainOwner").let {
         it.trySetAccessible()
@@ -118,15 +122,24 @@ internal class CanvasLayersLayoutHitTestOwner(private val scene: ComposeScene) :
             trySetAccessible()
         }
 
-    private val layerIsInBoundMethod = layerClass
-        .declaredMethods.first { it.name.startsWith("isInBounds") }.apply {
+    private var layerBoundsInWindowMethod: Method? = layerClass
+        .declaredMethods.first {
+            it.name.startsWith("getBoundsInWindow")
+        }.apply {
             trySetAccessible()
         }
+
+    fun isBoundsInWindow(layer: Any?, x: Float, y: Float): Boolean {
+        val rect = layerBoundsInWindowMethod?.invoke(layer) as IntRect
+
+        return x.toInt() in rect.left..rect.right &&
+                y.toInt() in rect.top..rect.bottom
+    }
 
     override fun hitTest(x: Float, y: Float): Boolean {
         _layers.withCopy {
             it.fastForEachReversed { layer ->
-                if (layerIsInBoundMethod.invoke(layer, packFloats(x, y)) == true) {
+                if (isBoundsInWindow(layer, x, y)) {
                     return getLayoutNode(layerOwnerField.get(layer) as RootNodeOwner).layoutNodeHitTest(x, y)
                 } else if (layer == focusedLayerField.get(scene)) {
                     return false

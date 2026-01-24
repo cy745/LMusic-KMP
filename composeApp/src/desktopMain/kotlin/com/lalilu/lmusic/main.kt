@@ -25,18 +25,24 @@ fun main() {
 
     application {
         val windowState = WindowStateKeeper.rememberWindowState()
-
-        Window(
-            onCloseRequest = {
+        val closeFunc = remember {
+            {
                 WindowStateKeeper.saveWindowState(windowState)
                 exitApplication()
-            },
+            }
+        }
+
+        Window(
+            onCloseRequest = closeFunc,
             state = windowState,
             title = "LMusic",
         ) {
             window.background = if (isSystemInDarkTheme()) java.awt.Color.BLACK else java.awt.Color.WHITE
 
-            WindowFrame(state = windowState) { windowInset: WindowInsets, captionBarInset: WindowInsets ->
+            WindowFrame(
+                state = windowState,
+                onCloseRequest = closeFunc
+            ) { windowInset: WindowInsets, captionBarInset: WindowInsets ->
                 val insets = LocalPlatformWindowInsets.current
                 val density = LocalDensity.current
                 val layoutDirection = LocalLayoutDirection.current
