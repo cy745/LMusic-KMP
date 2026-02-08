@@ -7,6 +7,9 @@ class PreviewScope {
     val dataContext: MutableList<Any> = mutableListOf<Any>()
         .apply { addAll(SongsPreviewData) }
 
+    fun enableNetworkImage() = CoilImageHandler
+        .enableNetworkImage()
+
     @Stable
     inline fun <reified T> repeat(
         count: Int,

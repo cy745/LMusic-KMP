@@ -36,9 +36,13 @@ internal actual object RenderSecurityHelper {
     }
 
     actual fun <T> withTemporarilyDisableRenderSecurity(block: () -> T): T {
-        val renderSecurity = getCurrentMethod.invoke(null)
-        val credentials = credentialsMethod.get(renderSecurity)
+        val renderSecurity = runCatching { getCurrentMethod.invoke(null) }
+            .getOrNull()
 
+        // jdk 21 以上被禁用了，所以没有 RenderSecurityManager 的时候直接执行并返回
+        if (renderSecurity == null) return block()
+
+        val credentials = credentialsMethod.get(renderSecurity)
         return try {
             setActiveMethod?.invoke(renderSecurity, false, credentials)
             block()

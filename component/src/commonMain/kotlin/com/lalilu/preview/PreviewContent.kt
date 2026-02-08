@@ -7,11 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import coil3.ColorImage
 import coil3.annotation.ExperimentalCoilApi
-import coil3.compose.AsyncImagePreviewHandler
 import coil3.compose.LocalAsyncImagePreviewHandler
 import com.lalilu.LMusicTheme
 
@@ -46,12 +42,9 @@ fun PreviewWithConfiguration(
     content: @Composable PreviewScope.() -> Unit,
 ) {
     val previewScope = remember { PreviewScope().apply(configuration) }
-    val previewHandler = AsyncImagePreviewHandler {
-        ColorImage(Color.Magenta.toArgb())
-    }
 
     CompositionLocalProvider(
-        LocalAsyncImagePreviewHandler provides previewHandler
+        LocalAsyncImagePreviewHandler provides CoilImageHandler
     ) {
         theme(isDarkMode) { background { previewScope.content() } }
     }
