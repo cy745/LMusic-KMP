@@ -17,11 +17,16 @@
 
 package com.lalilu.lmusic.window
 
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
@@ -34,6 +39,7 @@ fun FrameWindowScope.MacOsWindowFrame(
     onCloseRequest: () -> Unit = {},
     content: @Composable (windowInset: WindowInsets, captionBarInset: WindowInsets) -> Unit
 ) {
+    val density = LocalDensity.current
     val windowInset = remember(state) {
         derivedStateOf {
             if (state.placement == WindowPlacement.Fullscreen) WindowInsets(0)
@@ -48,7 +54,28 @@ fun FrameWindowScope.MacOsWindowFrame(
 //        window.findSkiaLayer()?.disableTitleBar(captionBarHeight.value)
 //    }
 
-    content(windowInset.value, WindowInsets(0))
+    Box {
+        content(windowInset.value, WindowInsets(0))
+
+        Spacer(
+            Modifier.align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .pointerInput(Unit) { detectTapGestures {} }
+                .layout { measurable, constraints ->
+                    val statusBarHeight = windowInset.value.getTop(density)
+                    val placeable = measurable.measure(
+                        constraints.copy(
+                            maxHeight = statusBarHeight,
+                            minHeight = statusBarHeight
+                        )
+                    )
+
+                    layout(placeable.measuredWidth, placeable.measuredHeight) {
+                        placeable.place(0, 0)
+                    }
+                }
+        )
+    }
 
     window.rootPane.apply {
         rootPane.putClientProperty("apple.awt.fullWindowContent", true)
