@@ -4,20 +4,35 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.lalilu.RemixIcon
+import com.lalilu.extensions.retrieve
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.extensions.DailyRecommend
 import com.lalilu.lhome.extensions.EntryPanel
 import com.lalilu.lhome.extensions.HistoryPanel
 import com.lalilu.lhome.extensions.LatestPanel
-import com.lalilu.navigation.Metadata
-import com.lalilu.navigation.Screen
-import com.lalilu.navigation.ScreenMetadataFactory
+import com.lalilu.lhome.lhome.generated.resources.Res
+import com.lalilu.lhome.lhome.generated.resources.home_screen_title
+import com.lalilu.navigation.*
+import com.lalilu.remixicon.Buildings
+import com.lalilu.remixicon.buildings.home3Line
 
 @Destination(router = ["/home"])
-data object HomeScreen : Screen, ScreenMetadataFactory {
+data object HomeScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
     override fun provideMetadata(): Map<String, Any> = Metadata.home()
+
+    @Composable
+    override fun provideScreenInfo(): ScreenInfo {
+        return remember {
+            ScreenInfo(
+                title = { Res.string.home_screen_title.retrieve() },
+                icon = RemixIcon.Buildings.home3Line
+            )
+        }
+    }
 
     @Composable
     override fun Content() {

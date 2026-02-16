@@ -14,6 +14,9 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationEventHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * 创建一个修饰符，用于在组件边缘添加渐隐效果
@@ -38,7 +41,7 @@ fun Modifier.clipFade(
             val alignment = alignmentX ?: alignmentY
             // 将dp单位转换为像素单位
             val length = lengthDp.toPx()
-            
+
             // 创建颜色停止点数组，用于构建渐变效果
             // 将0到1区间分为cutting段，每段计算对应的透明度值
             val colorStops = (0..cutting step 1)
@@ -129,3 +132,19 @@ fun ClassicBackHandler(
         onBackCompleted = onBack        // 返回完成时执行的回调
     )
 }
+
+
+/**
+ * 扩展函数，用于在 Compose 环境中同步获取 StringResource 的字符串值
+ *
+ * @return StringResource 对应的本地化字符串
+ */
+@Composable
+fun StringResource.retrieve(): String = stringResource(this)
+
+/**
+ * 扩展函数，用于在协程环境中异步获取 StringResource 的字符串值
+ *
+ * @return StringResource 对应的本地化字符串
+ */
+suspend fun StringResource.get(): String = getString(this)

@@ -21,16 +21,22 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation3.ui.NavDisplay
 import co.touchlab.kermit.Logger
 import com.lalilu.LocalSeedColor
+import com.lalilu.RemixIcon
 import com.lalilu.common.ext.io
 import com.lalilu.extensions.bindToLifecycle
+import com.lalilu.extensions.retrieve
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.llyricview.LyricLayout
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.*
 import com.lalilu.lplayer.extensions.PlayMode
+import com.lalilu.lplayer.lplayer.generated.resources.Res
+import com.lalilu.lplayer.lplayer.generated.resources.player_screen_title
 import com.lalilu.lplayer.viewmodel.PlayerViewModel
 import com.lalilu.navigation.*
+import com.lalilu.remixicon.Media
+import com.lalilu.remixicon.media.music2Line
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -41,10 +47,18 @@ import kotlin.math.cos
 import kotlin.math.pow
 
 @Destination("/player")
-class PlayerScreen : Screen, ScreenMetadataFactory {
+class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
 
     override fun provideMetadata(): Map<String, Any> = Metadata.player()
 
+
+    @Composable
+    override fun provideScreenInfo(): ScreenInfo = remember {
+        ScreenInfo(
+            title = { Res.string.player_screen_title.retrieve() },
+            icon = RemixIcon.Media.music2Line
+        )
+    }
 
     @OptIn(ExperimentalSharedTransitionApi::class)
     @Composable

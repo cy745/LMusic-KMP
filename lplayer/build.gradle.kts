@@ -5,7 +5,6 @@ import com.lalilu.gradle.makeSureAllSourcesJarAfterKsp
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -51,11 +50,12 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                api(compose.preview)
-                api(compose.components.resources)
                 api(project(":component"))
                 api(project(":lmedia:lmedia-core"))
                 api(project(":llyricview"))
+                api(libs.compose.resources)
+                api(libs.compose.preview)
+
                 api(libs.koin.core)
                 api(libs.koin.annotations)
                 api(libs.kotlinx.coroutines.core)

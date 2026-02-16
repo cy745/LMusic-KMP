@@ -2,7 +2,6 @@
 
 import com.lalilu.gradle.XcodeDetector
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -42,7 +41,8 @@ kotlin {
                 implementation(project(":lmedia:lmedia-core"))
                 implementation(project(":lplayer"))
                 implementation(libs.remixicon.kmp)
-                api(compose.preview)
+                implementation(libs.compose.resources)
+                implementation(libs.compose.preview)
             }
         }
         val commonTest by getting {
