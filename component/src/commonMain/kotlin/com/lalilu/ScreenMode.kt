@@ -24,8 +24,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.window.core.layout.WindowSizeClass
 
 /**
@@ -36,8 +37,10 @@ import androidx.window.core.layout.WindowSizeClass
 enum class ScreenMode {
     /** 手机等小屏设备 */
     Phone,
+
     /** 平板等大屏设备 */
     Tablet,
+
     /** 未知状态（窗口尺寸尚未确定） */
     Unknown
 }
@@ -92,4 +95,83 @@ fun ScreenModeHandler(content: @Composable () -> Unit = {}) {
         exit = fadeOut(),
         content = { content() }
     )
+}
+
+/**
+ * 判断窗口宽度是否至少达到中等尺寸阈值
+ *
+ * @return 如果窗口宽度 >= WIDTH_DP_MEDIUM_LOWER_BOUND 返回 true，否则返回 false
+ */
+fun WindowSizeClass.atLeastMedium(): Boolean {
+    return isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+}
+
+/**
+ * 判断窗口宽度是否至少达到展开尺寸阈值
+ *
+ * @return 如果窗口宽度 >= WIDTH_DP_EXPANDED_LOWER_BOUND 返回 true，否则返回 false
+ */
+fun WindowSizeClass.atLeastExpanded(): Boolean {
+    return isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND)
+}
+
+/**
+ * 根据当前窗口尺寸自适应地应用不同的 Modifier
+ *
+ * 提供三种尺寸模式的 Modifier 应用逻辑：
+ * - compact: 小屏设备（默认）
+ * - medium: 中等屏幕设备
+ * - expanded: 大屏设备
+ *
+ * @param compact 小屏设备下的 Modifier 构建器（必填）
+ * @param medium 中等屏幕设备下的 Modifier 构建器（可选，默认使用 compact）
+ * @param expanded 大屏设备下的 Modifier 构建器（可选，默认使用 medium）
+ * @return 根据当前窗口尺寸应用相应 Modifier 后的新 Modifier
+ */
+fun Modifier.adaptive(
+    compact: @Composable Modifier.() -> Modifier,
+    medium: @Composable (Modifier.() -> Modifier)? = null,
+    expanded: @Composable (Modifier.() -> Modifier)? = medium
+) = composed {
+    val windowClass = currentWindowAdaptiveInfo().windowSizeClass
+
+    then(
+        when {
+            windowClass.atLeastMedium() -> medium?.invoke(this) ?: compact()
+            windowClass.atLeastExpanded() -> expanded?.invoke(this) ?: compact()
+            else -> compact()
+        }
+    )
+}
+
+/**
+ * 根据当前窗口尺寸自适应地提供不同类型的值
+ *
+ * 适用于需要根据不同屏幕尺寸返回不同类型数据的场景
+ *
+ * @param T 值的类型参数
+ * @param compact 小屏设备下的值提供器（必填）
+ * @param medium 中等屏幕设备下的值提供器（可选，默认使用 compact）
+ * @param expanded 大屏设备下的值提供器（可选，默认使用 medium）
+ * @return 包含当前适配值的 State 对象
+ */
+@Composable
+fun <T> adaptiveValue(
+    compact: () -> T,
+    medium: (() -> T)? = null,
+    expanded: (() -> T)? = medium,
+): State<T> {
+    val windowClass = rememberUpdatedState(
+        newValue = currentWindowAdaptiveInfo().windowSizeClass
+    )
+
+    return remember {
+        derivedStateOf {
+            when {
+                windowClass.value.atLeastMedium() -> medium?.invoke() ?: compact()
+                windowClass.value.atLeastExpanded() -> expanded?.invoke() ?: compact()
+                else -> compact()
+            }
+        }
+    }
 }
