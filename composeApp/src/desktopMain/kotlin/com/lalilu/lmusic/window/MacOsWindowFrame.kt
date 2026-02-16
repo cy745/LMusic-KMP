@@ -27,10 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
-import java.awt.Toolkit
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -43,16 +43,10 @@ fun FrameWindowScope.MacOsWindowFrame(
     val windowInset = remember(state) {
         derivedStateOf {
             if (state.placement == WindowPlacement.Fullscreen) WindowInsets(0)
-            else {
-                val windowInsets = Toolkit.getDefaultToolkit().getScreenInsets(window.graphicsConfiguration)
-                WindowInsets(windowInsets.left, windowInsets.top, windowInsets.right, windowInsets.bottom)
-            }
+            else WindowInsets(0, density.run { 27.dp.roundToPx() }, 0, 0)
         }
     }
 
-//    LaunchedEffect(window, captionBarHeight) {
-//        window.findSkiaLayer()?.disableTitleBar(captionBarHeight.value)
-//    }
 
     Box {
         content(windowInset.value, WindowInsets(0))
@@ -60,7 +54,12 @@ fun FrameWindowScope.MacOsWindowFrame(
         Spacer(
             Modifier.align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .pointerInput(Unit) { detectTapGestures {} }
+                .pointerInput(Unit) {
+                    detectTapGestures(onDoubleTap = {
+                        state.placement = if (state.placement == WindowPlacement.Maximized) WindowPlacement.Floating
+                        else WindowPlacement.Maximized
+                    })
+                }
                 .layout { measurable, constraints ->
                     val statusBarHeight = windowInset.value.getTop(density)
                     val placeable = measurable.measure(
