@@ -28,7 +28,8 @@ import com.lalilu.ScreenMode.*
 import com.lalilu.ScreenModeHandler
 import com.lalilu.currentScreenMode
 import com.lalilu.lmusic.screen.ExceptionScreen
-import com.lalilu.lmusic.screen.rememberCustomSceneStrategy
+import com.lalilu.lmusic.screen.NavSideApplier
+import com.lalilu.lmusic.screen.NavSidebarItem
 import com.lalilu.navigation.*
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
@@ -40,6 +41,25 @@ import kotlinx.coroutines.sync.withLock
 fun App() = ScreenModeHandler {
     // 构建导航栈
     val backStack = backStackHandler()
+    val sidebarItems = remember {
+        listOf(
+            NavSidebarItem.NavSection(
+                title = "Discover",
+                screens = listOfNotNull(
+                    AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
+                    AppRouter.route("/player").get() ?: ExceptionScreen.SCREEN_NOT_FOUND
+                )
+            ),
+            NavSidebarItem.NavSection(
+                title = "Library",
+                screens = listOfNotNull(
+                    AppRouter.route("/log").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
+                    AppRouter.route("/media_source").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
+                )
+            ),
+            NavSidebarItem.Divider
+        )
+    }
 
     LMusicTheme {
         SharedTransitionLayout shareScope@{
@@ -61,35 +81,41 @@ fun App() = ScreenModeHandler {
                     modifier = Modifier.fillMaxSize()
                         .background(MaterialTheme.colorScheme.background)
                 ) {
-                    NavDisplay(
-                        modifier = Modifier.fillMaxSize()
-                            .preferredFrameRate(FrameRateCategory.High),
-                        backStack = backStack,
-                        transitionState = { scene ->
-                            remember { SeekableTransitionState(scene) }
-                                .also { transitionState.value = it }
-                        },
-                        sceneStrategy = rememberCustomSceneStrategy(),
-                        sharedTransitionScope = this@shareScope,
-                        entryDecorators = listOf(
-                            rememberSaveableStateHolderNavEntryDecorator(),
-                            rememberViewModelStoreNavEntryDecorator(),
-                            rememberDefaultBackgroundColorNavEntryDecorator()
-                        ) as List<NavEntryDecorator<Screen>>,
-                        transitionSpec = {
-                            slideInVertically(animationSpec) { 100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
-                                    slideOutVertically(animationSpec) { 100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
-                        },
-                        popTransitionSpec = {
-                            slideInVertically(animationSpec) { -100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
-                                    slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
-                        },
-                        predictivePopTransitionSpec = {
-                            slideInVertically(animationSpec) { -100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
-                                    slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
-                        },
-                        entryProvider = { it.toNavEntry() }
-                    )
+                    NavSideApplier(
+                        modifier = Modifier.fillMaxSize(),
+                        items = sidebarItems,
+                        isSelected = { it.key == backStack.lastOrNull()?.key },
+                        onSelectScreen = { it?.let { element -> backStack.add(element) } }
+                    ) {
+                        NavDisplay(
+                            modifier = Modifier.fillMaxSize()
+                                .preferredFrameRate(FrameRateCategory.High),
+                            backStack = backStack,
+                            transitionState = { scene ->
+                                remember { SeekableTransitionState(scene) }
+                                    .also { transitionState.value = it }
+                            },
+                            sharedTransitionScope = this@shareScope,
+                            entryDecorators = listOf(
+                                rememberSaveableStateHolderNavEntryDecorator(),
+                                rememberViewModelStoreNavEntryDecorator(),
+                                rememberDefaultBackgroundColorNavEntryDecorator()
+                            ) as List<NavEntryDecorator<Screen>>,
+                            transitionSpec = {
+                                slideInVertically(animationSpec) { 100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
+                                        slideOutVertically(animationSpec) { 100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
+                            },
+                            popTransitionSpec = {
+                                slideInVertically(animationSpec) { -100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
+                                        slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
+                            },
+                            predictivePopTransitionSpec = {
+                                slideInVertically(animationSpec) { -100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
+                                        slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
+                            },
+                            entryProvider = { it.toNavEntry() }
+                        )
+                    }
                 }
             }
         }
