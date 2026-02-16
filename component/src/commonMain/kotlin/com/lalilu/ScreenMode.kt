@@ -20,6 +20,8 @@ package com.lalilu
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
@@ -27,6 +29,13 @@ import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.WindowInfo
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.toSize
 import androidx.window.core.layout.WindowSizeClass
 
 /**
@@ -172,6 +181,48 @@ fun <T> adaptiveValue(
                 windowClass.value.atLeastExpanded() -> expanded?.invoke() ?: compact()
                 else -> compact()
             }
+        }
+    }
+}
+
+/**
+ * 窗口包装器组件
+ *
+ * 用于包装子组件并提供自定义的窗口信息，使子组件能够基于实际内容尺寸
+ * 而非容器尺寸进行布局计算。
+ *
+ * 此组件通过拦截 [LocalWindowInfo] 来提供更新后的窗口尺寸信息，
+ * 确保子组件能够正确响应内容尺寸变化。
+ *
+ * @param modifier 应用于包装器的修饰符
+ * @param content 包装的子组件内容，作用域为 [BoxScope]
+ */
+@Composable
+fun WindowWrapper(
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit = {}
+) {
+    val density = LocalDensity.current
+    val windowInfo = LocalWindowInfo.current
+
+    // 跟踪内容的实际尺寸
+    val contentSize = remember { mutableStateOf(windowInfo.containerSize) }
+
+    // 创建自定义的 WindowInfo 实现，覆盖容器尺寸信息
+    val newWindowInfo = remember {
+        object : WindowInfo by windowInfo {
+            override val containerSize: IntSize get() = contentSize.value
+            override val containerDpSize: DpSize get() = density.run { contentSize.value.toSize().toDpSize() }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .onSizeChanged { contentSize.value = it } // 监听并更新内容尺寸
+    ) {
+        // 提供更新后的窗口信息给子组件
+        CompositionLocalProvider(LocalWindowInfo provides newWindowInfo) {
+            content()
         }
     }
 }
