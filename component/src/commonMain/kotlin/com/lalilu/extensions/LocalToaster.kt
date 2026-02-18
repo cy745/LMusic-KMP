@@ -8,7 +8,7 @@ import com.dokar.sonner.Toaster
 import com.dokar.sonner.ToasterState
 import com.dokar.sonner.rememberToasterState
 
-val LocalToaster = staticCompositionLocalOf<ToasterState> { error("ToasterState Not provided") }
+val LocalToaster = staticCompositionLocalOf<ToasterState?> { null }
 
 var GlobalToaster: ToasterState? = null
     private set
@@ -18,8 +18,7 @@ fun ProvideLocalToaster(
     toasterState: ToasterState = rememberToasterState(),
     content: @Composable () -> Unit
 ) {
-    val parentToaster = runCatching { LocalToaster.current }
-        .getOrNull()
+    val parentToaster = LocalToaster.current
 
     // 如果父级没有提供，则设置全局
     if (parentToaster == null) {
