@@ -18,6 +18,7 @@
 package com.lalilu
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.WindowInfo
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.toSize
@@ -184,6 +186,70 @@ fun <T> adaptiveValue(
         }
     }
 }
+
+/**
+ * 为 [Dp] 类型的状态值添加动画支持
+ *
+ * 此扩展函数允许对 [State<Dp>] 类型的值进行动画过渡，
+ * 当状态值发生变化时，会自动应用平滑的动画效果。
+ *
+ * @param animationSpec 动画规格，控制动画的类型和行为
+ *                     默认使用弹簧动画，具有良好的物理特性
+ * @param label 动画的标识名称，用于调试和性能分析
+ *             默认值为 "DpAnimation"
+ * @param finishedListener 动画完成时的回调函数
+ *                        接收最终的 [Dp] 值作为参数
+ *                        可用于执行动画结束后的操作
+ *
+ * @return 包含动画值的新 [State<Dp>] 对象
+ *         其 [value] 属性会随着时间平滑过渡到目标值
+ *
+ * 使用示例：
+ * ```
+ * val animatedSize = someDpState.animated(
+ *     animationSpec = tween(durationMillis = 300),
+ *     label = "ButtonSizeAnimation"
+ * ) { finalValue ->
+ *     println("Animation finished with value: $finalValue")
+ * }
+ * ```
+ */
+@Composable
+fun State<Dp>.animated(
+    animationSpec: AnimationSpec<Dp> = spring(visibilityThreshold = Dp.VisibilityThreshold),
+    label: String = "DpAnimation",
+    finishedListener: ((Dp) -> Unit)? = null,
+): State<Dp> = animateDpAsState(
+    targetValue = value,
+    animationSpec = animationSpec,
+    label = label,
+    finishedListener = finishedListener
+)
+
+/**
+ * 为 [Float] 类型的状态值添加动画支持
+ *
+ * 此扩展函数允许对 [State<Float>] 类型的值进行动画过渡，
+ * 当状态值发生变化时，会自动应用平滑的动画效果。
+ *
+ * @param animationSpec 动画规格，控制动画的类型和行为
+ *                     默认使用弹簧动画，具有良好的物理特性
+ * @param label 动画的标识名称，用于调试和性能分析
+ *             默认值为 "FloatAnimation"
+ * @param finishedListener 动画完成时的回调函数
+ *                        接收最终的 [Float] 值作为参数
+ */
+@Composable
+fun State<Float>.animated(
+    animationSpec: AnimationSpec<Float> = spring(),
+    label: String = "FloatAnimation",
+    finishedListener: ((Float) -> Unit)? = null,
+): State<Float> = animateFloatAsState(
+    targetValue = value,
+    animationSpec = animationSpec,
+    label = label,
+    finishedListener = finishedListener
+)
 
 /**
  * 窗口包装器组件
