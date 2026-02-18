@@ -4,25 +4,25 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import androidx.window.core.layout.WindowSizeClass
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
+import com.lalilu.adaptive
+import com.lalilu.adaptiveValue
+import com.lalilu.animated
 import com.lalilu.extensions.SharedContext
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.SongAlbumInfoCard
-import com.lalilu.lhome.component.SongInformationCard
+import com.lalilu.lhome.screen.detail.CoverHeader
+import com.lalilu.lhome.screen.detail.MetadataInfos
 import com.lalilu.lmedia.LMedia
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LArtist
@@ -71,73 +71,61 @@ fun SongDetailScreenContent(
     }
     val artists = remember(song) { song?.ref<LArtist>() ?: emptyList() }
     val albums = remember(song) { song?.ref<LAlbum>() ?: emptyList() }
-    val songsInfo = remember(song) { (song?.extra ?: emptyMap()) + (song?.metadata?.toMap() ?: emptyMap()) }
+    val songsInfo = remember(song) {
+        (song?.extra ?: emptyMap()) + (song?.metadata?.toMap() ?: emptyMap())
+            .filter { it.value.isNotBlank() }
+    }
+
+    val header = CoverHeader.register { key ->
+        when (key) {
+            CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this
+            CoverHeader.Param.COVER -> coverData
+            CoverHeader.Param.TITLE -> song?.title
+            CoverHeader.Param.SUBTITLE -> song?.subtitle
+        }
+    }
+
+    val metadata = MetadataInfos.register { key ->
+        when (key) {
+            MetadataInfos.Param.METADATA_MAP -> songsInfo
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize()
             .sharedBoundsV2("BOUND"),
         contentPadding = navigationBar
     ) {
-        item {
-            Box(
-                modifier = Modifier.fillMaxWidth()
-                    .aspectRatio(1f)
-            ) {
-                AsyncImage(
-                    modifier = Modifier.fillMaxWidth()
-                        .aspectRatio(1f)
-                        .sharedElementV2("COVER"),
-                    model = coverData,
-                    contentDescription = null,
-                )
-            }
-        }
-
-        item {
-            Column(
-                modifier = Modifier.fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    modifier = Modifier.padding(top = 8.dp)
-                        .sharedElementV2(key = "TITLE"),
-                    text = song?.title ?: "",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.W600,
-                    maxLines = 1,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    modifier = Modifier.sharedElementV2("SUBTITLE")
-                        .alpha(0.6f),
-                    text = song?.subtitle ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+        header.invoke(this)
 
         items(
             items = albums,
             key = { it.id }
         ) {
+            val paddingHorizontal = adaptiveValue(
+                compact = { 16.dp },
+                medium = { 40.dp }
+            ).animated()
+
+            val adaptiveWidth = adaptiveValue(
+                compact = { WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND.dp },
+                medium = { 450.dp }
+            ).animated()
+
             SongAlbumInfoCard(
-                modifier = Modifier.fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                modifier = Modifier
+                    .width(width = adaptiveWidth.value)
+                    .adaptive(
+                        compact = { fillMaxWidth() },
+                        medium = { this }
+                    )
+                    .padding(top = 24.dp)
+                    .padding(horizontal = paddingHorizontal.value),
                 album = it
             )
         }
 
-        item {
-            SongInformationCard(
-                modifier = Modifier.fillMaxWidth(),
-                extra = songsInfo
-            )
-        }
+        metadata.invoke(this)
     }
 }
 
@@ -172,3 +160,8 @@ private fun SongDetailScreenContentPreview() = preview {
     )
 }
 
+@Preview(device = Devices.TABLET)
+@Composable
+private fun SongDetailScreenContentPreviewForPad() {
+    SongDetailScreenContentPreview()
+}

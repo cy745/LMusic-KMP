@@ -40,49 +40,44 @@ fun SongAlbumInfoCard(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        tonalElevation = 20.dp,
+        tonalElevation = 10.dp,
         onClick = {}
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .fillMaxSize()
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // TODO Animation BG
-
-            Row(
+            AsyncImage(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(0.1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ),
+                model = imageData,
+                contentScale = ContentScale.Crop,
+                contentDescription = "Recommend Card Cover Image"
+            )
+
+            Column(
+                modifier = Modifier.weight(1f)
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                AsyncImage(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.onBackground.copy(0.1f),
-                            shape = RoundedCornerShape(8.dp)
-                        ),
-                    model = imageData,
-                    contentScale = ContentScale.Crop,
-                    contentDescription = "Recommend Card Cover Image"
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                subTitle?.takeIf { it.isNotBlank() }?.let { artist ->
                     Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onBackground
+                        text = artist,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground.copy(0.5f)
                     )
-                    subTitle?.takeIf { it.isNotBlank() }?.let { artist ->
-                        Text(
-                            text = artist,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onBackground.copy(0.5f)
-                        )
-                    }
                 }
             }
         }
@@ -92,7 +87,10 @@ fun SongAlbumInfoCard(
 @Preview
 @Composable
 fun SongAlbumInfoCardPreview() = preview() {
-    Column(modifier = Modifier) {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         repeat<PreviewPresets>(key = "SONGS", count = 10, shuffle = true) {
             SongAlbumInfoCard(
                 modifier = Modifier,
