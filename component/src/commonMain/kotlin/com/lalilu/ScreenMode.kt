@@ -149,8 +149,8 @@ fun Modifier.adaptive(
 
     then(
         when {
-            windowClass.atLeastMedium() -> medium?.invoke(this) ?: compact()
             windowClass.atLeastExpanded() -> expanded?.invoke(this) ?: compact()
+            windowClass.atLeastMedium() -> medium?.invoke(this) ?: compact()
             else -> compact()
         }
     )
@@ -180,8 +180,8 @@ fun <T> adaptiveValue(
     return remember {
         derivedStateOf {
             when {
-                windowClass.value.atLeastMedium() -> medium?.invoke() ?: compact()
                 windowClass.value.atLeastExpanded() -> expanded?.invoke() ?: compact()
+                windowClass.value.atLeastMedium() -> medium?.invoke() ?: compact()
                 else -> compact()
             }
         }
