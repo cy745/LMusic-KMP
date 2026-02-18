@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.toSize
 import androidx.window.core.layout.WindowSizeClass
+import kotlin.jvm.JvmName
 
 /**
  * 屏幕尺寸模式枚举
@@ -214,6 +215,7 @@ fun <T> adaptiveValue(
  * }
  * ```
  */
+@JvmName("animatedDp")
 @Composable
 fun State<Dp>.animated(
     animationSpec: AnimationSpec<Dp> = spring(visibilityThreshold = Dp.VisibilityThreshold),
@@ -239,6 +241,7 @@ fun State<Dp>.animated(
  * @param finishedListener 动画完成时的回调函数
  *                        接收最终的 [Float] 值作为参数
  */
+@JvmName("animatedFloat")
 @Composable
 fun State<Float>.animated(
     animationSpec: AnimationSpec<Float> = spring(),
