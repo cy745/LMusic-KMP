@@ -118,7 +118,7 @@ fun RecommendGroupCard(
 
             Text(
                 modifier = Modifier.padding(top = 8.dp)
-                    .sharedElementV2("TITLE"),
+                    .sharedBoundsV2("TITLE"),
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.W600,

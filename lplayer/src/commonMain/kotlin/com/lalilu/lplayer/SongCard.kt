@@ -87,7 +87,7 @@ fun SongCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                modifier = Modifier.sharedElementV2("TITLE"),
+                modifier = Modifier.sharedBoundsV2("TITLE"),
                 text = title.ifBlank { "Unknown Title" },
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onBackground
