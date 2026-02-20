@@ -51,6 +51,8 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 
 # jb-compose
 compose-ui-backhandler = { module = "org.jetbrains.compose.ui:ui-backhandler", version.ref = "composeMultiplatform" }
+compose-material = { module = "org.jetbrains.compose.material:material", version.ref = "composeMultiplatform" }
+compose-material3 = { module = "org.jetbrains.compose.material:material3", version.ref = "composeMultiplatform" }
 compose-adaptive = { module = "org.jetbrains.compose.material3.adaptive:adaptive", version = "1.2.0-beta01" }
 compose-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }

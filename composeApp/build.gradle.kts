@@ -81,8 +81,9 @@ kotlin {
             implementation(project(":llyricview"))
             implementation(project(":lhome"))
             implementation(libs.compose.ui.backhandler)
-            implementation(compose.components.resources)
-            implementation(compose.preview)
+            implementation(libs.compose.material)
+            implementation(libs.compose.resources)
+            implementation(libs.compose.preview)
 
             implementation(libs.filekit.dialogs)
             implementation(libs.filekit.dialogs.compose)
