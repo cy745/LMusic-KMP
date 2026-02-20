@@ -128,14 +128,16 @@ private fun ColumnItem(
             text = title,
             style = MaterialTheme.typography.labelSmall,
             maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onBackground
         )
         Text(
             text = content,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Black,
             maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onBackground
         )
     }
 }
