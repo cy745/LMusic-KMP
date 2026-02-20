@@ -17,7 +17,10 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
+@OptIn(ExperimentalTime::class)
 class VLCPlayback(
     private val library: Library
 ) : AbstractPlayback(), KoinComponent {
@@ -25,6 +28,9 @@ class VLCPlayback(
     private var playerInstance: MediaPlayer? = null
     val player: MediaPlayer
         get() = playerInstance ?: throw Exception("Player Not Initialized")
+
+    private var lastTime: Long = 0L
+    private var lastRecordTime: Long = 0L
 
     init {
         VLCPlayerLoader.initialize()
@@ -151,7 +157,10 @@ class VLCPlayback(
     }
 
     override fun currentPosition(): Long {
-        return player.status().time()
+        // VLC 返回的当前播放位置并不是线性连续的，获取到的有重复的时间，所以这里通过记录播放进度的时间和当前时间的差计算实际播放位置
+        if (lastRecordTime <= 0) return player.status().time()
+        val delta = Clock.System.now().toEpochMilliseconds() - lastRecordTime
+        return lastTime + delta
     }
 
     private fun bindPlayer(player: MediaPlayer) {
@@ -175,7 +184,8 @@ class VLCPlayback(
             }
 
             override fun timeChanged(mediaPlayer: MediaPlayer?, newTime: Long) {
-                // 不再需要更新_currentPosition
+                lastTime = newTime
+                lastRecordTime = Clock.System.now().toEpochMilliseconds()
             }
 
             override fun lengthChanged(mediaPlayer: MediaPlayer?, newLength: Long) {
