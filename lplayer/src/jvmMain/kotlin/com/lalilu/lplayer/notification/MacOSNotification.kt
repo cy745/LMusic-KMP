@@ -117,9 +117,9 @@ class MacOSNotification(
             val values = NSArray.CLASS.arrayWithObjects(
                 NSString.stringWithString(title),
                 NSString.stringWithString(subtitle),
-                NSNumber.CLASS.numberWithLong(playback.currentDuration.value),
+                NSNumber.CLASS.numberWithLong(playback.currentDuration.value / 1000L),
                 NSNumber.CLASS.numberWithDouble(if (isPlaying) 1.0 else 0.0),
-                NSNumber.CLASS.numberWithLong(playback.currentPosition()),
+                NSNumber.CLASS.numberWithLong(playback.currentPosition() / 1000L),
                 NSNumber.CLASS.numberWithBool(false),
                 artwork,
             )
