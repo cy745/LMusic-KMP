@@ -16,7 +16,9 @@ import androidx.compose.ui.unit.dp
 import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.request.Options
+import com.lalilu.adaptiveValue
 import com.lalilu.component.LazyGridContent
+import com.lalilu.component.divider
 import com.lalilu.lhome.component.AudioItemCard
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
@@ -34,9 +36,15 @@ object HistoryPanel : LazyGridContent {
         val vm = koinViewModel<HomeScreenModel>()
         val items by vm.histories
 
+        val columnsValue = adaptiveValue(
+            compact = { 1 },
+            medium = { 2 },
+            expanded = { 3 }
+        )
+
         return fun LazyGridScope.() {
-            item(span = { GridItemSpan(12) }) {
-                RecommendTitle(title = "最近添加") {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                RecommendTitle(title = "历史播放") {
                     FilterChip(
                         selected = true,
                         shape = RoundedCornerShape(50),
@@ -58,10 +66,11 @@ object HistoryPanel : LazyGridContent {
                 items = items,
                 key = { it.id },
                 contentType = { "HISTORY_ITEM" },
-                span = { GridItemSpan(12) }
+                span = { GridItemSpan(maxLineSpan / columnsValue.value) }
             ) {
                 AudioItemCard(
                     modifier = Modifier
+                        .animateItem()
                         .combinedClickable(
                             onClick = {
                                 PlayerAction.UpdateList(
@@ -86,6 +95,8 @@ object HistoryPanel : LazyGridContent {
                     imageData = it
                 )
             }
+
+            divider()
         }
     }
 }
