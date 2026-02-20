@@ -31,6 +31,7 @@ import com.lalilu.extensions.ProvideLocalToaster
 import com.lalilu.lmusic.screen.ExceptionScreen
 import com.lalilu.lmusic.screen.NavSideApplier
 import com.lalilu.lmusic.screen.NavSidebarItem
+import com.lalilu.lmusic.screen.PlayBottomBarApplier
 import com.lalilu.navigation.*
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
@@ -83,40 +84,56 @@ fun App() = ScreenModeHandler {
                         .background(MaterialTheme.colorScheme.background)
                 ) {
                     ProvideLocalToaster {
-                        NavSideApplier(
-                            modifier = Modifier.fillMaxSize(),
-                            items = sidebarItems,
-                            isSelected = { it.key == backStack.lastOrNull()?.key },
-                            onSelectScreen = { it?.let { element -> backStack.add(element) } }
+                        PlayBottomBarApplier(
+                            modifier = Modifier.fillMaxSize()
                         ) {
-                            NavDisplay(
-                                modifier = Modifier.fillMaxSize()
-                                    .preferredFrameRate(FrameRateCategory.High),
-                                backStack = backStack,
-                                transitionState = { scene ->
-                                    remember { SeekableTransitionState(scene) }
-                                        .also { transitionState.value = it }
-                                },
-                                sharedTransitionScope = this@shareScope,
-                                entryDecorators = listOf(
-                                    rememberSaveableStateHolderNavEntryDecorator(),
-                                    rememberViewModelStoreNavEntryDecorator(),
-                                    rememberDefaultBackgroundColorNavEntryDecorator()
-                                ) as List<NavEntryDecorator<Screen>>,
-                                transitionSpec = {
-                                    slideInVertically(animationSpec) { 100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
-                                            slideOutVertically(animationSpec) { 100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
-                                },
-                                popTransitionSpec = {
-                                    slideInVertically(animationSpec) { -100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
-                                            slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
-                                },
-                                predictivePopTransitionSpec = {
-                                    slideInVertically(animationSpec) { -100 } + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)) togetherWith
-                                            slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
-                                },
-                                entryProvider = { it.toNavEntry() }
-                            )
+                            NavSideApplier(
+                                modifier = Modifier.fillMaxSize(),
+                                items = sidebarItems,
+                                isSelected = { it.key == backStack.lastOrNull()?.key },
+                                onSelectScreen = { it?.let { element -> backStack.add(element) } }
+                            ) {
+                                NavDisplay(
+                                    modifier = Modifier.fillMaxSize()
+                                        .preferredFrameRate(FrameRateCategory.High),
+                                    backStack = backStack,
+                                    transitionState = { scene ->
+                                        remember { SeekableTransitionState(scene) }
+                                            .also { transitionState.value = it }
+                                    },
+                                    sharedTransitionScope = this@shareScope,
+                                    entryDecorators = listOf(
+                                        rememberSaveableStateHolderNavEntryDecorator(),
+                                        rememberViewModelStoreNavEntryDecorator(),
+                                        rememberDefaultBackgroundColorNavEntryDecorator()
+                                    ) as List<NavEntryDecorator<Screen>>,
+                                    transitionSpec = {
+                                        slideInVertically(animationSpec) { 100 } + fadeIn(
+                                            animationSpec = spring(
+                                                stiffness = Spring.StiffnessMedium
+                                            )
+                                        ) togetherWith
+                                                slideOutVertically(animationSpec) { 100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
+                                    },
+                                    popTransitionSpec = {
+                                        slideInVertically(animationSpec) { -100 } + fadeIn(
+                                            animationSpec = spring(
+                                                stiffness = Spring.StiffnessMedium
+                                            )
+                                        ) togetherWith
+                                                slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
+                                    },
+                                    predictivePopTransitionSpec = {
+                                        slideInVertically(animationSpec) { -100 } + fadeIn(
+                                            animationSpec = spring(
+                                                stiffness = Spring.StiffnessMedium
+                                            )
+                                        ) togetherWith
+                                                slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
+                                    },
+                                    entryProvider = { it.toNavEntry() }
+                                )
+                            }
                         }
                     }
                 }
