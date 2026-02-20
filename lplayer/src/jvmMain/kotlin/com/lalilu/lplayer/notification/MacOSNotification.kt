@@ -12,8 +12,8 @@ import com.lalilu.lplayer.playback.Playback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import org.rococoa.Rococoa
 import org.rococoa.cocoa.foundation.*
@@ -56,6 +56,26 @@ class MacOSNotification(
         )
     }
     private val imageLoader by lazy { SingletonImageLoader.get(PlatformContext.INSTANCE) }
+    private val playInfoDictionary by lazy {
+        val keys = NSArray.CLASS.arrayWithObjects(
+            MPMediaItemProperty.Title.nativeValue,
+            MPMediaItemProperty.Artist.nativeValue,
+            MPMediaItemProperty.PlaybackDuration.nativeValue,
+            MPNowPlayingInfoProperty.PlaybackRate.nativeValue,
+            MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
+            MPNowPlayingInfoProperty.IsLiveStream.nativeValue,
+        )
+        val values = NSArray.CLASS.arrayWithObjects(
+            NSString.stringWithString(""),
+            NSString.stringWithString(""),
+            NSNumber.CLASS.numberWithLong(0L),
+            NSNumber.CLASS.numberWithDouble(0.0),
+            NSNumber.CLASS.numberWithLong(0L),
+            NSNumber.CLASS.numberWithBool(false),
+        )
+        val dictionary = NSDictionary.CLASS.dictionaryWithObjects_forKeys(values, keys)
+        dictionary.mutableCopy()
+    }
 
     init {
         WrapperLibrary.instance
@@ -72,8 +92,20 @@ class MacOSNotification(
             selector = changePositionCallback.selector
         )
 
-        playback.currentItem.combine(playback.isPlaying) { audio, isPlaying ->
-            Logger.i("currentItem: $audio, isPlaying: $isPlaying")
+        playback.isPlaying.onEach { isPlaying ->
+            playInfoDictionary.setValue(
+                key = MPNowPlayingInfoProperty.PlaybackRate.nativeValue,
+                value = NSNumber.CLASS.numberWithDouble(if (isPlaying) 1.0 else 0.0),
+            )
+            playInfoDictionary.setValue(
+                key = MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
+                value = NSNumber.CLASS.numberWithLong(playback.currentPosition() / 1000L)
+            )
+            nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
+        }.launchIn(this)
+
+        playback.currentItem.onEach { audio ->
+            Logger.i("currentItem: $audio")
 
             val title = audio?.title ?: "Unknown"
             val subtitle = audio?.subtitle ?: "sub"
@@ -93,7 +125,7 @@ class MacOSNotification(
 
             val artwork = nsData?.let { data ->
                 val result = WrapperLibrary.instance.createMediaItemArtwork(
-                    bitmapData = nsData.id(),
+                    bitmapData = data.id(),
                     bitmapWidth = bitmap.width,
                     bitmapHeight = bitmap.height,
                     bitsPerPixel = 32,
@@ -103,29 +135,30 @@ class MacOSNotification(
                 )
                 Rococoa.wrap(result, NSObject::class.java)
             }
-            Logger.i("artwork: $artwork")
 
-            val keys = NSArray.CLASS.arrayWithObjects(
-                MPMediaItemProperty.Title.nativeValue,
-                MPMediaItemProperty.Artist.nativeValue,
-                MPMediaItemProperty.PlaybackDuration.nativeValue,
-                MPNowPlayingInfoProperty.PlaybackRate.nativeValue,
-                MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
-                MPNowPlayingInfoProperty.IsLiveStream.nativeValue,
-                if (artwork == null) null else MPMediaItemProperty.Artwork.nativeValue,
+            playInfoDictionary.setValue(
+                key = MPMediaItemProperty.Title.nativeValue,
+                value = NSString.stringWithString(title),
             )
-            val values = NSArray.CLASS.arrayWithObjects(
-                NSString.stringWithString(title),
-                NSString.stringWithString(subtitle),
-                NSNumber.CLASS.numberWithLong(playback.currentDuration.value / 1000L),
-                NSNumber.CLASS.numberWithDouble(if (isPlaying) 1.0 else 0.0),
-                NSNumber.CLASS.numberWithLong(playback.currentPosition() / 1000L),
-                NSNumber.CLASS.numberWithBool(false),
-                artwork,
+            playInfoDictionary.setValue(
+                key = MPMediaItemProperty.Artist.nativeValue,
+                value = NSString.stringWithString(subtitle),
             )
-
-            val dictionary = NSDictionary.CLASS.dictionaryWithObjects_forKeys(values, keys)
-            nowPlayingInfoCenter.setNowPlayingInfo(dictionary)
+            playInfoDictionary.setValue(
+                key = MPMediaItemProperty.PlaybackDuration.nativeValue,
+                value = NSNumber.CLASS.numberWithLong(playback.currentDuration.value / 1000L)
+            )
+            playInfoDictionary.setValue(
+                key = MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
+                value = NSNumber.CLASS.numberWithLong(playback.currentPosition() / 1000L)
+            )
+            if (artwork != null) {
+                playInfoDictionary.setValue(
+                    key = MPMediaItemProperty.Artwork.nativeValue,
+                    value = artwork
+                )
+            }
+            nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
         }.launchIn(this)
     }
 
@@ -150,7 +183,18 @@ class MacOSNotification(
 
     override fun onPositionChange(event: MPChangePlaybackPositionCommandEvent): MPRemoteCommandHandlerStatus {
         val position = (event.positionTime() * 1000L).toLong()
-        launch { playback.seekTo(position) }
+        launch {
+            playback.seekTo(position)
+            updatePosition(event.positionTime().toLong())
+        }
         return MPRemoteCommandHandlerStatus.Success
+    }
+
+    private fun updatePosition(newPosition: Long) {
+        playInfoDictionary.setValue(
+            key = MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
+            value = NSNumber.CLASS.numberWithLong(newPosition)
+        )
+        nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
     }
 }

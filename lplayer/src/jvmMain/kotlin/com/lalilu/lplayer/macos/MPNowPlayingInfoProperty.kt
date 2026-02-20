@@ -6,8 +6,8 @@ import org.rococoa.contrib.NativeEnum
 sealed class MPNowPlayingInfoProperty(
     private val name: String
 ) : NativeEnum<NSString> {
-    private val value: NSString? = NSString.getGlobalString("MediaPlayer", "MPNowPlayingInfoProperty${name}")
-    override fun getNativeValue(): NSString? = value
+    private val value: NSString = NSString.getGlobalString("MediaPlayer", "MPNowPlayingInfoProperty${name}")
+    override fun getNativeValue(): NSString = value
 
     data object AdTimeRanges : MPNowPlayingInfoProperty("AdTimeRanges")
     data object AvailableLanguageOptions : MPNowPlayingInfoProperty("AvailableLanguageOptions")

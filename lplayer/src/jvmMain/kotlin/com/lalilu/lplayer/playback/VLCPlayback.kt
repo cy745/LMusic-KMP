@@ -72,6 +72,7 @@ class VLCPlayback(
                 player.media().prepare(path)
             }
         }
+        lastRecordTime = -1
         player.controls().play()
         _currentItemIndex.value = _playlist.value.flatten().indexOf(item)
         updateNavigationCapabilities()
