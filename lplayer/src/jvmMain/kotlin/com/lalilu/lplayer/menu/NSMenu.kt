@@ -47,6 +47,15 @@ abstract class NSMenuItem : NSObject() {
     abstract fun setKeyEquivalentModifierMask(flags: Int)
     abstract fun image(): NSImage?
     abstract fun setImage(image: NSImage?)
+
+    /**
+     *
+     * ```objective-c
+     * - (instancetype) initWithTitle:(NSString *) string
+     *                         action:(SEL) selector
+     *                  keyEquivalent:(NSString *) charCode;
+     * ```
+     */
     abstract fun initWithTitle(
         @NamedArg("title") string: String,
         @NamedArg("action") selector: Selector?,

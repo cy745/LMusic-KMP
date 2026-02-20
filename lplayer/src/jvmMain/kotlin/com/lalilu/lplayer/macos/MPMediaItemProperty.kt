@@ -6,8 +6,8 @@ import org.rococoa.contrib.NativeEnum
 sealed class MPMediaItemProperty(
     private val name: String
 ) : NativeEnum<NSString> {
-    private val value: NSString? = NSString.getGlobalString("MediaPlayer", "MPMediaItemProperty${name}")
-    override fun getNativeValue(): NSString? = value
+    private val value: NSString = NSString.getGlobalString("MediaPlayer", "MPMediaItemProperty${name}")
+    override fun getNativeValue(): NSString = value
 
     object AlbumTitle : MPMediaItemProperty("AlbumTitle")
     object AlbumTrackCount : MPMediaItemProperty("AlbumTrackCount")

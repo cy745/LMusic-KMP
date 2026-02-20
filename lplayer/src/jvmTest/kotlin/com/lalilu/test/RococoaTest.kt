@@ -1,13 +1,11 @@
 package com.lalilu.test
 
-import com.lalilu.lplayer.macos.MPMediaItemProperty
-import com.lalilu.lplayer.macos.MPNowPlayingInfoCenter
-import com.lalilu.lplayer.macos.MPNowPlayingInfoProperty
-import com.lalilu.lplayer.macos.WrapperLibrary
+import com.lalilu.lplayer.macos.*
 import com.lalilu.lplayer.menu.NSMenu
 import com.lalilu.lplayer.menu.NSMenuItem
 import org.junit.Test
 import org.rococoa.Foundation
+import org.rococoa.Rococoa
 import org.rococoa.cocoa.foundation.NSArray
 import org.rococoa.cocoa.foundation.NSDictionary
 import org.rococoa.cocoa.foundation.NSNumber
@@ -71,6 +69,52 @@ class RococoaTest {
             val value = info.objectForKey(key)
             println("[$index]: ${key} -> ${value}")
         }
+    }
+
+    @Test
+    fun testNSMutableDictionary() {
+        val keys = NSArray.CLASS.arrayWithObjects(
+            MPMediaItemProperty.Title.nativeValue,
+            MPMediaItemProperty.Artist.nativeValue,
+            MPMediaItemProperty.PlaybackDuration.nativeValue,
+            MPNowPlayingInfoProperty.PlaybackRate.nativeValue,
+            MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
+            MPNowPlayingInfoProperty.IsLiveStream.nativeValue
+        )
+        val values = NSArray.CLASS.arrayWithObjects(
+            NSString.stringWithString("TEST Title"),
+            NSString.stringWithString("TEST Artist"),
+            NSNumber.CLASS.numberWithLong(60000L),
+            NSNumber.CLASS.numberWithDouble(1.0),
+            NSNumber.CLASS.numberWithLong(10000L),
+            NSNumber.CLASS.numberWithBool(false)
+        )
+
+        val dictionary = NSDictionary.CLASS.dictionaryWithObjects_forKeys(values, keys)
+
+        println(
+            "before: key: ${MPMediaItemProperty.Title.nativeValue}, value: ${dictionary.objectForKey(MPMediaItemProperty.Title.nativeValue)}"
+        )
+
+        val testStr = "Modified Title 1"
+        val mutableDictionary = dictionary.mutableCopy()
+        mutableDictionary.setValue(NSString.stringWithString(testStr), MPMediaItemProperty.Title.nativeValue)
+        val result = mutableDictionary.objectForKey(MPMediaItemProperty.Title.nativeValue)
+            ?.let { Rococoa.wrap(it.id(), NSString::class.java) }
+
+        println("after: key: ${MPMediaItemProperty.Title.nativeValue}, value: $result")
+        assert(result.toString() == testStr) { "dictionary not modified" }
+
+        val testStr2 = "Modified Title 2"
+        mutableDictionary.setObject(
+            NSString.stringWithString(testStr2),
+            MPMediaItemProperty.Title.nativeValue
+        )
+        val result2 = mutableDictionary.objectForKey(MPMediaItemProperty.Title.nativeValue)
+            ?.let { Rococoa.wrap(it.id(), NSString::class.java) }
+
+        println("after: key: ${MPMediaItemProperty.Title.nativeValue}, value: $result2")
+        assert(result2.toString() == testStr2) { "dictionary not modified" }
     }
 }
 
