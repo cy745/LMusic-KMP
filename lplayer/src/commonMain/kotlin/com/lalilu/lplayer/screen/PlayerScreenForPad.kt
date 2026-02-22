@@ -37,7 +37,6 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import co.touchlab.kermit.Logger
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
@@ -53,7 +52,6 @@ import com.lalilu.navigation.Screen
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
 
@@ -71,14 +69,8 @@ class PlayerScreenForPad : Screen {
 
         LifecycleResumeEffect(isPlaying.value) {
             val job = scope.launch {
-                var lastTime = 0L
                 while (isActive && isPlaying.value) {
-                    withFrameMillis {
-                        currentTime.value = LPlayer.instance.currentPosition()
-                        val now = Clock.System.now().toEpochMilliseconds()
-                        Logger.i("frametime: $it, ${now - lastTime}, currentTime: ${currentTime.value}")
-                        lastTime = now
-                    }
+                    withFrameMillis { currentTime.value = LPlayer.instance.currentPosition() }
                 }
             }
             onPauseOrDispose {

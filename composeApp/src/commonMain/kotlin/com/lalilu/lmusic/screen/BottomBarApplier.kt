@@ -21,9 +21,13 @@ package com.lalilu.lmusic.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
+import androidx.compose.material.BottomSheetScaffold
+import androidx.compose.material.BottomSheetValue
+import androidx.compose.material.rememberBottomSheetScaffoldState
+import androidx.compose.material.rememberBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,13 +42,14 @@ import com.lalilu.animated
 import com.lalilu.extensions.ClassicBackHandler
 import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.generated.KRouterInjectMap
+import com.lalilu.lplayer.LPlayer
 import com.lalilu.navigation.Screen
 import com.lalilu.preview.preview
 import kotlinx.coroutines.launch
 
 
 @Composable
-fun PlayBottomBarApplier(
+fun BottomBarApplier(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
@@ -55,7 +60,7 @@ fun PlayBottomBarApplier(
 
     val peekHeight = adaptiveValue(
         compact = { 0.dp },
-        medium = { 56.dp + navigatorBar.calculateBottomPadding() },
+        medium = { 72.dp + navigatorBar.calculateBottomPadding() },
     ).animated()
 
     BottomSheetScaffold(
@@ -82,12 +87,18 @@ fun PlayBottomBarApplier(
                                 alpha = (1f - progress)
                             }
                             .fillMaxWidth()
-                            .height(56.dp + navigatorBar.calculateBottomPadding())
+                            .height(72.dp + navigatorBar.calculateBottomPadding())
                             .background(color = MaterialTheme.colorScheme.background)
+                            .padding(start = 80.dp)
                             .padding(bottom = navigatorBar.calculateBottomPadding()),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "TEST")
+                        val currentPlaying = LPlayer.instance.currentItem.collectAsState(null)
+
+                        PlayingInfoCard(
+                            currentPlaying = { currentPlaying.value },
+                            onClick = { scope.launch { bottomSheetState.expand() } }
+                        )
                     }
                 }
             }
@@ -110,5 +121,5 @@ fun PlayBottomBarApplier(
 @Composable
 private fun PlayBottomBarPreview() = preview {
     KRouter.init(KRouterInjectMap::getMap)
-    PlayBottomBarApplier {}
+    BottomBarApplier {}
 }

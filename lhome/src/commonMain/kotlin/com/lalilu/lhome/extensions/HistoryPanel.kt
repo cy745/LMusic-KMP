@@ -70,7 +70,6 @@ object HistoryPanel : LazyGridContent {
             ) {
                 AudioItemCard(
                     modifier = Modifier
-                        .animateItem()
                         .combinedClickable(
                             onClick = {
                                 PlayerAction.UpdateList(

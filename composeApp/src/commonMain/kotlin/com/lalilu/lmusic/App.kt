@@ -31,7 +31,7 @@ import com.lalilu.extensions.ProvideLocalToaster
 import com.lalilu.lmusic.screen.ExceptionScreen
 import com.lalilu.lmusic.screen.NavSideApplier
 import com.lalilu.lmusic.screen.NavSidebarItem
-import com.lalilu.lmusic.screen.PlayBottomBarApplier
+import com.lalilu.lmusic.screen.BottomBarApplier
 import com.lalilu.navigation.*
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
@@ -84,7 +84,7 @@ fun App() = ScreenModeHandler {
                         .background(MaterialTheme.colorScheme.background)
                 ) {
                     ProvideLocalToaster {
-                        PlayBottomBarApplier(
+                        BottomBarApplier(
                             modifier = Modifier.fillMaxSize()
                         ) {
                             NavSideApplier(
