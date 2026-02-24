@@ -51,6 +51,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun BottomBarApplier(
     modifier: Modifier = Modifier,
+    bottomBarModifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -76,7 +77,7 @@ fun BottomBarApplier(
                         ?.Content()
 
                     Row(
-                        modifier = Modifier
+                        modifier = bottomBarModifier
                             .graphicsLayer {
                                 val progress = bottomSheetState.progress(
                                     BottomSheetValue.Collapsed,

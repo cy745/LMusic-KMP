@@ -87,7 +87,8 @@ fun App() = ScreenModeHandler {
                 ) {
                     ProvideLocalToaster {
                         BottomBarApplier(
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            bottomBarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 10f),
                         ) {
                             NavSideApplier(
                                 modifier = Modifier.fillMaxSize(),
