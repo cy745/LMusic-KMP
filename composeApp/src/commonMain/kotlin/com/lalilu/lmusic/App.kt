@@ -92,6 +92,7 @@ fun App() = ScreenModeHandler {
                         ) {
                             NavSideApplier(
                                 modifier = Modifier.fillMaxSize(),
+                                sidebarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 10f),
                                 items = sidebarItems,
                                 isSelected = { it.key == backStack.lastOrNull()?.key },
                                 onSelectScreen = { it?.let { element -> backStack.add(element) } }

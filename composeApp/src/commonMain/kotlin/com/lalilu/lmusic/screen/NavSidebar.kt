@@ -66,6 +66,7 @@ sealed interface NavSidebarItem {
 @Composable
 fun NavSideApplier(
     modifier: Modifier = Modifier,
+    sidebarModifier: Modifier = Modifier,
     items: List<NavSidebarItem> = emptyList(),
     isSelected: (Screen) -> Boolean = { false },
     onSelectScreen: (Screen?) -> Unit = {},
@@ -77,7 +78,7 @@ fun NavSideApplier(
             visible = windowClass.atLeastMedium()
         ) {
             NavSidebar(
-                modifier = Modifier,
+                modifier = sidebarModifier,
                 items = items,
                 isSelected = isSelected,
                 onSelectScreen = onSelectScreen
@@ -106,6 +107,7 @@ fun NavSidebar(
         modifier = modifier
             .width(240.dp)
             .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.background)
             .background(MaterialTheme.colorScheme.onBackground.copy(0.1f)),
         contentPadding = PaddingValues(
             top = statusBar.calculateTopPadding() + 16.dp,
