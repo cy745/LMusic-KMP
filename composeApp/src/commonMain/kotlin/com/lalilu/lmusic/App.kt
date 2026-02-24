@@ -28,10 +28,11 @@ import com.lalilu.ScreenMode.*
 import com.lalilu.ScreenModeHandler
 import com.lalilu.currentScreenMode
 import com.lalilu.extensions.ProvideLocalToaster
+import com.lalilu.lmusic.screen.BottomBarApplier
 import com.lalilu.lmusic.screen.ExceptionScreen
 import com.lalilu.lmusic.screen.NavSideApplier
 import com.lalilu.lmusic.screen.NavSidebarItem
-import com.lalilu.lmusic.screen.BottomBarApplier
+import com.lalilu.lmusic.util.handleMouseBackPress
 import com.lalilu.navigation.*
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
@@ -81,6 +82,7 @@ fun App() = ScreenModeHandler {
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize()
+                        .handleMouseBackPress()
                         .background(MaterialTheme.colorScheme.background)
                 ) {
                     ProvideLocalToaster {
