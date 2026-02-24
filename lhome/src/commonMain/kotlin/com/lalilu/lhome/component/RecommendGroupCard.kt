@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -164,6 +165,7 @@ private fun RecommendGroupItemCard(
                 .clickable(onClick = { onClick(item, sharedMap) })
                 .background(MaterialTheme.colorScheme.onBackground.copy(0.15f))
                 .sharedElementV2("COVER"),
+            contentScale = ContentScale.Crop,
             model = item,
             contentDescription = item.title
         )
