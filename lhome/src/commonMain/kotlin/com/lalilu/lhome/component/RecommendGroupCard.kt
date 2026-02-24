@@ -127,8 +127,8 @@ fun RecommendGroupCard(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                modifier = Modifier.alpha(0.6f)
-                    .sharedElementV2("SUBTITLE"),
+                modifier = Modifier.sharedBoundsV2("SUBTITLE")
+                    .alpha(0.6f),
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,

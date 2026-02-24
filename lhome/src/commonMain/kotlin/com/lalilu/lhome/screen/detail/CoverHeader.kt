@@ -147,7 +147,7 @@ object CoverHeader : LazyColumnContent<CoverHeader.Param> {
                             color = MaterialTheme.colorScheme.onBackground,
                         )
                         Text(
-                            modifier = Modifier.sharedElementV2("SUBTITLE")
+                            modifier = Modifier.sharedBoundsV2("SUBTITLE")
                                 .alpha(0.6f),
                             text = values(Param.SUBTITLE) as? String ?: "",
                             style = MaterialTheme.typography.bodySmall,
