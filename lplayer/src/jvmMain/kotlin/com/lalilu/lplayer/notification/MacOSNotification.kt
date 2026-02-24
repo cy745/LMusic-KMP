@@ -104,6 +104,14 @@ class MacOSNotification(
             nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
         }.launchIn(this)
 
+        playback.currentDuration.onEach {
+            playInfoDictionary.setValue(
+                key = MPMediaItemProperty.PlaybackDuration.nativeValue,
+                value = NSNumber.CLASS.numberWithLong(it / 1000L)
+            )
+            nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
+        }.launchIn(this)
+
         playback.currentItem.onEach { audio ->
             Logger.i("currentItem: $audio")
 
