@@ -125,12 +125,12 @@ fun BottomBarApplier(
                                     alpha = (1f - progress)
                                 }
                                 .fillMaxWidth()
-                                .height(72.dp + navigatorBar.calculateBottomPadding())
                                 .background(color = MaterialTheme.colorScheme.background.copy(0.6f))
-                                .padding(bottom = navigatorBar.calculateBottomPadding()),
+                                .height(72.dp + navigatorBar.calculateBottomPadding()),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             PlayingInfoCard(
+                                modifier = Modifier.navigationBarsPadding(),
                                 currentPlaying = { currentPlaying.value },
                                 currentProgress = {
                                     (currentPosition.value / currentDuration.value.toFloat()).coerceIn(0f, 1f)
@@ -167,9 +167,8 @@ fun BottomBarApplier(
                 Row(
                     modifier = bottomBarModifier.align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .height(72.dp + navigatorBar.calculateBottomPadding())
                         .background(color = MaterialTheme.colorScheme.background.copy(0.6f))
-                        .padding(bottom = navigatorBar.calculateBottomPadding())
+                        .height(72.dp + navigatorBar.calculateBottomPadding())
                 ) {
                     smartBarContent.invoke(Modifier.fillMaxSize())
                 }

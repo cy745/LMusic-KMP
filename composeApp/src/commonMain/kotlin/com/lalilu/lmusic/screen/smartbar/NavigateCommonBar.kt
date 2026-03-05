@@ -18,14 +18,14 @@
 package com.lalilu.lmusic.screen.smartbar
 
 import androidx.compose.animation.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Placeable
@@ -108,39 +108,25 @@ fun NavigateCommonBarContent(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AnimatedVisibility(visible = backAction != null) {
-                Row(
-                    modifier = Modifier,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        modifier = Modifier.fillMaxHeight(),
-                        shape = RectangleShape,
-                        contentPadding = PaddingValues(start = 8.dp, end = 16.dp),
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.onBackground
-                        ),
-                        onClick = {
-                            onBackPress?.invoke()
-                        }
-                    ) {
-                        Icon(
-                            imageVector = backAction?.icon ?: RemixIcon.Arrows.arrowLeftSLine,
-                            tint = MaterialTheme.colorScheme.onBackground,
-                            contentDescription = null
-                        )
-                        Text(
-                            text = backAction?.text ?: "返回",
-                            fontSize = 14.sp
-                        )
+                TextButton(
+                    modifier = Modifier.fillMaxHeight(),
+                    shape = RectangleShape,
+                    contentPadding = PaddingValues(start = 8.dp, end = 16.dp),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onBackground
+                    ),
+                    onClick = {
+                        onBackPress?.invoke()
                     }
-
-                    Spacer(
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(color = MaterialTheme.colorScheme.onBackground.copy(0.1f))
-                            .width(2.dp)
-                            .fillMaxHeight(0.6f)
+                ) {
+                    Icon(
+                        imageVector = backAction?.icon ?: RemixIcon.Arrows.arrowLeftSLine,
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        contentDescription = null
+                    )
+                    Text(
+                        text = backAction?.text ?: "返回",
+                        fontSize = 14.sp
                     )
                 }
             }
