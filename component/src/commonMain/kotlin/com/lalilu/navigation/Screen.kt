@@ -21,6 +21,11 @@ data class ScreenWrapper(
     val metadata: MutableMap<String, Any?> = mutableMapOf()
 ) : Screen by screen
 
+/**
+ * 获取实际的 Screen 对象，避免获取到临时包装类 ScreenWrapper
+ */
+fun Screen.actualScreen(): Screen = if (this is ScreenWrapper) screen else this
+
 fun Screen.wrapWith(metadata: Map<String, Any?>): Screen {
     if (this is ScreenWrapper) {
         this.metadata.putAll(metadata)

@@ -28,7 +28,10 @@ import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Metadata
+import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.Screen
+import com.lalilu.navigation.ScreenAction
+import com.lalilu.navigation.ScreenActionFactory
 import com.lalilu.preview.preview
 import kotlinx.serialization.Serializable
 
@@ -38,8 +41,24 @@ data class SongDetailScreen(
     val mediaId: String,
     val coverCacheKey: String? = null,
     val sharedMap: Map<String, String> = emptyMap(),
-) : Screen {
+) : Screen, ScreenActionFactory {
     override val key: String = "${super.key}_$mediaId"
+
+    @Composable
+    override fun provideScreenActions(): List<ScreenAction> {
+        return remember {
+            listOf(
+                ScreenAction.Static(
+                    title = { "下一首" },
+                    onAction = { PlayerAction.SkipToNext.action() }
+                ),
+                ScreenAction.Static(
+                    title = { "播放" },
+                    onAction = { PlayerAction.PlayById(mediaId).action() }
+                ),
+            )
+        }
+    }
 
     @Composable
     override fun Content() {
@@ -133,6 +152,9 @@ fun SongDetailScreenContent(
 @Preview
 @Composable
 private fun SongDetailScreenContentPreview() = preview {
+    enableNetworkImage()
+    setFallbackUrl("https://www.dmoe.cc/random.php")
+
     SongDetailScreenContent(
         song = LAudio(
             id = "id",
