@@ -1,0 +1,75 @@
+language = Objective-C
+package = com.lalilu.lmedia
+---
+#import <Foundation/Foundation.h>
+
+@class ArtworkItem;
+@class SongInfo;
+
+/// Completion handler for fetchUserLibrarySongs
+/// @param songs Array of SongInfo objects, or nil if failed
+/// @param error Error object if failed, nil otherwise
+typedef void (^MusicKitWrapperFetchCompletion)(NSArray<SongInfo *> * _Nullable songs, NSError * _Nullable error);
+
+#pragma mark - ArtworkItem
+
+@interface ArtworkItem : NSObject
+
+/// Get artwork URL with specified dimensions
+/// @param width The width dimension
+/// @param height The height dimension
+/// @return The artwork URL or nil if unavailable
+- (nullable NSURL *)urlWithWidth:(NSInteger)width height:(NSInteger)height;
+
+@end
+
+#pragma mark - SongInfo
+
+@interface SongInfo : NSObject
+
+/// Song title
+- (NSString *)title;
+/// Artist name
+- (NSString *)artist;
+/// Album name
+- (NSString *)album;
+/// Song duration in seconds
+- (NSTimeInterval)duration;
+/// Artwork item for album art
+- (nullable ArtworkItem *)artwork;
+/// Song URL
+- (nullable NSURL *)url;
+
+/// Initialize SongInfo with all properties
+/// @param title Song title
+/// @param artist Artist name
+/// @param album Album name
+/// @param duration Song duration in seconds
+/// @param artwork ArtworkItem for album art
+/// @param url Song URL
+/// @return Initialized SongInfo instance
+- (instancetype)initWithTitle:(NSString *)title
+                      artist:(NSString *)artist
+                       album:(NSString *)album
+                    duration:(NSTimeInterval)duration
+                    artwork:(nullable ArtworkItem *)artwork
+                         url:(nullable NSURL *)url;
+
+@end
+
+#pragma mark - MusicKitWrapper
+
+@interface MusicKitWrapper : NSObject
+
+/// Returns a greeting message
+/// @return "HeLLo WorLd! MusicKitWrapper"
++ (NSString *)helloWorld;
+
+/// Fetches user library songs from MusicKit
+/// This method requests music authorization and fetches the user's library songs
+/// @param completion Completion handler called with songs or error
+///                   On success: songs array (may be empty), error is nil
+///                   On failure: songs is nil, error contains failure reason
++ (void)fetchUserLibrarySongsWithCompletionHandler:(MusicKitWrapperFetchCompletion)completion;
+
+@end

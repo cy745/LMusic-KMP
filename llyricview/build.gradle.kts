@@ -5,7 +5,6 @@ import com.lalilu.gradle.makeSureAllSourcesJarAfterKsp
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -16,7 +15,6 @@ plugins {
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.swiftklib)
     alias(libs.plugins.osdetector)
     alias(libs.plugins.stability.analyzer)
 }
@@ -27,9 +25,6 @@ version = "1.0.0"
 kotlin {
     jvm()
     androidTarget {
-        compilerOptions {
-            // jvmTarget = JvmTarget.JVM_11
-        }
     }
     XcodeDetector.whenXcodeInstalled {
         listOf(

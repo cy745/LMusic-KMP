@@ -29,9 +29,9 @@ object MusicKitSource : MediaSource {
 
     override fun source(): Flow<Snapshot> {
         val songsFlow = callbackFlow {
-            MusicKitWrapper.fetchUserLibrarySongsWithCompletionHandler { result ->
+            MusicKitWrapper.fetchUserLibrarySongsWithCompletionHandler { songs, error ->
                 launch {
-                    send(result?.filterIsInstance<SongInfo>() ?: emptyList())
+                    send(songs?.filterIsInstance<SongInfo>() ?: emptyList())
                 }
             }
             awaitClose {}
@@ -41,8 +41,8 @@ object MusicKitSource : MediaSource {
             Snapshot(
                 audios = songs.map {
                     LAudio(
-                        title = it.title(),
-                        subtitle = it.artist(),
+                        title = it.title() ?: "",
+                        subtitle = it.artist() ?: "",
                         sourceItem = SourceItem.MusicKitItem(it),
                         mediaSourceName = this@MusicKitSource.name
                     )

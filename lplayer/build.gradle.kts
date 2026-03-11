@@ -15,7 +15,6 @@ plugins {
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.swiftklib)
     alias(libs.plugins.osdetector)
 }
 
@@ -25,9 +24,6 @@ version = "1.0.0"
 kotlin {
     jvm()
     androidTarget {
-        compilerOptions {
-            // jvmTarget = JvmTarget.JVM_11
-        }
     }
     XcodeDetector.whenXcodeInstalled {
         listOf(
@@ -90,13 +86,6 @@ kotlin {
         }
     }
 }
-
-//swiftklib {
-//    create("MusicKitWrapper") {
-//        path = file("native/MusicKitWrapper")
-//        packageName("com.lalilu.lmedia")
-//    }
-//}
 
 dependencies {
     kspCommonMainMetadata(libs.koin.compiler)

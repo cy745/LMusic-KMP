@@ -15,7 +15,7 @@ actual sealed interface SourceItem {
     }
 
     data class MusicKitItem(val item: SongInfo) : SourceItem {
-        override val key: String = "${this::class::qualifiedName}_${item.title()}_${item.artist()}"
+        override val key: String = "${this::class::qualifiedName}_${item.title() ?: ""}_${item.artist() ?: ""}"
     }
 
     data class FileItem(val file: PlatformFile) : SourceItem {

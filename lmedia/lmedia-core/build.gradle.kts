@@ -1,7 +1,6 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
 import com.lalilu.*
-import com.lalilu.gradle.XcodeDetector
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCompilation
 
@@ -12,7 +11,6 @@ plugins {
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.swiftklib)
     alias(libs.plugins.osdetector)
     alias(libs.plugins.ktorfit)
 }
@@ -21,19 +19,25 @@ group = "com.lalilu.lmedia"
 version = "1.0.0"
 extra.set("artifactId", "core")
 
+ktorfit {
+    compilerPluginVersion.set("2.3.3")
+}
+
 applyMultiplatform(configureBlock = {
-    targets.filter { it.name.startsWith("ios") }
-        .forEach {
-            it.compilations.getByName<KotlinNativeCompilation>("main") {
-                cinterops {
-                    create("MusicKitWrapper")
-                    create("Taglib") {
-                        definitionFile.set(file("src/nativeInterop/taglib/Taglib.def"))
-                        headers(file("src/nativeInterop/taglib/include/taglib/tag_c.h"))
-                    }
-                }
+    targets.filter { it.name.startsWith("ios") }.forEach {
+        it.compilations.getByName<KotlinNativeCompilation>("main") {
+            val musicKitWrapper by cinterops.creating
+            musicKitWrapper.apply {
+                definitionFile.set(file("src/nativeInterop/MusicKitWrapper/MusicKitWrapper.def"))
+            }
+
+            val taglib by cinterops.creating
+            taglib.apply {
+                definitionFile.set(file("src/nativeInterop/taglib/Taglib.def"))
+                headers(file("src/nativeInterop/taglib/include/taglib/tag_c.h"))
             }
         }
+    }
 }) {
     main.dependencies {
         api(project(":common"))
@@ -63,21 +67,3 @@ applyMultiplatform(configureBlock = {
         implementation(npm("taglib-wasm", "0.5.4"))
     }
 }
-
-ktorfit {
-    compilerPluginVersion.set("2.3.3")
-}
-
-XcodeDetector.whenXcodeInstalled {
-    swiftklib {
-        create("MusicKitWrapper") {
-            path = file("src/nativeInterop/MusicKitWrapper")
-            packageName("com.lalilu.lmedia")
-        }
-    }
-}
-
-// FIXME xcode的环境问题，直接在xcode中打包会出现报错，见https://github.com/ttypic/swift-klib-plugin/issues/65
-// 需要在其他ide中执行过一次以后，才能在xcode中运行
-tasks.named { it.startsWith("swiftklibMusicKitWrapper") || it.startsWith("cinteropMusicKitWrapper") }
-    .forEach { it.enabled = System.getenv("PLATFORM_NAME") != "iphoneos" }

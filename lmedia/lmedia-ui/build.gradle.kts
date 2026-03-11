@@ -49,4 +49,6 @@ dependencies {
     add("kspJvm", libs.room3.compiler)
     add("kspAndroid", libs.room3.compiler)
     add("kspWasmJs", libs.room3.compiler)
+    add("kspIosArm64", libs.room3.compiler)
+    add("kspIosSimulatorArm64", libs.room3.compiler)
 }
