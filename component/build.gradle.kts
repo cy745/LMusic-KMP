@@ -24,7 +24,6 @@ kotlin {
     }
     XcodeDetector.whenXcodeInstalled {
         listOf(
-            iosX64(),
             iosArm64(),
             iosSimulatorArm64()
         )
@@ -62,6 +61,8 @@ kotlin {
                 api(libs.qrcode.kotlin)
                 api(libs.sonner)
                 api(libs.materialKolor)
+
+                api(libs.room3.runtime)
             }
         }
         val commonTest by getting {
@@ -74,6 +75,23 @@ kotlin {
                 api(compose.preview)
                 api(compose.uiTooling)
                 api(libs.coil.gif)
+                api(libs.sqlite.bundled)
+            }
+        }
+
+        val jvmMain by getting {
+            dependencies {
+                api(libs.sqlite.bundled)
+            }
+        }
+
+        iosMain.dependencies {
+            api(libs.sqlite.bundled)
+        }
+
+        val webMain by creating {
+            dependencies {
+                api(libs.sqlite.web)
             }
         }
     }

@@ -19,6 +19,7 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.ktorfit) apply false
     alias(libs.plugins.stability.analyzer) apply false
+    alias(libs.plugins.room3) apply false
     alias(libs.plugins.krouter.plugin)
     id("build-logic")
 }

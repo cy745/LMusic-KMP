@@ -38,6 +38,8 @@ applyMultiplatform {
         // kotlin crypto
         api(kotlincrypto.hash.md)
         api(libs.sweetspi.runtime)
+
+        api(libs.room3.common)
     }
     test.dependencies {
         implementation(libs.kotlin.test)

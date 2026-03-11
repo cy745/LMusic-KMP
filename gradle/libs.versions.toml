@@ -8,8 +8,8 @@ androidx-lifecycle = "2.9.5"
 composeMultiplatform = "1.11.0-alpha01"
 kotlinx-serialization = "1.9.0"
 junit = "4.13.2"
-kotlin = "2.2.21"
-ksp = "2.2.21-2.0.4"
+kotlin = "2.3.10"
+ksp = "2.3.6"
 kotlinx-coroutines = "1.10.2"
 krouter = "0.0.4"
 filekit = "0.12.0"
@@ -20,11 +20,13 @@ settings = "1.3.0"
 kermit = "2.0.8"
 krpc = "0.9.1"
 ktor = "3.3.0"
-ktorfit = "2.6.4"
+ktorfit = "2.7.2"
 kotlinx-io = "0.8.0"
 kotlinx-datetime = "0.7.1"
 vlcj = "4.11.0"
 media3 = "1.8.0"
+room3 = "3.0.0-SNAPSHOT"
+sqlite = "2.7.0-SNAPSHOT"
 rococoa = "4d401915af"
 human-readable = "1.12.0"
 xmlutil = "0.91.2"
@@ -131,6 +133,12 @@ media3-common = { module = "androidx.media3:media3-common", version.ref = "media
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 
+room3-common = { module = "androidx.room3:room3-common", version.ref = "room3" }
+room3-runtime = { module = "androidx.room3:room3-runtime", version.ref = "room3" }
+room3-compiler = { module = "androidx.room3:room3-compiler", version.ref = "room3" }
+sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
+sqlite-web = { module = "androidx.sqlite:sqlite-web", version.ref = "sqlite" }
+
 flowmvi-core = { module = "pro.respawn.flowmvi:core", version.ref = "flowmvi" }
 flowmvi-test = { module = "pro.respawn.flowmvi:test", version.ref = "flowmvi" }
 flowmvi-compose = { module = "pro.respawn.flowmvi:compose", version.ref = "flowmvi" }
@@ -162,6 +170,7 @@ osdetector = { id = "com.google.osdetector", version = "1.7.3" }
 ktorfit = { id = "de.jensklingenberg.ktorfit", version.ref = "ktorfit" }
 stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.6.0" }
 shadowJar = { id = "com.gradleup.shadow", version = "9.3.0" }
+room3 = { id = "androidx.room3", version.ref = "room3" }
 
 [bundles]
 coil = ["coil-compose", "coil-ktor", "coil-svg"]

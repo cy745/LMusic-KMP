@@ -24,3 +24,7 @@ applyMultiplatform {
         api(project(":lmedia:lmedia-core"))
     }
 }
+
+ktorfit {
+    compilerPluginVersion.set("2.3.3")
+}

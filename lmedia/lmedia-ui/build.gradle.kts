@@ -40,3 +40,13 @@ applyMultiplatform {
         api(kotlincrypto.hash.md)
     }
 }
+
+ktorfit {
+    compilerPluginVersion.set("2.3.3")
+}
+
+dependencies {
+    add("kspJvm", libs.room3.compiler)
+    add("kspAndroid", libs.room3.compiler)
+    add("kspWasmJs", libs.room3.compiler)
+}

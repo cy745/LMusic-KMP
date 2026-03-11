@@ -252,10 +252,8 @@ fun SharedContext(
         return
     }
 
-    val sharedScope = runCatching { sharedTransitionScope ?: LocalSharedTransitionScope.current }
-        .getOrNull()
-    val animationScope = runCatching { defaultAnimationScope ?: LocalNavAnimatedContentScope.current }
-        .getOrNull()
+    val sharedScope = sharedTransitionScope ?: LocalSharedTransitionScope.current
+    val animationScope = defaultAnimationScope ?: LocalNavAnimatedContentScope.current
 
     val scope = remember(
         sharedMap,

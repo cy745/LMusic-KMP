@@ -64,6 +64,10 @@ applyMultiplatform(configureBlock = {
     }
 }
 
+ktorfit {
+    compilerPluginVersion.set("2.3.3")
+}
+
 XcodeDetector.whenXcodeInstalled {
     swiftklib {
         create("MusicKitWrapper") {
