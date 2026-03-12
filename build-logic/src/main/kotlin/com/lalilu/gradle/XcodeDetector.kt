@@ -7,7 +7,7 @@ object XcodeDetector {
      */
     fun isXcodeInstalled(): Boolean {
         return try {
-            val process = Runtime.getRuntime().exec("xcodebuild -version")
+            val process = Runtime.getRuntime().exec(arrayOf("xcodebuild", "-version"))
             process.waitFor() == 0
         } catch (e: Exception) {
             false

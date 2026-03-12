@@ -1,8 +1,10 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
 import com.lalilu.applyMultiplatform
+import com.lalilu.gradle.XcodeDetector
 import com.lalilu.main
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompileCommon
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -49,6 +51,8 @@ dependencies {
     add("kspJvm", libs.room3.compiler)
     add("kspAndroid", libs.room3.compiler)
     add("kspWasmJs", libs.room3.compiler)
-    add("kspIosArm64", libs.room3.compiler)
-    add("kspIosSimulatorArm64", libs.room3.compiler)
+    XcodeDetector.whenXcodeInstalled {
+        add("kspIosArm64", libs.room3.compiler)
+        add("kspIosSimulatorArm64", libs.room3.compiler)
+    }
 }
