@@ -12,7 +12,6 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
-        maven("https://androidx.dev/kmp/builds/15009014/artifacts/snapshots/repository")
     }
 }
 
@@ -27,7 +26,6 @@ dependencyResolutionManagement {
         }
         mavenCentral()
         maven("https://jitpack.io")
-        maven("https://androidx.dev/kmp/builds/15009014/artifacts/snapshots/repository")
     }
 
     versionCatalogs {
