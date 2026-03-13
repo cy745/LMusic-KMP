@@ -14,6 +14,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.lalilu.lmedia.entity.LAlbum
+import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.ref
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 
@@ -24,7 +26,7 @@ fun SongAlbumInfoCard(
 ) {
     SongAlbumInfoCard(
         modifier = modifier,
-        imageData = album.items.firstOrNull() ?: album,
+        imageData = album.ref<LAudio>().firstOrNull() ?: album,
         title = album.title(),
         subTitle = album.subtitle()
     )

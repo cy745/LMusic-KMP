@@ -2,6 +2,8 @@ package com.lalilu.lmedia.entity
 
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import com.lalilu.lmedia.entity.link
+import com.lalilu.lmedia.entity.ref
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.launchIn
@@ -82,10 +84,10 @@ fun StateFlow<Snapshot>.toComposeState(scope: CoroutineScope): State<SnapshotSta
 fun Snapshot.redirectToNewSource(sourceName: String) {
     // 重定向数据源至另外一个Source
     audios.forEach { audio -> audio.mediaSourceName = sourceName }
-    albums.forEach { album -> album.items.forEach { it.mediaSourceName = sourceName } }
-    artists.forEach { artist -> artist.items.forEach { it.mediaSourceName = sourceName } }
-    folders.forEach { folder -> folder.items.forEach { it.mediaSourceName = sourceName } }
-    genres.forEach { genre -> genre.items.forEach { it.mediaSourceName = sourceName } }
+    albums.forEach { album -> album.ref<LAudio>().forEach { it.mediaSourceName = sourceName } }
+    artists.forEach { artist -> artist.ref<LAudio>().forEach { it.mediaSourceName = sourceName } }
+    folders.forEach { folder -> folder.ref<LAudio>().forEach { it.mediaSourceName = sourceName } }
+    genres.forEach { genre -> genre.ref<LAudio>().forEach { it.mediaSourceName = sourceName } }
 }
 
 @OptIn(ExperimentalTime::class)
@@ -111,10 +113,14 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
             LAlbum(
                 id = name,
                 title = name,
-                subtitle = "",
-                items = songs
-            )
-        }.link()
+                subtitle = ""
+            ).also { albumEntity ->
+                songs.forEach { song ->
+                    song.link(albumEntity)
+                    albumEntity.link(song)
+                }
+            }
+        }
 
     val artists = list
         .groupBy { song -> song.metadata.artist }
@@ -123,13 +129,16 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
             LArtist(
                 id = name,
                 title = name,
-                subtitle = "",
-                items = songs
-            )
+                subtitle = ""
+            ).also { artistEntity ->
+                songs.forEach { song ->
+                    song.link(artistEntity)
+                    artistEntity.link(song)
+                }
+            }
         }
         .separate()
         .merge()
-        .link()
 
     val genres = list
         .groupBy { song -> song.metadata.genre }
@@ -138,10 +147,14 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
             LGenre(
                 id = name,
                 title = name,
-                subtitle = "",
-                items = songs
-            )
-        }.link()
+                subtitle = ""
+            ).also { genreEntity ->
+                songs.forEach { song ->
+                    song.link(genreEntity)
+                    genreEntity.link(song)
+                }
+            }
+        }
 
     return Snapshot(
         audios = list,
@@ -151,4 +164,3 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
         state = SnapshotState.Success
     )
 }
-

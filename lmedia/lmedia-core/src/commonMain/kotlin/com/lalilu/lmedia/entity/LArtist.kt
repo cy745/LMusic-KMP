@@ -4,13 +4,12 @@ import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
 
 @Serializable
-class LArtist(
+data class LArtist(
     val id: String,
     val title: String,
     val subtitle: String,
-    val extra: Map<String, String> = emptyMap(),
-    override val items: List<LAudio> = emptyList()
-) : Identifiable, Describable, Extensible, Linkable, LGroupItem {
+    val extra: Map<String, String> = emptyMap()
+) : LItem {
     override fun id(): String = id
     override fun title(): String = title
     override fun subtitle(): String = subtitle
@@ -27,9 +26,8 @@ fun List<LArtist>.separate(): List<LArtist> = flatMap {
         LArtist(
             id = name,
             title = name,
-            subtitle = it.subtitle,
-            items = it.items
-        )
+            subtitle = it.subtitle
+        ).apply { refs.putAll(it.refs) }
     }
 }
 
@@ -40,7 +38,6 @@ fun List<LArtist>.merge(): List<LArtist> = groupBy { it.title }.map { entry ->
     LArtist(
         id = entry.key,
         title = entry.key,
-        subtitle = entry.value.first().subtitle,
-        items = entry.value.flatMap { it.items }
-    )
+        subtitle = entry.value.first().subtitle
+    ).apply { entry.value.forEach { refs.putAll(it.refs) } }
 }

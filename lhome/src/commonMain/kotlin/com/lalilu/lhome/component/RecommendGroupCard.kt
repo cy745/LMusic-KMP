@@ -24,55 +24,37 @@ import coil3.compose.AsyncImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.rememberSharedMap
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LFolder
-import com.lalilu.lmedia.entity.LGenre
-import com.lalilu.lmedia.entity.LGroupItem
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.entity.Linkable
+import com.lalilu.lmedia.entity.link
+import com.lalilu.lmedia.entity.ref
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
-import kotlin.reflect.KClass
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun RecommendGroupCard(
     modifier: Modifier = Modifier,
-    group: LGroupItem,
+    group: LItem,
     onClick: (LItem, SharedMap) -> Unit = { _, _ -> },
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val linkable = group as? Linkable
+    val items = linkable?.ref<LAudio>() ?: emptyList()
     val rowCount = remember(group) {
         when {
-            group.items.size == 1 -> 1
-            group.items.size <= 4 -> 2
-            group.items.size >= 9 -> 3
+            items.size == 1 -> 1
+            items.size <= 4 -> 2
+            items.size >= 9 -> 3
             else -> 3
         }
     }
     val title = remember(group) {
-        if (group.title().isNotBlank()) return@remember group.title()
-
-        when (group) {
-            is LAlbum -> "专辑"
-            is LArtist -> "歌手"
-            is LGenre -> "曲风"
-            is LFolder -> "文件夹"
-            else -> "元素"
-        }
+        group.title().ifBlank { "元素" }
     }
     val subtitle = remember(group) {
-        if (group.subtitle().isNotBlank()) return@remember group.subtitle()
-
-        when (group) {
-            is LAlbum -> "专辑: 共 ${group.itemsCount} 首歌曲"
-            is LArtist -> "歌手: 共 ${group.itemsCount} 首歌曲"
-            is LGenre -> "曲风: 共 ${group.itemsCount} 首歌曲"
-            is LFolder -> "文件夹: 共 ${group.itemsCount} 首歌曲"
-            else -> "共 ${group.items.size} 首歌曲"
-        }
+        group.subtitle().ifBlank { "共 ${items.size} 首歌曲" }
     }
 
     SharedContext(
@@ -106,7 +88,7 @@ fun RecommendGroupCard(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         repeat(rowCount) { column ->
-                            val item = group.items.getOrNull(row * rowCount + column)
+                            val item = items.getOrNull(row * rowCount + column)
 
                             if (item != null) {
                                 RecommendGroupItemCard(
@@ -196,26 +178,26 @@ private fun RecommendGroupCardPreview() = preview {
     }
     val group1 = remember {
         val firstItem = audios.randomOrNull()
-
-        object : LGroupItem {
-            override val items = audios.take(4)
+        object : LItem, Linkable {
+            override val refs: MutableMap<kotlin.reflect.KClass<*>, MutableSet<Linkable>> = mutableMapOf()
             override fun id(): String = firstItem?.id() ?: ""
             override fun title(): String = firstItem?.title() ?: ""
             override fun subtitle(): String = firstItem?.subtitle() ?: ""
             override fun extra(): Map<String, String> = emptyMap()
-            override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
+        }.also { linkable ->
+            audios.take(4).forEach { linkable.link(it) }
         }
     }
     val group2 = remember {
         val firstItem = audios.randomOrNull()
-
-        object : LGroupItem {
-            override val items = audios.take(5)
+        object : LItem, Linkable {
+            override val refs: MutableMap<kotlin.reflect.KClass<*>, MutableSet<Linkable>> = mutableMapOf()
             override fun id(): String = firstItem?.id() ?: ""
             override fun title(): String = firstItem?.title() ?: ""
             override fun subtitle(): String = firstItem?.subtitle() ?: ""
             override fun extra(): Map<String, String> = emptyMap()
-            override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
+        }.also { linkable ->
+            audios.take(5).forEach { linkable.link(it) }
         }
     }
 

@@ -21,8 +21,10 @@ import com.lalilu.lhome.component.RecommendGroupCard
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
-import com.lalilu.lmedia.entity.LGroupItem
+import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.entity.Linkable
+import com.lalilu.lmedia.entity.ref
 import com.lalilu.navigation.AppRouter
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -86,7 +88,7 @@ fun LazyGridScope.dailyRecommendForSideCompat(
             items = items,
             getId = { it.id() }
         ) { item ->
-            if (item is LGroupItem) {
+            if (item is Linkable && item.ref<LAudio>().isNotEmpty()) {
                 RecommendGroupCard(
                     modifier = Modifier.width(width = 250.dp),
                     group = item,

@@ -8,9 +8,8 @@ class LFolder(
     val id: String,
     val title: String,
     val subtitle: String,
-    val extra: Map<String, String> = emptyMap(),
-    override val items: List<LAudio> = emptyList()
-) : Identifiable, Describable, Extensible, Linkable, LGroupItem {
+    val extra: Map<String, String> = emptyMap()
+) : LItem {
     override fun id(): String = id
     override fun title(): String = title
     override fun subtitle(): String = subtitle

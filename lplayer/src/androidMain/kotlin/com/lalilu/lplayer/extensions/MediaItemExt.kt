@@ -11,6 +11,7 @@ import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LFolder
 import com.lalilu.lmedia.entity.LGenre
+import com.lalilu.lmedia.entity.ref
 import android.net.Uri
 import io.ktor.http.encodeURLPathPart
 
@@ -135,22 +136,22 @@ object MMedia {
 
             parentId.startsWith(ARTIST_PREFIX) -> {
                 val mediaId = parentId.substring(ARTIST_PREFIX.length)
-                get<LArtist>(mediaId)?.items?.map { it.toMediaItem() }
+                get<LArtist>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
             }
 
             parentId.startsWith(ALBUM_PREFIX) -> {
                 val mediaId = parentId.substring(ALBUM_PREFIX.length)
-                get<LAlbum>(mediaId)?.items?.map { it.toMediaItem() }
+                get<LAlbum>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
             }
 
             parentId.startsWith(GENRE_PREFIX) -> {
                 val mediaId = parentId.substring(GENRE_PREFIX.length)
-                get<LGenre>(mediaId)?.items?.map { it.toMediaItem() }
+                get<LGenre>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
             }
 
             parentId.startsWith(FOLDER_PREFIX) -> {
                 val mediaId = parentId.substring(FOLDER_PREFIX.length)
-                get<LFolder>(mediaId)?.items?.map { it.toMediaItem() }
+                get<LFolder>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
             }
 
             else -> emptyList()
