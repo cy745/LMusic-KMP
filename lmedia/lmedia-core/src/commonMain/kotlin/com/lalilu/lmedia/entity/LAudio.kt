@@ -1,37 +1,50 @@
 package com.lalilu.lmedia.entity
 
-import kotlinx.serialization.SerialName
+import androidx.room3.ColumnInfo
+import androidx.room3.Entity
+import androidx.room3.Ignore
+import androidx.room3.PrimaryKey
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlin.reflect.KClass
 
+@Entity(tableName = "l_audio")
 @Serializable
 data class LAudio(
-    @SerialName("id") val id: String = "",
-    @SerialName("title") val title: String = "",
-    @SerialName("subtitle") val subtitle: String = "",
-    @SerialName("extra") val extra: Map<String, String> = EMPTY_EXTRA,
+    @PrimaryKey
+    @ColumnInfo("song_id")
+    var id: String = "",
+    var title: String = "",
+    var subtitle: String = "",
 
+    @Ignore
+    @Transient
+    val extra: Map<String, String> = EMPTY_EXTRA,
+
+    @Ignore
     @Transient
     var sourceItem: SourceItem = SourceItemDefaults.Empty,
+
+    @Ignore
     var metadata: Metadata = Metadata.EMPTY,
-    var mediaSourceName: String,
+    var mediaSourceName: String = "",
 ) : LItem {
     companion object {
         val EMPTY_EXTRA = emptyMap<String, String>()
     }
 
     // Identifiable implementation
-    override fun id(): String = id
+    override fun idValue(): String = id
 
     // Describable implementation
-    override fun title(): String = title
-    override fun subtitle(): String = subtitle
+    override fun titleValue(): String = title
+    override fun subtitleValue(): String = subtitle
 
     // Extensible implementation
-    override fun extra(): Map<String, String> = extra
+    override fun extraValue(): Map<String, String> = extra
 
     // Linkable implementation
+    @Ignore
     @Transient
     override val refs = mutableMapOf<KClass<*>, MutableSet<Linkable>>()
 }

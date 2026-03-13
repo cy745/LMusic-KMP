@@ -10,5 +10,5 @@ interface Identifiable {
      *
      * @return 代表该实体唯一身份的字符串 ID。
      */
-    fun id(): String
+    fun idValue(): String
 }

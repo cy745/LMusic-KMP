@@ -22,3 +22,4 @@ keystore.jks
 keystore.properties
 .vercel
 /.omc
+/lmedia/lmedia-data/db/

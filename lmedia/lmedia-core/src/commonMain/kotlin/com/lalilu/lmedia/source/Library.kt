@@ -22,7 +22,7 @@ abstract class Library : ReadyState by readyStateImpl() {
         func: Snapshot.() -> List<T>
     ): StateFlow<Map<String, T>> {
         return snapshotStateFlow
-            .map { it.func().associateBy(LItem::id) }
+            .map { it.func().associateBy(LItem::idValue) }
             .stateIn(coroutineScope, SharingStarted.Eagerly, emptyMap())
     }
 

@@ -230,7 +230,7 @@ class MPlayerPlayback(
     override suspend fun updatePlaylist(
         playlist: List<LItem>
     ) = runWithBrowser {
-        val items = MMedia.mapItems(playlist.map { item -> item.id })
+        val items = MMedia.mapItems(playlist.map { item -> item.idValue })
         setMediaItems(items, 0, 0)
     }
 
@@ -239,7 +239,7 @@ class MPlayerPlayback(
         startIndex: Int,
         start: Boolean
     ) = runWithBrowser {
-        val items = MMedia.mapItems(playlist.map { it.id })
+        val items = MMedia.mapItems(playlist.map { it.idValue })
         setMediaItems(items, startIndex, 0)
         if (start) play()
     }

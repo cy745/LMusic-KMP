@@ -50,7 +50,7 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
             is PlayerAction.SeekTo -> LPlayer.instance.seekTo(action.positionMs)
             is PlayerAction.PlayById -> {
                 val index = LPlayer.instance.playlist.value
-                    .indexOfFirst { item -> item.id() == action.id }
+                    .indexOfFirst { item -> item.idValue() == action.id }
 
                 LPlayer.instance.skipTo(index)
             }

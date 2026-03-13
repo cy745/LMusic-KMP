@@ -10,5 +10,5 @@ interface Extensible {
      *
      * @return 一个字符串到字符串的映射，存储额外的元数据或属性。
      */
-    fun extra(): Map<String, String>
+    fun extraValue(): Map<String, String>
 }

@@ -2,8 +2,6 @@ package com.lalilu.lmedia.entity
 
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import com.lalilu.lmedia.entity.link
-import com.lalilu.lmedia.entity.ref
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.launchIn
@@ -93,18 +91,18 @@ fun Snapshot.redirectToNewSource(sourceName: String) {
 @OptIn(ExperimentalTime::class)
 fun Array<Snapshot>.combineToOne(): Snapshot {
     return Snapshot(
-        audios = map { it.audios }.flatten().distinctBy { it.id() },
-        albums = map { it.albums }.flatten().distinctBy { it.id() },
-        artists = map { it.artists }.flatten().distinctBy { it.id() },
-        folders = map { it.folders }.flatten().distinctBy { it.id() },
-        genres = map { it.genres }.flatten().distinctBy { it.id() },
+        audios = map { it.audios }.flatten().distinctBy { it.idValue() },
+        albums = map { it.albums }.flatten().distinctBy { it.idValue() },
+        artists = map { it.artists }.flatten().distinctBy { it.idValue() },
+        folders = map { it.folders }.flatten().distinctBy { it.idValue() },
+        genres = map { it.genres }.flatten().distinctBy { it.idValue() },
         state = maxBy { it.state.priority() }.state,  // 显示优先级最高的状态
         updateTime = maxOf { it.updateTime }
     )
 }
 
 fun List<LAudio>.buildSnapshot(): Snapshot {
-    val list = this.distinctBy { it.id() } // 去除重复的歌曲
+    val list = this.distinctBy { it.idValue() } // 去除重复的歌曲
 
     val albums = list
         .groupBy { song -> song.metadata.album }

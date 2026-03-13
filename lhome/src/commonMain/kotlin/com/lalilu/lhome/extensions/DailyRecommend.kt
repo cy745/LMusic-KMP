@@ -63,7 +63,7 @@ object DailyRecommend : LazyGridContent {
                     val coverMemoryKey = imageLoader.components.key(item, Options(context))
 
                     AppRouter.route("/song/detail")
-                        .with("mediaId", item.id())
+                        .with("mediaId", item.idValue())
                         .with("sharedMap", sharedMap)
                         .with("coverCacheKey", coverMemoryKey)
                         .jump()
@@ -86,7 +86,7 @@ fun LazyGridScope.dailyRecommendForSideCompat(
         RecommendRow(
             modifier = Modifier,
             items = items,
-            getId = { it.id() }
+            getId = { it.idValue() }
         ) { item ->
             if (item is Linkable && item.ref<LAudio>().isNotEmpty()) {
                 RecommendGroupCard(
@@ -97,9 +97,9 @@ fun LazyGridScope.dailyRecommendForSideCompat(
             } else {
                 RecommendCard(
                     modifier = Modifier.width(width = 250.dp),
-                    id = item.id(),
-                    title = item.title(),
-                    subTitle = item.subtitle(),
+                    id = item.idValue(),
+                    title = item.titleValue(),
+                    subTitle = item.subtitleValue(),
                     imageData = item,
                     onClick = { onClick(item, it) }
                 )

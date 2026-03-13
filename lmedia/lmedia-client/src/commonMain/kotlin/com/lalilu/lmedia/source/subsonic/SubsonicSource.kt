@@ -302,7 +302,7 @@ class SubsonicSource(
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
         val api = subsonicApi ?: return@withContext null
-        val lyric = api.getLyricsBySongId(song.id())
+        val lyric = api.getLyricsBySongId(song.idValue())
 
         lyric.response.lyricsList.structuredLyrics.firstOrNull()
             ?.toLrcContent()
@@ -310,12 +310,12 @@ class SubsonicSource(
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? {
-        val url = buildSubsonicUrl("stream", mapOf("id" to song.id()))
+        val url = buildSubsonicUrl("stream", mapOf("id" to song.idValue()))
         return MediaData.Url(url)
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? {
-        val url = buildSubsonicUrl("getCoverArt", mapOf("id" to song.id()))
+        val url = buildSubsonicUrl("getCoverArt", mapOf("id" to song.idValue()))
         return MediaData.Url(url)
     }
 

@@ -205,7 +205,7 @@ class RemoteSource(
     }
 
     override suspend fun getLyric(song: LAudio): String? {
-        val targetUrl = "lyric/${song.id().encodeURLPathPart()}"
+        val targetUrl = "lyric/${song.idValue().encodeURLPathPart()}"
         val salt = config.get<String>("salt").getOrNull()
         val token = config.get<String>("token").getOrNull()
         val lyric = requireClient()
@@ -221,7 +221,7 @@ class RemoteSource(
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? {
-        val targetUrl = "picture/${song.id().encodeURLPathPart()}"
+        val targetUrl = "picture/${song.idValue().encodeURLPathPart()}"
         val salt = config.get<String>("salt").getOrNull()
         val token = config.get<String>("token").getOrNull()
 
@@ -240,13 +240,13 @@ class RemoteSource(
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? {
-        val targetUrl = "media/${song.id().encodeURLPathPart()}"
+        val targetUrl = "media/${song.idValue().encodeURLPathPart()}"
         val url = config.get<String>("url").getOrThrow()
         val salt = config.get<String>("salt").getOrNull()
         val token = config.get<String>("token").getOrNull()
 
         if (song.sourceItem is SourceItemDefaults.RequestUrl) {
-            val baseUrl = "http://${url}/media/${song.id().encodeURLPathPart()}"
+            val baseUrl = "http://${url}/media/${song.idValue().encodeURLPathPart()}"
             val authParams = if (salt != null && token != null) "?s=$salt&t=$token" else ""
             return MediaData.Url(baseUrl + authParams)
         }

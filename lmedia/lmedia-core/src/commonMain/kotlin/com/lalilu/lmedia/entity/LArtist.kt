@@ -1,24 +1,35 @@
 package com.lalilu.lmedia.entity
 
+import androidx.room3.ColumnInfo
+import androidx.room3.Entity
+import androidx.room3.Ignore
+import androidx.room3.PrimaryKey
 import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
 
+@Entity(tableName = "l_artist")
 @Serializable
 data class LArtist(
-    val id: String,
-    val title: String,
-    val subtitle: String,
+    @PrimaryKey
+    @ColumnInfo("artist_id")
+    var id: String = "",
+    var title: String = "",
+    var subtitle: String = "",
+
+    @Ignore
     val extra: Map<String, String> = emptyMap()
 ) : LItem {
-    override fun id(): String = id
-    override fun title(): String = title
-    override fun subtitle(): String = subtitle
-    override fun extra(): Map<String, String> = extra
+    override fun idValue(): String = id
+    override fun titleValue(): String = title
+    override fun subtitleValue(): String = subtitle
+    override fun extraValue(): Map<String, String> = extra
+
+    @Ignore
     override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
 }
 
 /**
- * 根据特殊的符号将[LArtist.title]拆分成多个[LArtist]
+ * 根据特殊的符号将[LArtist.titleValue]拆分成多个[LArtist]
  */
 fun List<LArtist>.separate(): List<LArtist> = flatMap {
     it.title.split('/', ';', '、', ',', '，').map { artist ->
@@ -32,7 +43,7 @@ fun List<LArtist>.separate(): List<LArtist> = flatMap {
 }
 
 /**
- * 根据[LArtist.title]将多个重名的[LArtist]合并
+ * 根据[LArtist.titleValue]将多个重名的[LArtist]合并
  */
 fun List<LArtist>.merge(): List<LArtist> = groupBy { it.title }.map { entry ->
     LArtist(

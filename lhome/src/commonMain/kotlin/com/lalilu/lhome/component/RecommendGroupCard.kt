@@ -51,15 +51,15 @@ fun RecommendGroupCard(
         }
     }
     val title = remember(group) {
-        group.title().ifBlank { "元素" }
+        group.titleValue().ifBlank { "元素" }
     }
     val subtitle = remember(group) {
-        group.subtitle().ifBlank { "共 ${items.size} 首歌曲" }
+        group.subtitleValue().ifBlank { "共 ${items.size} 首歌曲" }
     }
 
     SharedContext(
         sharedMap = rememberSharedMap(
-            id = group.id(),
+            id = group.idValue(),
             keys = listOf("TITLE", "SUBTITLE")
         )
     ) {
@@ -139,7 +139,7 @@ private fun RecommendGroupItemCard(
 ) {
     SharedContext(
         sharedMap = rememberSharedMap(
-            id = item.id(),
+            id = item.idValue(),
             keys = listOf("COVER")
         )
     ) {
@@ -157,7 +157,7 @@ private fun RecommendGroupItemCard(
                 .sharedElementV2("COVER"),
             contentScale = ContentScale.Crop,
             model = item,
-            contentDescription = item.title()
+            contentDescription = item.titleValue()
         )
     }
 }
@@ -180,10 +180,10 @@ private fun RecommendGroupCardPreview() = preview {
         val firstItem = audios.randomOrNull()
         object : LItem, Linkable {
             override val refs: MutableMap<kotlin.reflect.KClass<*>, MutableSet<Linkable>> = mutableMapOf()
-            override fun id(): String = firstItem?.id() ?: ""
-            override fun title(): String = firstItem?.title() ?: ""
-            override fun subtitle(): String = firstItem?.subtitle() ?: ""
-            override fun extra(): Map<String, String> = emptyMap()
+            override fun idValue(): String = firstItem?.idValue() ?: ""
+            override fun titleValue(): String = firstItem?.titleValue() ?: ""
+            override fun subtitleValue(): String = firstItem?.subtitleValue() ?: ""
+            override fun extraValue(): Map<String, String> = emptyMap()
         }.also { linkable ->
             audios.take(4).forEach { linkable.link(it) }
         }
@@ -192,10 +192,10 @@ private fun RecommendGroupCardPreview() = preview {
         val firstItem = audios.randomOrNull()
         object : LItem, Linkable {
             override val refs: MutableMap<kotlin.reflect.KClass<*>, MutableSet<Linkable>> = mutableMapOf()
-            override fun id(): String = firstItem?.id() ?: ""
-            override fun title(): String = firstItem?.title() ?: ""
-            override fun subtitle(): String = firstItem?.subtitle() ?: ""
-            override fun extra(): Map<String, String> = emptyMap()
+            override fun idValue(): String = firstItem?.idValue() ?: ""
+            override fun titleValue(): String = firstItem?.titleValue() ?: ""
+            override fun subtitleValue(): String = firstItem?.subtitleValue() ?: ""
+            override fun extraValue(): Map<String, String> = emptyMap()
         }.also { linkable ->
             audios.take(5).forEach { linkable.link(it) }
         }

@@ -10,9 +10,9 @@ class LFolder(
     val subtitle: String,
     val extra: Map<String, String> = emptyMap()
 ) : LItem {
-    override fun id(): String = id
-    override fun title(): String = title
-    override fun subtitle(): String = subtitle
-    override fun extra(): Map<String, String> = extra
+    override fun idValue(): String = id
+    override fun titleValue(): String = title
+    override fun subtitleValue(): String = subtitle
+    override fun extraValue(): Map<String, String> = extra
     override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
 }

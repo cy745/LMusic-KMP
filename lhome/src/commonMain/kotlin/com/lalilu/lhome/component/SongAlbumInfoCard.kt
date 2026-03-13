@@ -27,8 +27,8 @@ fun SongAlbumInfoCard(
     SongAlbumInfoCard(
         modifier = modifier,
         imageData = album.ref<LAudio>().firstOrNull() ?: album,
-        title = album.title(),
-        subTitle = album.subtitle()
+        title = album.titleValue(),
+        subTitle = album.subtitleValue()
     )
 }
 

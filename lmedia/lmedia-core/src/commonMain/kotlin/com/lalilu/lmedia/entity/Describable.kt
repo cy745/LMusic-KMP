@@ -9,11 +9,11 @@ interface Describable {
      * 获取对象的标题。
      * @return 标题字符串。
      */
-    fun title(): String
+    fun titleValue(): String
 
     /**
      * 获取对象的副标题。
      * @return 副标题字符串。
      */
-    fun subtitle(): String
+    fun subtitleValue(): String
 }
