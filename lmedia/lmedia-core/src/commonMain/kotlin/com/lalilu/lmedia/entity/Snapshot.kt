@@ -91,18 +91,18 @@ fun Snapshot.redirectToNewSource(sourceName: String) {
 @OptIn(ExperimentalTime::class)
 fun Array<Snapshot>.combineToOne(): Snapshot {
     return Snapshot(
-        audios = map { it.audios }.flatten().distinctBy { it.id },
-        albums = map { it.albums }.flatten().distinctBy { it.id },
-        artists = map { it.artists }.flatten().distinctBy { it.id },
-        folders = map { it.folders }.flatten().distinctBy { it.id },
-        genres = map { it.genres }.flatten().distinctBy { it.id },
+        audios = map { it.audios }.flatten().distinctBy { it.id() },
+        albums = map { it.albums }.flatten().distinctBy { it.id() },
+        artists = map { it.artists }.flatten().distinctBy { it.id() },
+        folders = map { it.folders }.flatten().distinctBy { it.id() },
+        genres = map { it.genres }.flatten().distinctBy { it.id() },
         state = maxBy { it.state.priority() }.state,  // 显示优先级最高的状态
         updateTime = maxOf { it.updateTime }
     )
 }
 
 fun List<LAudio>.buildSnapshot(): Snapshot {
-    val list = this.distinctBy { it.id } // 去除重复的歌曲
+    val list = this.distinctBy { it.id() } // 去除重复的歌曲
 
     val albums = list
         .groupBy { song -> song.metadata.album }

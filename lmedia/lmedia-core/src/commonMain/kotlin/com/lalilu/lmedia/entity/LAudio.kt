@@ -1,15 +1,16 @@
 package com.lalilu.lmedia.entity
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlin.reflect.KClass
 
 @Serializable
 data class LAudio(
-    override val id: String = "",
-    override val title: String = "",
-    override val subtitle: String = "",
-    override val extra: Map<String, String> = EMPTY_EXTRA,
+    @SerialName("id") val id: String = "",
+    @SerialName("title") val title: String = "",
+    @SerialName("subtitle") val subtitle: String = "",
+    @SerialName("extra") val extra: Map<String, String> = EMPTY_EXTRA,
 
     @Transient
     var sourceItem: SourceItem = SourceItemDefaults.Empty,
@@ -20,8 +21,19 @@ data class LAudio(
         val EMPTY_EXTRA = emptyMap<String, String>()
     }
 
+    // Identifiable implementation
+    override fun id(): String = id
+
+    // Describable implementation
+    override fun title(): String = title
+    override fun subtitle(): String = subtitle
+
+    // Extensible implementation
+    override fun extra(): Map<String, String> = extra
+
+    // Linkable implementation
     @Transient
-    val refs = mutableMapOf<KClass<*>, MutableSet<LGroupItem>>()
+    override val refs = mutableMapOf<KClass<*>, MutableSet<Linkable>>()
 
     /**
      * 将指定的分组项链接到当前音频对象

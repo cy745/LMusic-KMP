@@ -32,12 +32,12 @@ class HomeScreenModel(
         .flatMapLatest { list ->
             library.snapshotStateFlow.mapLatest { snapshot ->
                 mutableListOf<LItem>().apply {
-                    addAll(snapshot.audios.filter { it.id in list })
-                    addAll(snapshot.albums.filter { it.id in list })
-                    addAll(snapshot.artists.filter { it.id in list })
-                    addAll(snapshot.genres.filter { it.id in list })
-                    addAll(snapshot.folders.filter { it.id in list })
-                }.distinctBy { it.id }
+                    addAll(snapshot.audios.filter { it.id() in list })
+                    addAll(snapshot.albums.filter { it.id() in list })
+                    addAll(snapshot.artists.filter { it.id() in list })
+                    addAll(snapshot.genres.filter { it.id() in list })
+                    addAll(snapshot.folders.filter { it.id() in list })
+                }.distinctBy { it.id() }
             }
         }
         .toState(emptyList(), viewModelScope)
@@ -45,11 +45,11 @@ class HomeScreenModel(
     fun requireUpdateDailyRecommends() = viewModelScope.launch {
         val buildItems = buildList {
             library.snapshotStateFlow.value.apply {
-                addAll(audios.shuffled().take(10).map { it.id })
-                addAll(albums.shuffled().take(2).map { it.id })
-                addAll(artists.shuffled().take(2).map { it.id })
-                addAll(genres.shuffled().take(1).map { it.id })
-                addAll(folders.shuffled().take(1).map { it.id })
+                addAll(audios.shuffled().take(10).map { it.id() })
+                addAll(albums.shuffled().take(2).map { it.id() })
+                addAll(artists.shuffled().take(2).map { it.id() })
+                addAll(genres.shuffled().take(1).map { it.id() })
+                addAll(folders.shuffled().take(1).map { it.id() })
             }
         }.shuffled()
 

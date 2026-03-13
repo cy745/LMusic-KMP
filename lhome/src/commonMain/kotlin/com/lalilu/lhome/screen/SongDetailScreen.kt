@@ -91,7 +91,7 @@ fun SongDetailScreenContent(
     val artists = remember(song) { song?.ref<LArtist>() ?: emptyList() }
     val albums = remember(song) { song?.ref<LAlbum>() ?: emptyList() }
     val songsInfo = remember(song) {
-        (song?.extra ?: emptyMap()) + (song?.metadata?.toMap() ?: emptyMap())
+        (song?.extra() ?: emptyMap()) + (song?.metadata?.toMap() ?: emptyMap())
             .filter { it.value.isNotBlank() }
     }
 
@@ -99,8 +99,8 @@ fun SongDetailScreenContent(
         when (key) {
             CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this
             CoverHeader.Param.COVER -> coverData
-            CoverHeader.Param.TITLE -> song?.title
-            CoverHeader.Param.SUBTITLE -> song?.subtitle
+            CoverHeader.Param.TITLE -> song?.title()
+            CoverHeader.Param.SUBTITLE -> song?.subtitle()
         }
     }
 
@@ -119,7 +119,7 @@ fun SongDetailScreenContent(
 
         items(
             items = albums,
-            key = { it.id }
+            key = { it.id() }
         ) {
             val paddingHorizontal = adaptiveValue(
                 compact = { 16.dp },

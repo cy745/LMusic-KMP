@@ -72,7 +72,7 @@ private fun provideServer(
         return mediaSource()
             ?.source()
             ?.firstOrNull()?.audios
-            ?.firstOrNull { it.id == id }
+            ?.firstOrNull { it.id() == id }
             ?: throw IllegalArgumentException("No audio found for id: $id")
     }
 

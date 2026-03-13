@@ -24,9 +24,17 @@ import coil3.compose.AsyncImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.rememberSharedMap
-import com.lalilu.lmedia.entity.*
+import com.lalilu.lmedia.entity.LAlbum
+import com.lalilu.lmedia.entity.LArtist
+import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.LFolder
+import com.lalilu.lmedia.entity.LGenre
+import com.lalilu.lmedia.entity.LGroupItem
+import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.entity.Linkable
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
+import kotlin.reflect.KClass
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -45,7 +53,7 @@ fun RecommendGroupCard(
         }
     }
     val title = remember(group) {
-        if (group.title.isNotBlank()) return@remember group.title
+        if (group.title().isNotBlank()) return@remember group.title()
 
         when (group) {
             is LAlbum -> "专辑"
@@ -56,7 +64,7 @@ fun RecommendGroupCard(
         }
     }
     val subtitle = remember(group) {
-        if (group.subtitle.isNotBlank()) return@remember group.subtitle
+        if (group.subtitle().isNotBlank()) return@remember group.subtitle()
 
         when (group) {
             is LAlbum -> "专辑: 共 ${group.itemsCount} 首歌曲"
@@ -69,7 +77,7 @@ fun RecommendGroupCard(
 
     SharedContext(
         sharedMap = rememberSharedMap(
-            id = group.id,
+            id = group.id(),
             keys = listOf("TITLE", "SUBTITLE")
         )
     ) {
@@ -149,7 +157,7 @@ private fun RecommendGroupItemCard(
 ) {
     SharedContext(
         sharedMap = rememberSharedMap(
-            id = item.id,
+            id = item.id(),
             keys = listOf("COVER")
         )
     ) {
@@ -167,7 +175,7 @@ private fun RecommendGroupItemCard(
                 .sharedElementV2("COVER"),
             contentScale = ContentScale.Crop,
             model = item,
-            contentDescription = item.title
+            contentDescription = item.title()
         )
     }
 }
@@ -191,10 +199,11 @@ private fun RecommendGroupCardPreview() = preview {
 
         object : LGroupItem {
             override val items = audios.take(4)
-            override val id: String = firstItem?.id ?: ""
-            override val title: String = firstItem?.title ?: ""
-            override val subtitle: String = firstItem?.subtitle ?: ""
-            override val extra: Map<String, String> = emptyMap()
+            override fun id(): String = firstItem?.id() ?: ""
+            override fun title(): String = firstItem?.title() ?: ""
+            override fun subtitle(): String = firstItem?.subtitle() ?: ""
+            override fun extra(): Map<String, String> = emptyMap()
+            override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
         }
     }
     val group2 = remember {
@@ -202,10 +211,11 @@ private fun RecommendGroupCardPreview() = preview {
 
         object : LGroupItem {
             override val items = audios.take(5)
-            override val id: String = firstItem?.id ?: ""
-            override val title: String = firstItem?.title ?: ""
-            override val subtitle: String = firstItem?.subtitle ?: ""
-            override val extra: Map<String, String> = emptyMap()
+            override fun id(): String = firstItem?.id() ?: ""
+            override fun title(): String = firstItem?.title() ?: ""
+            override fun subtitle(): String = firstItem?.subtitle() ?: ""
+            override fun extra(): Map<String, String> = emptyMap()
+            override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
         }
     }
 

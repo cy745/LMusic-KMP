@@ -1,15 +1,21 @@
 package com.lalilu.lmedia.entity
 
 import kotlinx.serialization.Serializable
+import kotlin.reflect.KClass
 
 @Serializable
 class LArtist(
-    override val id: String,
-    override val title: String,
-    override val subtitle: String,
-    override val extra: Map<String, String> = emptyMap(),
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val extra: Map<String, String> = emptyMap(),
     override val items: List<LAudio> = emptyList()
-) : LGroupItem {
+) : Identifiable, Describable, Extensible, Linkable, LGroupItem {
+    override fun id(): String = id
+    override fun title(): String = title
+    override fun subtitle(): String = subtitle
+    override fun extra(): Map<String, String> = extra
+    override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
 }
 
 /**

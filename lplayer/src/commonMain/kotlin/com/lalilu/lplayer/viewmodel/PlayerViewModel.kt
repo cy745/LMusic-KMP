@@ -30,7 +30,7 @@ class PlayerViewModel(
     val currentPlaylist = LPlayer.instance.playlist
         .combine(LPlayer.instance.currentItem) { list, item ->
             val indexOfFirst = list
-                .indexOfFirst { it.id == item?.id }
+                .indexOfFirst { it.id() == item?.id() }
                 .coerceAtLeast(0)
 
             list.runCatching { drop(indexOfFirst) + take(indexOfFirst) }

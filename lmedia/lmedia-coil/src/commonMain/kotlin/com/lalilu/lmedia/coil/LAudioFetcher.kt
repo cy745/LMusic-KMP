@@ -63,6 +63,6 @@ class LAudioFetcherFactory() : Fetcher.Factory<LAudio> {
 
 class LAudioKeyer : Keyer<LAudio> {
     override fun key(data: LAudio, options: Options): String? {
-        return "${data.mediaSourceName}_${data.id}"
+        return "${data.mediaSourceName}_${data.id()}"
     }
 }

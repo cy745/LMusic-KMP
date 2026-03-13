@@ -64,7 +64,7 @@ object HistoryPanel : LazyGridContent {
 
             items(
                 items = items,
-                key = { it.id },
+                key = { it.id() },
                 contentType = { "HISTORY_ITEM" },
                 span = { GridItemSpan(maxLineSpan / columnsValue.value) }
             ) {
@@ -74,7 +74,7 @@ object HistoryPanel : LazyGridContent {
                             onClick = {
                                 PlayerAction.UpdateList(
                                     ids = LMedia.instance.get<LAudio>().map(LItem::id),
-                                    id = it.id,
+                                    id = it.id(),
                                     start = true
                                 ).action()
                             },
@@ -83,14 +83,14 @@ object HistoryPanel : LazyGridContent {
                                 val coverMemoryKey = imageLoader.components.key(it, Options(context))
 
                                 AppRouter.route("/song/detail")
-                                    .with("mediaId", it.id)
+                                    .with("mediaId", it.id())
                                     .with("coverCacheKey", coverMemoryKey)
                                     .jump()
                             }
                         )
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    title = it.title,
-                    subtitle = it.subtitle,
+                    title = it.title(),
+                    subtitle = it.subtitle(),
                     imageData = it
                 )
             }

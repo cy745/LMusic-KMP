@@ -25,8 +25,8 @@ fun SongAlbumInfoCard(
     SongAlbumInfoCard(
         modifier = modifier,
         imageData = album.items.firstOrNull() ?: album,
-        title = album.title,
-        subTitle = album.subtitle
+        title = album.title(),
+        subTitle = album.subtitle()
     )
 }
 
