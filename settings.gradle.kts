@@ -51,6 +51,7 @@ include(":llyricview")
 include(":lhome")
 
 include("lmedia-server")
+include(":lmedia:lmedia-data")
 include(":lmedia:lmedia-core")
 include(":lmedia:lmedia-ui")
 include(":lmedia:lmedia-server")
