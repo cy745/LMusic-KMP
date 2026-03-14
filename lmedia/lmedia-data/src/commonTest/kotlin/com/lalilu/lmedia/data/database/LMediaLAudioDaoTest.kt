@@ -5,7 +5,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 
 
-class LMediaLAudioDaoTestJvm {
+class LMediaLAudioDaoTest {
     val dao = requireDatabase<LMediaDatabase>()
         .audioDao()
 

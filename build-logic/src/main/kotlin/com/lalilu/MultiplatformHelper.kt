@@ -89,7 +89,7 @@ val NamedDomainObjectContainerScope<KotlinSourceSet>.androidMain
     get() = getByName("androidMain")
 
 val NamedDomainObjectContainerScope<KotlinSourceSet>.iosMain: KotlinSourceSet?
-    get() = runCatching { getByName("iosMain") }.getOrNull()
+    get() = runCatching { create("iosMain") }.getOrNull()
 
 val NamedDomainObjectContainerScope<KotlinSourceSet>.jvmMain
     get() = getByName("jvmMain")
