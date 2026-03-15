@@ -74,6 +74,7 @@ kotlin {
             implementation(project(":common"))
             implementation(project(":component"))
             implementation(project(":lmedia:lmedia-core"))
+            implementation(project(":lmedia:lmedia-data"))
             implementation(project(":lmedia:lmedia-coil"))
             implementation(project(":lmedia:lmedia-ui"))
             implementation(project(":lplayer"))

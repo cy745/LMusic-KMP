@@ -30,6 +30,7 @@ vlcj = "4.11.0"
 media3 = "1.8.0"
 room3 = "3.0.0-alpha01"
 sqlite = "2.7.0-alpha01"
+paging = "3.5.0-alpha01"
 rococoa = "4d401915af"
 human-readable = "1.12.0"
 xmlutil = "0.91.2"
@@ -141,9 +142,13 @@ media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = 
 
 room3-common = { module = "androidx.room3:room3-common", version.ref = "room3" }
 room3-runtime = { module = "androidx.room3:room3-runtime", version.ref = "room3" }
+room3-paging = { module = "androidx.room3:room3-paging", version.ref = "room3" }
 room3-compiler = { module = "androidx.room3:room3-compiler", version.ref = "room3" }
 sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
 sqlite-web = { module = "androidx.sqlite:sqlite-web", version.ref = "sqlite" }
+paging-common = { module = "androidx.paging:paging-common", version.ref = "paging" }
+paging-runtime = { module = "androidx.paging:paging-runtime", version.ref = "paging" }
+paging-compose = { module = "androidx.paging:paging-compose", version.ref = "paging" }
 
 flowmvi-core = { module = "pro.respawn.flowmvi:core", version.ref = "flowmvi" }
 flowmvi-test = { module = "pro.respawn.flowmvi:test", version.ref = "flowmvi" }

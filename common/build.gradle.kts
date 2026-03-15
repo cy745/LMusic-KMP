@@ -40,6 +40,7 @@ applyMultiplatform {
         api(libs.sweetspi.runtime)
 
         api(libs.room3.common)
+        api(libs.paging.common)
     }
     test.dependencies {
         implementation(libs.kotlin.test)
