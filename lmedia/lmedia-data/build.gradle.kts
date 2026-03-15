@@ -62,3 +62,9 @@ dependencies {
         add("kspIosSimulatorArm64", libs.room3.compiler)
     }
 }
+
+afterEvaluate {
+    tasks.named("kspKotlinJvm") {
+        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
+    }
+}
