@@ -24,11 +24,7 @@ import coil3.compose.AsyncImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.rememberSharedMap
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LItem
-import com.lalilu.lmedia.entity.Linkable
-import com.lalilu.lmedia.entity.link
-import com.lalilu.lmedia.entity.ref
+import com.lalilu.lmedia.entity.*
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 
@@ -178,25 +174,21 @@ private fun RecommendGroupCardPreview() = preview {
     }
     val group1 = remember {
         val firstItem = audios.randomOrNull()
-        object : LItem, Linkable {
-            override val refs: MutableMap<kotlin.reflect.KClass<*>, MutableSet<Linkable>> = mutableMapOf()
-            override fun idValue(): String = firstItem?.idValue() ?: ""
-            override fun titleValue(): String = firstItem?.titleValue() ?: ""
-            override fun subtitleValue(): String = firstItem?.subtitleValue() ?: ""
-            override fun extraValue(): Map<String, String> = emptyMap()
-        }.also { linkable ->
+        LArtist(
+            id = "1",
+            title = firstItem?.titleValue() ?: "",
+            subtitle = firstItem?.titleValue() ?: ""
+        ).also { linkable ->
             audios.take(4).forEach { linkable.link(it) }
         }
     }
     val group2 = remember {
         val firstItem = audios.randomOrNull()
-        object : LItem, Linkable {
-            override val refs: MutableMap<kotlin.reflect.KClass<*>, MutableSet<Linkable>> = mutableMapOf()
-            override fun idValue(): String = firstItem?.idValue() ?: ""
-            override fun titleValue(): String = firstItem?.titleValue() ?: ""
-            override fun subtitleValue(): String = firstItem?.subtitleValue() ?: ""
-            override fun extraValue(): Map<String, String> = emptyMap()
-        }.also { linkable ->
+        LArtist(
+            id = "1",
+            title = firstItem?.titleValue() ?: "",
+            subtitle = firstItem?.titleValue() ?: ""
+        ).also { linkable ->
             audios.take(5).forEach { linkable.link(it) }
         }
     }
