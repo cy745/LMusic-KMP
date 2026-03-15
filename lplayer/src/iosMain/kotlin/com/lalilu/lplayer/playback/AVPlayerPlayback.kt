@@ -3,9 +3,9 @@ package com.lalilu.lplayer.playback
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.flatten
 import com.lalilu.lmedia.source.Library
 import com.lalilu.lmedia.source.MediaData
-import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.extensions.VolumeFadeHelper
 import com.lalilu.lplayer.helper.*
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
@@ -103,7 +103,7 @@ class AVPlayerPlayback(
                     context = observerContext
                 )
 
-                _currentItemIndex.value = _playlist.value.flatten().indexOf(item)
+                _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
                 avPlayer.replaceCurrentItemWithPlayerItem(playerItem)
                 avPlayer.play()
 
@@ -162,7 +162,7 @@ class AVPlayerPlayback(
                 player.play()
 
                 _isPlaying.value = true
-                _currentItemIndex.value = _playlist.value.flatten().indexOf(item)
+                _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
                 _currentDuration.value = (player.duration * 1000L).toLong()
                 updateNavigationCapabilities()
 
@@ -247,7 +247,7 @@ class AVPlayerPlayback(
 
     override suspend fun skipTo(index: Int) {
         try {
-            val targetItem = _playlist.value.flatten().getOrNull(index)
+            val targetItem = _playlist.value.flatten<LAudio>().getOrNull(index)
                 ?: throw Exception("Invalid index")
 
             if (targetItem.id == currentItem.value?.id) {

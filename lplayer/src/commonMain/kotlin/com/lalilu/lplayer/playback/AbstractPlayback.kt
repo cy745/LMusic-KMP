@@ -3,7 +3,7 @@ package com.lalilu.lplayer.playback
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
-import com.lalilu.lmedia.util.flatten
+import com.lalilu.lmedia.entity.flatten
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,7 +49,7 @@ abstract class AbstractPlayback(
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
     protected val flattenedPlaylist: StateFlow<List<LAudio>> = _playlist
-        .flatten()
+        .flatten<LAudio>()
         .stateIn(this, SharingStarted.WhileSubscribed(), emptyList())
 
     // Computed properties
@@ -192,7 +192,7 @@ abstract class AbstractPlayback(
     }
 
     protected fun updateShuffledIndices() {
-        val size = _playlist.value.flatten().size
+        val size = _playlist.value.flatten<LAudio>().size
         shuffledIndices = (0 until size).toList().shuffled(Random.Default)
         currentIndexInShuffled = shuffledIndices.indexOf(_currentItemIndex.value).takeIf { it >= 0 } ?: 0
     }

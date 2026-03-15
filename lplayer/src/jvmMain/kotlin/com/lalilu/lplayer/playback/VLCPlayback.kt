@@ -4,9 +4,9 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.entity.flatten
 import com.lalilu.lmedia.source.Library
 import com.lalilu.lmedia.source.MediaData
-import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.notification.MacOSNotification
 import com.lalilu.lplayer.player.ByteArrayCallbackMedia
@@ -74,7 +74,7 @@ class VLCPlayback(
         }
         lastRecordTime = -1
         player.controls().play()
-        _currentItemIndex.value = _playlist.value.flatten().indexOf(item)
+        _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
         updateNavigationCapabilities()
     }
 
@@ -134,7 +134,7 @@ class VLCPlayback(
 
     override suspend fun skipTo(index: Int) {
         try {
-            val targetItem = playlist.value.flatten().getOrNull(index)
+            val targetItem = playlist.value.flatten<LAudio>().getOrNull(index)
                 ?: throw Exception("Invalid index")
 
             if (targetItem.id == currentItem.value?.id) {

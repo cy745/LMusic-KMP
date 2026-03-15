@@ -17,8 +17,8 @@ import com.blankj.utilcode.util.LogUtils
 import com.blankj.utilcode.util.Utils
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.entity.flatten
 import com.lalilu.lmedia.source.Library
-import com.lalilu.lmedia.util.flatten
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.action.Action
 import com.lalilu.lplayer.action.PlayerAction
@@ -83,7 +83,7 @@ class MPlayerPlayback(
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
     private val flattenedPlaylist: StateFlow<List<LAudio>> = _playlist
-        .flatten()
+        .flatten<LAudio>()
         .stateIn(this, SharingStarted.WhileSubscribed(), emptyList())
 
     // Computed properties
@@ -230,7 +230,7 @@ class MPlayerPlayback(
     override suspend fun updatePlaylist(
         playlist: List<LItem>
     ) = runWithBrowser {
-        val items = MMedia.mapItems(playlist.map { item -> item.idValue })
+        val items = MMedia.mapItems(playlist.map { item -> item.idValue() })
         setMediaItems(items, 0, 0)
     }
 
@@ -239,7 +239,7 @@ class MPlayerPlayback(
         startIndex: Int,
         start: Boolean
     ) = runWithBrowser {
-        val items = MMedia.mapItems(playlist.map { it.idValue })
+        val items = MMedia.mapItems(playlist.map { it.idValue() })
         setMediaItems(items, startIndex, 0)
         if (start) play()
     }
