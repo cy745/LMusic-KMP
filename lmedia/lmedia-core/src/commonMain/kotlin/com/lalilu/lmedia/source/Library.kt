@@ -8,6 +8,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlin.reflect.KClass
 
+
+@Deprecated("不在使用该Library实现，替换使用lmedia-data中处理这些数据")
 @OptIn(ExperimentalCoroutinesApi::class)
 @Suppress("UNCHECKED_CAST")
 abstract class Library : ReadyState by readyStateImpl() {

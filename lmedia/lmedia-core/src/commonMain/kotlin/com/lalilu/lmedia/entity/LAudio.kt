@@ -6,7 +6,6 @@ import androidx.room3.Ignore
 import androidx.room3.PrimaryKey
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import kotlin.reflect.KClass
 
 @Entity(tableName = "l_audio")
 @Serializable
@@ -16,10 +15,11 @@ data class LAudio(
     var id: String = "",
     var title: String = "",
     var subtitle: String = "",
+    var mediaSourceName: String = "",
+    override var available: Boolean = false,
 
     @Ignore
-    @Transient
-    val extra: Map<String, String> = EMPTY_EXTRA,
+    val extra: Map<String, String>? = null,
 
     @Ignore
     @Transient
@@ -27,11 +27,9 @@ data class LAudio(
 
     @Ignore
     var metadata: Metadata = Metadata.EMPTY,
-    var mediaSourceName: String = "",
-) : LItem {
-    companion object {
-        val EMPTY_EXTRA = emptyMap<String, String>()
-    }
+) : LItem, Sourceable, Available, Playable,
+    Linkable by linkableImpl(),
+    Extensible by extensibleImpl(extra) {
 
     // Identifiable implementation
     override fun idValue(): String = id
@@ -40,13 +38,11 @@ data class LAudio(
     override fun titleValue(): String = title
     override fun subtitleValue(): String = subtitle
 
-    // Extensible implementation
-    override fun extraValue(): Map<String, String> = extra
+    // Sourceable implementation
+    override fun source(): String = mediaSourceName
 
-    // Linkable implementation
-    @Ignore
-    @Transient
-    override val refs = mutableMapOf<KClass<*>, MutableSet<Linkable>>()
+    // Playable implementation
+    override fun sourceItem(): SourceItem = sourceItem
 }
 
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")

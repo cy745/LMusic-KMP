@@ -56,8 +56,8 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
         val songs = pairs.map { (file, metadata) ->
             LAudio(
                 id = file.absolutePath(),
-                title = metadata.title,
-                subtitle = metadata.artist,
+                title = metadata.title ?: "",
+                subtitle = metadata.artist ?: "",
                 sourceItem = SourceItem.FileItem(file),
                 metadata = metadata,
                 mediaSourceName = this@SandboxFileSystemSource.name,
@@ -75,10 +75,10 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
 
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.id() == song.id }
+        val audio = sourceStateFlow.value.audios.firstOrNull { it.idValue() == song.id }
 
         val fileItem = audio?.sourceItem as? SourceItem.FileItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.id()}")
+            ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
 
         val path = fileItem.file.path
         if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
@@ -88,10 +88,10 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.id() == song.id }
+        val audio = sourceStateFlow.value.audios.firstOrNull { it.idValue() == song.id }
 
         val fileItem = audio?.sourceItem as? SourceItem.FileItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.id()}")
+            ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
 
         val path = fileItem.file.path
         if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
@@ -103,10 +103,10 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? = withContext(Dispatchers.io) {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.id() == song.id }
+        val audio = sourceStateFlow.value.audios.firstOrNull { it.idValue() == song.id }
 
         val fileItem = audio?.sourceItem as? SourceItem.FileItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.id()}")
+            ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
 
         val file = fileItem.file
         if (!file.exists()) {

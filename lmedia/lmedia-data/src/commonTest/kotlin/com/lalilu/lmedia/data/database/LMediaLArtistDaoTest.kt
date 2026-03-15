@@ -26,7 +26,7 @@ class LMediaLArtistDaoTest {
                     title = "Audio 1",
                     subtitle = "Subtitle 1",
                     extra = mapOf("key" to "value")
-                )
+                ).also { it.link(this) }
             )
             link(
                 LAudio(
@@ -34,15 +34,17 @@ class LMediaLArtistDaoTest {
                     title = "Audio 2",
                     subtitle = "Subtitle 2",
                     extra = mapOf("key" to "value")
-                )
+                ).also { it.link(this) }
             )
         }
 
         dao.insertAll(artist)
-        dao.getAllArtist().firstOrNull()
-            ?.let {
-                println(it)
-                it.ref<LAudio>().forEach {
+        dao.getAllArtist()
+            .firstOrNull()
+            ?.firstOrNull()
+            ?.let { linkable ->
+                println(linkable)
+                linkable.ref<LAudio>().forEach {
                     println(it)
                 }
             }

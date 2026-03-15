@@ -63,6 +63,7 @@ data class Snapshot(
     val folders: List<LFolder> = emptyList(),
     val genres: List<LGenre> = emptyList(),
     val state: SnapshotState = SnapshotState.Idle,
+    val relations: Map<String, Map<String, List<String>>> = emptyMap(),
     val updateTime: Long = Clock.System.now().toEpochMilliseconds()
 ) {
     companion object {
@@ -88,6 +89,7 @@ fun Snapshot.redirectToNewSource(sourceName: String) {
     genres.forEach { genre -> genre.ref<LAudio>().forEach { it.mediaSourceName = sourceName } }
 }
 
+@Deprecated("不再直接在Flow上处理数据合并")
 @OptIn(ExperimentalTime::class)
 fun Array<Snapshot>.combineToOne(): Snapshot {
     return Snapshot(
@@ -107,7 +109,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
     val albums = list
         .groupBy { song -> song.metadata.album }
         .map { (album, songs) ->
-            val name = album.takeIf { it.isNotBlank() } ?: "Unknown"
+            val name = album.takeIf { !it.isNullOrBlank() } ?: "Unknown"
             LAlbum(
                 id = name,
                 title = name,
@@ -123,25 +125,28 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
     val artists = list
         .groupBy { song -> song.metadata.artist }
         .map { (artist, songs) ->
-            val name = artist.takeIf { it.isNotBlank() } ?: "Unknown"
-            LArtist(
-                id = name,
-                title = name,
-                subtitle = ""
-            ).also { artistEntity ->
-                songs.forEach { song ->
-                    song.link(artistEntity)
-                    artistEntity.link(song)
+            val nameStr = artist.takeIf { !it.isNullOrBlank() } ?: "Unknown"
+            val names = nameStr.split('/', ';', '、', ',', '，')
+                .distinctBy { it }
+
+            names.map { name ->
+                LArtist(
+                    id = name,
+                    title = name,
+                    subtitle = ""
+                ).also { artistEntity ->
+                    songs.forEach { song ->
+                        song.link(artistEntity)
+                        artistEntity.link(song)
+                    }
                 }
             }
-        }
-        .separate()
-        .merge()
+        }.flatten()
 
     val genres = list
         .groupBy { song -> song.metadata.genre }
         .map { (genre, songs) ->
-            val name = genre.takeIf { it.isNotBlank() } ?: "Unknown"
+            val name = genre.takeIf { !it.isNullOrBlank() } ?: "Unknown"
             LGenre(
                 id = name,
                 title = name,
@@ -159,6 +164,31 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
         albums = albums,
         artists = artists,
         genres = genres,
+        relations = buildRelations(audios = list),
         state = SnapshotState.Success
     )
+}
+
+fun buildRelations(
+    audios: List<LAudio>
+): Map<String, Map<String, List<String>>> {
+    val relations: MutableMap<String, MutableMap<String, MutableList<String>>> = mutableMapOf()
+//
+//    relations.getOrPut(LArtist::class.qualifiedName!!) { mutableMapOf() }.apply {
+//        audios.forEach { audio ->
+//            val artists = audio.ref<LArtist>()
+//            val list = getOrPut(audio.idValue()) { mutableListOf() }
+//            list.addAll(artists.map { it.idValue() })
+//        }
+//    }
+//
+//    relations.getOrPut(LAlbum::class.qualifiedName!!) { mutableMapOf() }.apply {
+//        audios.forEach { audio ->
+//            val albums = audio.ref<LAlbum>()
+//            val list = getOrPut(audio.idValue()) { mutableListOf() }
+//            list.addAll(albums.map { it.idValue() })
+//        }
+//    }
+
+    return relations
 }

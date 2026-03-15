@@ -12,3 +12,13 @@ interface Extensible {
      */
     fun extraValue(): Map<String, String>
 }
+
+/**
+ * 创建一个 [Extensible] 的实现实例。
+ *
+ * @param extra 可选的额外数据映射表。如果为 null，则返回空映射。
+ * @return 一个实现了 [Extensible] 接口的对象，其 [Extensible.extraValue] 方法返回提供的映射或空映射。
+ */
+fun extensibleImpl(extra: Map<String, String>?) = object : Extensible {
+    override fun extraValue(): Map<String, String> = extra ?: emptyMap()
+}

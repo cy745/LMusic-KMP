@@ -1,6 +1,9 @@
 package com.lalilu.lmedia.entity
 
 import androidx.room3.Ignore
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.serialization.Transient
 import kotlin.reflect.KClass
 
@@ -16,6 +19,18 @@ interface Linkable {
     @get:Ignore
     @Transient
     val refs: MutableMap<KClass<*>, MutableSet<Linkable>>
+}
+
+/**
+ * 创建一个 [Linkable] 接口的简单实现实例。
+ *
+ * 该函数返回一个匿名对象，其中 [Linkable.refs] 属性被初始化为空的可变映射。
+ * 适用于需要快速构建一个可链接对象但不需要自定义逻辑的场景。
+ *
+ * @return 一个新的 [Linkable] 实例，其引用集合为空。
+ */
+fun linkableImpl() = object : Linkable {
+    override val refs = mutableMapOf<KClass<*>, MutableSet<Linkable>>()
 }
 
 /**
@@ -45,4 +60,34 @@ inline fun <reified T : Linkable> Linkable.ref(): List<T> {
  */
 inline fun <reified T : Linkable> Linkable.refCount(): Int {
     return refs[T::class]?.count() ?: 0
+}
+
+/**
+ * 将 [Linkable] 对象列表扁平化，提取并收集所有指定类型的链接项。
+ *
+ * 该扩展函数遍历列表中的每个 [Linkable] 对象，调用其 [ref] 方法获取指定类型 [T] 的关联项，
+ * 并将结果合并为一个单一的列表返回。
+ *
+ * @param T 要提取的链接项类型，必须实现自 [Linkable]
+ * @return 包含所有嵌套的指定类型链接项的扁平化列表
+ */
+inline fun <reified T : Linkable> List<Linkable>.flatten(): List<T> {
+    return flatMap {
+        if (it is T) return@flatMap listOf(it)
+        it.ref<T>()
+    }
+}
+
+/**
+ * 将发射 [Linkable] 对象列表的 Flow 扁平化，提取并收集所有指定类型的链接项。
+ *
+ * 该扩展函数对 Flow 发射的每个列表应用 [flatten] 操作，将其中嵌套的指定类型 [T] 的链接项
+ * 提取并合并为新的列表进行发射。使用 [mapLatest] 确保只处理最新的列表数据。
+ *
+ * @param T 要提取的链接项类型，必须实现自 [Linkable]
+ * @return 一个发射扁平化后的指定类型链接项列表的 Flow
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+inline fun <reified T : Linkable> Flow<List<Linkable>>.flatten(): Flow<List<T>> {
+    return mapLatest { list -> list.flatten<T>() }
 }

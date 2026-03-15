@@ -1,12 +1,6 @@
 package com.lalilu.lmedia.data.database
 
-import androidx.room3.Dao
-import androidx.room3.Delete
-import androidx.room3.Insert
-import androidx.room3.OnConflictStrategy
-import androidx.room3.Query
-import androidx.room3.Transaction
-import androidx.room3.Update
+import androidx.room3.*
 import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.link
@@ -45,10 +39,10 @@ interface LArtistDao {
 
     @Transaction
     @Query("SELECT * FROM l_artist")
-    fun getAllArtistWithAudios(): Flow<QueryLArtistWithLAudioList>
+    fun getAllArtistWithAudios(): Flow<List<QueryLArtistWithLAudioList>>
 
-    fun getAllArtist(): Flow<LArtist> = getAllArtistWithAudios()
-        .map {
+    fun getAllArtist(): Flow<List<LArtist>> = getAllArtistWithAudios().map { list ->
+        list.map {
             it.artist.also { artistEntry ->
                 it.audios.forEach { song ->
                     artistEntry.link(song)
@@ -56,6 +50,7 @@ interface LArtistDao {
                 }
             }
         }
+    }
 
     @Transaction
     @Query("SELECT * FROM l_artist WHERE artist_id = :artistId")
