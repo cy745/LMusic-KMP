@@ -83,8 +83,8 @@ class LAudioSerializationTest {
         val serialized = json.encodeToString(audio)
         val deserialized = json.decodeFromString<LAudio>(serialized)
 
-        assertEquals(extra["coverUrl"], deserialized.extra["coverUrl"])
-        assertEquals(extra["lyricsUrl"], deserialized.extra["lyricsUrl"])
+        assertEquals(extra["coverUrl"], deserialized.extraValue()["coverUrl"])
+        assertEquals(extra["lyricsUrl"], deserialized.extraValue()["lyricsUrl"])
     }
 
     @Test
