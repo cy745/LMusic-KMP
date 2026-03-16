@@ -38,6 +38,7 @@ kotlin {
             dependencies {
                 implementation(project(":component"))
                 implementation(project(":lmedia:lmedia-core"))
+                implementation(project(":lmedia:lmedia-data"))
                 implementation(project(":lplayer"))
                 implementation(libs.remixicon.kmp)
                 implementation(libs.compose.resources)

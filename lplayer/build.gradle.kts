@@ -47,6 +47,7 @@ kotlin {
             dependencies {
                 api(project(":component"))
                 api(project(":lmedia:lmedia-core"))
+                api(project(":lmedia:lmedia-data"))
                 api(project(":llyricview"))
                 api(libs.compose.resources)
                 api(libs.compose.preview)
