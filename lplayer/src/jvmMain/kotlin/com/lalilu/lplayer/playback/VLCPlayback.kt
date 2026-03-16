@@ -1,11 +1,10 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
-import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.flatten
-import com.lalilu.lmedia.source.Library
+import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.notification.MacOSNotification
@@ -14,7 +13,6 @@ import com.lalilu.lplayer.player.VLCPlayer
 import com.lalilu.lplayer.player.VLCPlayerLoader
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import kotlin.time.Clock
@@ -24,7 +22,6 @@ import kotlin.time.ExperimentalTime
 class VLCPlayback(
     private val library: Library
 ) : AbstractPlayback(), KoinComponent {
-    private val platformMediaSource: PlatformMediaSource by inject()
     private var playerInstance: MediaPlayer? = null
     val player: MediaPlayer
         get() = playerInstance ?: throw Exception("Player Not Initialized")
@@ -46,12 +43,9 @@ class VLCPlayback(
     }
 
     override suspend fun playItem(item: LAudio) {
-        val source = platformMediaSource.sources
-            .firstOrNull { item.mediaSourceName == it.name }
-            ?: throw Exception("No source item found for ${item.mediaSourceName}")
+        val source = library.requireMediaSource(item.source())
 
-        val data = source.dataSource.getMedia(item)
-        when (data) {
+        when (val data = source.dataSource.getMedia(item)) {
             is MediaData.Url -> {
                 Logger.i(tag = "VLCPlayback", messageString = "prepared with url: ${data.url}")
                 player.media().prepare(data.url)
