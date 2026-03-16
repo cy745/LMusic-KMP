@@ -5,7 +5,6 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MediaMetadata.MEDIA_TYPE_ALBUM
 import androidx.media3.common.MediaMetadata.MEDIA_TYPE_ARTIST
 import androidx.media3.common.MediaMetadata.MEDIA_TYPE_FOLDER_MIXED
-import com.lalilu.lmedia.LMedia
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
@@ -13,7 +12,11 @@ import com.lalilu.lmedia.entity.LFolder
 import com.lalilu.lmedia.entity.LGenre
 import com.lalilu.lmedia.entity.ref
 import android.net.Uri
+import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.entity.refCount
 import io.ktor.http.encodeURLPathPart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 
 fun LAudio.toMediaItem(): MediaItem {
     val uri = Uri.Builder()
@@ -49,7 +52,7 @@ fun LArtist.toMediaItem(): MediaItem {
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
-                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${items.size}")
+                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${refCount<LAudio>()}")
                 .setMediaType(MEDIA_TYPE_ARTIST)
                 .setIsPlayable(false)
                 .setIsBrowsable(true)
@@ -64,7 +67,7 @@ fun LAlbum.toMediaItem(): MediaItem {
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
-                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${items.size}")
+                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${refCount<LAudio>()}")
                 .setMediaType(MEDIA_TYPE_ALBUM)
                 .setIsPlayable(false)
                 .setIsBrowsable(true)
@@ -79,7 +82,7 @@ fun LFolder.toMediaItem(): MediaItem {
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
-                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${items.size}")
+                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${refCount<LAudio>()}")
                 .setMediaType(MEDIA_TYPE_FOLDER_MIXED)
                 .setIsPlayable(false)
                 .setIsBrowsable(true)
@@ -94,7 +97,7 @@ fun LGenre.toMediaItem(): MediaItem {
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
-                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${items.size}")
+                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${refCount<LAudio>()}")
                 .setMediaType(MEDIA_TYPE_FOLDER_MIXED)
                 .setIsPlayable(false)
                 .setIsBrowsable(true)
@@ -115,12 +118,14 @@ object MMedia {
     const val ALL_ALBUMS = "all_albums"
 
     fun getItem(mediaId: String): MediaItem? = LMedia.instance.run {
-        when {
-            mediaId.startsWith(ARTIST_PREFIX) -> get<LArtist>(mediaId)?.toMediaItem()
-            mediaId.startsWith(ALBUM_PREFIX) -> get<LAlbum>(mediaId)?.toMediaItem()
-            mediaId.startsWith(GENRE_PREFIX) -> get<LGenre>(mediaId)?.toMediaItem()
-            mediaId.startsWith(FOLDER_PREFIX) -> get<LFolder>(mediaId)?.toMediaItem()
-            else -> get<LAudio>(mediaId)?.toMediaItem()
+        runBlocking(Dispatchers.IO) {
+            when {
+                mediaId.startsWith(ARTIST_PREFIX) -> get<LArtist>(mediaId)?.toMediaItem()
+                mediaId.startsWith(ALBUM_PREFIX) -> get<LAlbum>(mediaId)?.toMediaItem()
+                mediaId.startsWith(GENRE_PREFIX) -> get<LGenre>(mediaId)?.toMediaItem()
+                mediaId.startsWith(FOLDER_PREFIX) -> get<LFolder>(mediaId)?.toMediaItem()
+                else -> get<LAudio>(mediaId)?.toMediaItem()
+            }
         }
     }
 
@@ -129,32 +134,34 @@ object MMedia {
     }
 
     fun getChildren(parentId: String): List<MediaItem> = LMedia.instance.run {
-        when {
-            parentId == "all_songs" -> {
-                get<LAudio>().map { it.toMediaItem() }
-            }
+        runBlocking {
+            when {
+                parentId == "all_songs" -> {
+                    get<LAudio>().map { it.toMediaItem() }
+                }
 
-            parentId.startsWith(ARTIST_PREFIX) -> {
-                val mediaId = parentId.substring(ARTIST_PREFIX.length)
-                get<LArtist>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
-            }
+                parentId.startsWith(ARTIST_PREFIX) -> {
+                    val mediaId = parentId.substring(ARTIST_PREFIX.length)
+                    get<LArtist>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
+                }
 
-            parentId.startsWith(ALBUM_PREFIX) -> {
-                val mediaId = parentId.substring(ALBUM_PREFIX.length)
-                get<LAlbum>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
-            }
+                parentId.startsWith(ALBUM_PREFIX) -> {
+                    val mediaId = parentId.substring(ALBUM_PREFIX.length)
+                    get<LAlbum>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
+                }
 
-            parentId.startsWith(GENRE_PREFIX) -> {
-                val mediaId = parentId.substring(GENRE_PREFIX.length)
-                get<LGenre>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
-            }
+                parentId.startsWith(GENRE_PREFIX) -> {
+                    val mediaId = parentId.substring(GENRE_PREFIX.length)
+                    get<LGenre>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
+                }
 
-            parentId.startsWith(FOLDER_PREFIX) -> {
-                val mediaId = parentId.substring(FOLDER_PREFIX.length)
-                get<LFolder>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
-            }
+                parentId.startsWith(FOLDER_PREFIX) -> {
+                    val mediaId = parentId.substring(FOLDER_PREFIX.length)
+                    get<LFolder>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
+                }
 
-            else -> emptyList()
-        } ?: emptyList()
+                else -> emptyList()
+            } ?: emptyList()
+        }
     }
 }
