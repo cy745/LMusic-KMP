@@ -23,7 +23,7 @@ import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.SongAlbumInfoCard
 import com.lalilu.lhome.screen.detail.CoverHeader
 import com.lalilu.lhome.screen.detail.MetadataInfos
-import com.lalilu.lmedia.LMedia
+import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
@@ -63,8 +63,8 @@ data class SongDetailScreen(
 
     @Composable
     override fun Content() {
-        val song by remember { LMedia.instance.getFlow<LAudio>(id = mediaId) }
-            .collectAsState(LMedia.instance.get<LAudio>(id = mediaId))
+        val song by remember { LMedia.instance.flow<LAudio>(id = mediaId) }
+            .collectAsState(null)
 
         SongDetailScreenContent(
             song = song,

@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import coil3.SingletonImageLoader
@@ -22,16 +23,18 @@ import com.lalilu.component.divider
 import com.lalilu.lhome.component.AudioItemCard
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
-import com.lalilu.lmedia.LMedia
+import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
 object HistoryPanel : LazyGridContent {
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
+        val scope = rememberCoroutineScope()
         val context = LocalPlatformContext.current
         val vm = koinViewModel<HomeScreenModel>()
         val items by vm.histories
@@ -72,11 +75,13 @@ object HistoryPanel : LazyGridContent {
                     modifier = Modifier
                         .combinedClickable(
                             onClick = {
-                                PlayerAction.UpdateList(
-                                    ids = LMedia.instance.get<LAudio>().map(LItem::idValue),
-                                    id = it.idValue(),
-                                    start = true
-                                ).action()
+                                scope.launch {
+                                    PlayerAction.UpdateList(
+                                        ids = LMedia.instance.get<LAudio>().map(LItem::idValue),
+                                        id = it.idValue(),
+                                        start = true
+                                    ).action()
+                                }
                             },
                             onLongClick = {
                                 val imageLoader = SingletonImageLoader.get(context)
