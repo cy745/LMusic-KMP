@@ -27,9 +27,9 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LGenre
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.ref
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXLArtist
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXAlbum
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXGenre
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
 
 @Dao
 interface LMediaDao {

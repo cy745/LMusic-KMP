@@ -3,8 +3,7 @@ package com.lalilu.lmedia.data.database
 import androidx.room3.*
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.link
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXLArtist
-import com.lalilu.lmedia.entity.relation.QueryLAudioWithRelations
+import com.lalilu.lmedia.data.database.relation.QueryLAudioWithRelations
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapLatest

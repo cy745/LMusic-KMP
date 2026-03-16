@@ -1,14 +1,12 @@
 package com.lalilu.lmedia.data.database
 
 import androidx.room3.*
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LFolder
-import com.lalilu.lmedia.entity.LGenre
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXLArtist
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXAlbum
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXGenre
+import com.lalilu.lmedia.data.database.converter.MetadataConverter
+import com.lalilu.lmedia.data.database.converter.StringMapConverter
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
+import com.lalilu.lmedia.entity.*
 
 
 @Database(
@@ -25,7 +23,11 @@ import com.lalilu.lmedia.entity.relation.CrossRefLAudioXGenre
     ],
     exportSchema = true,
 )
-@TypeConverters(StringListConverter::class)
+@TypeConverters(
+    StringListConverter::class,
+    MetadataConverter::class,
+    StringMapConverter::class
+)
 @ConstructedBy(LMediaDatabaseConstructor::class)
 abstract class LMediaDatabase : RoomDatabase() {
     abstract fun audioDao(): LAudioDao

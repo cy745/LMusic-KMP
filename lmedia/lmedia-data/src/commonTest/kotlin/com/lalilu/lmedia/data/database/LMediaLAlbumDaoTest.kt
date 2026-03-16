@@ -2,9 +2,8 @@ package com.lalilu.lmedia.data.database
 
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.link
 import com.lalilu.lmedia.entity.ref
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXAlbum
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

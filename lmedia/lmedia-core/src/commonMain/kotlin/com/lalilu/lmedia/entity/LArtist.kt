@@ -2,7 +2,6 @@ package com.lalilu.lmedia.entity
 
 import androidx.room3.ColumnInfo
 import androidx.room3.Entity
-import androidx.room3.Ignore
 import androidx.room3.PrimaryKey
 import kotlinx.serialization.Serializable
 
@@ -14,13 +13,8 @@ data class LArtist(
     var id: String = "",
     var title: String = "",
     var subtitle: String = "",
-    override var available: Boolean = false,
-
-    @Ignore
-    val extra: Map<String, String>? = null
-) : LItem, Available,
-    Linkable by linkableImpl(),
-    Extensible by extensibleImpl(extra) {
+    var extra: Map<String, String>? = null
+) : LItem, Linkable by linkableImpl(), Extensible by extensibleImpl({ extra }) {
     override fun idValue(): String = id
     override fun titleValue(): String = title
     override fun subtitleValue(): String = subtitle

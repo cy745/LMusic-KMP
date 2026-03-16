@@ -5,9 +5,9 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class Metadata(
-    val title: String = "",
-    val album: String = "",
-    val artist: String = "",
+    val title: String? = null,
+    val album: String? = null,
+    val artist: String? = null,
     val albumArtist: String = "",
     val composer: String = "",
     val lyricist: String = "",
@@ -26,9 +26,9 @@ data class Metadata(
 
     fun toMap(): Map<String, String> {
         return mapOf(
-            "title" to title,
-            "album" to album,
-            "artist" to artist,
+            "title" to (title ?: ""),
+            "album" to (album ?: ""),
+            "artist" to (artist ?: ""),
             "albumArtist" to albumArtist,
             "composer" to composer,
             "lyricist" to lyricist,

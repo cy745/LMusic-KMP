@@ -4,8 +4,8 @@ import androidx.room3.*
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LGenre
 import com.lalilu.lmedia.entity.link
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXGenre
-import com.lalilu.lmedia.entity.relation.QueryLGenreWithAudios
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
+import com.lalilu.lmedia.data.database.relation.QueryLGenreWithAudios
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapLatest

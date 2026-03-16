@@ -16,20 +16,16 @@ data class LAudio(
     var title: String = "",
     var subtitle: String = "",
     var mediaSourceName: String = "",
+    var metadata: Metadata = Metadata.EMPTY,
+    var extra: Map<String, String>? = null,
     override var available: Boolean = false,
-
-    @Ignore
-    val extra: Map<String, String>? = null,
 
     @Ignore
     @Transient
     var sourceItem: SourceItem = SourceItemDefaults.Empty,
-
-    @Ignore
-    var metadata: Metadata = Metadata.EMPTY,
 ) : LItem, Sourceable, Available, Playable,
     Linkable by linkableImpl(),
-    Extensible by extensibleImpl(extra) {
+    Extensible by extensibleImpl({ extra }) {
 
     // Identifiable implementation
     override fun idValue(): String = id

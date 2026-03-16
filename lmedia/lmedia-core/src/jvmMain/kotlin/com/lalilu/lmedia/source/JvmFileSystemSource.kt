@@ -124,7 +124,7 @@ class JvmFileSystemSource(
 
                     val newProgress = (index + 1).toFloat() / files.size.toFloat()
                     updateLoadingState(
-                        message = metadata.title,
+                        message = metadata.title ?: "",
                         progress = newProgress
                     )
                     SourceItem.FileItem(file) to metadata
@@ -137,8 +137,8 @@ class JvmFileSystemSource(
                 .map { (source, metadata) ->
                     LAudio(
                         id = source.key,
-                        title = metadata.title,
-                        subtitle = metadata.artist,
+                        title = metadata.title ?: "",
+                        subtitle = metadata.artist ?: "",
                         sourceItem = source,
                         metadata = metadata,
                         mediaSourceName = this@JvmFileSystemSource.name

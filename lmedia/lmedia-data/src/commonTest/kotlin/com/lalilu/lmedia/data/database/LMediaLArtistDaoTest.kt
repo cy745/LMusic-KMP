@@ -1,9 +1,8 @@
 package com.lalilu.lmedia.data.database
 
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.link
-import com.lalilu.lmedia.entity.ref
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -104,7 +103,7 @@ class LMediaLArtistDaoTest {
         audioDao.insert(audio)
         artistDao.insert(artist)
         artistDao.insertRelation(listOf(
-            com.lalilu.lmedia.entity.relation.CrossRefLAudioXLArtist(
+            CrossRefLAudioXLArtist(
                 artistId = artist.id,
                 songId = audio.id
             )

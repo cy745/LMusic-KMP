@@ -5,9 +5,9 @@ import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LGenre
 import com.lalilu.lmedia.entity.ref
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXLArtist
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXAlbum
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXGenre
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

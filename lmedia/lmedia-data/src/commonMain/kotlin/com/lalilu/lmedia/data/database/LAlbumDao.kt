@@ -4,8 +4,8 @@ import androidx.room3.*
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.link
-import com.lalilu.lmedia.entity.relation.CrossRefLAudioXAlbum
-import com.lalilu.lmedia.entity.relation.QueryLAlbumWithAudios
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
+import com.lalilu.lmedia.data.database.relation.QueryLAlbumWithAudios
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapLatest
