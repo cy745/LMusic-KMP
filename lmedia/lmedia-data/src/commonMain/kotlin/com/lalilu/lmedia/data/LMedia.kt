@@ -21,25 +21,35 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.data.database.LMediaDatabase
 import com.lalilu.lmedia.data.database.requireDatabase
+import com.lalilu.lmedia.entity.LArtist
+import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.LItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.*
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
+import kotlin.reflect.KClass
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(createdAtStart = true)
+@Suppress("UNCHECKED_CAST")
+@Single(createdAtStart = true, binds = [Library::class, LMedia::class])
 class LMedia(
     private val platformSource: PlatformMediaSource
-) : CoroutineScope {
+) : Library(), CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io + SupervisorJob()
     private val db by lazy { requireDatabase<LMediaDatabase>(forceMemory = false) }
 
     init {
+        instance = this
         startSourceBinding()
+    }
+
+    companion object {
+        lateinit var instance: LMedia
+            private set
     }
 
     fun startSourceBinding() {
@@ -47,5 +57,23 @@ class LMedia(
             source.source().mapLatest { db.mediaDao().insert(it) }
                 .launchIn(this)
         }
+    }
+
+    override fun platformMediaSource(): PlatformMediaSource = platformSource
+
+    override fun <T : LItem> getSourcesFlowByClass(clazz: KClass<T>): Flow<Map<String, T>>? {
+        return when (clazz) {
+            LAudio::class -> db.audioDao().getAllAudio().mapLatest { list -> list.associateBy { it.id } }
+            LArtist::class -> db.artistDao().getAllArtist().mapLatest { list -> list.associateBy { it.id } }
+            else -> null
+        } as Flow<Map<String, T>>?
+    }
+
+    override fun <T : LItem> getSourceFlowByClass(clazz: KClass<T>, id: String): Flow<T?>? {
+        return when (clazz) {
+            LAudio::class -> db.audioDao().getAudio(id)
+            LArtist::class -> db.artistDao().getArtist(id)
+            else -> null
+        } as Flow<T?>?
     }
 }
