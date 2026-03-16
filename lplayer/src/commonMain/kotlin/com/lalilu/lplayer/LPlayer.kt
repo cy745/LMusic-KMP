@@ -1,6 +1,6 @@
 package com.lalilu.lplayer
 
-import com.lalilu.lmedia.source.Library
+import com.lalilu.lmedia.data.Library
 import com.lalilu.lplayer.playback.Playback
 import com.lalilu.lplayer.playback.platformPlayback
 import org.koin.core.annotation.Single

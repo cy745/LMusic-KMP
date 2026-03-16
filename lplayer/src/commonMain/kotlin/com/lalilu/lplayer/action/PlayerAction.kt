@@ -1,7 +1,7 @@
 package com.lalilu.lplayer.action
 
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.LMedia
+import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.extensions.PlayMode

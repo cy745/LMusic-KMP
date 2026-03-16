@@ -9,8 +9,8 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.LMedia
 import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.source.MediaData
 import io.ktor.http.decodeURLPart
@@ -49,7 +49,8 @@ class LMediaDataSource(
 
         val id = uri?.getQueryParameter("id")
             ?.decodeURLPart()
-        val item = LMedia.instance.get<LAudio>(id)
+
+        val item = id?.let { runBlocking(Dispatchers.IO) { LMedia.instance.get<LAudio>(id) } }
             ?: return defaultDataSource.open(dataSpec)
 
         val source = platformMediaSource.sources

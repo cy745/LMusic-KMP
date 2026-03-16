@@ -4,7 +4,7 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.flatten
-import com.lalilu.lmedia.source.Library
+import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.extensions.VolumeFadeHelper
 import com.lalilu.lplayer.helper.*

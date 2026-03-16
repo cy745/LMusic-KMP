@@ -15,10 +15,10 @@ import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import com.blankj.utilcode.util.LogUtils
 import com.blankj.utilcode.util.Utils
+import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.entity.flatten
-import com.lalilu.lmedia.source.Library
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.action.Action
 import com.lalilu.lplayer.action.PlayerAction
@@ -94,10 +94,10 @@ class MPlayerPlayback(
     init {
         launch(Dispatchers.Main) {
             preInit()
-            library.whenReady {
-                launch(Dispatchers.Main) {
-                    onLibraryReady()
-                }
+
+            // TODO 待重构启动时填充播放列表的逻辑
+            launch(Dispatchers.Main) {
+                onLibraryReady()
             }
         }
     }
@@ -310,7 +310,7 @@ class MPlayerPlayback(
         val items = timeline?.toMediaItems() ?: emptyList()
         val ids = items.map { it.mediaId }
 
-        _playlist.value = library.mapBy<LAudio>(ids)
+        _playlist.value = runBlocking { library.mapBy<LAudio>(ids) }
         _currentItemIndex.value = currentIndex
         saveHistoryIds(mediaIds = ids)
     }
