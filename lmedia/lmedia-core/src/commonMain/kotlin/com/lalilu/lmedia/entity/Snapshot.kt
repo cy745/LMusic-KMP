@@ -173,22 +173,22 @@ fun buildRelations(
     audios: List<LAudio>
 ): Map<String, Map<String, List<String>>> {
     val relations: MutableMap<String, MutableMap<String, MutableList<String>>> = mutableMapOf()
-//
-//    relations.getOrPut(LArtist::class.qualifiedName!!) { mutableMapOf() }.apply {
-//        audios.forEach { audio ->
-//            val artists = audio.ref<LArtist>()
-//            val list = getOrPut(audio.idValue()) { mutableListOf() }
-//            list.addAll(artists.map { it.idValue() })
-//        }
-//    }
-//
-//    relations.getOrPut(LAlbum::class.qualifiedName!!) { mutableMapOf() }.apply {
-//        audios.forEach { audio ->
-//            val albums = audio.ref<LAlbum>()
-//            val list = getOrPut(audio.idValue()) { mutableListOf() }
-//            list.addAll(albums.map { it.idValue() })
-//        }
-//    }
+
+    relations.getOrPut(LArtist::class.qualifiedName!!) { mutableMapOf() }.apply {
+        audios.forEach { audio ->
+            val artists = audio.ref<LArtist>()
+            val list = getOrPut(audio.idValue()) { mutableListOf() }
+            list.addAll(artists.map { it.idValue() })
+        }
+    }
+
+    relations.getOrPut(LAlbum::class.qualifiedName!!) { mutableMapOf() }.apply {
+        audios.forEach { audio ->
+            val albums = audio.ref<LAlbum>()
+            val list = getOrPut(audio.idValue()) { mutableListOf() }
+            list.addAll(albums.map { it.idValue() })
+        }
+    }
 
     return relations
 }
