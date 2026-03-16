@@ -21,8 +21,11 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.data.database.LMediaDatabase
 import com.lalilu.lmedia.data.database.requireDatabase
+import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.LFolder
+import com.lalilu.lmedia.entity.LGenre
 import com.lalilu.lmedia.entity.LItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +68,9 @@ class LMedia(
         return when (clazz) {
             LAudio::class -> db.audioDao().getAllAudio().mapLatest { list -> list.associateBy { it.id } }
             LArtist::class -> db.artistDao().getAllArtist().mapLatest { list -> list.associateBy { it.id } }
+            LAlbum::class -> db.albumDao().getAllAlbum().mapLatest { list -> list.associateBy { it.id } }
+            LGenre::class -> db.genreDao().getAllGenre().mapLatest { list -> list.associateBy { it.id } }
+            LFolder::class -> db.folderDao().getAllFolder().mapLatest { list -> list.associateBy { it.id } }
             else -> null
         } as Flow<Map<String, T>>?
     }
@@ -73,6 +79,9 @@ class LMedia(
         return when (clazz) {
             LAudio::class -> db.audioDao().getAudio(id)
             LArtist::class -> db.artistDao().getArtist(id)
+            LAlbum::class -> db.albumDao().getAlbum(id)
+            LGenre::class -> db.genreDao().getGenre(id)
+            LFolder::class -> db.folderDao().getFolder(id)
             else -> null
         } as Flow<T?>?
     }
