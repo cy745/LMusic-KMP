@@ -4,12 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lalilu.extensions.toState
 import com.lalilu.lhome.LHomeKV
+import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.data.Library
+import com.lalilu.lmedia.entity.LAlbum
+import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
-import com.lalilu.lmedia.source.Library
 import com.russhwolf.settings.ExperimentalSettingsApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Factory
@@ -20,23 +24,26 @@ class HomeScreenModel(
     private val library: Library,
     private val lHomeKV: LHomeKV
 ) : ViewModel() {
-    val recentlyAdded = library.getFlow<LAudio>()
+    val recentlyAdded = LMedia.instance.flow<LAudio>()
         .mapLatest { it.take(15) }
         .toState(emptyList(), viewModelScope)
 
-    val histories = library.getFlow<LAudio>()
+    val histories = LMedia.instance.flow<LAudio>()
         .mapLatest { it.shuffled().take(6) }
         .toState(emptyList(), viewModelScope)
 
     val dailyRecommends = lHomeKV.dailyRecommends.flow()
         .flatMapLatest { list ->
-            library.snapshotStateFlow.mapLatest { snapshot ->
+            library.flow<LAudio>().map { audios ->
                 mutableListOf<LItem>().apply {
-                    addAll(snapshot.audios.filter { it.idValue() in list })
-                    addAll(snapshot.albums.filter { it.idValue() in list })
-                    addAll(snapshot.artists.filter { it.idValue() in list })
-                    addAll(snapshot.genres.filter { it.idValue() in list })
-                    addAll(snapshot.folders.filter { it.idValue() in list })
+                    val artists = library.get<LArtist>()
+                    val albums = library.get<LAlbum>()
+
+                    addAll(audios.filter { it.idValue() in list })
+                    addAll(albums.filter { it.idValue() in list })
+                    addAll(artists.filter { it.idValue() in list })
+//                    addAll(snapshot.genres.filter { it.idValue() in list })
+//                    addAll(snapshot.folders.filter { it.idValue() in list })
                 }.distinctBy { it.idValue() }
             }
         }
@@ -44,13 +51,15 @@ class HomeScreenModel(
 
     fun requireUpdateDailyRecommends() = viewModelScope.launch {
         val buildItems = buildList {
-            library.snapshotStateFlow.value.apply {
-                addAll(audios.shuffled().take(10).map { it.idValue() })
-                addAll(albums.shuffled().take(2).map { it.idValue() })
-                addAll(artists.shuffled().take(2).map { it.idValue() })
-                addAll(genres.shuffled().take(1).map { it.idValue() })
-                addAll(folders.shuffled().take(1).map { it.idValue() })
-            }
+            val audios = library.get<LAudio>()
+            val artists = library.get<LArtist>()
+            val albums = library.get<LAlbum>()
+
+            addAll(audios.shuffled().take(10).map { it.idValue() })
+            addAll(albums.shuffled().take(2).map { it.idValue() })
+            addAll(artists.shuffled().take(2).map { it.idValue() })
+//                    addAll(snapshot.genres.filter { it.idValue() in list })
+//                    addAll(snapshot.folders.filter { it.idValue() in list })
         }.shuffled()
 
         lHomeKV.dailyRecommends.setData(buildItems)

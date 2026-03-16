@@ -2,12 +2,10 @@ package com.lalilu.lplayer.viewmodel
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.*
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.extensions.toState
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.LyricUtils
-import com.lalilu.lmedia.LMedia
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
@@ -15,7 +13,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 
@@ -44,13 +41,14 @@ class PlayerViewModel(
         )
 
     init {
-        LMedia.instance.whenReady {
-            viewModelScope.launch {
-                val list = LMedia.instance.get<LAudio>()
-                LPlayer.instance.updatePlaylist(list)
-                Logger.i("[LPlayer] set list: ${list.size}")
-            }
-        }
+        // TODO 待重构启动时填充播放列表的逻辑
+//        LMedia.instance.whenReady {
+//            viewModelScope.launch {
+//                val list = LMedia.instance.get<LAudio>()
+//                LPlayer.instance.updatePlaylist(list)
+//                Logger.i("[LPlayer] set list: ${list.size}")
+//            }
+//        }
 
         LPlayer.instance.currentItem
             .onEach { lyricItems.value = retrieveLyric(it) }
