@@ -15,10 +15,11 @@ data class LAudio(
     var id: String = "",
     var title: String = "",
     var subtitle: String = "",
+    @ColumnInfo("media_source_name")
     var mediaSourceName: String = "",
     var metadata: Metadata = Metadata.EMPTY,
     var extra: Map<String, String>? = null,
-    override var available: Boolean = false,
+    override var available: Boolean = true,
 
     @Ignore
     @Transient

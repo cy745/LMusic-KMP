@@ -21,17 +21,14 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.data.database.LMediaDatabase
 import com.lalilu.lmedia.data.database.requireDatabase
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LFolder
-import com.lalilu.lmedia.entity.LGenre
-import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.entity.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.mapLatest
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
@@ -57,8 +54,10 @@ class LMedia(
 
     fun startSourceBinding() {
         platformSource.sources.forEach { source ->
-            source.source().mapLatest { db.mediaDao().insert(it) }
-                .launchIn(this)
+            source.source().mapLatest {
+                db.mediaDao()
+                    .insert(snapshot = it, sourceName = source.name)
+            }.launchIn(this)
         }
     }
 

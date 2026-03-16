@@ -17,19 +17,11 @@
 
 package com.lalilu.lmedia.data.database
 
-import androidx.room3.Dao
-import androidx.room3.Insert
-import androidx.room3.OnConflictStrategy
-import androidx.room3.Transaction
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LGenre
-import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.entity.ref
-import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
+import androidx.room3.*
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
+import com.lalilu.lmedia.entity.*
 
 @Dao
 interface LMediaDao {
@@ -55,10 +47,20 @@ interface LMediaDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertGenreRelation(list: List<CrossRefLAudioXGenre>)
 
+    @Query("SELECT * FROM l_audio WHERE media_source_name = :source")
+    suspend fun getAudioBySource(source: String): List<LAudio>
+
     @Transaction
-    suspend fun insert(snapshot: Snapshot) {
+    suspend fun insert(snapshot: Snapshot, sourceName: String) {
+        val audioFromSource = getAudioBySource(sourceName)
+        val audioMap = snapshot.audios.associateBy { it.idValue() }
+
+        val audioToUpdate = audioFromSource
+            .filter { audio -> audioMap[audio.idValue()] == null }
+            .map { it.copy(available = false) }
+
         // 插入所有实体
-        insertAudio(list = snapshot.audios)
+        insertAudio(list = snapshot.audios + audioToUpdate)
         insertArtist(list = snapshot.artists)
         insertAlbum(list = snapshot.albums)
         insertGenre(list = snapshot.genres)
