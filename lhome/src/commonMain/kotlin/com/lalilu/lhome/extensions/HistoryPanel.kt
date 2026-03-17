@@ -4,7 +4,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -65,11 +64,11 @@ object HistoryPanel : LazyGridContent {
                 }
             }
 
-            items(
-                items = items,
+            gridItems(
+                items = { items },
                 key = { it.idValue() },
                 contentType = { "HISTORY_ITEM" },
-                span = { GridItemSpan(maxLineSpan / columnsValue.value) }
+                span = { columnsValue.value }
             ) {
                 AudioItemCard(
                     modifier = Modifier

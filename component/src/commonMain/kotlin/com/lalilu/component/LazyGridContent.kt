@@ -3,6 +3,7 @@ package com.lalilu.component
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -15,6 +16,30 @@ interface LazyGridContent {
 
     @Composable
     fun register(): LazyGridScope.() -> Unit
+
+
+    fun <T> LazyGridScope.gridItems(
+        items: () -> List<T>,
+        key: (T) -> Any,
+        contentType: (List<T>) -> Any? = { null },
+        span: () -> Int = { 1 },
+        itemContent: @Composable BoxScope.(T) -> Unit = {}
+    ) {
+        items(
+            items = items().chunked(span()),
+            key = { list -> list.joinToString { key(it).toString() } },
+            contentType = contentType,
+            span = { GridItemSpan(maxLineSpan) }
+        ) { list ->
+            Row(modifier = Modifier.fillMaxWidth().wrapContentHeight()) {
+                list.forEach {
+                    Box(modifier = Modifier.weight(1f)) {
+                        itemContent(it)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
