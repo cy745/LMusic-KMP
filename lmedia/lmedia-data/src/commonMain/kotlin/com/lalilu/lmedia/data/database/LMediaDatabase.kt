@@ -7,6 +7,7 @@ import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
 import com.lalilu.lmedia.entity.*
+import org.koin.core.annotation.Single
 
 
 @Database(
@@ -17,6 +18,7 @@ import com.lalilu.lmedia.entity.*
         LAlbum::class,
         LGenre::class,
         LFolder::class,
+        LHistory::class,
         CrossRefLAudioXLArtist::class,
         CrossRefLAudioXAlbum::class,
         CrossRefLAudioXGenre::class
@@ -36,6 +38,12 @@ abstract class LMediaDatabase : RoomDatabase() {
     abstract fun genreDao(): LGenreDao
     abstract fun folderDao(): LFolderDao
     abstract fun mediaDao(): LMediaDao
+    abstract fun historyDao(): LHistoryDao
+}
+
+@Single
+fun provideDatabase(): LMediaDatabase {
+    return requireDatabase<LMediaDatabase>(forceMemory = false)
 }
 
 expect object LMediaDatabaseConstructor : RoomDatabaseConstructor<LMediaDatabase> {

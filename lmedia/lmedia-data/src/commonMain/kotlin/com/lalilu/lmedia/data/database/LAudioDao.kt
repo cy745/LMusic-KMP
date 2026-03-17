@@ -45,4 +45,21 @@ interface LAudioDao {
             query.genres.forEach { genre -> audio.link(genre) }
         }
     }
+
+    @Transaction
+    @Query("SELECT * FROM l_audio WHERE song_id IN (:ids)")
+    fun getAudiosWithRelations(ids: List<String>): Flow<List<QueryLAudioWithRelations>>
+
+    fun getAudios(ids: List<String>): Flow<List<LAudio>> = getAudiosWithRelations(ids).mapLatest { list ->
+        val audios = list.map { query ->
+            query.audio.also { audio ->
+                query.artists.forEach { artist -> audio.link(artist) }
+                query.albums.forEach { album -> audio.link(album) }
+                query.genres.forEach { genre -> audio.link(genre) }
+            }
+        }
+
+        audios.associateBy { it.idValue() }
+            .let { map -> ids.mapNotNull { map[it] } }
+    }
 }

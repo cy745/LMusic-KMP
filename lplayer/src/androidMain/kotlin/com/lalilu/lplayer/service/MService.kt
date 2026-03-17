@@ -21,25 +21,26 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.lalilu.common.kv.KVContext
 import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.data.PlaybackDataTracker
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.*
 import com.lalilu.lplayer.extensions.setUpQueueControl
 import com.lalilu.lplayer.service.CustomCommand.SeekToNext
 import com.lalilu.lplayer.service.CustomCommand.SeekToPrevious
+import com.lalilu.lplayer.service.HistoryAnalyticsListener
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import org.koin.core.qualifier.named
 import org.koin.mp.KoinPlatform
 import kotlin.coroutines.CoroutineContext
 
 @OptIn(UnstableApi::class)
 class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
     override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob()
-    private val historyAnalyticsListener by getKoin()
-        .injectOrNull<AnalyticsListener>(named("history_analytics_listener"))
+    private val dataTracker by inject<PlaybackDataTracker>()
+    private val historyAnalyticsListener by lazy { HistoryAnalyticsListener(dataTracker) }
 
     private var player: Player? = null
     private var exoPlayer: ExoPlayer? = null
@@ -71,7 +72,7 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
             .build()
             .apply {
                 exoPlayer = this
-                historyAnalyticsListener?.let { addAnalyticsListener(it) }
+                addAnalyticsListener(historyAnalyticsListener)
                 addListener(
                     MPlayerListener(
                         player = this,

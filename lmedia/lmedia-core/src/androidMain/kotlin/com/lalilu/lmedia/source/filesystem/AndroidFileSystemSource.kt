@@ -135,7 +135,7 @@ class AndroidFileSystemSource(
 
                             val newProgress = (index + 1).toFloat() / files.size.toFloat()
                             updateLoadingState(
-                                message = metadata.title,
+                                message = metadata.title ?: "",
                                 progress = newProgress
                             )
                             SourceItem.FileItem(file.file) to metadata
@@ -150,7 +150,7 @@ class AndroidFileSystemSource(
 
                             val newProgress = (index + 1).toFloat() / files.size.toFloat()
                             updateLoadingState(
-                                message = metadata.title,
+                                message = metadata.title ?: "",
                                 progress = newProgress
                             )
                             SourceItem.UriItem(file.uri) to metadata
@@ -165,8 +165,8 @@ class AndroidFileSystemSource(
                 .map { (source, metadata) ->
                     LAudio(
                         id = source.key,
-                        title = metadata.title,
-                        subtitle = metadata.artist,
+                        title = metadata.title ?: "",
+                        subtitle = metadata.artist ?: "",
                         sourceItem = source,
                         metadata = metadata,
                         mediaSourceName = this@AndroidFileSystemSource.name

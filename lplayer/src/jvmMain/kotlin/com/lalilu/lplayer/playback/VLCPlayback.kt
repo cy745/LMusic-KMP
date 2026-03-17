@@ -5,6 +5,7 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.flatten
 import com.lalilu.lmedia.data.Library
+import com.lalilu.lmedia.data.PlaybackDataTracker
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.notification.MacOSNotification
@@ -13,6 +14,7 @@ import com.lalilu.lplayer.player.VLCPlayer
 import com.lalilu.lplayer.player.VLCPlayerLoader
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import kotlin.time.Clock
@@ -23,6 +25,8 @@ class VLCPlayback(
     private val library: Library
 ) : AbstractPlayback(), KoinComponent {
     private var playerInstance: MediaPlayer? = null
+    private val dataTracker: PlaybackDataTracker by inject()
+
     val player: MediaPlayer
         get() = playerInstance ?: throw Exception("Player Not Initialized")
 
@@ -131,11 +135,20 @@ class VLCPlayback(
             val targetItem = playlist.value.flatten<LAudio>().getOrNull(index)
                 ?: throw Exception("Invalid index")
 
+            val old: LAudio? = currentItem.value
             if (targetItem.id == currentItem.value?.id) {
                 seekTo(0)
             } else {
                 playItem(targetItem)
             }
+
+            // TODO 启动时初始化播放数据为null，导致后续无法正常更新播放时长
+            dataTracker.onMediaItemTransition(
+                mediaId = targetItem.idValue(),
+                title = targetItem.titleValue(),
+                isRepeating = old?.idValue() == targetItem.idValue(),
+                isNormalTransition = old?.idValue() != targetItem.idValue()
+            )
         } catch (e: Exception) {
             Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
             emitError(e)
@@ -165,6 +178,7 @@ class VLCPlayback(
                 currentItem.value?.let { item ->
                     _playbackState.value = PlaybackState.Playing(item)
                 }
+                dataTracker.onIsPlayingChanged(true)
             }
 
             override fun paused(mediaPlayer: MediaPlayer?) {
@@ -172,6 +186,7 @@ class VLCPlayback(
                 currentItem.value?.let { item ->
                     _playbackState.value = PlaybackState.Paused(item)
                 }
+                dataTracker.onIsPlayingChanged(false)
             }
 
             override fun finished(mediaPlayer: MediaPlayer?) {

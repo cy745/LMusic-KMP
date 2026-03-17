@@ -9,7 +9,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -21,7 +20,7 @@ import com.lalilu.component.LazyGridContent
 import com.lalilu.component.divider
 import com.lalilu.lhome.component.AudioItemCard
 import com.lalilu.lhome.component.RecommendTitle
-import com.lalilu.lhome.viewmodel.HomeScreenModel
+import com.lalilu.lhome.viewmodel.HistoryVM
 import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
@@ -35,8 +34,7 @@ object HistoryPanel : LazyGridContent {
     override fun register(): LazyGridScope.() -> Unit {
         val scope = rememberCoroutineScope()
         val context = LocalPlatformContext.current
-        val vm = koinViewModel<HomeScreenModel>()
-        val items by vm.histories
+        val vm = koinViewModel<HistoryVM>()
 
         val columnsValue = adaptiveValue(
             compact = { 1 },
@@ -65,7 +63,7 @@ object HistoryPanel : LazyGridContent {
             }
 
             gridItems(
-                items = { items },
+                items = { vm.recentSongsFlow.value },
                 key = { it.idValue() },
                 contentType = { "HISTORY_ITEM" },
                 span = { columnsValue.value }

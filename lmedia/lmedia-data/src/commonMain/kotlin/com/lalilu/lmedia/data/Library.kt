@@ -15,6 +15,7 @@ import kotlin.reflect.KClass
 abstract class Library {
     abstract fun platformMediaSource(): PlatformMediaSource
     abstract fun <T : LItem> getSourcesFlowByClass(clazz: KClass<T>): Flow<Map<String, T>>?
+    abstract fun <T : LItem> getSourcesFlowByClass(clazz: KClass<T>, ids: List<String>): Flow<List<T>>?
     abstract fun <T : LItem> getSourceFlowByClass(clazz: KClass<T>, id: String): Flow<T?>?
 
     fun requireMediaSource(sourceName: String): MediaSource {
@@ -36,6 +37,10 @@ abstract class Library {
         getSourcesFlowByClass(T::class)
             ?.firstOrNull()?.let { map -> ids.mapNotNull { map[it] } }
             ?: emptyList()
+
+    inline fun <reified T : LItem> mapByFlow(ids: List<String>): Flow<List<T>> =
+        getSourcesFlowByClass(T::class, ids)
+            ?: flowOf(emptyList())
 
     inline fun <reified T : LItem> flow(id: String): Flow<T?> =
         getSourceFlowByClass(T::class, id)

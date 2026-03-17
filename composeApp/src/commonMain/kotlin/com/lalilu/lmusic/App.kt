@@ -56,6 +56,7 @@ fun App() = ScreenModeHandler {
             NavSidebarItem.NavSection(
                 title = "Library",
                 screens = listOfNotNull(
+                    AppRouter.route("/history").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
                     AppRouter.route("/log").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
                     AppRouter.route("/media_source").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
                 )

@@ -1,5 +1,6 @@
 package com.lalilu.component
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -31,9 +32,15 @@ interface LazyGridContent {
             contentType = contentType,
             span = { GridItemSpan(maxLineSpan) }
         ) { list ->
-            Row(modifier = Modifier.fillMaxWidth().wrapContentHeight()) {
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .wrapContentHeight()
+                    .animateContentSize()
+            ) {
                 list.forEach {
-                    Box(modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier.weight(1f)
+                    ) {
                         itemContent(it)
                     }
                 }
