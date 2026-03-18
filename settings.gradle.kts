@@ -59,5 +59,6 @@ include(":lmedia:lmedia-client")
 include(":lmedia:lmedia-coil")
 
 include(":thirdparty:navigation3-ui")
+include(":thirdparty:gridlayout-compose")
 
 includeBuild("build-logic")
