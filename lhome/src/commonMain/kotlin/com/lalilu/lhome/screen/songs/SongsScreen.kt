@@ -8,9 +8,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -18,11 +20,14 @@ import androidx.compose.ui.unit.sp
 import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.request.Options
+import com.lalilu.RemixIcon
 import com.lalilu.extensions.ItemRecorder
+import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.rememberLazyListAnimateScroller
 import com.lalilu.extensions.startRecord
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.AudioItemCard
+import com.lalilu.lhome.viewmodel.SongsAction
 import com.lalilu.lhome.viewmodel.SongsState
 import com.lalilu.lhome.viewmodel.SongsVM
 import com.lalilu.lmedia.data.LMedia
@@ -32,8 +37,14 @@ import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.*
+import com.lalilu.remixicon.Design
+import com.lalilu.remixicon.Editor
+import com.lalilu.remixicon.System
+import com.lalilu.remixicon.design.editBoxLine
+import com.lalilu.remixicon.design.focus3Line
+import com.lalilu.remixicon.editor.sortDesc
+import com.lalilu.remixicon.system.menuSearchLine
 import kotlinx.coroutines.launch
-import org.koin.compose.koinInject
 
 @Destination("/pages/songs")
 data class SongsScreen(
@@ -50,17 +61,60 @@ data class SongsScreen(
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
+        val vm: SongsVM = koinScreenViewModel()
+        val state by vm.state
+
         return remember {
-            emptyList()
+            listOf(
+                ScreenAction.Static(
+                    title = { "排序" },
+                    icon = { RemixIcon.Editor.sortDesc },
+                    color = { Color(0xFF1793FF) },
+                    onAction = {
+                        vm.selector.isSelecting.value = false
+//                        vm.intent(SongsAction.ToggleSortPanel)
+                    }
+                ),
+                ScreenAction.Static(
+                    title = { "选择" },
+                    icon = { RemixIcon.Design.editBoxLine },
+                    color = { Color(0xFF009673) },
+                    onAction = { vm.selector.isSelecting.value = true }
+                ),
+                ScreenAction.Static(
+                    title = { "搜索" },
+                    subTitle = {
+                        val keyword = state.searchKeyWord
+                        if (keyword.isNotBlank()) "搜索中： $keyword" else null
+                    },
+                    icon = { RemixIcon.System.menuSearchLine },
+                    color = { Color(0xFF8BC34A) },
+                    dotColor = {
+                        val keyword = state.searchKeyWord
+                        if (keyword.isNotBlank()) Color.Red else null
+                    },
+                    onAction = {
+                        vm.intent(SongsAction.ToggleSearcherPanel)
+//                        DialogWrapper.dismiss()
+                    }
+                ),
+                ScreenAction.Static(
+                    title = { "定位当前播放歌曲" },
+                    icon = { RemixIcon.Design.focus3Line },
+                    color = { Color(0xFF8700FF) },
+                    onAction = { vm.intent(SongsAction.LocaleToPlayingItem) }
+                ),
+            )
         }
     }
 
     @Composable
     override fun Content() {
-        val viewModel: SongsVM = koinInject()
+        val viewModel: SongsVM = koinScreenViewModel()
 
         SongsScreenContent(
             recorder = { viewModel.recorder },
+            selector = { viewModel.selector },
             state = { viewModel.state.value },
             songs = { viewModel.songs.value }
         )
@@ -72,6 +126,7 @@ fun SongsScreenContent(
     state: () -> SongsState,
     songs: () -> SortResult<LAudio>,
     recorder: () -> ItemRecorder,
+    selector: () -> ItemSelector<LAudio>,
     keys: () -> Collection<Any> = { emptyList() },
     onClickGroup: (GroupId) -> Unit = {}
 ) {

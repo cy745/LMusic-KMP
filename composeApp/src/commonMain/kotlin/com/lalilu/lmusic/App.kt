@@ -108,6 +108,7 @@ fun App() = ScreenModeHandler {
                                     },
                                     sharedTransitionScope = this@shareScope,
                                     entryDecorators = listOf(
+                                        rememberViewModelStoreMapperNavEntryDecorator(),
                                         rememberSaveableStateHolderNavEntryDecorator(),
                                         rememberViewModelStoreNavEntryDecorator(),
                                         rememberDefaultBackgroundColorNavEntryDecorator()
