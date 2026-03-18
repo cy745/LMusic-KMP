@@ -17,11 +17,13 @@
 
 package com.lalilu.common.ext
 
+import platform.Foundation.NSString
 import platform.Foundation.localizedStandardCompare
 
 actual class PlatformCollator actual constructor(localeTag: String) {
+    @Suppress("CAST_NEVER_SUCCEEDS")
     actual fun compare(s1: String, s2: String): Int {
-        val result = s1.localizedStandardCompare(s2)
+        val result = (s1 as NSString).localizedStandardCompare(s2)
         return result.toInt()
     }
 }
