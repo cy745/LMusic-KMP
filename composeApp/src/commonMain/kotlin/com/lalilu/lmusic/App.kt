@@ -27,6 +27,7 @@ import com.lalilu.ScreenMode
 import com.lalilu.ScreenMode.*
 import com.lalilu.ScreenModeHandler
 import com.lalilu.currentScreenMode
+import com.lalilu.extensions.DialogWrapper
 import com.lalilu.extensions.ProvideLocalToaster
 import com.lalilu.lmusic.screen.BottomBarApplier
 import com.lalilu.lmusic.screen.ExceptionScreen
@@ -141,6 +142,8 @@ fun App() = ScreenModeHandler {
                                 )
                             }
                         }
+
+                        DialogWrapper.Content()
                     }
                 }
             }

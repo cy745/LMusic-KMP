@@ -7,10 +7,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -27,6 +24,7 @@ import com.lalilu.extensions.rememberLazyListAnimateScroller
 import com.lalilu.extensions.startRecord
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.AudioItemCard
+import com.lalilu.lhome.screen.dialog.SongsSortPanelDialog
 import com.lalilu.lhome.viewmodel.SongsAction
 import com.lalilu.lhome.viewmodel.SongsState
 import com.lalilu.lhome.viewmodel.SongsVM
@@ -70,10 +68,7 @@ data class SongsScreen(
                     title = { "排序" },
                     icon = { RemixIcon.Editor.sortDesc },
                     color = { Color(0xFF1793FF) },
-                    onAction = {
-                        vm.selector.isSelecting.value = false
-//                        vm.intent(SongsAction.ToggleSortPanel)
-                    }
+                    onAction = { vm.intent(SongsAction.ToggleSortPanel) }
                 ),
                 ScreenAction.Static(
                     title = { "选择" },
@@ -110,13 +105,27 @@ data class SongsScreen(
 
     @Composable
     override fun Content() {
-        val viewModel: SongsVM = koinScreenViewModel()
+        val vm: SongsVM = koinScreenViewModel()
+        val songs by vm.songs
+        val state by vm.state
+        val sortAction = vm.sorter.selectedAction.collectAsState()
+        val sortConfig = vm.sorter.sortConfig.collectAsState()
+
+        SongsSortPanelDialog(
+            isVisible = { state.showSortPanel },
+            onDismiss = { vm.intent(SongsAction.HideSortPanel) },
+            supportSortActions = vm.sorter.supportedActions,
+            selectedSortAction = { sortAction.value },
+            sortConfig = { sortConfig.value },
+            onSelectSortAction = { vm.intent(SongsAction.SelectSortAction(it)) },
+            onUpdateSortConfig = { vm.intent(SongsAction.UpdateSortConfig(it)) }
+        )
 
         SongsScreenContent(
-            recorder = { viewModel.recorder },
-            selector = { viewModel.selector },
-            state = { viewModel.state.value },
-            songs = { viewModel.songs.value }
+            recorder = { vm.recorder },
+            selector = { vm.selector },
+            state = { state },
+            songs = { songs }
         )
     }
 }
@@ -207,7 +216,8 @@ fun SongsScreenContent(
                         title = item.titleValue(),
                         subtitle = item.subtitleValue(),
                         imageData = item,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        modifier = Modifier
+                            .animateItem()
                             .combinedClickable(
                                 onClick = {
                                     scope.launch {
@@ -228,6 +238,7 @@ fun SongsScreenContent(
                                         .jump()
                                 }
                             )
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
                     )
 
 //                    SongCard(
