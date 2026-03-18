@@ -47,6 +47,7 @@ data class LAudio(
     @Suppress("UNCHECKED_CAST", "IMPLICIT_CAST_TO_ANY")
     override fun <T : Any> getValueBy(key: String): T? {
         return when (key) {
+            Sortable.COMPARE_KEY_ID -> id
             Sortable.COMPARE_KEY_TITLE -> extra?.get("title") ?: metadata.title ?: title
             Sortable.COMPARE_KEY_SUB_TITLE -> extra?.get("subtitle") ?: metadata.artist ?: subtitle
             Sortable.COMPARE_KEY_CREATE_TIME -> extra?.get("date_added")?.toLongOrNull() ?: metadata.dateAdded
