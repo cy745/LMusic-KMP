@@ -20,7 +20,9 @@ package com.lalilu.lmedia.sortable
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.intl.Locale
 import com.lalilu.common.ext.PlatformCollator
-import com.lalilu.lmedia.lmedia_ui.generated.resources.Res
+import com.lalilu.lmedia.lmedia_core.generated.resources.*
+import kotlinx.coroutines.DelicateCoroutinesApi
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.annotation.Named
 import org.koin.core.annotation.Single
@@ -40,16 +42,17 @@ class SortRuleNormal : SortAction {
     )
 }
 
-@OptIn(ExperimentalTime::class)
+@OptIn(ExperimentalTime::class, DelicateCoroutinesApi::class)
 @Named("sort_rule_add_time")
 @Single(binds = [SortAction::class])
 class AddTime : SortAction {
     override fun key(): String = "sort_rule_add_time"
 
-    private val timeStrJustNow: String? by lazy { StringUtils.getString(R.string.group_identity_time_just_now) }
-    private val timeStrMinutesAgo: String? by lazy { StringUtils.getString(R.string.group_identity_time_minutes_ago) }
-    private val timeStrHoursAgo: String? by lazy { StringUtils.getString(R.string.group_identity_time_hours_ago) }
-    private val timeStrExactDay: String? by lazy { StringUtils.getString(R.string.group_identity_time_exact_day_pattern) }
+    private var timeStrJustNow: String? = null
+    private var timeStrMinutesAgo: String? = null
+    private var timeStrHoursAgo: String? = null
+    private var timeStrExactDay: String? = null
+
 
     @Composable
     override fun getActionInfo(): ActionInfo = ActionInfo(
@@ -57,10 +60,23 @@ class AddTime : SortAction {
         subTitle = "会显示添加时间分组"
     )
 
-    override fun <T : Sortable> doSortInternal(
+    override suspend fun <T : Sortable> doSortInternal(
         items: List<T>,
         config: SortConfig
     ): SortResult<T> {
+        if (timeStrJustNow == null) {
+            timeStrJustNow = getString(Res.string.group_identity_time_just_now)
+        }
+        if (timeStrMinutesAgo == null) {
+            timeStrMinutesAgo = getString(Res.string.group_identity_time_minutes_ago)
+        }
+        if (timeStrHoursAgo == null) {
+            timeStrHoursAgo = getString(Res.string.group_identity_time_hours_ago)
+        }
+        if (timeStrExactDay == null) {
+            timeStrExactDay = getString(Res.string.group_identity_time_exact_day_pattern)
+        }
+
         val now = Clock.System.now().toEpochMilliseconds()
 
         val sorted = items
@@ -72,13 +88,15 @@ class AddTime : SortAction {
                 val time = (item.getValueBy(Sortable.COMPARE_KEY_CREATE_TIME) ?: -1L) * 1000
                 when {
                     now - time < 300000 -> timeStrJustNow
-                    now - time < 3600000 -> timeStrMinutesAgo?.format((now - time) / 60000)
-                    now - time < 86400000 -> timeStrHoursAgo?.format((now - time) / 3600000)
-                    else -> timeStrExactDay?.let { TimeUtils.millis2String(time, it) }
+                    now - time < 3600000 -> timeStrMinutesAgo?.replace("%d", "${(now - time) / 60000}")
+                    now - time < 86400000 -> timeStrHoursAgo?.replace("%d", "${(now - time) / 3600000}")
+                    else -> timeStrExactDay?.let {
+                        it // TODO TimeUtils.millis2String(time, it)
+                    }
                 }
             }
 
-        return SortResult.Grouped(grouped.map { map ->
+        return SortResult(grouped.map { map ->
             SortedGroup(
                 groupId = GroupId.Time(map.key ?: "#"),
                 items = map.value
@@ -100,7 +118,7 @@ class Title : SortAction {
         subTitle = "标题首字符排序"
     )
 
-    override fun <T : Sortable> doSortInternal(
+    override suspend fun <T : Sortable> doSortInternal(
         items: List<T>,
         config: SortConfig
     ): SortResult<T> {
@@ -137,7 +155,7 @@ class Title : SortAction {
             }
         }
 
-        return SortResult.Grouped(grouped.map { map ->
+        return SortResult(grouped.map { map ->
             SortedGroup(
                 groupId = GroupId.FirstLetter(map.key),
                 items = map.value,
@@ -157,7 +175,7 @@ class Duration : SortAction {
         subTitle = "根据歌曲时长排序"
     )
 
-    override fun <T : Sortable> doSortInternal(
+    override suspend fun <T : Sortable> doSortInternal(
         items: List<T>,
         config: SortConfig
     ): SortResult<T> {
@@ -165,7 +183,7 @@ class Duration : SortAction {
             .sortedByDescending { it.getValueBy(Sortable.COMPARE_KEY_DURATION) ?: -1L }
             .let { if (config.reverse) it.asReversed() else it }
 
-        return SortResult.Flat(sorted)
+        return SortResult.flat(sorted)
     }
 }
 
@@ -181,14 +199,14 @@ class Shuffle : SortAction {
         subTitle = "每次进入都会打乱顺序"
     )
 
-    override fun <T : Sortable> doSortInternal(
+    override suspend fun <T : Sortable> doSortInternal(
         items: List<T>,
         config: SortConfig
     ): SortResult<T> {
         val shuffled = items.shuffled()
             .let { if (config.reverse) it.asReversed() else it }
 
-        return SortResult.Flat(shuffled)
+        return SortResult.flat(shuffled)
     }
 }
 
@@ -206,7 +224,7 @@ class ItemsCount : SortAction {
         subTitle = "根据歌曲数量排序"
     )
 
-    override fun <T : Sortable> doSortInternal(
+    override suspend fun <T : Sortable> doSortInternal(
         items: List<T>,
         config: SortConfig
     ): SortResult<T> {
@@ -214,7 +232,7 @@ class ItemsCount : SortAction {
             .sortedByDescending { it.getValueBy(Sortable.COMPARE_KEY_ITEMS_COUNT) ?: 0L }
             .let { if (config.reverse) it.asReversed() else it }
 
-        return SortResult.Flat(sorted)
+        return SortResult.flat(sorted)
     }
 }
 
@@ -230,7 +248,7 @@ class Album : SortAction {
         subTitle = "专辑的原始顺序"
     )
 
-    override fun <T : Sortable> doSortInternal(
+    override suspend fun <T : Sortable> doSortInternal(
         items: List<T>,
         config: SortConfig
     ): SortResult<T> {
@@ -240,7 +258,7 @@ class Album : SortAction {
                 ?: -1
         }
 
-        return SortResult.Grouped(grouped.map { map ->
+        return SortResult(grouped.map { map ->
             val list = map.value.sortedBy {
                 it.getValueBy<String>(Sortable.COMPARE_KEY_TRACK_NUMBER)
                     ?.toIntOrNull()

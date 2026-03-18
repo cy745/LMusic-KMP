@@ -59,6 +59,7 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 kotlinx-browser = { module = "org.jetbrains.kotlinx:kotlinx-browser", version.ref = "kotlinx-browser" }
 
 # jb-compose
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
 compose-ui-backhandler = { module = "org.jetbrains.compose.ui:ui-backhandler", version.ref = "composeMultiplatform" }
 compose-material = { module = "org.jetbrains.compose.material:material", version.ref = "composeMultiplatform" }
 compose-material3 = { module = "org.jetbrains.compose.material:material3", version.ref = "composeMultiplatform" }

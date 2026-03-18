@@ -2,9 +2,9 @@ package com.lalilu.lhome.viewmodel
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.State
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import com.lalilu.MviWithIntent
 import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.ItemRecorder
@@ -12,8 +12,12 @@ import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.toState
 import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortAction
+import com.lalilu.lmedia.sortable.SortConfig
 import com.lalilu.lmedia.sortable.SortManager
+import com.lalilu.lmedia.sortable.doSortState
+import com.lalilu.lplayer.LPlayer
 import com.lalilu.mviImplWithIntent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -33,14 +37,12 @@ data class SongsState(
     val showSearcherPanel: Boolean = false,
 
     // control params
-    val searchKeyWord: String = "",
-    val selectedSortAction: ListAction = SortStaticAction.Normal,
+    val searchKeyWord: String = ""
 ) {
-    val distinctKey: Int =
-        mediaIds.hashCode() + searchKeyWord.hashCode() + selectedSortAction.hashCode()
+    val distinctKey: Int = mediaIds.hashCode() + searchKeyWord.hashCode()
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    suspend fun getSongsFlow(): Flow<Map<GroupIdentity, List<LAudio>>> {
+    fun getSongsFlow(): Flow<List<LAudio>> {
         val source = if (mediaIds.isEmpty()) LMedia.instance.flow<LAudio>()
         else LMedia.instance.mapByFlow<LAudio>(mediaIds)
 
@@ -50,17 +52,8 @@ data class SongsState(
             else -> listOf(searchKeyWord)
         }
 
-        val searchResult = source.mapLatest { flow ->
-            flow.filter { item -> keywords.all { item.getMatchStr().contains(it.uppercase()) } }
-        }
-
-        return when (selectedSortAction) {
-            is SortStaticAction -> searchResult.mapLatest {
-                selectedSortAction.doSort(it, false)
-            }
-
-            is SortDynamicAction -> selectedSortAction.doSort(searchResult, false)
-            else -> flowOf(emptyMap())
+        return source.mapLatest { flow ->
+            flow.filter { item -> keywords.all { item.getMatchText().contains(it.uppercase()) } }
         }
     }
 }
@@ -79,7 +72,10 @@ sealed interface SongsAction {
     data object HideJumperDialog : SongsAction
 
     data object LocaleToPlayingItem : SongsAction
+    data class LocaleToGroupItem(val item: GroupId) : SongsAction
     data class SearchFor(val keyword: String) : SongsAction
+    data class SelectSortAction(val action: SortAction) : SongsAction
+    data class UpdateSortConfig(val config: SortConfig) : SongsAction
 }
 
 @Factory
@@ -102,58 +98,37 @@ class SongsVM(
         )
     )
 
-    private val _state = MutableStateFlow(SongsState(mediaIds))
-    val state: StateFlow<SongsState> = _state
 
-    private val _searchState = MutableStateFlow(SongsState(mediaIds))
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val songs = stateFlow()
+        .distinctUntilChangedBy { it.distinctKey }
+        .flatMapLatest { it.getSongsFlow() }
+        .doSortState(sorter, viewModelScope)
+    val state = stateFlow().toState(SongsState(), viewModelScope)
 
-    val songs: State<List<LAudio>> = _searchState
-        .flatMapLatest { state ->
-            val source = if (state.mediaIds.isEmpty()) {
-                LMedia.instance.flow<LAudio>()
-            } else {
-                LMedia.instance.mapByFlow(state.mediaIds)
-            }
-
-            val keywords: List<String> = when {
-                state.searchKeyWord.isBlank() -> emptyList()
-                state.searchKeyWord.contains(' ') -> state.searchKeyWord.split(' ')
-                else -> listOf(state.searchKeyWord)
-            }
-
-            source.mapLatest { list ->
-                if (keywords.isEmpty()) {
-                    list
-                } else {
-                    list.filter { song ->
-                        keywords.all { keyword ->
-                            song.titleValue().contains(keyword, ignoreCase = true) ||
-                                    song.subtitleValue().contains(keyword, ignoreCase = true)
-                        }
-                    }
+    override fun intent(intent: SongsAction) = viewModelScope.launch {
+        when (intent) {
+            SongsAction.ToggleJumperDialog -> reduce { it.copy(showJumperDialog = !it.showJumperDialog) }
+            SongsAction.ToggleSearcherPanel -> reduce { it.copy(showSearcherPanel = !it.showSearcherPanel) }
+            SongsAction.ToggleSortPanel -> reduce { it.copy(showSortPanel = !it.showSortPanel) }
+            SongsAction.HideSortPanel -> reduce { it.copy(showSortPanel = false) }
+            SongsAction.HideSearcherPanel -> reduce { it.copy(showSearcherPanel = false) }
+            SongsAction.HideJumperDialog -> reduce { it.copy(showJumperDialog = false) }
+            is SongsAction.SearchFor -> reduce { it.copy(searchKeyWord = intent.keyword) }
+            is SongsAction.SelectSortAction -> sorter.setAction(intent.action)
+            is SongsAction.UpdateSortConfig -> sorter.setConfig(intent.config)
+            is SongsAction.LocaleToGroupItem -> postEvent { SongsEvent.ScrollToItem(intent.item) }
+            is SongsAction.LocaleToPlayingItem -> {
+                val mediaId = LPlayer.instance.currentItem.value?.idValue() ?: run {
+                    Logger.e("can not find playing item's mediaId")
+                    return@launch
                 }
+                postEvent { SongsEvent.ScrollToItem(mediaId) }
             }
-        }
-        .toState(emptyList(), viewModelScope)
 
-    override fun intent(intent: SongsAction) {
-        viewModelScope.launch {
-            val currentState = _state.value
-            val newState = when (intent) {
-                SongsAction.ToggleJumperDialog -> currentState.copy(showJumperDialog = !currentState.showJumperDialog)
-                SongsAction.ToggleSearcherPanel -> currentState.copy(showSearcherPanel = !currentState.showSearcherPanel)
-                SongsAction.ToggleSortPanel -> currentState.copy(showSortPanel = !currentState.showSortPanel)
-                SongsAction.HideSortPanel -> currentState.copy(showSortPanel = false)
-                SongsAction.HideSearcherPanel -> currentState.copy(showSearcherPanel = false)
-                SongsAction.HideJumperDialog -> currentState.copy(showJumperDialog = false)
-                is SongsAction.SearchFor -> currentState.copy(searchKeyWord = intent.keyword)
-                SongsAction.LocaleToPlayingItem -> {
-                    // Handle scroll to playing item - can emit event if needed
-                    currentState
-                }
+            else -> {
+                Logger.w("Not implemented action: $intent")
             }
-            _state.value = newState
-            _searchState.value = newState
         }
     }
 }

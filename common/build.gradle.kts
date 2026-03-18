@@ -17,6 +17,7 @@ version = "1.0.0"
 
 applyMultiplatform {
     main.dependencies {
+        api(libs.compose.ui)
         api(libs.compose.runtime)
         api(libs.kermit)
         api(libs.kotlin.logging)

@@ -8,6 +8,8 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.composeMultiplatform)
+    alias(libs.plugins.composeCompiler)
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
@@ -41,6 +43,8 @@ applyMultiplatform(configureBlock = {
 }) {
     main.dependencies {
         api(project(":common"))
+        api(libs.compose.ui)
+        api(libs.compose.resources)
         api(libs.koin.core)
         api(libs.koin.annotations)
         api(libs.kotlinx.coroutines.core)
@@ -65,5 +69,11 @@ applyMultiplatform(configureBlock = {
     }
     wasmJsMain.dependencies {
         implementation(npm("taglib-wasm", "0.5.4"))
+    }
+}
+
+compose {
+    resources {
+        publicResClass = true
     }
 }
