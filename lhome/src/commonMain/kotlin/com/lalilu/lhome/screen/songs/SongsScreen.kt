@@ -1,5 +1,6 @@
 package com.lalilu.lhome.screen.songs
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,21 +8,24 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.SingletonImageLoader
+import coil3.compose.LocalPlatformContext
+import coil3.request.Options
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.AudioItemCard
 import com.lalilu.lhome.viewmodel.SongsState
 import com.lalilu.lhome.viewmodel.SongsVM
+import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.navigation.Screen
-import com.lalilu.navigation.ScreenAction
-import com.lalilu.navigation.ScreenActionFactory
-import com.lalilu.navigation.ScreenBarFactory
-import com.lalilu.navigation.ScreenInfo
-import com.lalilu.navigation.ScreenInfoFactory
+import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lplayer.action.PlayerAction
+import com.lalilu.navigation.*
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 @Destination("/pages/songs")
@@ -60,6 +64,8 @@ fun SongsScreenContent(
 ) {
     val songs: List<LAudio> = viewModel.songs.value
     val state: SongsState = viewModel.state.value
+    val scope = rememberCoroutineScope()
+    val context = LocalPlatformContext.current
 
     val statusBar = WindowInsets.statusBars.asPaddingValues()
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()
@@ -104,7 +110,28 @@ fun SongsScreenContent(
             AudioItemCard(
                 title = audio.titleValue(),
                 subtitle = audio.subtitleValue(),
+                imageData = audio,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    .combinedClickable(
+                        onClick = {
+                            scope.launch {
+                                PlayerAction.UpdateList(
+                                    ids = LMedia.instance.get<LAudio>().map(LItem::idValue),
+                                    id = audio.idValue(),
+                                    start = true
+                                ).action()
+                            }
+                        },
+                        onLongClick = {
+                            val imageLoader = SingletonImageLoader.get(context)
+                            val coverMemoryKey = imageLoader.components.key(audio, Options(context))
+
+                            AppRouter.route("/song/detail")
+                                .with("mediaId", audio.idValue())
+                                .with("coverCacheKey", coverMemoryKey)
+                                .jump()
+                        }
+                    )
             )
         }
     }
