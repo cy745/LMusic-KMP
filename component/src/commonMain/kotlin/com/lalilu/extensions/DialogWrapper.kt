@@ -23,9 +23,12 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,8 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 sealed class DialogItem {
@@ -106,19 +109,30 @@ object DialogWrapper : DialogHost, DialogContext {
                     }
 
                     this@DialogWrapper.dialogItem ?: return@collectLatest
-                    dismissFunc?.invoke()
+                    dismiss()
                 }
-
         }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         if (dialogItem == null) return
 
-        val isActiveClose by remember {
-            mutableStateOf(false)
-                .also { dismissFunc = { it.value = true } }
+        val scope = rememberCoroutineScope()
+        val sheetState = rememberModalBottomSheetState().also { state ->
+            dismissFunc = {
+                scope.launch {
+                    state.hide()
+                    dialogItem?.let { item ->
+                        when (item) {
+                            is DialogItem.Dynamic -> item.onDismiss.invoke()
+                            is DialogItem.Static -> item.onDismiss.invoke()
+                        }
+                    }
+                    dialogItem = null
+                }
+            }
         }
 
         val backgroundColor = remember(dialogItem) {
@@ -130,58 +144,59 @@ object DialogWrapper : DialogHost, DialogContext {
             }
         }
 
-        if (!isActiveClose) {
-            Dialog(
-                onDismissRequest = {
-                    dialogItem?.let {
-                        when (it) {
-                            is DialogItem.Dynamic -> it.onDismiss.invoke()
-                            is DialogItem.Static -> it.onDismiss.invoke()
-                        }
+        ModalBottomSheet(
+            onDismissRequest = {
+                dialogItem?.let {
+                    when (it) {
+                        is DialogItem.Dynamic -> it.onDismiss.invoke()
+                        is DialogItem.Static -> it.onDismiss.invoke()
                     }
-                    dialogItem = null
-                },
-                content = {
-                    AnimatedContent(
-                        modifier = Modifier
-                            .wrapContentHeight()
-                            .widthIn(max = 560.dp)
-                            .background(color = backgroundColor ?: MaterialTheme.colorScheme.background),
-                        targetState = dialogItem,
-                        label = "",
-                        transitionSpec = {
-                            slideInVertically(
-                                animationSpec = spring(stiffness = Spring.StiffnessLow),
-                                initialOffsetY = { (it * 1.2f).roundToInt() }
-                            ) togetherWith slideOutVertically(
-                                animationSpec = spring(stiffness = Spring.StiffnessVeryLow),
-                                targetOffsetY = { (it * 1.2f).roundToInt() }
-                            ) + scaleOut(
-                                animationSpec = spring(stiffness = Spring.StiffnessVeryLow),
-                                targetScale = 0.6f
-                            ) + fadeOut()
-                        }
-                    ) { dialog ->
-                        dialog?.apply {
-                            when (this) {
-                                is DialogItem.Static -> {
-                                    StaticDialogCard(
-                                        title = title,
-                                        message = message,
-                                        onConfirm = { dismiss(); onConfirm() },
-                                        onCancel = { dismiss(); onCancel() }
-                                    )
-                                }
+                }
+                dialogItem = null
+            },
+            sheetState = sheetState,
+            containerColor = Color.Transparent,
+            sheetMaxWidth = 540.dp,
+            content = {
+                AnimatedContent(
+                    modifier = Modifier
+                        .wrapContentHeight()
+                        .fillMaxWidth()
+                        .background(color = backgroundColor ?: MaterialTheme.colorScheme.background),
+                    targetState = dialogItem,
+                    label = "",
+                    transitionSpec = {
+                        slideInVertically(
+                            animationSpec = spring(stiffness = Spring.StiffnessLow),
+                            initialOffsetY = { (it * 1.2f).roundToInt() }
+                        ) togetherWith slideOutVertically(
+                            animationSpec = spring(stiffness = Spring.StiffnessVeryLow),
+                            targetOffsetY = { (it * 1.2f).roundToInt() }
+                        ) + scaleOut(
+                            animationSpec = spring(stiffness = Spring.StiffnessVeryLow),
+                            targetScale = 0.6f
+                        ) + fadeOut()
+                    }
+                ) { dialog ->
+                    dialog?.apply {
+                        when (this) {
+                            is DialogItem.Static -> {
+                                StaticDialogCard(
+                                    title = title,
+                                    message = message,
+                                    onConfirm = { dismiss(); onConfirm() },
+                                    onCancel = { dismiss(); onCancel() }
+                                )
+                            }
 
-                                is DialogItem.Dynamic -> {
-                                    content.invoke(this@DialogWrapper)
-                                }
+                            is DialogItem.Dynamic -> {
+                                content.invoke(this@DialogWrapper)
                             }
                         }
                     }
                 }
-            )
-        }
+            }
+        )
     }
 }
 
