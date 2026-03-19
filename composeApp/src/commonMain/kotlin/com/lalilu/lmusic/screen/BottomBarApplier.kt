@@ -43,7 +43,7 @@ import com.lalilu.atLeastMedium
 import com.lalilu.extensions.ClassicBackHandler
 import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.generated.KRouterInjectMap
-import com.lalilu.lmusic.screen.smartbar.NavigationSmartBar
+import com.lalilu.navigation.smartbar.NavigationSmartBar
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.screen.PlayerScreen
 import com.lalilu.navigation.LocalBackStack

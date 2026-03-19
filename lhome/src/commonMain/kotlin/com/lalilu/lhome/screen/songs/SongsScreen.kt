@@ -18,11 +18,8 @@ import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.request.Options
 import com.lalilu.RemixIcon
-import com.lalilu.extensions.DialogWrapper
-import com.lalilu.extensions.ItemRecorder
-import com.lalilu.extensions.ItemSelector
-import com.lalilu.extensions.rememberLazyListAnimateScroller
-import com.lalilu.extensions.startRecord
+import com.lalilu.common.ext.requestFor
+import com.lalilu.extensions.*
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.AudioItemCard
 import com.lalilu.lhome.screen.dialog.SongsSortPanelDialog
@@ -42,8 +39,12 @@ import com.lalilu.remixicon.System
 import com.lalilu.remixicon.design.editBoxLine
 import com.lalilu.remixicon.design.focus3Line
 import com.lalilu.remixicon.editor.sortDesc
+import com.lalilu.remixicon.system.checkboxMultipleBlankLine
+import com.lalilu.remixicon.system.checkboxMultipleLine
 import com.lalilu.remixicon.system.menuSearchLine
 import kotlinx.coroutines.launch
+import org.koin.core.parameter.parametersOf
+import org.koin.core.qualifier.named
 
 @Destination("/pages/songs")
 data class SongsScreen(
@@ -127,6 +128,40 @@ data class SongsScreen(
             onDismiss = { vm.intent(SongsAction.HideSearcherPanel) },
             keyword = { state.searchKeyWord },
             onUpdateKeyword = { vm.intent(SongsAction.SearchFor(it)) }
+        )
+
+//        SongsHeaderJumperDialog(
+//            isVisible = { state.showJumperDialog },
+//            onDismiss = { vm.intent(SongsAction.HideJumperDialog) },
+//            sortResult = songs,
+//            onSelectItem = { vm.intent(SongsAction.LocaleToGroupItem(it)) }
+//        )
+
+        SongsSelectorPanel(
+            isVisible = { vm.selector.isSelecting.value },
+            onDismiss = { vm.selector.isSelecting.value = false },
+            screenActions = listOfNotNull(
+                ScreenAction.Static(
+                    title = { "全选" },
+                    color = { Color(0xFF00ACF0) },
+                    icon = { RemixIcon.System.checkboxMultipleLine },
+                    onAction = { vm.selector.selectAll(songs.itemList) }
+                ),
+                ScreenAction.Static(
+                    title = { "取消全选" },
+                    icon = { RemixIcon.System.checkboxMultipleBlankLine },
+                    color = { Color(0xFFFF5100) },
+                    onAction = { vm.selector.clear() }
+                ),
+                requestFor<ScreenAction>(
+                    qualifier = named("add_to_favourite_action"),
+                    parameters = { parametersOf(vm.selector::selected) }
+                ),
+                requestFor<ScreenAction>(
+                    qualifier = named("add_to_playlist_action"),
+                    parameters = { parametersOf(vm.selector::selected) }
+                )
+            )
         )
 
         SongsScreenContent(

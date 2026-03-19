@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lmusic.screen.smartbar
+package com.lalilu.navigation.smartbar
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.PaddingValues
