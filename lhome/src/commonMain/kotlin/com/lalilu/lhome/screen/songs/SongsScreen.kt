@@ -18,6 +18,7 @@ import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.request.Options
 import com.lalilu.RemixIcon
+import com.lalilu.extensions.DialogWrapper
 import com.lalilu.extensions.ItemRecorder
 import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.rememberLazyListAnimateScroller
@@ -90,7 +91,7 @@ data class SongsScreen(
                     },
                     onAction = {
                         vm.intent(SongsAction.ToggleSearcherPanel)
-//                        DialogWrapper.dismiss()
+                        DialogWrapper.dismiss()
                     }
                 ),
                 ScreenAction.Static(
@@ -119,6 +120,13 @@ data class SongsScreen(
             sortConfig = { sortConfig.value },
             onSelectSortAction = { vm.intent(SongsAction.SelectSortAction(it)) },
             onUpdateSortConfig = { vm.intent(SongsAction.UpdateSortConfig(it)) }
+        )
+
+        SongsSearcherPanel(
+            isVisible = { state.showSearcherPanel },
+            onDismiss = { vm.intent(SongsAction.HideSearcherPanel) },
+            keyword = { state.searchKeyWord },
+            onUpdateKeyword = { vm.intent(SongsAction.SearchFor(it)) }
         )
 
         SongsScreenContent(

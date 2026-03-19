@@ -19,7 +19,7 @@ package com.lalilu.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.currentCompositeKeyHash
+import androidx.compose.runtime.currentCompositeKeyHashCode
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -93,7 +93,7 @@ interface ScreenBarFactory {
         onBackPressed: (() -> Unit)?,
         content: @Composable () -> Unit
     ) {
-        val key = currentCompositeKeyHash
+        val key = currentCompositeKeyHashCode
 
         LaunchedEffect(isVisible()) {
             if (isVisible()) {
