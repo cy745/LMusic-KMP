@@ -36,9 +36,10 @@ interface LAudioDao {
 
     @Transaction
     @Query("SELECT * FROM l_audio WHERE song_id = :id")
-    fun getAudioWithRelations(id: String): Flow<QueryLAudioWithRelations>
+    fun getAudioWithRelations(id: String): Flow<QueryLAudioWithRelations?>
 
-    fun getAudio(id: String): Flow<LAudio> = getAudioWithRelations(id).mapLatest { query ->
+    fun getAudio(id: String): Flow<LAudio?> = getAudioWithRelations(id).mapLatest { query ->
+        if (query == null) return@mapLatest null
         query.audio.also { audio ->
             query.artists.forEach { artist -> audio.link(artist) }
             query.albums.forEach { album -> audio.link(album) }

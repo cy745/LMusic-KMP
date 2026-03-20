@@ -45,9 +45,10 @@ interface LGenreDao {
 
     @Transaction
     @Query("SELECT * FROM l_genre WHERE genre_id = :id")
-    fun getGenreWithAudios(id: String): Flow<QueryLGenreWithAudios>
+    fun getGenreWithAudios(id: String): Flow<QueryLGenreWithAudios?>
 
     fun getGenre(id: String): Flow<LGenre?> = getGenreWithAudios(id).mapLatest { query ->
+        if (query == null) return@mapLatest null
         query.genre.also { genre ->
             query.audios.forEach { audio ->
                 genre.link(audio)

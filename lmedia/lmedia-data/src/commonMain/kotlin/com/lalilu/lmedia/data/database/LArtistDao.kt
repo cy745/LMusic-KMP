@@ -46,10 +46,11 @@ interface LArtistDao {
 
     @Transaction
     @Query("SELECT * FROM l_artist WHERE artist_id = :artistId")
-    fun getArtistWithAudios(artistId: String): Flow<QueryLArtistWithAudios>
+    fun getArtistWithAudios(artistId: String): Flow<QueryLArtistWithAudios?>
 
-    fun getArtist(artistId: String): Flow<LArtist> = getArtistWithAudios(artistId)
+    fun getArtist(artistId: String): Flow<LArtist?> = getArtistWithAudios(artistId)
         .mapLatest { query ->
+            if (query == null) return@mapLatest null
             query.artist.also { artist ->
                 query.audios.forEach { audio ->
                     artist.link(audio)

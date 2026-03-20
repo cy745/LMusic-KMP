@@ -45,9 +45,10 @@ interface LAlbumDao {
 
     @Transaction
     @Query("SELECT * FROM l_album WHERE album_id = :id")
-    fun getAlbumWithAudios(id: String): Flow<QueryLAlbumWithAudios>
+    fun getAlbumWithAudios(id: String): Flow<QueryLAlbumWithAudios?>
 
     fun getAlbum(id: String): Flow<LAlbum?> = getAlbumWithAudios(id).mapLatest { query ->
+        if (query == null) return@mapLatest null
         query.album.also { album ->
             query.audios.forEach { audio ->
                 album.link(audio)
