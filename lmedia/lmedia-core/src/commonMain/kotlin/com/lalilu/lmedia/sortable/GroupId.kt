@@ -19,10 +19,11 @@ package com.lalilu.lmedia.sortable
 
 import kotlinx.serialization.Serializable
 import androidx.compose.runtime.Stable
+import com.lalilu.common.ext.SerializableObject
 
 
 @Serializable
-sealed class GroupId {
+sealed class GroupId : SerializableObject {
     @Serializable
     data object None : GroupId() {
         private fun readResolve(): Any = None
@@ -30,6 +31,8 @@ sealed class GroupId {
 
     @Serializable
     data class FirstLetter(val letter: String) : GroupId()
+
+    @Serializable
     data class DiskNumber(val number: Int) : GroupId()
 
     @Serializable
