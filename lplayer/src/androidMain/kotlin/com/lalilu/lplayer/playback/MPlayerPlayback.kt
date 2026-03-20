@@ -84,18 +84,33 @@ class MPlayerPlayback(
 
     private val flattenedPlaylist: StateFlow<List<LAudio>> = _playlist
         .flatten<LAudio>()
-        .stateIn(this, SharingStarted.WhileSubscribed(), emptyList())
+        .stateIn(this, SharingStarted.Eagerly, emptyList())
 
     // Computed properties
     override val currentItem: StateFlow<LAudio?> = flattenedPlaylist
         .combine(_currentItemIndex) { playlist, index -> playlist.getOrNull(index) }
-        .stateIn(this, SharingStarted.WhileSubscribed(), null)
+        .onEach {
+            val id = it?.id
+            if (id != null) LPlayerKV.historyPlayId.value = id else LPlayerKV.historyPlayId.remove()
+        }
+        .stateIn(this, SharingStarted.Eagerly, null)
 
     init {
-        launch(Dispatchers.Main) {
-            preInit()
+        launch {
+            // 恢复历史播放列表
+            listOf(
+                async {
+                    val ids = LPlayerKV.historyPlaylistIds.value
+                    _playlist.value = runBlocking { library.mapBy<LAudio>(ids) }
 
-            // TODO 待重构启动时填充播放列表的逻辑
+                    val id = LPlayerKV.historyPlayId.value
+                    _currentItemIndex.value = ids.indexOf(id)
+                },
+                async(Dispatchers.Main) {
+                    preInit()
+                }
+            ).awaitAll()
+
             launch(Dispatchers.Main) {
                 onLibraryReady()
             }
@@ -110,15 +125,22 @@ class MPlayerPlayback(
 
     internal suspend fun onLibraryReady() {
         val browser = browserFuture.await()
-        val lastPosition = LPlayerKV.historyPlayPosition.value
         val items = getHistoryItems()
         if (items.isEmpty()) {
             LogUtils.i("No songs found")
             return
+        } else {
+            LogUtils.i("Songs found: ${items.size}")
         }
 
+        val lastPosition = LPlayerKV.historyPlayPosition.value
+        val lastPlayId = LPlayerKV.historyPlayId.value
+        val lastPlayIndex = _playlist.value
+            .indexOfFirst { item -> item.idValue() == lastPlayId }
+            .coerceIn(0, items.lastIndex)
+
         browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
-        browser.setMediaItems(items, 0, lastPosition)
+        browser.setMediaItems(items, lastPlayIndex, lastPosition)
         browser.prepare()
     }
 
