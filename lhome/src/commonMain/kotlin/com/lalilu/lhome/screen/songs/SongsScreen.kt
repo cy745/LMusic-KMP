@@ -22,8 +22,10 @@ import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.*
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.AudioItemCard
+import com.lalilu.lhome.screen.dialog.SongsHeaderJumperDialog
 import com.lalilu.lhome.screen.dialog.SongsSortPanelDialog
 import com.lalilu.lhome.viewmodel.SongsAction
+import com.lalilu.lhome.viewmodel.SongsEvent
 import com.lalilu.lhome.viewmodel.SongsState
 import com.lalilu.lhome.viewmodel.SongsVM
 import com.lalilu.lmedia.data.LMedia
@@ -42,6 +44,9 @@ import com.lalilu.remixicon.editor.sortDesc
 import com.lalilu.remixicon.system.checkboxMultipleBlankLine
 import com.lalilu.remixicon.system.checkboxMultipleLine
 import com.lalilu.remixicon.system.menuSearchLine
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
@@ -130,12 +135,12 @@ data class SongsScreen(
             onUpdateKeyword = { vm.intent(SongsAction.SearchFor(it)) }
         )
 
-//        SongsHeaderJumperDialog(
-//            isVisible = { state.showJumperDialog },
-//            onDismiss = { vm.intent(SongsAction.HideJumperDialog) },
-//            sortResult = songs,
-//            onSelectItem = { vm.intent(SongsAction.LocaleToGroupItem(it)) }
-//        )
+        SongsHeaderJumperDialog(
+            isVisible = { state.showJumperDialog },
+            onDismiss = { vm.intent(SongsAction.HideJumperDialog) },
+            sortResult = songs,
+            onSelectItem = { vm.intent(SongsAction.LocaleToGroupItem(it)) }
+        )
 
         SongsSelectorPanel(
             isVisible = { vm.selector.isSelecting.value },
@@ -168,7 +173,9 @@ data class SongsScreen(
             recorder = { vm.recorder },
             selector = { vm.selector },
             state = { state },
-            songs = { songs }
+            songs = { songs },
+            eventFlow = { vm.eventFlow() },
+            onClickGroup = { vm.intent(SongsAction.ToggleJumperDialog) }
         )
     }
 }
@@ -179,6 +186,7 @@ fun SongsScreenContent(
     songs: () -> SortResult<LAudio>,
     recorder: () -> ItemRecorder,
     selector: () -> ItemSelector<LAudio>,
+    eventFlow: () -> Flow<SongsEvent> = { emptyFlow() },
     keys: () -> Collection<Any> = { emptyList() },
     onClickGroup: (GroupId) -> Unit = {}
 ) {
@@ -197,6 +205,33 @@ fun SongsScreenContent(
         listState = listState,
         keys = keys
     )
+
+    LaunchedEffect(Unit) {
+        eventFlow().collectLatest { event ->
+            when (event) {
+                is SongsEvent.ScrollToItem -> {
+                    scroller.animateTo(
+                        key = event.key,
+                        isStickyHeader = { it.contentType == "group" },
+                        offset = { item ->
+                            // 若是 sticky header，则滚动到顶部
+                            if (item.contentType == "group") {
+                                return@animateTo -statusBar.getTop(density)
+                            }
+
+                            val closestStickyHeaderSize = listState.layoutInfo.visibleItemsInfo
+                                .lastOrNull { it.index < item.index && it.contentType == "group" }
+                                ?.size ?: 0
+
+                            -(statusBar.getTop(density) + closestStickyHeaderSize)
+                        }
+                    )
+                }
+
+                else -> {}
+            }
+        }
+    }
 
 
     LazyColumn(

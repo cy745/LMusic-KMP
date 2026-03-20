@@ -139,7 +139,7 @@ object DialogWrapper : DialogHost, DialogContext {
         }
 
         ModalBottomSheet(
-            modifier = modifier,
+            modifier = Modifier,
             onDismissRequest = {
                 dialogItem?.let {
                     when (it) {

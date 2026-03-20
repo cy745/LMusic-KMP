@@ -16,9 +16,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
-import org.koin.core.annotation.Factory
+import org.koin.core.annotation.Single
 
-@Factory
+@Single
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalSettingsApi::class)
 class HomeScreenModel(
     private val library: Library,
@@ -26,10 +26,6 @@ class HomeScreenModel(
 ) : ViewModel() {
     val recentlyAdded = LMedia.instance.flow<LAudio>()
         .mapLatest { it.take(15) }
-        .toState(emptyList(), viewModelScope)
-
-    val histories = LMedia.instance.flow<LAudio>()
-        .mapLatest { it.shuffled().take(6) }
         .toState(emptyList(), viewModelScope)
 
     val dailyRecommends = lHomeKV.dailyRecommends.flow()
