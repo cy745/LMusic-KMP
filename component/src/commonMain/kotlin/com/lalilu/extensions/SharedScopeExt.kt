@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
+import com.lalilu.navigation.LocalNavAnimateVisibleScope
 import com.lalilu.navigation.LocalSharedTransitionScope
 
 typealias SharedMap = Map<String, String>
@@ -69,7 +70,7 @@ fun buildSharedMap(
 class SharedContextScope(
     val sharedMap: SharedMap,
     val sharedTransitionScope: SharedTransitionScope? = null,
-    val defaultAnimationScope: AnimatedContentScope? = null,
+    val defaultAnimationScope: AnimatedVisibilityScope? = null,
     val defaultConfig: SharedContentConfig? = null
 ) {
     companion object {
@@ -253,7 +254,9 @@ fun SharedContext(
     }
 
     val sharedScope = sharedTransitionScope ?: LocalSharedTransitionScope.current
-    val animationScope = defaultAnimationScope ?: LocalNavAnimatedContentScope.current
+    val animationScope = defaultAnimationScope
+        ?: LocalNavAnimateVisibleScope.current
+        ?: LocalNavAnimatedContentScope.current
 
     val scope = remember(
         sharedMap,

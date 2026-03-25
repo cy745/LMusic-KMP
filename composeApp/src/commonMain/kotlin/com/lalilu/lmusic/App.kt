@@ -154,46 +154,15 @@ fun App() = ScreenModeHandler {
 @Composable
 fun backStackHandler(): NavBackStack<Screen> {
     val screenMode: ScreenMode = currentScreenMode()
-    val playerScreen = remember { AppRouter.route("/player").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
     val homeScreen = remember { AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
-    val mutex = remember { Mutex() }
     val backStack = remember {
         NavBackStack(
             when (screenMode) {
-                Phone -> playerScreen
+                Phone -> homeScreen
                 Tablet -> homeScreen
                 Unknown -> ExceptionScreen.SCREEN_NOT_FOUND
             }
         )
-    }
-
-    // 屏幕模式切换控制导航栈
-    LaunchedEffect(screenMode) {
-        mutex.withLock {
-            ensureActive()
-
-            fun firstScreen() = backStack.firstOrNull()
-
-            when (screenMode) {
-                Phone -> {
-                    if (firstScreen() != playerScreen) {
-                        backStack.add(0, playerScreen)
-                    }
-                }
-
-                Tablet -> {
-                    if (firstScreen() == playerScreen) {
-                        backStack.removeAt(0)
-                    }
-                    if (firstScreen() != homeScreen) {
-                        backStack.add(0, homeScreen)
-                    }
-                }
-
-                else -> {
-                }
-            }
-        }
     }
 
     // 绑定AppRouter导航

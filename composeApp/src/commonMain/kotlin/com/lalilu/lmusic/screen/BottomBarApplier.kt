@@ -19,9 +19,10 @@
 
 package com.lalilu.lmusic.screen
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.*
+import androidx.compose.animation.core.SeekableTransitionState
+import androidx.compose.animation.core.Transition
+import androidx.compose.animation.core.rememberTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.BottomSheetScaffold
@@ -43,12 +44,13 @@ import com.lalilu.atLeastMedium
 import com.lalilu.extensions.ClassicBackHandler
 import com.lalilu.krouter.KRouter
 import com.lalilu.krouter.generated.KRouterInjectMap
-import com.lalilu.navigation.smartbar.NavigationSmartBar
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.screen.PlayerScreen
+import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.LocalBackStack
-import com.lalilu.navigation.Screen
+import com.lalilu.navigation.LocalNavAnimateVisibleScope
 import com.lalilu.navigation.actualScreen
+import com.lalilu.navigation.smartbar.NavigationSmartBar
 import com.lalilu.preview.preview
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -70,6 +72,8 @@ fun BottomBarApplier(
     val hasNext = LPlayer.instance.canSkipNext.collectAsState(false)
     val currentDuration = LPlayer.instance.currentDuration.collectAsState(0L)
     val currentPosition = remember { mutableStateOf(0L) }
+    val playerScreen = remember { AppRouter.route("/player").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
+    val padPlayerScreen = remember { AppRouter.route("/player").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
 
     LaunchedEffect(Unit) {
         while (isActive) {
@@ -86,6 +90,60 @@ fun BottomBarApplier(
     val smartBarContent = remember {
         movableContentOf<Modifier> { modifier -> NavigationSmartBar(modifier = modifier) }
     }
+    val playerContent = remember {
+        movableContentOf { playerScreen.Content() }
+    }
+    val padPlayerContent = remember(smartBarContent) {
+        movableContentOf {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            val progress = bottomSheetState.progress(
+                                BottomSheetValue.Collapsed,
+                                BottomSheetValue.Expanded
+                            )
+                            alpha = progress
+                        }
+                ) {
+                    padPlayerScreen.Content()
+                }
+
+                Row(
+                    modifier = bottomBarModifier
+                        .graphicsLayer {
+                            val progress = bottomSheetState.progress(
+                                BottomSheetValue.Collapsed,
+                                BottomSheetValue.Expanded
+                            )
+
+                            translationY = constraints.maxHeight * progress
+                            alpha = (1f - progress)
+                        }
+                        .fillMaxWidth()
+                        .background(color = MaterialTheme.colorScheme.background.copy(0.6f))
+                        .height(72.dp + navigatorBar.calculateBottomPadding()),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PlayingInfoCard(
+                        modifier = Modifier.navigationBarsPadding(),
+                        currentPlaying = { currentPlaying.value },
+                        currentProgress = {
+                            (currentPosition.value / currentDuration.value.toFloat()).coerceIn(0f, 1f)
+                        },
+                        isPlaying = { isPlaying.value },
+                        hasNext = { hasNext.value },
+                        onClickPlayPause = { scope.launch { LPlayer.instance.togglePlayPause() } },
+                        onClickNext = { scope.launch { LPlayer.instance.skipToNext() } },
+                        onClick = { scope.launch { bottomSheetState.expand() } },
+                    )
+
+                    smartBarContent.invoke(Modifier.weight(1f))
+                }
+            }
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         if (windowClass.atLeastMedium()) {
@@ -96,62 +154,37 @@ fun BottomBarApplier(
                 sheetBackgroundColor = Color.Transparent,
                 sheetPeekHeight = 72.dp + navigatorBar.calculateBottomPadding(),
                 sheetContent = {
-                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    val progress = bottomSheetState.progress(
-                                        BottomSheetValue.Collapsed,
-                                        BottomSheetValue.Expanded
-                                    )
-                                    alpha = progress
-                                }
-                        ) {
-                            runCatching { KRouter.route<Screen>("/player_pad") }
-                                .getOrNull()
-                                ?.Content()
-                        }
-
-                        Row(
-                            modifier = bottomBarModifier
-                                .graphicsLayer {
-                                    val progress = bottomSheetState.progress(
-                                        BottomSheetValue.Collapsed,
-                                        BottomSheetValue.Expanded
-                                    )
-
-                                    translationY = constraints.maxHeight * progress
-                                    alpha = (1f - progress)
-                                }
-                                .fillMaxWidth()
-                                .background(color = MaterialTheme.colorScheme.background.copy(0.6f))
-                                .height(72.dp + navigatorBar.calculateBottomPadding()),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            PlayingInfoCard(
-                                modifier = Modifier.navigationBarsPadding(),
-                                currentPlaying = { currentPlaying.value },
-                                currentProgress = {
-                                    (currentPosition.value / currentDuration.value.toFloat()).coerceIn(0f, 1f)
-                                },
-                                isPlaying = { isPlaying.value },
-                                hasNext = { hasNext.value },
-                                onClickPlayPause = { scope.launch { LPlayer.instance.togglePlayPause() } },
-                                onClickNext = { scope.launch { LPlayer.instance.skipToNext() } },
-                                onClick = { scope.launch { bottomSheetState.expand() } },
-                            )
-
-                            smartBarContent.invoke(Modifier.weight(1f))
-                        }
-                    }
+                    padPlayerContent.invoke()
                 },
                 content = {
                     mainContent.invoke()
                 }
             )
         } else {
-            mainContent.invoke()
+
+            val state = remember { SeekableTransitionState(EnterExitState.Visible) }
+            val transition = rememberTransition(transitionState = state, label = "manual")
+            val scope = remember(transition) {
+                object : AnimatedVisibilityScope {
+                    override val transition: Transition<EnterExitState> = transition
+                }
+            }
+
+            CompositionLocalProvider(LocalNavAnimateVisibleScope provides scope) {
+                BottomSheetScaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    scaffoldState = bottomSheetScaffoldState,
+                    backgroundColor = Color.Transparent,
+                    sheetBackgroundColor = Color.Transparent,
+                    sheetPeekHeight = 72.dp + navigatorBar.calculateBottomPadding(),
+                    sheetContent = {
+                        mainContent.invoke()
+                    },
+                    content = {
+                        playerContent.invoke()
+                    }
+                )
+            }
 
             val backStack = LocalBackStack.current
             val currentScreen = backStack.lastOrNull()
