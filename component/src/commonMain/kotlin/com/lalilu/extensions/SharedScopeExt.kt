@@ -33,7 +33,6 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
-import com.lalilu.navigation.LocalNavAnimateVisibleScope
 import com.lalilu.navigation.LocalSharedTransitionScope
 
 typealias SharedMap = Map<String, String>
@@ -240,6 +239,8 @@ class SharedContextScope(
         }
 }
 
+
+@Suppress("ILLEGAL_RUN_CATCHING_AROUND_COMPOSABLE")
 @Composable
 fun SharedContext(
     sharedMap: SharedMap = LocalSharedMap.current,
@@ -254,9 +255,7 @@ fun SharedContext(
     }
 
     val sharedScope = sharedTransitionScope ?: LocalSharedTransitionScope.current
-    val animationScope = defaultAnimationScope
-        ?: LocalNavAnimateVisibleScope.current
-        ?: LocalNavAnimatedContentScope.current
+    val animationScope = defaultAnimationScope ?: runCatching { LocalNavAnimatedContentScope.current }.getOrNull()
 
     val scope = remember(
         sharedMap,
