@@ -43,6 +43,7 @@ kotlin {
                 api(compose.ui)
                 api(compose.preview)
                 api(compose.components.resources)
+                api(libs.compose.material)
 
                 api(libs.compose.adaptive)
                 api(libs.compose.ui.backhandler)

@@ -1,7 +1,11 @@
 package com.lalilu.lplayer.screen
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
@@ -10,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
@@ -18,7 +21,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import androidx.navigation3.ui.NavDisplay
 import co.touchlab.kermit.Logger
 import com.lalilu.LocalSeedColor
 import com.lalilu.RemixIcon
@@ -42,7 +44,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.pow
 
@@ -64,33 +65,8 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
     @Composable
     override fun Content() {
         val density = LocalDensity.current
-        val backStack = LocalBackStack.current
         val haptic = LocalHapticFeedback.current
         val seedColor = LocalSeedColor.current
-        val transitionState = LocalNavSeekableTransitionState.current
-        val homeScreen = remember {
-            val transition = NavDisplay.transitionSpec {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Up,
-                    animationSpec = tween(300)
-                ) togetherWith ExitTransition.None
-            } + NavDisplay.popTransitionSpec {
-                EnterTransition.None togetherWith slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Down,
-                    animationSpec = tween(300)
-                )
-            } + NavDisplay.predictivePopTransitionSpec {
-                EnterTransition.None togetherWith slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Down,
-                    animationSpec = tween(300)
-                )
-            }
-
-            AppRouter.route("/home")
-                .withParams(transition)
-                .get()
-        }
-
         val vm = koinViewModel<PlayerViewModel>()
         vm.bindToLifecycle()
 
@@ -116,7 +92,6 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
         val duration = LPlayer.instance.currentDuration.collectAsState(0L)
         val animation = remember { Animatable(currentTime.value.toFloat()) }
         val navigationBar = WindowInsets.navigationBars
-        var navDragOffset = 0f
 
         val bgAnimateColor = animateColorAsState(
             targetValue = MaterialTheme.colorScheme.primaryContainer,
@@ -294,17 +269,17 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                     label = ""
                 )
 
-                Spacer(
-                    modifier = Modifier.fillMaxSize()
-                        .drawBehind {
-                            val state = transitionState.value ?: return@drawBehind
-                            val back = state.targetState.key != homeScreen?.key
-                            val progress = if (back) 1f - state.fraction else state.fraction
-                            if (state.targetState != state.currentState) {
-                                drawRect(color = Color.Black.copy(0.8f * progress))
-                            }
-                        }
-                )
+//                Spacer(
+//                    modifier = Modifier.fillMaxSize()
+//                        .drawBehind {
+//                            val state = transitionState.value ?: return@drawBehind
+//                            val back = state.targetState.key != homeScreen?.key
+//                            val progress = if (back) 1f - state.fraction else state.fraction
+//                            if (state.targetState != state.currentState) {
+//                                drawRect(color = Color.Black.copy(0.8f * progress))
+//                            }
+//                        }
+//                )
 
                 Box(
                     Modifier
@@ -314,6 +289,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                             translationY = (1f - animateProgress.value / 100f) * 500f
                         }
                 ) {
+                    val bottomSheetState = LocalModalBottomSheetState.current
                     SeekbarLayout(
                         modifier = Modifier
                             .padding(horizontal = 40.dp)
@@ -323,26 +299,10 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                         maxValue = { duration.value.toFloat() },
                         dataValue = { currentTime.value.toFloat() },
                         onDispatchDragOffset = { deltaY ->
-                            navDragOffset += deltaY
-                            val state = transitionState.value ?: return@SeekbarLayout
-                            val screen = homeScreen ?: return@SeekbarLayout
-                            val progress = (abs(navDragOffset) / 2160f).coerceIn(0f, 1f)
-
-                            if (backStack.lastOrNull() != screen) {
-                                backStack.add(screen)
-                            }
-
-                            scope.launch { state.seekTo(progress, state.targetState) }
+                            scope.launch { bottomSheetState.anchoredDraggableState.dispatchRawDelta(deltaY) }
                         },
                         onDragStop = { result ->
-                            navDragOffset = 0f
-
-                            if (result == -1) {
-                                backStack.remove(homeScreen)
-                            } else {
-                                val state = transitionState.value
-                                scope.launch { state?.animateTo(state.targetState) }
-                            }
+                            scope.launch { bottomSheetState.anchoredDraggableState.settle(0f) }
                         },
                         onSeekTo = { position ->
                             Logger.i("seekTo: $position")
