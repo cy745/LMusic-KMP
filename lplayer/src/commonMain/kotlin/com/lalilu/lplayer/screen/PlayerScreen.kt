@@ -302,7 +302,13 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                             scope.launch { bottomSheetState.anchoredDraggableState.dispatchRawDelta(deltaY) }
                         },
                         onDragStop = { result ->
-                            scope.launch { bottomSheetState.anchoredDraggableState.settle(0f) }
+                            scope.launch {
+                                if (result == 0) {
+                                    bottomSheetState.anchoredDraggableState.settle(0f)
+                                } else {
+                                    bottomSheetState.hide()
+                                }
+                            }
                         },
                         onSeekTo = { position ->
                             Logger.i("seekTo: $position")
