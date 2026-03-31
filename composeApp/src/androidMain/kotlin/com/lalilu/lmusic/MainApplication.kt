@@ -4,19 +4,21 @@ import android.app.Application
 import android.os.Build
 import coil3.gif.AnimatedImageDecoder
 import coil3.gif.GifDecoder
+import com.russhwolf.settings.SettingsInitializer
 import org.koin.android.ext.koin.androidContext
-import org.koin.core.context.startKoin
-import org.koin.dsl.module
+import org.koin.androix.startup.KoinStartup
+import org.koin.core.annotation.KoinExperimentalAPI
+import org.koin.dsl.KoinConfiguration
 
-class MainApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        startKoin {
-            module {
-                androidContext(this@MainApplication)
-            }
-            koinSetup()
-        }
+@OptIn(KoinExperimentalAPI::class)
+class MainApplication : Application(), KoinStartup {
+
+    override fun onKoinStartup(): KoinConfiguration = KoinConfiguration {
+        // 传入context到settings
+        SettingsInitializer().create(this@MainApplication)
+
+        androidContext(this@MainApplication)
+        koinSetup()
 
         platformSetupCoil(
             components = {
