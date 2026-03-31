@@ -25,17 +25,9 @@ import com.lalilu.llyricview.LyricContext
 import com.lalilu.llyricview.LyricItemLayout
 import com.lalilu.llyricview.LyricSettings
 import com.lalilu.llyricview.utils.blur
-import org.koin.core.annotation.Named
-import org.koin.core.annotation.Single
 import kotlin.math.abs
 
-@Named("LyricNormalContent")
-@Single(createdAtStart = true)
-class LyricNormalContent : LyricItemLayout<LyricItem.NormalLyric> {
-
-    init {
-        LyricItemLayout.set(LyricItem.NormalLyric::class, this)
-    }
+object LyricNormalContent : LyricItemLayout<LyricItem.NormalLyric> {
 
     @Composable
     override fun content(

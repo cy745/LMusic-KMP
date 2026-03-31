@@ -12,16 +12,8 @@ import com.lalilu.llyric.LyricItem
 import com.lalilu.llyricview.LyricContext
 import com.lalilu.llyricview.LyricItemLayout
 import com.lalilu.llyricview.LyricSettings
-import org.koin.core.annotation.Named
-import org.koin.core.annotation.Single
 
-@Named("LyricFixedTipsContent")
-@Single(createdAtStart = true)
-class LyricFixedTipsContent : LyricItemLayout<LyricItem.FixedTips> {
-
-    init {
-        LyricItemLayout.set(LyricItem.FixedTips::class, this)
-    }
+object LyricFixedTipsContent : LyricItemLayout<LyricItem.FixedTips> {
 
     @Composable
     override fun content(

@@ -18,16 +18,8 @@ import com.lalilu.llyric.LyricItem
 import com.lalilu.llyricview.LyricContext
 import com.lalilu.llyricview.LyricItemLayout
 import com.lalilu.llyricview.LyricSettings
-import org.koin.core.annotation.Named
-import org.koin.core.annotation.Single
 
-@Named("LyricStartTipsContent")
-@Single(createdAtStart = true)
-class LyricStartTipsContent : LyricItemLayout<LyricItem.StartTips> {
-
-    init {
-        LyricItemLayout.set(LyricItem.StartTips::class, this)
-    }
+object LyricStartTipsContent : LyricItemLayout<LyricItem.StartTips> {
 
     @Composable
     override fun content(

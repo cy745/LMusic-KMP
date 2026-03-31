@@ -29,20 +29,12 @@ import com.lalilu.llyricview.LyricContext
 import com.lalilu.llyricview.LyricItemLayout
 import com.lalilu.llyricview.LyricSettings
 import com.lalilu.llyricview.utils.*
-import org.koin.core.annotation.Named
-import org.koin.core.annotation.Single
 import kotlin.math.abs
 
 
 private val DEFAULT_GRADIENT_GAP = 48.dp
 
-@Named("LyricWordsContent")
-@Single(createdAtStart = true)
-class LyricWordsContent : LyricItemLayout<LyricItem.WordsLyric> {
-
-    init {
-        LyricItemLayout.set(LyricItem.WordsLyric::class, this)
-    }
+object LyricWordsContent : LyricItemLayout<LyricItem.WordsLyric> {
 
     @Composable
     override fun content(
