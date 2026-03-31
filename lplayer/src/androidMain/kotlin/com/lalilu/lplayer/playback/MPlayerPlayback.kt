@@ -25,9 +25,9 @@ import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.extensions.MMedia
 import com.lalilu.lplayer.extensions.PlayMode
 import com.lalilu.lplayer.extensions.playMode
+import com.lalilu.lplayer.extensions.toMediaItem
 import com.lalilu.lplayer.service.CustomCommand
 import com.lalilu.lplayer.service.MService
-import com.lalilu.lplayer.service.getHistoryItems
 import com.lalilu.lplayer.service.saveHistoryIds
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -37,7 +37,7 @@ import kotlin.coroutines.CoroutineContext
 @OptIn(UnstableApi::class)
 class MPlayerPlayback(
     private val library: Library
-) : CoroutineScope, Player.Listener, Playback {
+) : CoroutineScope, Player.Listener, Playback, Runnable {
     override val coroutineContext: CoroutineContext = Dispatchers.IO
     private val sessionToken by lazy {
         SessionToken(Utils.getApp(), ComponentName(Utils.getApp(), MService::class.java))
@@ -95,37 +95,30 @@ class MPlayerPlayback(
         }
         .stateIn(this, SharingStarted.Eagerly, null)
 
+    private var loadedHistories: List<LAudio> = emptyList()
+
     init {
+        browserFuture.addListener(this@MPlayerPlayback, Dispatchers.Main.asExecutor())
+
         launch {
-            // 恢复历史播放列表
-            listOf(
-                async {
-                    val ids = LPlayerKV.historyPlaylistIds.value
-                    _playlist.value = runBlocking { library.mapBy<LAudio>(ids) }
+            val ids = LPlayerKV.historyPlaylistIds.value
+            loadedHistories = library.mapBy<LAudio>(ids)
+            _playlist.value = loadedHistories
 
-                    val id = LPlayerKV.historyPlayId.value
-                    _currentItemIndex.value = ids.indexOf(id)
-                },
-                async(Dispatchers.Main) {
-                    preInit()
-                }
-            ).awaitAll()
-
-            launch(Dispatchers.Main) {
-                onLibraryReady()
-            }
+            val id = LPlayerKV.historyPlayId.value
+            _currentItemIndex.value = ids.indexOf(id)
         }
     }
 
-    internal suspend fun preInit() {
-        val browser = browserFuture.await()
+    /**
+     * browser 连接成功回调
+     */
+    override fun run() {
+        val browser = browserFuture.get() ?: return
         browserInstance = browser
         browser.addListener(this@MPlayerPlayback)
-    }
 
-    internal suspend fun onLibraryReady() {
-        val browser = browserFuture.await()
-        val items = getHistoryItems()
+        val items = loadedHistories
         if (items.isEmpty()) {
             LogUtils.i("No songs found")
             return
@@ -139,8 +132,9 @@ class MPlayerPlayback(
             .indexOfFirst { item -> item.idValue() == lastPlayId }
             .coerceIn(0, items.lastIndex)
 
+        val mediaItems = items.map { it.toMediaItem() }
         browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
-        browser.setMediaItems(items, lastPlayIndex, lastPosition)
+        browser.setMediaItems(mediaItems, lastPlayIndex, lastPosition)
         browser.prepare()
     }
 
