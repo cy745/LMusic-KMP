@@ -16,6 +16,9 @@
 -keep class org.koin.core.annotation.** { *; }
 -keep @org.koin.core.annotation.* class * { *; }
 
+# kotlin reflect related
+-keep class kotlin.reflect.** { *; }
+
 # platform related
 -keep class uk.co.caprica.vlcj.** { *; }
 -keep class com.sun.jna.** { *; }

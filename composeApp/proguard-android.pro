@@ -9,4 +9,7 @@
 -keep class org.koin.core.annotation.** { *; }
 -keep @org.koin.core.annotation.* class * { *; }
 
+# kotlin reflect related
+-keep class kotlin.reflect.** { *; }
+
 # platform related

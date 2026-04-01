@@ -8,7 +8,6 @@ import androidx.annotation.OptIn
 import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.*
 import androidx.media3.session.MediaLibraryService.LibraryParams
@@ -27,7 +26,6 @@ import com.lalilu.lplayer.extensions.*
 import com.lalilu.lplayer.extensions.setUpQueueControl
 import com.lalilu.lplayer.service.CustomCommand.SeekToNext
 import com.lalilu.lplayer.service.CustomCommand.SeekToPrevious
-import com.lalilu.lplayer.service.HistoryAnalyticsListener
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach

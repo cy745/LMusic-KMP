@@ -48,6 +48,6 @@ kotlin {
 
 
 android {
-    compileSdk = 35
+    compileSdk = libs.versions.android.targetSdk.get().toIntOrNull()
     namespace = "ComposeGridLayout"
 }

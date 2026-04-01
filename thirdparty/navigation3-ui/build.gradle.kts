@@ -54,6 +54,6 @@ kotlin {
 
 
 android {
-    compileSdk = 35
+    compileSdk = libs.versions.android.targetSdk.get().toInt()
     namespace = "org.jetbrains.androidx.navigation3"
 }
