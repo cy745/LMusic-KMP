@@ -199,6 +199,11 @@ fun SongsScreenContent(
     val statusBar = WindowInsets.statusBars
     val statusBarPadding = statusBar.asPaddingValues()
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()
+    val smartBarHeight = PassThroughHelper.getValue(
+        key = "SmartBarHeight",
+        default = { navigationBar.calculateBottomPadding() }
+    )
+
     val listState: LazyListState = rememberLazyListState()
 //    val favouriteIds = state("favourite_ids", emptyList<String>())
     val scroller = rememberLazyListAnimateScroller(
@@ -238,7 +243,7 @@ fun SongsScreenContent(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             top = statusBarPadding.calculateTopPadding() + 16.dp,
-            bottom = navigationBar.calculateBottomPadding() + 12.dp
+            bottom = smartBarHeight() + 16.dp
         )
     ) {
         startRecord(recorder()) {

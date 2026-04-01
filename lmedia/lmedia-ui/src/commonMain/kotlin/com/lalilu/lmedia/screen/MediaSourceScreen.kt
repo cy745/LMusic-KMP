@@ -5,24 +5,21 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.window.core.layout.WindowSizeClass
-import com.lalilu.RemixIcon
+import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmedia.Content
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.remote.RemoteServerPanel
-import com.lalilu.navigation.LocalBackStack
-import com.lalilu.navigation.LocalSharedTransitionScope
 import com.lalilu.navigation.Screen
-import com.lalilu.navigation.isType
-import com.lalilu.remixicon.Arrows
-import com.lalilu.remixicon.arrows.arrowLeftLine
 import org.koin.compose.koinInject
 
 
@@ -41,36 +38,42 @@ object MediaSourceScreen : Screen {
         }
         val statusBar = WindowInsets.statusBars.asPaddingValues()
         val navigationBar = WindowInsets.navigationBars.asPaddingValues()
+        val smartBarHeight = PassThroughHelper.getValue(
+            key = "SmartBarHeight",
+            default = { navigationBar.calculateBottomPadding() }
+        )
 
         LazyVerticalStaggeredGrid(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = 16.dp, end = 16.dp,
+                start = 16.dp,
+                end = 16.dp,
                 top = statusBar.calculateTopPadding() + 16.dp,
-                bottom = navigationBar.calculateBottomPadding() + 16.dp
+                bottom = smartBarHeight() + 16.dp
             ),
             columns = StaggeredGridCells.Fixed(column),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalItemSpacing = 16.dp
         ) {
             item {
-                val backStack = LocalBackStack.current
-                with(LocalSharedTransitionScope.current) {
-                    Button(
-                        modifier = Modifier
-                            .wrapContentWidth()
-                            .height(48.dp)
-                            .sharedElementWithCallerManagedVisibility(
-                                sharedContentState = rememberSharedContentState("test"),
-                                visible = backStack.last().isType(MediaSourceScreen::class)
-                            ),
-                        onClick = { if (backStack.size >= 2) backStack.removeLastOrNull() }
-                    ) {
-                        Icon(
-                            imageVector = RemixIcon.Arrows.arrowLeftLine,
-                            contentDescription = null
-                        )
-                    }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "媒体数据源",
+                        fontSize = 20.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "自由添加媒体数据源",
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                        fontSize = 12.sp,
+                        lineHeight = 12.sp,
+                    )
                 }
             }
             item {
@@ -80,9 +83,7 @@ object MediaSourceScreen : Screen {
                 items = platformSource.sources,
                 key = { it.name },
             ) { source ->
-                source.Content(
-                    modifier = Modifier.fillMaxWidth()
-                )
+                source.Content(modifier = Modifier.fillMaxWidth())
             }
         }
     }
