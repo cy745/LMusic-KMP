@@ -18,6 +18,7 @@ import coil3.request.ImageRequest
 import com.lalilu.adaptive
 import com.lalilu.adaptiveValue
 import com.lalilu.animated
+import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.extensions.SharedContext
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.SongAlbumInfoCard
@@ -81,7 +82,6 @@ fun SongDetailScreenContent(
     coverCacheKey: String? = null,
     sharedMap: Map<String, String> = emptyMap(),
 ) = SharedContext(sharedMap = sharedMap) {
-    val navigationBar = WindowInsets.navigationBars.asPaddingValues()
     val context = LocalPlatformContext.current
     val coverData = remember(song) {
         ImageRequest.Builder(context)
@@ -111,10 +111,16 @@ fun SongDetailScreenContent(
         }
     }
 
+    val navigationBar = WindowInsets.navigationBars.asPaddingValues()
+    val smartBarHeight = PassThroughHelper.getValue(
+        key = "SmartBarHeight",
+        default = { navigationBar.calculateBottomPadding() }
+    )
+
     LazyColumn(
         modifier = Modifier.fillMaxSize()
             .sharedBoundsV2("BOUND"),
-        contentPadding = navigationBar
+        contentPadding = PaddingValues(bottom = smartBarHeight() + 16.dp),
     ) {
         header.invoke(this)
 

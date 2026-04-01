@@ -23,6 +23,7 @@ import com.lalilu.component.AnchoredDraggableState
 import com.lalilu.component.ModalBottomSheetLayout
 import com.lalilu.component.ModalBottomSheetState
 import com.lalilu.component.ModalBottomSheetValue
+import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.navigation.LocalModalBottomSheetState
 import kotlinx.coroutines.launch
 
@@ -48,7 +49,11 @@ fun ScaleBottomSheetLayout(
             sheetContentColor = MaterialTheme.colorScheme.background,
             sheetContent = {
                 Box(modifier = Modifier) {
-                    mainContent.invoke()
+                    PassThroughHelper.Passthrough(
+                        "SmartBarHeight" to { 72.dp + navigatorBar.calculateBottomPadding() }
+                    ) {
+                        mainContent.invoke()
+                    }
 
                     Row(
                         modifier = bottomBarModifier.align(Alignment.BottomCenter)

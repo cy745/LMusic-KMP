@@ -48,7 +48,8 @@ fun App() = ScreenModeHandler {
                 title = "Discover",
                 screens = listOfNotNull(
                     AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
-                    AppRouter.route("/player").get() ?: ExceptionScreen.SCREEN_NOT_FOUND
+                    AppRouter.route("/albums").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
+                    AppRouter.route("/artists").get() ?: ExceptionScreen.SCREEN_NOT_FOUND
                 )
             ),
             NavSidebarItem.NavSection(

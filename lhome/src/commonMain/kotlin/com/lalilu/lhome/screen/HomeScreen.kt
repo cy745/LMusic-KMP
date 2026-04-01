@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lalilu.RemixIcon
+import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.extensions.retrieve
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.extensions.DailyRecommend
@@ -50,13 +51,17 @@ fun HomeScreenContent(modifier: Modifier = Modifier) {
 
     val statusBar = WindowInsets.statusBars.asPaddingValues()
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()
+    val smartBarHeight = PassThroughHelper.getValue(
+        key = "SmartBarHeight",
+        default = { navigationBar.calculateBottomPadding() }
+    )
 
     LazyVerticalGrid(
         modifier = modifier.fillMaxSize(),
         columns = GridCells.Fixed(12),
         contentPadding = PaddingValues(
             top = statusBar.calculateTopPadding() + 16.dp,
-            bottom = navigationBar.calculateBottomPadding() + 12.dp
+            bottom = smartBarHeight() + 16.dp
         ),
         content = {
             dailyRecommend.invoke(this)
