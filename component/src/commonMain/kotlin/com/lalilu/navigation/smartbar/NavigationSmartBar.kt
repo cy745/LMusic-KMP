@@ -75,8 +75,7 @@ fun NavigationSmartBar(
     val navigationBar: NavigationBarType = remember(mainContent, currentScreen) {
         when {
             mainContent != null -> NavigationBarType.NormalBar(mainContent)
-            // 判断是否为 TabScreen (简单通过是否有 /home 等路由判断)
-            currentScreen is ScreenInfoFactory -> NavigationBarType.CommonBar
+            currentScreen is ScreenInfoFactory && currentScreen.isTabScreen() -> NavigationBarType.TabBar
             else -> NavigationBarType.CommonBar
         }
     }

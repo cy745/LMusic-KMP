@@ -18,19 +18,20 @@ import com.lalilu.lhome.extensions.LatestPanel
 import com.lalilu.lhome.lhome.generated.resources.Res
 import com.lalilu.lhome.lhome.generated.resources.home_screen_title
 import com.lalilu.navigation.*
-import com.lalilu.remixicon.Buildings
-import com.lalilu.remixicon.buildings.home3Line
+import com.lalilu.remixicon.System
+import com.lalilu.remixicon.system.loaderLine
 
 @Destination(router = ["/home"])
 data object HomeScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
     override fun provideMetadata(): Map<String, Any> = Metadata.home()
+    override fun isTabScreen(): Boolean = true
 
     @Composable
     override fun provideScreenInfo(): ScreenInfo {
         return remember {
             ScreenInfo(
                 title = { Res.string.home_screen_title.retrieve() },
-                icon = RemixIcon.Buildings.home3Line
+                icon = RemixIcon.System.loaderLine
             )
         }
     }

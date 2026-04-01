@@ -60,12 +60,24 @@ fun BottomBarApplier(
 
     val playerScreen = remember { AppRouter.route("/player").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
     val padPlayerScreen = remember { AppRouter.route("/player_pad").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
+    val tabsScreen = remember {
+        listOfNotNull(
+            AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
+            AppRouter.route("/media_source").get(),
+            AppRouter.route("/log").get()
+        )
+    }
 
     val mainContent = remember(content) {
         movableContentOf<() -> Boolean> { content(it) }
     }
     val smartBarContent = remember {
-        movableContentOf<Modifier> { NavigationSmartBar(modifier = it) }
+        movableContentOf<Modifier> {
+            NavigationSmartBar(
+                modifier = it,
+                tabScreens = { tabsScreen }
+            )
+        }
     }
     val playerContent = remember {
         movableContentOf<@Composable () -> Unit> { postContent ->

@@ -37,6 +37,8 @@ data class ScreenInfo(
  */
 interface ScreenInfoFactory {
 
+    fun isTabScreen(): Boolean = false
+
     /**
      * 提供屏幕信息的可组合函数。
      *

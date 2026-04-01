@@ -19,7 +19,6 @@ package com.lalilu.navigation.smartbar
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
@@ -36,10 +35,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.FixedScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfoFactory
+import com.lalilu.navigation.actualScreen
 
 /**
  * 底部 Tab 导航栏组件
@@ -54,14 +53,12 @@ fun NavigateTabBar(
     val defaultTitle = remember { "Unknown" }
 
     Row(
-        modifier = modifier
-            .height(52.dp)
-            .fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         tabScreens().forEach { screen ->
-            val screenInfo = (screen as? ScreenInfoFactory)?.provideScreenInfo()
+            val screenInfo = (screen.actualScreen() as? ScreenInfoFactory)?.provideScreenInfo()
             val title = screenInfo?.title?.invoke() ?: defaultTitle
             val icon = screenInfo?.icon
 
@@ -69,7 +66,7 @@ fun NavigateTabBar(
                 modifier = Modifier.weight(1f),
                 title = { title },
                 icon = { icon },
-                isSelected = { currentScreen() === screen },
+                isSelected = { currentScreen()?.key == screen.key },
                 onClick = { onSelectTab(screen) }
             )
         }
@@ -87,7 +84,7 @@ fun NavigateItem(
     isSelected: () -> Boolean = { false },
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = {},
-    baseColor: Color = MaterialTheme.colorScheme.primary,
+    baseColor: Color = MaterialTheme.colorScheme.primaryContainer,
     unSelectedColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
 ) {
     val iconTintColor = animateColorAsState(
@@ -107,9 +104,9 @@ fun NavigateItem(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .animateContentSize(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
                 icon()?.let {
                     Image(
