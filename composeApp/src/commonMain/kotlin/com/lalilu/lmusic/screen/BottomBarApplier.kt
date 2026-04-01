@@ -68,9 +68,10 @@ fun BottomBarApplier(
         movableContentOf<Modifier> { NavigationSmartBar(modifier = it) }
     }
     val playerContent = remember {
-        movableContentOf {
+        movableContentOf<@Composable () -> Unit> { postContent ->
             Box(modifier = Modifier.background(color = MaterialTheme.colorScheme.background)) {
                 playerScreen.Content()
+                postContent()
             }
         }
     }
@@ -98,9 +99,9 @@ fun BottomBarApplier(
                 modifier = modifier,
                 bottomBarModifier = bottomBarModifier,
                 bottomSheetState = bottomSheetState,
-                playerContent = { playerContent.invoke() },
+                playerContent = playerContent::invoke,
                 mainContent = { mainContent.invoke { bottomSheetState.isVisible } },
-                smartBarContent = { smartBarContent.invoke(it) }
+                smartBarContent = smartBarContent::invoke
             )
         }
     }

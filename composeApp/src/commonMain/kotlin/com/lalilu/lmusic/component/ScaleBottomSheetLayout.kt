@@ -32,7 +32,7 @@ fun ScaleBottomSheetLayout(
     modifier: Modifier = Modifier,
     bottomBarModifier: Modifier = Modifier,
     bottomSheetState: ModalBottomSheetState,
-    playerContent: @Composable () -> Unit = {},
+    playerContent: @Composable (@Composable () -> Unit) -> Unit = {},
     mainContent: @Composable () -> Unit = {},
     smartBarContent: @Composable (Modifier) -> Unit = {},
 ) {
@@ -46,13 +46,6 @@ fun ScaleBottomSheetLayout(
             sheetShape = RectangleShape,
             sheetContentColor = MaterialTheme.colorScheme.background,
             sheetContent = {
-                if (!LocalInspectionMode.current) {
-                    // 监听用户的返回操作
-                    ClassicBackHandler(enabled = bottomSheetState.isVisible) {
-                        scope.launch { bottomSheetState.hide() }
-                    }
-                }
-
                 Box(modifier = Modifier) {
                     mainContent.invoke()
 
@@ -88,7 +81,14 @@ fun ScaleBottomSheetLayout(
                                 scaleY = scaleX
                             }
                             .clip(RoundedCornerShape(32.dp)),
-                        content = { playerContent.invoke() }
+                        content = {
+                            playerContent.invoke {
+                                // 在PlayerContent完成组合后注册BackHandler，确保顺序正确
+                                ClassicBackHandler(enabled = bottomSheetState.isVisible) {
+                                    scope.launch { bottomSheetState.hide() }
+                                }
+                            }
+                        }
                     )
                 }
             }

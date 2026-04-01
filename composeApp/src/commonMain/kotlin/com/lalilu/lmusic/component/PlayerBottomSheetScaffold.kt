@@ -41,11 +41,9 @@ fun PlayerBottomSheetScaffold(
         content = mainContent
     )
 
-    if (!LocalInspectionMode.current) {
-        // 监听用户的返回操作
-        ClassicBackHandler(enabled = bottomSheetState.isExpanded) {
-            scope.launch { bottomSheetState.collapse() }
-        }
+    // 监听用户的返回操作
+    ClassicBackHandler(enabled = bottomSheetState.isExpanded) {
+        scope.launch { bottomSheetState.collapse() }
     }
 }
 

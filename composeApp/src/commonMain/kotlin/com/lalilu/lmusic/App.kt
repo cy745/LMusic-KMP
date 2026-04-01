@@ -36,9 +36,6 @@ import com.lalilu.lmusic.screen.NavSideApplier
 import com.lalilu.lmusic.screen.NavSidebarItem
 import com.lalilu.lmusic.util.handleMouseBackPress
 import com.lalilu.navigation.*
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 @Suppress("UNCHECKED_CAST")
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)

@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
@@ -121,6 +122,11 @@ fun ClassicBackHandler(
     enabled: Boolean = true,
     onBack: () -> Unit = {}
 ) {
+    // 如果处于检查模式，则不处理返回事件
+    if (LocalInspectionMode.current) {
+        return
+    }
+
     // 记住导航事件状态，初始化为无导航信息
     val navEventState = rememberNavigationEventState(currentInfo = NavigationEventInfo.None)
 
