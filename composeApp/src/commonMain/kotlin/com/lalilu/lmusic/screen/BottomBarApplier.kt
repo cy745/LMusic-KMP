@@ -99,9 +99,9 @@ fun BottomBarApplier(
                 modifier = modifier,
                 bottomBarModifier = bottomBarModifier,
                 bottomSheetState = bottomSheetState,
-                playerContent = playerContent::invoke,
+                playerContent = { playerContent.invoke(it) },
                 mainContent = { mainContent.invoke { bottomSheetState.isVisible } },
-                smartBarContent = smartBarContent::invoke
+                smartBarContent = { smartBarContent.invoke(it) }
             )
         }
     }
