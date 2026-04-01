@@ -10,7 +10,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.FrameRateCategory
 import androidx.compose.ui.Modifier
@@ -20,14 +23,10 @@ import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDe
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.LocalOnBackPressEnableState
 import androidx.navigation3.ui.NavDisplay
 import com.lalilu.LMusicTheme
-import com.lalilu.ScreenMode
-import com.lalilu.ScreenMode.*
 import com.lalilu.ScreenModeHandler
-import com.lalilu.currentScreenMode
 import com.lalilu.extensions.DialogWrapper
 import com.lalilu.extensions.ProvideLocalToaster
 import com.lalilu.lmusic.screen.BottomBarApplier
@@ -71,14 +70,9 @@ fun App() = ScreenModeHandler {
                 visibilityThreshold = IntOffset.VisibilityThreshold
             )
 
-            val transitionState = remember {
-                mutableStateOf<SeekableTransitionState<Scene<Screen>>?>(null)
-            }
-
             CompositionLocalProvider(
                 LocalSharedTransitionScope provides this,
                 LocalBackStack provides backStack,
-                LocalNavSeekableTransitionState provides transitionState
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize()
@@ -104,10 +98,7 @@ fun App() = ScreenModeHandler {
                                         modifier = Modifier.fillMaxSize()
                                             .preferredFrameRate(FrameRateCategory.High),
                                         backStack = backStack,
-                                        transitionState = { scene ->
-                                            remember { SeekableTransitionState(scene) }
-                                                .also { transitionState.value = it }
-                                        },
+                                        transitionState = { scene -> remember { SeekableTransitionState(scene) } },
                                         sharedTransitionScope = this@shareScope,
                                         entryDecorators = listOf(
                                             rememberViewModelStoreMapperNavEntryDecorator(),
@@ -163,17 +154,8 @@ fun App() = ScreenModeHandler {
 
 @Composable
 fun backStackHandler(): NavBackStack<Screen> {
-    val screenMode: ScreenMode = currentScreenMode()
     val homeScreen = remember { AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
-    val backStack = remember {
-        NavBackStack(
-            when (screenMode) {
-                Phone -> homeScreen
-                Tablet -> homeScreen
-                Unknown -> ExceptionScreen.SCREEN_NOT_FOUND
-            }
-        )
-    }
+    val backStack = remember { NavBackStack(homeScreen) }
 
     // 绑定AppRouter导航
     LaunchedEffect(Unit) {
