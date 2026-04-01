@@ -21,6 +21,7 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.Scene
+import androidx.navigation3.ui.LocalOnBackPressEnableState
 import androidx.navigation3.ui.NavDisplay
 import com.lalilu.LMusicTheme
 import com.lalilu.ScreenMode
@@ -91,55 +92,67 @@ fun App() = ScreenModeHandler {
                         BottomBarApplier(
                             modifier = Modifier.fillMaxSize(),
                             bottomBarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 10f),
-                        ) {
-                            NavSideApplier(
-                                modifier = Modifier.fillMaxSize(),
-                                sidebarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 10f),
-                                items = sidebarItems,
-                                isSelected = { it.key == backStack.lastOrNull()?.key },
-                                onSelectScreen = { it?.let { element -> backStack.add(element) } }
+                        ) { isBottomSheetVisible ->
+                            CompositionLocalProvider(
+                                LocalOnBackPressEnableState provides isBottomSheetVisible
                             ) {
-                                NavDisplay(
-                                    modifier = Modifier.fillMaxSize()
-                                        .preferredFrameRate(FrameRateCategory.High),
-                                    backStack = backStack,
-                                    transitionState = { scene ->
-                                        remember { SeekableTransitionState(scene) }
-                                            .also { transitionState.value = it }
-                                    },
-                                    sharedTransitionScope = this@shareScope,
-                                    entryDecorators = listOf(
-                                        rememberViewModelStoreMapperNavEntryDecorator(),
-                                        rememberSaveableStateHolderNavEntryDecorator(),
-                                        rememberViewModelStoreNavEntryDecorator(),
-                                        rememberDefaultBackgroundColorNavEntryDecorator()
-                                    ) as List<NavEntryDecorator<Screen>>,
-                                    transitionSpec = {
-                                        slideInVertically(animationSpec) { 100 } + fadeIn(
-                                            animationSpec = spring(
-                                                stiffness = Spring.StiffnessMedium
+                                NavSideApplier(
+                                    modifier = Modifier.fillMaxSize(),
+                                    sidebarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 10f),
+                                    items = sidebarItems,
+                                    isSelected = { it.key == backStack.lastOrNull()?.key },
+                                    onSelectScreen = { it?.let { element -> backStack.add(element) } }
+                                ) {
+                                    NavDisplay(
+                                        modifier = Modifier.fillMaxSize()
+                                            .preferredFrameRate(FrameRateCategory.High),
+                                        backStack = backStack,
+                                        transitionState = { scene ->
+                                            remember { SeekableTransitionState(scene) }
+                                                .also { transitionState.value = it }
+                                        },
+                                        sharedTransitionScope = this@shareScope,
+                                        entryDecorators = listOf(
+                                            rememberViewModelStoreMapperNavEntryDecorator(),
+                                            rememberSaveableStateHolderNavEntryDecorator(),
+                                            rememberViewModelStoreNavEntryDecorator(),
+                                            rememberDefaultBackgroundColorNavEntryDecorator()
+                                        ) as List<NavEntryDecorator<Screen>>,
+                                        transitionSpec = {
+                                            slideInVertically(animationSpec) { 100 } + fadeIn(
+                                                animationSpec = spring(
+                                                    stiffness = Spring.StiffnessMedium
+                                                )
+                                            ) togetherWith
+                                                    slideOutVertically(animationSpec) { 100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
+                                        },
+                                        popTransitionSpec = {
+                                            slideInVertically(animationSpec) { -100 } + fadeIn(
+                                                animationSpec = spring(
+                                                    stiffness = Spring.StiffnessMedium
+                                                )
+                                            ) togetherWith
+                                                    slideOutVertically(animationSpec) { -100 } + fadeOut(
+                                                spring(
+                                                    stiffness = Spring.StiffnessMedium
+                                                )
                                             )
-                                        ) togetherWith
-                                                slideOutVertically(animationSpec) { 100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
-                                    },
-                                    popTransitionSpec = {
-                                        slideInVertically(animationSpec) { -100 } + fadeIn(
-                                            animationSpec = spring(
-                                                stiffness = Spring.StiffnessMedium
+                                        },
+                                        predictivePopTransitionSpec = {
+                                            slideInVertically(animationSpec) { -100 } + fadeIn(
+                                                animationSpec = spring(
+                                                    stiffness = Spring.StiffnessMedium
+                                                )
+                                            ) togetherWith
+                                                    slideOutVertically(animationSpec) { -100 } + fadeOut(
+                                                spring(
+                                                    stiffness = Spring.StiffnessMedium
+                                                )
                                             )
-                                        ) togetherWith
-                                                slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
-                                    },
-                                    predictivePopTransitionSpec = {
-                                        slideInVertically(animationSpec) { -100 } + fadeIn(
-                                            animationSpec = spring(
-                                                stiffness = Spring.StiffnessMedium
-                                            )
-                                        ) togetherWith
-                                                slideOutVertically(animationSpec) { -100 } + fadeOut(spring(stiffness = Spring.StiffnessMedium))
-                                    },
-                                    entryProvider = { it.toNavEntry() }
-                                )
+                                        },
+                                        entryProvider = { it.toNavEntry() }
+                                    )
+                                }
                             }
                         }
 

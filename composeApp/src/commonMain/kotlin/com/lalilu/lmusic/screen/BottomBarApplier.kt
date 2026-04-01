@@ -49,7 +49,7 @@ import com.lalilu.preview.preview
 fun BottomBarApplier(
     modifier: Modifier = Modifier,
     bottomBarModifier: Modifier = Modifier,
-    content: @Composable () -> Unit
+    content: @Composable (isBottomSheetVisible: () -> Boolean) -> Unit
 ) {
     val windowClass = currentWindowAdaptiveInfo().windowSizeClass
     val bottomSheetStateForPad = rememberBottomSheetState(BottomSheetValue.Collapsed)
@@ -62,7 +62,7 @@ fun BottomBarApplier(
     val padPlayerScreen = remember { AppRouter.route("/player_pad").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
 
     val mainContent = remember(content) {
-        movableContentOf { content() }
+        movableContentOf<() -> Boolean> { content(it) }
     }
     val smartBarContent = remember {
         movableContentOf<Modifier> { NavigationSmartBar(modifier = it) }
@@ -91,7 +91,7 @@ fun BottomBarApplier(
                 modifier = modifier,
                 bottomSheetState = bottomSheetStateForPad,
                 playerContent = { padPlayerContent.invoke() },
-                mainContent = { mainContent.invoke() }
+                mainContent = { mainContent.invoke { bottomSheetStateForPad.isExpanded } }
             )
         } else {
             ScaleBottomSheetLayout(
@@ -99,7 +99,7 @@ fun BottomBarApplier(
                 bottomBarModifier = bottomBarModifier,
                 bottomSheetState = bottomSheetState,
                 playerContent = { playerContent.invoke() },
-                mainContent = { mainContent.invoke() },
+                mainContent = { mainContent.invoke { bottomSheetState.isVisible } },
                 smartBarContent = { smartBarContent.invoke(it) }
             )
         }

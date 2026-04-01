@@ -477,10 +477,11 @@ public fun <T : Any> NavDisplay(
     val previousSceneInfos = sceneState.previousScenes.map { SceneInfo(it) }
     val gestureState =
         rememberNavigationEventState(currentInfo = currentInfo, backInfo = previousSceneInfos)
+    val onBackPressEnable = LocalOnBackPressEnableState.current
 
     NavigationBackHandler(
         state = gestureState,
-        isBackEnabled = scene.previousEntries.isNotEmpty(),
+        isBackEnabled = scene.previousEntries.isNotEmpty() && onBackPressEnable(),
         onBackCompleted = {
             // If `enabled` becomes stale (e.g., it was set to false but a gesture was
             // dispatched in the same frame), this may result in no entries being popped
