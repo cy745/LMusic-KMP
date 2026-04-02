@@ -1,7 +1,9 @@
 package com.lalilu.lhome.component
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -11,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -24,10 +27,33 @@ fun AudioItemCard(
     modifier: Modifier = Modifier,
     title: String,
     subtitle: String,
-    imageData: Any = Unit
+    imageData: Any = Unit,
+    isSelecting: () -> Boolean = { false },
+    isSelected: () -> Boolean = { false },
+    onEnterSelect: () -> Unit = {},
+    onSelect: () -> Unit = {},
+    onPlay: () -> Unit = {},
+    onNavigateToDetail: () -> Unit = {}
 ) {
+    val selectionColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+    val bgColor by animateColorAsState(
+        targetValue = if (isSelected()) selectionColor else Color.Transparent,
+        label = "selection_bg"
+    )
+
     Row(
-        modifier = modifier,
+        modifier = modifier
+            .clip(RoundedCornerShape(2.dp))
+            .background(color = bgColor)
+            .combinedClickable(
+                onClick = {
+                    if (isSelecting()) onSelect() else onPlay()
+                },
+                onLongClick = {
+                    if (isSelecting()) onEnterSelect() else onNavigateToDetail()
+                }
+            )
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -60,7 +86,11 @@ fun AudioItemCard(
                     color = MaterialTheme.colorScheme.onBackground.copy(0.2f),
                     shape = RoundedCornerShape(8.dp)
                 )
-                .background(MaterialTheme.colorScheme.onBackground.copy(0.15f)),
+                .background(MaterialTheme.colorScheme.onBackground.copy(0.15f))
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { onEnterSelect() }
+                ),
             model = imageData,
             contentScale = ContentScale.Crop,
             contentDescription = "Cover for $title"
