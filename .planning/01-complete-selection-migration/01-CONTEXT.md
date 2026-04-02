@@ -21,7 +21,7 @@ Migrate song selection functionality from original Android project to current KM
 - **D-03:** Integration happens in `SongsScreenContent` where `selector`, `isSelecting`, `isSelected`, and `onSelect` are passed to `AudioItemCard`
 
 ### Visual Design
-- **D-04:** Selection background color: `MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f)` (matches Material3 scheme, equivalent to original Material2 `onBackground.copy(0.15f)`)
+- **D-04:** Selection background color: Use theme's primary/secondary color with alpha — a darker, more saturated version of the theme accent color. Use `MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)` or similar, or define a custom selection color that complements the current theme (e.g., primary color at 20-30% opacity). **Do NOT use neutral gray** — prefer a color that feels intentional and themed.
 - **D-05:** Use `animateColorAsState` for smooth background color transition when selection state changes
 - **D-06:** Card corner radius for selection highlight: `RoundedCornerShape(2.dp)` — applied to background modifier
 - **D-07:** Selection background should cover the entire card row including image area
@@ -75,8 +75,9 @@ fun AudioItemCard(
 - `lhome/src/commonMain/kotlin/com/lalilu/lhome/screen/dialog/SongsSelectorPanel.kt` — Selection panel component
 
 ### UI/Animation Reference
-- Original uses `animateColorAsState` with target `MaterialTheme.colors.onBackground.copy(0.15f)` for selected state
-- Original uses `combinedClickable` for handling onClick, onLongClick, onDoubleClick on different areas
+- Original used neutral gray `MaterialTheme.colors.onBackground.copy(0.15f)` — **REVISED**: Use theme accent color instead (e.g., primaryContainer at 30% opacity)
+- Use `animateColorAsState` with a meaningful `label` parameter for debugging
+- Use `combinedClickable` for handling onClick, onLongClick, onDoubleClick on different areas
 </canonical_refs>
 
 <code_context>
@@ -103,10 +104,12 @@ fun AudioItemCard(
 
 ### Selection Background Implementation Pattern (from SongCard.kt)
 ```kotlin
+// Use theme accent color (NOT neutral gray) for selection
+val selectionColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
 val bgColor by animateColorAsState(
-    targetValue = if (isSelected()) MaterialTheme.colors.onBackground.copy(0.15f)
+    targetValue = if (isSelected()) selectionColor
     else Color.Transparent,
-    label = ""
+    label = "selection_bg"
 )
 
 Row(
