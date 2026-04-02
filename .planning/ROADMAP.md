@@ -3,8 +3,8 @@
 ## Phase Overview
 
 | # | Phase | Goal | Requirements | Status |
-|---|-------|------|--------------|-------|
-| 1 | Complete Selection Migration | Migrate song selection functionality to AudioItemCard | REQ-01 ~ REQ-07 | Pending |
+|---|-------|------|--------------|--------|
+| 1 | Complete Selection Migration | Migrate song selection functionality to AudioItemCard | REQ-01 ~ REQ-07 | Complete |
 
 ---
 
@@ -39,10 +39,13 @@ Complete the migration of song selection functionality by updating AudioItemCard
 
 **UI hint:** no
 
+**Plans:**
+- [x] 01-PLAN.md — Add selection parameters and visual feedback to AudioItemCard, integrate with SongsScreenContent (1/1 completed)
+
 ---
 
 ## Progress Tracking
 
 | Phase | Plans | Status | Completion |
 |-------|-------|--------|-------------|
-| 1 | 0 | Pending | 0% |
+| 1 | 1/1 | Complete | 100% |

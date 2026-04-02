@@ -2,7 +2,13 @@
 
 ## Validated
 
-(None yet — ship to validate)
+- REQ-01: 用户可以长按歌曲图片进入选择模式并选中该歌曲
+- REQ-02: 选择模式下，点击歌曲卡片切换选中状态
+- REQ-03: 非选择模式下，点击歌曲卡片播放该歌曲
+- REQ-04: 选中时，歌曲卡片显示半透明灰色背景
+- REQ-05: 选择状态切换时，背景色有平滑过渡动画
+- REQ-06: 点击"选择"按钮可进入选择模式
+- REQ-07: 选择面板显示全选、取消全选、添加到收藏、添加到播放列表按钮
 
 ## Active
 
@@ -27,13 +33,13 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| REQ-01 | Phase 1 | Pending |
-| REQ-02 | Phase 1 | Pending |
-| REQ-03 | Phase 1 | Pending |
-| REQ-04 | Phase 1 | Pending |
-| REQ-05 | Phase 1 | Pending |
-| REQ-06 | Phase 1 | Pending |
-| REQ-07 | Phase 1 | Pending |
+| REQ-01 | Phase 1 | Completed |
+| REQ-02 | Phase 1 | Completed |
+| REQ-03 | Phase 1 | Completed |
+| REQ-04 | Phase 1 | Completed |
+| REQ-05 | Phase 1 | Completed |
+| REQ-06 | Phase 1 | Completed |
+| REQ-07 | Phase 1 | Completed |
 
 ---
 
