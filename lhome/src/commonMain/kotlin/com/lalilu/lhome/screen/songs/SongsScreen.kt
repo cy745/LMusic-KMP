@@ -319,38 +319,9 @@ fun SongsScreenContent(
                                 .with("coverCacheKey", coverMemoryKey)
                                 .jump()
                         },
-                        modifier = Modifier
-                            .animateItem()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                        modifier = Modifier.animateItem()
+                            .padding(vertical = 0.5f.dp)
                     )
-
-//                    SongCard(
-//                        modifier = Modifier.animateItem(),
-//                        song = { item },
-//                        onClick = {
-//                            if (isSelecting()) {
-//                                onSelect(item)
-//                            } else {
-//                                MediaControl.playWithList(
-//                                    mediaIds = songs.itemList.map(LSong::id),
-//                                    mediaId = item.id
-//                                )
-//                            }
-//                        },
-//                        onLongClick = {
-//                            if (isSelecting()) {
-//                                onSelect(item)
-//                            } else {
-//                                AppRouter.route("/pages/songs/detail")
-//                                    .with("mediaId", item.id)
-//                                    .jump()
-//                            }
-//                        },
-//                        onEnterSelect = { onSelect(item) },
-//                        isFavour = { favouriteIds.value.contains(item.id) },
-//                        isSelected = { isSelected(item) },
-//                        prefixContent = { SortExtraPresetUI.Show(extra) }
-//                    )
                 }
             }
         }

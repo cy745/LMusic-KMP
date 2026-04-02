@@ -47,12 +47,8 @@ fun AudioItemCard(
             .clip(RoundedCornerShape(2.dp))
             .background(color = bgColor)
             .combinedClickable(
-                onClick = {
-                    if (isSelecting()) onSelect() else onPlay()
-                },
-                onLongClick = {
-                    if (isSelecting()) onEnterSelect() else onNavigateToDetail()
-                }
+                onClick = { if (isSelecting()) onSelect() else onPlay() },
+                onLongClick = { if (isSelecting()) onEnterSelect() else onNavigateToDetail() }
             )
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -89,7 +85,7 @@ fun AudioItemCard(
                 )
                 .background(MaterialTheme.colorScheme.onBackground.copy(0.15f))
                 .combinedClickable(
-                    onClick = {},
+                    onClick = { if (isSelecting()) onSelect() else onPlay() },
                     onLongClick = { onEnterSelect() }
                 ),
             model = imageData,
