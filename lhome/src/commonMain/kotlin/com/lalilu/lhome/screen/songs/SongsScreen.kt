@@ -1,6 +1,5 @@
 package com.lalilu.lhome.screen.songs
 
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -299,28 +298,29 @@ fun SongsScreenContent(
                         title = item.titleValue(),
                         subtitle = item.subtitleValue(),
                         imageData = item,
+                        isSelecting = { selector().isSelecting.value },
+                        isSelected = { selector().isSelected(item) },
+                        onEnterSelect = { selector().onSelect(item) },
+                        onSelect = { selector().onSelect(item) },
+                        onPlay = {
+                            scope.launch {
+                                PlayerAction.UpdateList(
+                                    ids = LMedia.instance.get<LAudio>().map(LItem::idValue),
+                                    id = item.idValue(),
+                                    start = true
+                                ).action()
+                            }
+                        },
+                        onNavigateToDetail = {
+                            val imageLoader = SingletonImageLoader.get(context)
+                            val coverMemoryKey = imageLoader.components.key(item, Options(context))
+                            AppRouter.route("/song/detail")
+                                .with("mediaId", item.idValue())
+                                .with("coverCacheKey", coverMemoryKey)
+                                .jump()
+                        },
                         modifier = Modifier
                             .animateItem()
-                            .combinedClickable(
-                                onClick = {
-                                    scope.launch {
-                                        PlayerAction.UpdateList(
-                                            ids = LMedia.instance.get<LAudio>().map(LItem::idValue),
-                                            id = item.idValue(),
-                                            start = true
-                                        ).action()
-                                    }
-                                },
-                                onLongClick = {
-                                    val imageLoader = SingletonImageLoader.get(context)
-                                    val coverMemoryKey = imageLoader.components.key(item, Options(context))
-
-                                    AppRouter.route("/song/detail")
-                                        .with("mediaId", item.idValue())
-                                        .with("coverCacheKey", coverMemoryKey)
-                                        .jump()
-                                }
-                            )
                             .padding(horizontal = 16.dp, vertical = 4.dp)
                     )
 
