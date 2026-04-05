@@ -83,7 +83,7 @@ fun App() = ScreenModeHandler {
                     ProvideLocalToaster {
                         BottomBarApplier(
                             modifier = Modifier.fillMaxSize(),
-                            bottomBarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 10f),
+                            bottomBarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 20f),
                         ) { isBottomSheetVisible ->
                             CompositionLocalProvider(
                                 LocalOnBackPressEnableState provides isBottomSheetVisible

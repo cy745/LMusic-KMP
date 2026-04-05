@@ -91,6 +91,7 @@ fun BottomBarApplier(
         movableContentOf {
             PlayerBottomSheetContent(
                 modifier = Modifier,
+                bottomBarModifier = bottomBarModifier,
                 bottomSheetState = bottomSheetStateForPad,
                 playerScreen = { padPlayerScreen.Content() },
                 smartBarContent = { smartBarContent.invoke(it) }
@@ -104,7 +105,7 @@ fun BottomBarApplier(
                 modifier = modifier,
                 bottomSheetState = bottomSheetStateForPad,
                 playerContent = { padPlayerContent.invoke() },
-                mainContent = { mainContent.invoke { bottomSheetStateForPad.isExpanded } }
+                mainContent = { mainContent.invoke { !bottomSheetStateForPad.isExpanded } }
             )
         } else {
             ScaleBottomSheetLayout(
