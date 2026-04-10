@@ -1,7 +1,6 @@
 package com.lalilu.lmedia.coil
 
 import coil3.ImageLoader
-import coil3.SingletonImageLoader
 import coil3.fetch.FetchResult
 import coil3.fetch.Fetcher
 import coil3.key.Keyer
@@ -10,15 +9,16 @@ import coil3.toUri
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.source.MediaData
+import com.lalilu.lmedia.source.MediaSource
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
 class LAudioFetcher(
     val audio: LAudio,
-    val options: Options
-) : Fetcher, KoinComponent {
-    private val platformMediaSource by inject<PlatformMediaSource>()
-    private val imageLoader by lazy { SingletonImageLoader.get(options.context) }
+    val options: Options,
+    val imageLoader: ImageLoader,
+    val source: (String) -> MediaSource?
+) : Fetcher {
     private var actualFetcher: Fetcher? = null
 
     override suspend fun fetch(): FetchResult? {
@@ -27,8 +27,7 @@ class LAudioFetcher(
             return fetcher.fetch()
         }
 
-        val source = platformMediaSource.sources
-            .firstOrNull { it.name == audio.mediaSourceName }
+        val source = source(audio.mediaSourceName)
             ?.dataSource
             ?: throw IllegalArgumentException("MediaSource not found")
 
@@ -51,13 +50,21 @@ class LAudioFetcher(
     }
 }
 
-class LAudioFetcherFactory() : Fetcher.Factory<LAudio> {
+class LAudioFetcherFactory : Fetcher.Factory<LAudio>, KoinComponent {
+    private val platformMediaSource by inject<PlatformMediaSource>()
+    private val sourceMap by lazy { platformMediaSource.sources.associateBy { it.name } }
+
     override fun create(
         data: LAudio,
         options: Options,
         imageLoader: ImageLoader
-    ): Fetcher? {
-        return LAudioFetcher(data, options)
+    ): Fetcher {
+        return LAudioFetcher(
+            audio = data,
+            options = options,
+            imageLoader = imageLoader,
+            source = { name -> sourceMap[name] }
+        )
     }
 }
 
