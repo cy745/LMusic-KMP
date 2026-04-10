@@ -80,7 +80,10 @@ data class SongsScreen(
                     title = { "选择" },
                     icon = { RemixIcon.Design.editBoxLine },
                     color = { Color(0xFF009673) },
-                    onAction = { vm.selector.isSelecting.value = true }
+                    onAction = {
+                        vm.selector.isSelecting.value = true
+                        DialogWrapper.dismiss()
+                    }
                 ),
                 ScreenAction.Static(
                     title = { "搜索" },
