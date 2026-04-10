@@ -65,6 +65,7 @@ object DailyRecommend : LazyGridContent {
                     AppRouter.route("/song/detail")
                         .with("mediaId", item.idValue())
                         .with("sharedMap", sharedMap)
+                        .with("song", item as? LAudio)
                         .with("coverCacheKey", coverMemoryKey)
                         .jump()
                 }

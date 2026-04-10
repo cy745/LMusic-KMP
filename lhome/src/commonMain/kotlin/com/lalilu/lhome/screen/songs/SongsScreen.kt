@@ -316,6 +316,7 @@ fun SongsScreenContent(
                             val coverMemoryKey = imageLoader.components.key(item, Options(context))
                             AppRouter.route("/song/detail")
                                 .with("mediaId", item.idValue())
+                                .with("song", item)
                                 .with("coverCacheKey", coverMemoryKey)
                                 .jump()
                         },

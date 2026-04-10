@@ -1,7 +1,5 @@
 package com.lalilu.lhome.extensions
 
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,7 +9,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.request.Options
@@ -69,31 +66,29 @@ object HistoryPanel : LazyGridContent {
                 span = { columnsValue.value }
             ) {
                 AudioItemCard(
-                    modifier = Modifier
-                        .combinedClickable(
-                            onClick = {
-                                scope.launch {
-                                    PlayerAction.UpdateList(
-                                        ids = LMedia.instance.get<LAudio>().map(LItem::idValue),
-                                        id = it.idValue(),
-                                        start = true
-                                    ).action()
-                                }
-                            },
-                            onLongClick = {
-                                val imageLoader = SingletonImageLoader.get(context)
-                                val coverMemoryKey = imageLoader.components.key(it, Options(context))
-
-                                AppRouter.route("/song/detail")
-                                    .with("mediaId", it.idValue())
-                                    .with("coverCacheKey", coverMemoryKey)
-                                    .jump()
-                            }
-                        )
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier,
                     title = it.titleValue(),
                     subtitle = it.subtitleValue(),
-                    imageData = it
+                    imageData = it,
+                    onPlay = {
+                        scope.launch {
+                            PlayerAction.UpdateList(
+                                ids = LMedia.instance.get<LAudio>().map(LItem::idValue),
+                                id = it.idValue(),
+                                start = true
+                            ).action()
+                        }
+                    },
+                    onNavigateToDetail = {
+                        val imageLoader = SingletonImageLoader.get(context)
+                        val coverMemoryKey = imageLoader.components.key(it, Options(context))
+
+                        AppRouter.route("/song/detail")
+                            .with("mediaId", it.idValue())
+                            .with("song", it)
+                            .with("coverCacheKey", coverMemoryKey)
+                            .jump()
+                    }
                 )
             }
 

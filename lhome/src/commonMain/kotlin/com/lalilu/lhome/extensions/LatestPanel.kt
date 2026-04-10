@@ -78,6 +78,7 @@ object LatestPanel : LazyGridContent {
 
                             AppRouter.route("/song/detail")
                                 .with("mediaId", item.id)
+                                .with("song", item)
                                 .with("sharedMap", sharedMap)
                                 .with("coverCacheKey", coverMemoryKey)
                                 .jump()

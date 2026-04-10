@@ -41,6 +41,7 @@ import kotlinx.serialization.Serializable
 @Destination("/song/detail")
 data class SongDetailScreen(
     val mediaId: String,
+    val song: LAudio? = null,
     val coverCacheKey: String? = null,
     val sharedMap: Map<String, String> = emptyMap(),
 ) : Screen, ScreenActionFactory {
@@ -65,7 +66,7 @@ data class SongDetailScreen(
     @Composable
     override fun Content() {
         val song by remember { LMedia.instance.flow<LAudio>(id = mediaId) }
-            .collectAsState(null)
+            .collectAsState(song)
 
         SongDetailScreenContent(
             song = song,

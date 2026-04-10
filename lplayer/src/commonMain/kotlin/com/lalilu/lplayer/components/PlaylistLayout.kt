@@ -104,6 +104,7 @@ fun PlaylistLayout(
 
                     AppRouter.route("/song/detail")
                         .with("mediaId", item.data.id)
+                        .with("song", item.data)
                         .with("sharedMap", sharedMap)
                         .with("coverCacheKey", coverMemoryKey)
                         .jump()
