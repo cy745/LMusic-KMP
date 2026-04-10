@@ -12,15 +12,14 @@ import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.toState
 import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.sortable.GroupId
-import com.lalilu.lmedia.sortable.SortAction
-import com.lalilu.lmedia.sortable.SortConfig
-import com.lalilu.lmedia.sortable.SortManager
-import com.lalilu.lmedia.sortable.doSortState
+import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.mviImplWithIntent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Factory
 
@@ -52,8 +51,11 @@ data class SongsState(
             else -> listOf(searchKeyWord)
         }
 
-        return source.mapLatest { flow ->
-            flow.filter { item -> keywords.all { item.getMatchText().contains(it.uppercase()) } }
+        return source.mapLatest { items ->
+            items.filter { item ->
+                val itemMatchText = item.getMatchText()
+                keywords.all { itemMatchText.contains(other = it, ignoreCase = true) }
+            }
         }
     }
 }
