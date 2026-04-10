@@ -22,15 +22,14 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.dp
 import com.lalilu.navigation.*
 
 
@@ -82,8 +81,8 @@ fun NavigationSmartBar(
 
     AnimatedContent(
         modifier = modifier
-            .fillMaxHeight()
-            .imePadding(),
+            .pointerInput(Unit) { } // 避免点击穿透
+            .fillMaxHeight(),
         transitionSpec = {
             slideIntoContainer(
                 towards = AnimatedContentTransitionScope.SlideDirection.Up,
@@ -97,14 +96,7 @@ fun NavigationSmartBar(
         targetState = navigationBar,
         label = "NavigationBar"
     ) { item ->
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .pointerInput(Unit) { }
-                .background(MaterialTheme.colorScheme.background.copy(0.95f))
-                .navigationBarsPadding()
-                .height(56.dp)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             when (item) {
                 is NavigationBarType.NormalBar -> {
                     item.barComponent.content()

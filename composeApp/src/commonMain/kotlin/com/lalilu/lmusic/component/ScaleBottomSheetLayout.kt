@@ -40,6 +40,7 @@ fun ScaleBottomSheetLayout(
 ) {
     val scope = rememberCoroutineScope()
     val navigatorBar = WindowInsets.navigationBars.asPaddingValues()
+    val ime = WindowInsets.ime.asPaddingValues()
 
     CompositionLocalProvider(LocalModalBottomSheetState provides bottomSheetState) {
         ModalBottomSheetLayout(
@@ -47,22 +48,27 @@ fun ScaleBottomSheetLayout(
             sheetState = bottomSheetState,
             sheetShape = RectangleShape,
             sheetContentColor = MaterialTheme.colorScheme.background,
+            scrimColor = Color.Black.copy(0.3f),
             sheetContent = {
                 Box(modifier = Modifier) {
                     PassThroughHelper.Passthrough(
-                        "SmartBarHeight" to { 72.dp + navigatorBar.calculateBottomPadding() }
+                        "SmartBarHeight" to {
+                            72.dp + ime.calculateBottomPadding()
+                                .coerceAtLeast(navigatorBar.calculateBottomPadding())
+                        }
                     ) {
                         mainContent.invoke()
                     }
 
-                    Row(
-                        modifier = bottomBarModifier.align(Alignment.BottomCenter)
+                    smartBarContent.invoke(
+                        bottomBarModifier
+                            .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .background(color = MaterialTheme.colorScheme.background.copy(0.6f))
-                            .height(72.dp + navigatorBar.calculateBottomPadding())
-                    ) {
-                        smartBarContent.invoke(Modifier.fillMaxSize())
-                    }
+                            .background(color = MaterialTheme.colorScheme.background.copy(0.9f))
+                            .navigationBarsPadding()
+                            .imePadding()
+                            .height(72.dp)
+                    )
                 }
             },
             content = {

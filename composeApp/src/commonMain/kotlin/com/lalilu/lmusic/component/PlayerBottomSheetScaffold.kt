@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.lalilu.extensions.ClassicBackHandler
+import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.lmusic.screen.PlayingInfoCard
 import com.lalilu.lplayer.LPlayer
 import kotlinx.coroutines.isActive
@@ -28,6 +29,7 @@ fun PlayerBottomSheetScaffold(
 ) {
     val scope = rememberCoroutineScope()
     val navigatorBar = WindowInsets.navigationBars.asPaddingValues()
+    val ime = WindowInsets.ime.asPaddingValues()
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(bottomSheetState)
 
     BottomSheetScaffold(
@@ -37,7 +39,16 @@ fun PlayerBottomSheetScaffold(
         sheetBackgroundColor = Color.Transparent,
         sheetPeekHeight = 72.dp + navigatorBar.calculateBottomPadding(),
         sheetContent = playerContent,
-        content = mainContent
+        content = { paddingValues ->
+            PassThroughHelper.Passthrough(
+                "SmartBarHeight" to {
+                    72.dp + ime.calculateBottomPadding()
+                        .coerceAtLeast(navigatorBar.calculateBottomPadding())
+                }
+            ) {
+                mainContent.invoke(paddingValues)
+            }
+        }
     )
 
     // 监听用户的返回操作
@@ -55,8 +66,6 @@ fun PlayerBottomSheetContent(
     smartBarContent: @Composable (Modifier) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
-    val navigatorBar = WindowInsets.navigationBars.asPaddingValues()
-
     val currentPlaying = LPlayer.instance.currentItem.collectAsState(null)
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
     val hasNext = LPlayer.instance.canSkipNext.collectAsState(false)
@@ -100,11 +109,12 @@ fun PlayerBottomSheetContent(
                 }
                 .fillMaxWidth()
                 .background(color = MaterialTheme.colorScheme.background.copy(0.6f))
-                .height(72.dp + navigatorBar.calculateBottomPadding()),
+                .navigationBarsPadding()
+                .height(72.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             PlayingInfoCard(
-                modifier = Modifier.navigationBarsPadding(),
+                modifier = Modifier,
                 currentPlaying = { currentPlaying.value },
                 currentProgress = {
                     (currentPosition.value / currentDuration.value.toFloat()).coerceIn(0f, 1f)
