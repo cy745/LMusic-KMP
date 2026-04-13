@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.data
+package com.lalilu.lmusic.util
 
 import androidx.sqlite.driver.web.WebWorkerSQLiteDriver
 import org.w3c.dom.Worker

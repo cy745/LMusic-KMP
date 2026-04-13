@@ -15,34 +15,26 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lmedia.data.database
+package com.lalilu.lmusic.impl
 
-import android.content.Context
 import androidx.room3.Room
 import androidx.room3.RoomDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.Dispatchers
-import org.koin.mp.KoinPlatform
 
 actual inline fun <reified T : RoomDatabase> requireDatabase(
     name: String,
     forceMemory: Boolean
 ): T {
-    val context = KoinPlatform.getKoin().get<Context>()
-
     if (forceMemory) {
-        return Room.inMemoryDatabaseBuilder(
-            context = context,
-            klass = T::class.java
-        ).setQueryCoroutineContext(Dispatchers.IO)
+        return Room.inMemoryDatabaseBuilder<T>()
+            .setQueryCoroutineContext(Dispatchers.IO)
             .setDriver(BundledSQLiteDriver())
             .build()
     }
 
-    return Room.databaseBuilder<T>(
-        context = context,
-        name = "$name.db"
-    ).setQueryCoroutineContext(Dispatchers.IO)
+    return Room.databaseBuilder<T>(name = "db/$name.db")
+        .setQueryCoroutineContext(Dispatchers.IO)
         .setDriver(BundledSQLiteDriver())
         .build()
 }

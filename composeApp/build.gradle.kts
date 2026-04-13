@@ -64,14 +64,6 @@ kotlin {
     }
 
     sourceSets {
-        val desktopMain by getting
-
-        androidMain.dependencies {
-            implementation(compose.preview)
-            implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.startup.runtime)
-            implementation(libs.koin.androidx.startup)
-        }
         commonMain.dependencies {
             implementation(project(":common"))
             implementation(project(":component"))
@@ -93,11 +85,26 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        val desktopMain by getting
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.jna)
             implementation(libs.jna.platform)
+            implementation(libs.sqlite.bundled)
+        }
+        androidMain.dependencies {
+            implementation(compose.preview)
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.startup.runtime)
+            implementation(libs.koin.androidx.startup)
+            implementation(libs.sqlite.bundled)
+        }
+        iosMain.dependencies {
+            implementation(libs.sqlite.bundled)
+        }
+        webMain.dependencies {
+            implementation(libs.sqlite.web)
         }
     }
 }
@@ -161,9 +168,33 @@ android {
     }
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     debugImplementation(compose.uiTooling)
     kspCommonMainMetadata(libs.koin.compiler)
+
+    add("kspDesktop", libs.room3.compiler)
+    add("kspAndroid", libs.room3.compiler)
+    add("kspWasmJs", libs.room3.compiler)
+    XcodeDetector.whenXcodeInstalled {
+        add("kspIosArm64", libs.room3.compiler)
+        add("kspIosSimulatorArm64", libs.room3.compiler)
+    }
+}
+
+afterEvaluate {
+    tasks.named("kspKotlinDesktop") {
+        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
+    }
+    tasks.named("kspDebugKotlinAndroid") {
+        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
+    }
+    tasks.named("kspReleaseKotlinAndroid") {
+        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
+    }
 }
 
 compose.desktop {

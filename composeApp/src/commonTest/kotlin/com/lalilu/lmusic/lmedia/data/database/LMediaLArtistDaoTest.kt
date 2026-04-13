@@ -1,8 +1,10 @@
-package com.lalilu.lmedia.data.database
+package com.lalilu.lmusic.lmedia.data.database
 
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LArtist
+import com.lalilu.lmusic.impl.LMusicDatabase
+import com.lalilu.lmusic.impl.requireDatabase
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -12,7 +14,7 @@ import kotlin.test.assertTrue
 
 
 class LMediaLArtistDaoTest {
-    private val db = requireDatabase<LMediaDatabase>(forceMemory = false)
+    private val db = requireDatabase<LMusicDatabase>(forceMemory = false)
     private val artistDao = db.artistDao()
     private val audioDao = db.audioDao()
 
@@ -102,12 +104,14 @@ class LMediaLArtistDaoTest {
         // 手动建立关联并分别插入
         audioDao.insert(audio)
         artistDao.insert(artist)
-        artistDao.insertRelation(listOf(
-            CrossRefLAudioXLArtist(
-                artistId = artist.id,
-                songId = audio.id
+        artistDao.insertRelation(
+            listOf(
+                CrossRefLAudioXLArtist(
+                    artistId = artist.id,
+                    songId = audio.id
+                )
             )
-        ))
+        )
 
         // 使用 getAudiosByArtist 查询
         val audios = artistDao.getAudiosByArtist("artist-4").firstOrNull()

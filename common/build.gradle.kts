@@ -57,7 +57,10 @@ applyMultiplatform {
     iosMain?.dependencies {
         api(libs.ktor.client.darwin)
     }
-    wasmJsMain.dependencies {
-        api(libs.ktor.client.js)
+    val webMain by creating {
+        dependencies {
+            api(libs.ktor.client.js)
+            api(libs.kotlinx.browser)
+        }
     }
 }

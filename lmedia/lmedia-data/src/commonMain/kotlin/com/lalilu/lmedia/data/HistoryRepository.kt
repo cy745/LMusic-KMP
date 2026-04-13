@@ -1,7 +1,7 @@
 package com.lalilu.lmedia.data
 
+import com.lalilu.lmedia.data.database.ILMediaDatabase
 import com.lalilu.lmedia.data.database.LHistoryDao
-import com.lalilu.lmedia.data.database.LMediaDatabase
 import com.lalilu.lmedia.entity.LHistory
 import kotlinx.coroutines.flow.Flow
 import org.koin.core.annotation.Single
@@ -38,7 +38,7 @@ interface HistoryRepository {
 
 @Single
 class HistoryRepositoryImpl(
-    private val database: LMediaDatabase
+    private val database: ILMediaDatabase
 ) : HistoryRepository {
     private val historyDao: LHistoryDao by lazy { database.historyDao() }
 

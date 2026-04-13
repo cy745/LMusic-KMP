@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.data.database
+package com.lalilu.lmusic.lmedia.data.database
 
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LArtist
@@ -8,6 +8,8 @@ import com.lalilu.lmedia.entity.ref
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
+import com.lalilu.lmusic.impl.LMusicDatabase
+import com.lalilu.lmusic.impl.requireDatabase
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -17,7 +19,7 @@ import kotlin.test.assertTrue
 
 
 class LMediaLAudioDaoTest {
-    private val db = requireDatabase<LMediaDatabase>(forceMemory = false)
+    private val db = requireDatabase<LMusicDatabase>(forceMemory = false)
     private val audioDao = db.audioDao()
     private val artistDao = db.artistDao()
     private val albumDao = db.albumDao()
@@ -215,10 +217,12 @@ class LMediaLAudioDaoTest {
         audioDao.insert(audio1)
         audioDao.insert(audio2)
         artistDao.insert(artist)
-        artistDao.insertRelation(listOf(
-            CrossRefLAudioXLArtist(artist.id, audio1.id),
-            CrossRefLAudioXLArtist(artist.id, audio2.id)
-        ))
+        artistDao.insertRelation(
+            listOf(
+                CrossRefLAudioXLArtist(artist.id, audio1.id),
+                CrossRefLAudioXLArtist(artist.id, audio2.id)
+            )
+        )
 
         // 验证获取所有音频时关联关系正确
         val allAudios = audioDao.getAllAudio().firstOrNull()

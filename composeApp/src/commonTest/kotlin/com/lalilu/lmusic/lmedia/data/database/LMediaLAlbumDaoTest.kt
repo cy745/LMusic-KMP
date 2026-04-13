@@ -1,9 +1,11 @@
-package com.lalilu.lmedia.data.database
+package com.lalilu.lmusic.lmedia.data.database
 
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.ref
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
+import com.lalilu.lmusic.impl.LMusicDatabase
+import com.lalilu.lmusic.impl.requireDatabase
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -13,7 +15,7 @@ import kotlin.test.assertTrue
 
 
 class LMediaLAlbumDaoTest {
-    private val db = requireDatabase<LMediaDatabase>(forceMemory = false)
+    private val db = requireDatabase<LMusicDatabase>(forceMemory = false)
     private val albumDao = db.albumDao()
     private val audioDao = db.audioDao()
 
@@ -110,10 +112,12 @@ class LMediaLAlbumDaoTest {
         audioDao.insert(audio1)
         audioDao.insert(audio2)
         albumDao.insert(album)
-        albumDao.insertRelation(listOf(
-            CrossRefLAudioXAlbum(album.id, audio1.id),
-            CrossRefLAudioXAlbum(album.id, audio2.id)
-        ))
+        albumDao.insertRelation(
+            listOf(
+                CrossRefLAudioXAlbum(album.id, audio1.id),
+                CrossRefLAudioXAlbum(album.id, audio2.id)
+            )
+        )
 
         // 验证关联查询
         val result = albumDao.getAlbum("album-4").firstOrNull()

@@ -1,9 +1,11 @@
-package com.lalilu.lmedia.data.database
+package com.lalilu.lmusic.lmedia.data.database
 
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LGenre
 import com.lalilu.lmedia.entity.ref
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
+import com.lalilu.lmusic.impl.LMusicDatabase
+import com.lalilu.lmusic.impl.requireDatabase
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -13,7 +15,7 @@ import kotlin.test.assertTrue
 
 
 class LMediaLGenreDaoTest {
-    private val db = requireDatabase<LMediaDatabase>(forceMemory = false)
+    private val db = requireDatabase<LMusicDatabase>(forceMemory = false)
     private val genreDao = db.genreDao()
     private val audioDao = db.audioDao()
 
@@ -110,10 +112,12 @@ class LMediaLGenreDaoTest {
         audioDao.insert(audio1)
         audioDao.insert(audio2)
         genreDao.insert(genre)
-        genreDao.insertRelation(listOf(
-            CrossRefLAudioXGenre(genre.id, audio1.id),
-            CrossRefLAudioXGenre(genre.id, audio2.id)
-        ))
+        genreDao.insertRelation(
+            listOf(
+                CrossRefLAudioXGenre(genre.id, audio1.id),
+                CrossRefLAudioXGenre(genre.id, audio2.id)
+            )
+        )
 
         // 验证关联查询
         val result = genreDao.getGenre("genre-4").firstOrNull()
@@ -205,10 +209,12 @@ class LMediaLGenreDaoTest {
         genreDao.insert(rockGenre)
 
         // 手动插入关联关系
-        genreDao.insertRelation(listOf(
-            CrossRefLAudioXGenre(popGenre.id, audio1.id),
-            CrossRefLAudioXGenre(rockGenre.id, audio2.id)
-        ))
+        genreDao.insertRelation(
+            listOf(
+                CrossRefLAudioXGenre(popGenre.id, audio1.id),
+                CrossRefLAudioXGenre(rockGenre.id, audio2.id)
+            )
+        )
 
         // 验证流行流派
         val popResult = genreDao.getGenre("genre-pop").firstOrNull()

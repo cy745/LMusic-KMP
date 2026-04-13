@@ -31,35 +31,8 @@ applyMultiplatform {
         api(libs.kotlinx.coroutines.test)
     }
     androidMain.dependencies {
-        api(libs.sqlite.bundled)
         api(libs.androidx.core.ktx)
         api(libs.androidx.test.ktx)
-    }
-    jvmMain.dependencies {
-        api(libs.sqlite.bundled)
-    }
-    iosMain?.dependencies {
-        api(libs.sqlite.bundled)
-    }
-    val webMain by creating {
-        dependencies {
-            api(libs.sqlite.web)
-            api(libs.kotlinx.browser)
-        }
-    }
-}
-
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
-}
-
-dependencies {
-    add("kspJvm", libs.room3.compiler)
-    add("kspAndroid", libs.room3.compiler)
-    add("kspWasmJs", libs.room3.compiler)
-    XcodeDetector.whenXcodeInstalled {
-        add("kspIosArm64", libs.room3.compiler)
-        add("kspIosSimulatorArm64", libs.room3.compiler)
     }
 }
 

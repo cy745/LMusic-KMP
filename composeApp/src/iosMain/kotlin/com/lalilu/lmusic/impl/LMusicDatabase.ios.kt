@@ -15,14 +15,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lmedia.data.database
+package com.lalilu.lmusic.impl
 
 import androidx.room3.Room
-import androidx.room3.RoomDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 
-actual inline fun <reified T : RoomDatabase> requireDatabase(
+actual inline fun <reified T : androidx.room3.RoomDatabase> requireDatabase(
     name: String,
     forceMemory: Boolean
 ): T {

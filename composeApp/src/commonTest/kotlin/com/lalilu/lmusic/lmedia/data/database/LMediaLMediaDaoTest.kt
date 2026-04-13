@@ -1,9 +1,11 @@
-package com.lalilu.lmedia.data.database
+package com.lalilu.lmusic.lmedia.data.database
 
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Metadata
 import com.lalilu.lmedia.entity.buildSnapshot
 import com.lalilu.lmedia.entity.ref
+import com.lalilu.lmusic.impl.LMusicDatabase
+import com.lalilu.lmusic.impl.requireDatabase
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -13,7 +15,7 @@ import kotlin.test.assertTrue
 
 
 class LMediaLMediaDaoTest {
-    private val db = requireDatabase<LMediaDatabase>(forceMemory = false)
+    private val db = requireDatabase<LMusicDatabase>(forceMemory = false)
     private val audioDao = db.audioDao()
     private val artistDao = db.artistDao()
     private val albumDao = db.albumDao()
@@ -53,7 +55,7 @@ class LMediaLMediaDaoTest {
         assertEquals(1, snapshot.genres.size)  // 流行
 
         // 插入快照到数据库
-        db.mediaDao().insert(snapshot)
+        db.mediaDao().insert(snapshot, "")
 
         // 验证音频插入成功
         val allAudios = audioDao.getAllAudio().firstOrNull()
@@ -96,7 +98,7 @@ class LMediaLMediaDaoTest {
         assertEquals(2, snapshot.artists.size)
 
         // 插入数据库
-        db.mediaDao().insert(snapshot)
+        db.mediaDao().insert(snapshot, "")
 
         // 验证两个艺术家都被插入
         val allArtists = artistDao.getAllArtist().firstOrNull()
@@ -128,7 +130,7 @@ class LMediaLMediaDaoTest {
         assertEquals(2, snapshot.artists.size)
         assertEquals(2, snapshot.genres.size)
 
-        db.mediaDao().insert(snapshot)
+        db.mediaDao().insert(snapshot, "")
 
         val allAlbums = albumDao.getAllAlbum().firstOrNull()
         assertNotNull(allAlbums)
@@ -159,7 +161,7 @@ class LMediaLMediaDaoTest {
             )
         ).buildSnapshot()
 
-        db.mediaDao().insert(snapshot)
+        db.mediaDao().insert(snapshot, "")
 
         // 获取专辑并验证关联
         val albums = albumDao.getAllAlbum().firstOrNull()
@@ -211,7 +213,7 @@ class LMediaLMediaDaoTest {
 
         assertEquals(2, snapshot.genres.size) // Rock, Jazz
 
-        db.mediaDao().insert(snapshot)
+        db.mediaDao().insert(snapshot, "")
 
         // 获取 Rock 流派
         val genres = genreDao.getAllGenre().firstOrNull()
@@ -243,7 +245,7 @@ class LMediaLMediaDaoTest {
             )
         ).buildSnapshot()
 
-        db.mediaDao().insert(snapshot)
+        db.mediaDao().insert(snapshot, "")
 
         // 使用 getAudiosByArtist 查询
         val audios = artistDao.getAudiosByArtist("ArtistY").firstOrNull()
@@ -270,7 +272,7 @@ class LMediaLMediaDaoTest {
             )
         ).buildSnapshot()
 
-        db.mediaDao().insert(snapshot)
+        db.mediaDao().insert(snapshot, "")
 
         // 使用 getAudiosByAlbum 查询
         val audios = albumDao.getAudiosByAlbum("AlbumX").firstOrNull()
@@ -297,7 +299,7 @@ class LMediaLMediaDaoTest {
             )
         ).buildSnapshot()
 
-        db.mediaDao().insert(snapshot)
+        db.mediaDao().insert(snapshot, "")
 
         // 使用 getAudiosByGenre 查询
         val audios = genreDao.getAudiosByGenre("Electronic").firstOrNull()

@@ -19,8 +19,7 @@ package com.lalilu.lmedia.data
 
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
-import com.lalilu.lmedia.data.database.LMediaDatabase
-import com.lalilu.lmedia.data.database.requireDatabase
+import com.lalilu.lmedia.data.database.ILMediaDatabase
 import com.lalilu.lmedia.entity.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +37,7 @@ import kotlin.reflect.KClass
 @Single(createdAtStart = true, binds = [Library::class, LMedia::class])
 class LMedia(
     private val platformSource: PlatformMediaSource,
-    private val database: LMediaDatabase
+    private val database: ILMediaDatabase
 ) : Library(), CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io + SupervisorJob()
 

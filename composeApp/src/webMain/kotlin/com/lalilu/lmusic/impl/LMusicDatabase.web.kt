@@ -15,26 +15,28 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lmedia.data.database
+package com.lalilu.lmusic.impl
 
 import androidx.room3.Room
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import androidx.room3.RoomDatabase
+import com.lalilu.lmusic.util.createWebWorkerSQLiteDriver
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 
-actual inline fun <reified T : androidx.room3.RoomDatabase> requireDatabase(
+actual inline fun <reified T : RoomDatabase> requireDatabase(
     name: String,
     forceMemory: Boolean
 ): T {
+    val driver = createWebWorkerSQLiteDriver()
+
     if (forceMemory) {
         return Room.inMemoryDatabaseBuilder<T>()
-            .setQueryCoroutineContext(Dispatchers.IO)
-            .setDriver(BundledSQLiteDriver())
+            .setQueryCoroutineContext(Dispatchers.Default)
+            .setDriver(driver)
             .build()
     }
 
     return Room.databaseBuilder<T>(name = "db/$name.db")
-        .setQueryCoroutineContext(Dispatchers.IO)
-        .setDriver(BundledSQLiteDriver())
+        .setQueryCoroutineContext(Dispatchers.Default)
+        .setDriver(driver)
         .build()
 }
