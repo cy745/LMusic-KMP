@@ -1,6 +1,9 @@
 package com.lalilu.lmusic.impl
 
 import androidx.room3.*
+import com.lalilu.lhistory.entity.LHistory
+import com.lalilu.lhistory.repository.ILHistoryDatabase
+import com.lalilu.lhistory.repository.LHistoryDao
 import com.lalilu.lmedia.data.database.*
 import com.lalilu.lmedia.data.database.converter.MetadataConverter
 import com.lalilu.lmedia.data.database.converter.StringListConverter
@@ -33,7 +36,7 @@ import org.koin.core.annotation.Single
     StringMapConverter::class
 )
 @ConstructedBy(LMusicDatabaseConstructor::class)
-abstract class LMusicDatabase : RoomDatabase(), ILMediaDatabase {
+abstract class LMusicDatabase : RoomDatabase(), ILMediaDatabase, ILHistoryDatabase {
     abstract override fun audioDao(): LAudioDao
     abstract override fun artistDao(): LArtistDao
     abstract override fun albumDao(): LAlbumDao
@@ -43,7 +46,13 @@ abstract class LMusicDatabase : RoomDatabase(), ILMediaDatabase {
     abstract override fun historyDao(): LHistoryDao
 }
 
-@Single(binds = [LMusicDatabase::class, ILMediaDatabase::class])
+@Single(
+    binds = [
+        LMusicDatabase::class,
+        ILMediaDatabase::class,
+        ILHistoryDatabase::class
+    ]
+)
 fun provideDatabase(): LMusicDatabase {
     return requireDatabase<LMusicDatabase>(forceMemory = false)
 }

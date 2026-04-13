@@ -15,13 +15,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lmedia.data.database
+package com.lalilu.lhistory
 
-interface ILMediaDatabase {
-    fun audioDao(): LAudioDao
-    fun artistDao(): LArtistDao
-    fun albumDao(): LAlbumDao
-    fun genreDao(): LGenreDao
-    fun folderDao(): LFolderDao
-    fun mediaDao(): LMediaDao
+import com.lalilu.common.ext.KModule
+import com.lalilu.common.ext.KoinModule
+import dev.whyoleg.sweetspi.ServiceProvider
+import org.koin.core.annotation.ComponentScan
+import org.koin.core.annotation.Module
+import org.koin.ksp.generated.module
+
+@Module
+@ServiceProvider
+@ComponentScan("com.lalilu.lhistory")
+object LHistoryModule : KModule {
+    override fun get(): KoinModule = this.module
 }

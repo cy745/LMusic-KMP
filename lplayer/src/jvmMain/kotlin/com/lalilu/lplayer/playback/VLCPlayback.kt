@@ -5,7 +5,6 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.flatten
 import com.lalilu.lmedia.data.Library
-import com.lalilu.lmedia.data.PlaybackDataTracker
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.notification.MacOSNotification
@@ -25,7 +24,7 @@ class VLCPlayback(
     private val library: Library
 ) : AbstractPlayback(), KoinComponent {
     private var playerInstance: MediaPlayer? = null
-    private val dataTracker: PlaybackDataTracker by inject()
+    private val dataTracker: IPlaybackDataTracker by inject()
 
     val player: MediaPlayer
         get() = playerInstance ?: throw Exception("Player Not Initialized")

@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lmedia.entity
+package com.lalilu.lhistory.entity
 
 import androidx.room3.ColumnInfo
 import androidx.room3.Entity

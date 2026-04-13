@@ -1,7 +1,13 @@
-package com.lalilu.lmedia.data.database
+package com.lalilu.lhistory.repository
 
-import androidx.room3.*
-import com.lalilu.lmedia.entity.LHistory
+import androidx.room3.Dao
+import androidx.room3.Delete
+import androidx.room3.Insert
+import androidx.room3.MapColumn
+import androidx.room3.Query
+import androidx.room3.Transaction
+import androidx.room3.Update
+import com.lalilu.lhistory.entity.LHistory
 import kotlinx.coroutines.flow.Flow
 
 @Dao

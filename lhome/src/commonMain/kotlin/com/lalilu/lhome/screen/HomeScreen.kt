@@ -8,18 +8,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lalilu.RemixIcon
+import com.lalilu.common.ext.requestFor
+import com.lalilu.component.LazyGridContent
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.extensions.retrieve
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.extensions.DailyRecommend
 import com.lalilu.lhome.extensions.EntryPanel
-import com.lalilu.lhome.extensions.HistoryPanel
 import com.lalilu.lhome.extensions.LatestPanel
 import com.lalilu.lhome.lhome.generated.resources.Res
 import com.lalilu.lhome.lhome.generated.resources.home_screen_title
 import com.lalilu.navigation.*
 import com.lalilu.remixicon.System
 import com.lalilu.remixicon.system.loaderLine
+import org.koin.core.qualifier.named
 
 @Destination(router = ["/home"])
 data object HomeScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
@@ -47,8 +49,9 @@ data object HomeScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
 fun HomeScreenContent(modifier: Modifier = Modifier) {
     val dailyRecommend = DailyRecommend.register()
     val latestPanel = LatestPanel.register()
-    val historyPanel = HistoryPanel.register()
     val entryPanel = EntryPanel.register()
+    val historyPanel = remember { requestFor<LazyGridContent>(named("history_panel")) }
+        ?.register()
 
     val statusBar = WindowInsets.statusBars.asPaddingValues()
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()
@@ -67,7 +70,7 @@ fun HomeScreenContent(modifier: Modifier = Modifier) {
         content = {
             dailyRecommend.invoke(this)
             latestPanel.invoke(this)
-            historyPanel.invoke(this)
+            historyPanel?.invoke(this)
             entryPanel.invoke(this)
         }
     )

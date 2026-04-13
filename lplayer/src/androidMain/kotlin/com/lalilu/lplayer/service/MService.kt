@@ -20,10 +20,10 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.lalilu.common.kv.KVContext
 import com.lalilu.lmedia.PlatformMediaSource
-import com.lalilu.lmedia.data.PlaybackDataTracker
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.*
 import com.lalilu.lplayer.extensions.setUpQueueControl
+import com.lalilu.lplayer.playback.IPlaybackDataTracker
 import com.lalilu.lplayer.service.CustomCommand.SeekToNext
 import com.lalilu.lplayer.service.CustomCommand.SeekToPrevious
 import kotlinx.coroutines.*
@@ -37,7 +37,7 @@ import kotlin.coroutines.CoroutineContext
 @OptIn(UnstableApi::class)
 class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
     override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob()
-    private val dataTracker by inject<PlaybackDataTracker>()
+    private val dataTracker by inject<IPlaybackDataTracker>()
     private val historyAnalyticsListener by lazy { HistoryAnalyticsListener(dataTracker) }
 
     private var player: Player? = null

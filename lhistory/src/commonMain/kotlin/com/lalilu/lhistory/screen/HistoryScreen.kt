@@ -1,4 +1,21 @@
-package com.lalilu.lhome.screen
+/*
+ * Copyright (c) 2026 lalilu. All rights reserved.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.lalilu.lhistory.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,9 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lalilu.krouter.annotation.Destination
-import com.lalilu.lhome.component.HistoryItemCard
-import com.lalilu.lhome.viewmodel.HistoryVM
-import com.lalilu.lmedia.entity.LHistory
+import com.lalilu.lhistory.component.HistoryItemCard
+import com.lalilu.lhistory.viewmodel.HistoryVM
+import com.lalilu.lhistory.entity.LHistory
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory

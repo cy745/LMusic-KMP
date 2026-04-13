@@ -15,13 +15,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lmedia.data.database
+package com.lalilu.lhistory.repository
 
-interface ILMediaDatabase {
-    fun audioDao(): LAudioDao
-    fun artistDao(): LArtistDao
-    fun albumDao(): LAlbumDao
-    fun genreDao(): LGenreDao
-    fun folderDao(): LFolderDao
-    fun mediaDao(): LMediaDao
+interface ILHistoryDatabase {
+    fun historyDao(): LHistoryDao
 }

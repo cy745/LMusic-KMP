@@ -49,6 +49,7 @@ include(":lplayer:lib-decoder-flac")
 include(":llyric")
 include(":llyricview")
 include(":lhome")
+include(":lhistory")
 
 include("lmedia-server")
 include(":lmedia:lmedia-data")

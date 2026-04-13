@@ -15,11 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lmedia.data
+package com.lalilu.lhistory
 
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.entity.LHistory
+import com.lalilu.lhistory.entity.LHistory
+import com.lalilu.lhistory.repository.HistoryRepository
+import com.lalilu.lplayer.playback.IPlaybackDataTracker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -39,10 +40,10 @@ import kotlin.time.ExperimentalTime
  * 追踪播放状态并将播放数据存储到数据库
  */
 @OptIn(ExperimentalTime::class)
-@Single
+@Single(binds = [IPlaybackDataTracker::class])
 class PlaybackDataTracker(
     private val historyRepository: HistoryRepository
-) {
+) : IPlaybackDataTracker {
     private val scope = CoroutineScope(Dispatchers.io) + SupervisorJob()
     private var playingItem: PlayingItemHandler? = null
     private var loopJob: Job? = null
@@ -61,11 +62,11 @@ class PlaybackDataTracker(
         }
     }
 
-    fun onMediaItemTransition(
+    override fun onMediaItemTransition(
         mediaId: String?,
         title: String?,
-        isRepeating: Boolean = false,
-        isNormalTransition: Boolean = true
+        isRepeating: Boolean,
+        isNormalTransition: Boolean
     ) {
         mediaId ?: return
 
@@ -93,7 +94,7 @@ class PlaybackDataTracker(
         }
     }
 
-    fun onIsPlayingChanged(isPlaying: Boolean) {
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
         if (playingItem == null) {
             return
         }
