@@ -14,6 +14,22 @@ import com.lalilu.preview.preview
 import com.lalilu.remixicon.Arrows
 import com.lalilu.remixicon.arrows.arrowRightSLine
 import androidx.compose.ui.tooling.preview.Preview
+import com.lalilu.SlotContent
+import org.koin.core.annotation.Named
+import org.koin.core.annotation.Single
+
+@Named("recommend_title")
+@Single
+fun slotRecommendTitle() = SlotContent { modifier ->
+    RecommendTitle(
+        modifier = modifier.fillMaxWidth(),
+        title = param("title") ?: "",
+        extraContent = {
+            param<@Composable () -> Unit>("extraContent")
+                ?.invoke()
+        }
+    )
+}
 
 @Composable
 fun RecommendTitle(

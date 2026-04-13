@@ -20,8 +20,29 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.lalilu.SlotContent
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
+import org.koin.core.annotation.Named
+import org.koin.core.annotation.Single
+
+
+@Named("audio_item_card")
+@Single
+fun slotAudioItemCard() = SlotContent { modifier ->
+    AudioItemCard(
+        modifier = modifier,
+        title = param("title", ""),
+        subtitle = param("subtitle", ""),
+        imageData = param("imageData") ?: Unit,
+        isSelecting = param("isSelecting") { false },
+        isSelected = param("isSelected") { false },
+        onEnterSelect = param("onEnterSelect") { },
+        onSelect = param("onSelect") { },
+        onPlay = param("onPlay") { },
+        onNavigateToDetail = param("onNavigateToDetail") { }
+    )
+}
 
 @Composable
 fun AudioItemCard(

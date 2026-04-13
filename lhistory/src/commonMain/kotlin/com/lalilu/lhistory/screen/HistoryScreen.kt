@@ -39,7 +39,7 @@ import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
 import org.koin.compose.viewmodel.koinViewModel
 
-@Destination(router = ["/history"])
+@Destination(router = ["/pages/history"])
 data object HistoryScreen : Screen, ScreenInfoFactory {
 
     @Composable
