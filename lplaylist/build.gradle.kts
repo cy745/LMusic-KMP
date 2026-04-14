@@ -28,7 +28,7 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-group = "com.lalilu.lhistory"
+group = "com.lalilu.lplaylist"
 version = "1.0.0"
 
 applyMultiplatform {

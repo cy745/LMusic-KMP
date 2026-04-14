@@ -12,6 +12,9 @@ import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
 import com.lalilu.lmedia.entity.*
+import com.lalilu.lplaylist.entity.LPlaylist
+import com.lalilu.lplaylist.repository.ILPlaylistDatabase
+import com.lalilu.lplaylist.repository.LPlaylistDao
 import org.koin.core.annotation.Single
 
 
@@ -24,6 +27,7 @@ import org.koin.core.annotation.Single
         LGenre::class,
         LFolder::class,
         LHistory::class,
+        LPlaylist::class,
         CrossRefLAudioXLArtist::class,
         CrossRefLAudioXAlbum::class,
         CrossRefLAudioXGenre::class
@@ -36,7 +40,10 @@ import org.koin.core.annotation.Single
     StringMapConverter::class
 )
 @ConstructedBy(LMusicDatabaseConstructor::class)
-abstract class LMusicDatabase : RoomDatabase(), ILMediaDatabase, ILHistoryDatabase {
+abstract class LMusicDatabase : RoomDatabase(),
+    ILMediaDatabase,
+    ILHistoryDatabase,
+    ILPlaylistDatabase {
     abstract override fun audioDao(): LAudioDao
     abstract override fun artistDao(): LArtistDao
     abstract override fun albumDao(): LAlbumDao
@@ -44,13 +51,15 @@ abstract class LMusicDatabase : RoomDatabase(), ILMediaDatabase, ILHistoryDataba
     abstract override fun folderDao(): LFolderDao
     abstract override fun mediaDao(): LMediaDao
     abstract override fun historyDao(): LHistoryDao
+    abstract override fun playlistDao(): LPlaylistDao
 }
 
 @Single(
     binds = [
         LMusicDatabase::class,
         ILMediaDatabase::class,
-        ILHistoryDatabase::class
+        ILHistoryDatabase::class,
+        ILPlaylistDatabase::class
     ]
 )
 fun provideDatabase(): LMusicDatabase {
