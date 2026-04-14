@@ -78,10 +78,9 @@ fun NavigationSmartBar(
         snapshotFlow {
             val currentScreen = backStack.lastOrNull()?.actualScreen()
             SmartbarStackHolder.stackMap[currentScreen?.key]
+                ?.let { Triple(it.first, it.second, currentScreen) }
         }.filterNotNull()
-            .collect { (barComponent, actions) ->
-                val currentScreen = backStack.lastOrNull()?.actualScreen()
-
+            .collect { (barComponent, actions, currentScreen) ->
                 navigationBar.value = when {
                     barComponent != null -> NavigationBarType.NormalBar(barComponent)
                     currentScreen is ScreenInfoFactory && currentScreen.isTabScreen() ->
