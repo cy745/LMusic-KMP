@@ -25,13 +25,12 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import com.lalilu.navigation.*
+import kotlinx.coroutines.flow.filterNotNull
 
 
 /**
@@ -73,24 +72,25 @@ fun NavigationSmartBar(
     tabScreens: () -> List<Screen> = { emptyList() },
 ) {
     val backStack = LocalBackStack.current
-    val navigationBar = remember {
-        derivedStateOf {
-            val currentScreen = backStack.lastOrNull()
-                ?.actualScreen()
+    val navigationBar = remember { mutableStateOf<NavigationBarType>(NavigationBarType.EmptyBar) }
 
-            val pair = SmartbarStackHolder.stackMap[currentScreen?.key]
-                ?: return@derivedStateOf NavigationBarType.EmptyBar
-            val (barComponent, actions) = pair
+    LaunchedEffect(Unit) {
+        snapshotFlow {
+            val currentScreen = backStack.lastOrNull()?.actualScreen()
+            SmartbarStackHolder.stackMap[currentScreen?.key]
+        }.filterNotNull()
+            .collect { (barComponent, actions) ->
+                val currentScreen = backStack.lastOrNull()?.actualScreen()
 
-            when {
-                barComponent != null -> NavigationBarType.NormalBar(barComponent)
-                currentScreen is ScreenInfoFactory && currentScreen.isTabScreen() ->
-                    NavigationBarType.TabBar(currentScreen)
+                navigationBar.value = when {
+                    barComponent != null -> NavigationBarType.NormalBar(barComponent)
+                    currentScreen is ScreenInfoFactory && currentScreen.isTabScreen() ->
+                        NavigationBarType.TabBar(currentScreen)
 
-                actions != null -> NavigationBarType.CommonBar(actions)
-                else -> NavigationBarType.EmptyBar
+                    actions != null -> NavigationBarType.CommonBar(actions)
+                    else -> NavigationBarType.EmptyBar
+                }
             }
-        }
     }
 
     AnimatedContent(
