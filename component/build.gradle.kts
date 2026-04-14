@@ -64,6 +64,7 @@ kotlin {
                 api(libs.sonner)
                 api(libs.materialKolor)
                 api(libs.reorderable)
+                api(libs.paging.compose)
 
                 api(libs.room3.runtime)
             }

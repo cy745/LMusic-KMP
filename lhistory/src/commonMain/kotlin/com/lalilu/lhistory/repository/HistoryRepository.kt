@@ -17,88 +17,111 @@
 
 package com.lalilu.lhistory.repository
 
+import androidx.paging.PagingSource
+import com.lalilu.common.ext.io
+import com.lalilu.common.flow.toCachedFlow
 import com.lalilu.lhistory.entity.LHistory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
+import kotlin.coroutines.CoroutineContext
 
 interface HistoryRepository {
-    fun getAllHistory(): Flow<List<LHistory>>
-    fun getHistory(id: Long): Flow<LHistory?>
-    fun getHistoryByAudioId(audioId: String): Flow<LHistory?>
-    fun getRecentHistory(limit: Int): Flow<List<LHistory>>
-    fun getRecentHistoryFlow(limit: Int): Flow<List<LHistory>>
-    fun getRecentHistoryIdsWithLastTime(count: Int): Flow<Map<String, Long>>
-    fun getHistoryCount(): Flow<Int>
-    suspend fun insert(history: LHistory): Long
-    suspend fun update(history: LHistory)
-    suspend fun delete(history: LHistory)
-    suspend fun deleteById(id: Long)
-    suspend fun deleteAll()
-
-    /**
-     * 更新历史记录的播放时长、重复次数和开始时间
-     */
-    suspend fun updateHistory(id: Long, duration: Long, repeatCount: Int, startTime: Long)
-
-    /**
-     * 获取指定内容ID的未使用预保存历史记录（duration = -1）
-     */
-    suspend fun getUnUsedPreSaveHistory(contentId: String): LHistory?
-
-    /**
-     * 预保存历史记录，用于追踪新的播放项
-     */
+    suspend fun getUnUsedPreSaveHistory(mediaId: String): LHistory?
     suspend fun preSaveHistory(history: LHistory): Long
+    suspend fun updateHistory(id: Long, duration: Long, repeatCount: Int, startTime: Long)
+    fun clearHistories()
+
+    fun getAllData(): PagingSource<Int, LHistory>
+    fun getHistoriesFlow(limit: Int): Flow<List<LHistory>>
+    fun getHistoriesWithCount(limit: Int): Flow<Map<LHistory, Int>>
+    fun getHistoriesIdsMapWithCount(): Flow<Map<String, Int>>
+    fun getHistoriesIdsMapWithLastTime(): Flow<Map<String, Long>>
+    fun getHistoriesCountByMediaId(mediaId: String): Int
+    fun getHistoriesLastTimeByMediaId(mediaId: String): Long
 }
 
 @Single
 class HistoryRepositoryImpl(
     private val database: ILHistoryDatabase
-) : HistoryRepository {
+) : HistoryRepository, CoroutineScope {
     private val historyDao: LHistoryDao by lazy { database.historyDao() }
+    override val coroutineContext: CoroutineContext = Dispatchers.io
 
-    override fun getAllHistory(): Flow<List<LHistory>> =
-        historyDao.getAllHistory()
+    private val countMap = historyDao
+        .getFlowIdsMapWithCount(Int.MAX_VALUE)
+        .distinctUntilChanged()
+        .toCachedFlow()
+        .also { it.launchIn(this) }
 
-    override fun getHistory(id: Long): Flow<LHistory?> =
-        historyDao.getHistory(id)
+    private val lastTimeMap = historyDao
+        .getFlowIdsMapWithLastTime(Int.MAX_VALUE)
+        .distinctUntilChanged()
+        .toCachedFlow()
+        .also { it.launchIn(this) }
 
-    override fun getHistoryByAudioId(audioId: String): Flow<LHistory?> =
-        historyDao.getHistoryByAudioId(audioId)
+    override suspend fun getUnUsedPreSaveHistory(mediaId: String): LHistory? =
+        withContext(Dispatchers.io) {
+            historyDao.getLatestHistory()
+                ?.takeIf { it.contentId == mediaId && it.duration <= 1000L }
+        }
 
-    override fun getRecentHistory(limit: Int): Flow<List<LHistory>> =
-        historyDao.getRecentHistory(limit)
+    override suspend fun preSaveHistory(history: LHistory): Long = withContext(Dispatchers.io) {
+        historyDao.save(history.copy(duration = -1L))
+    }
 
-    override fun getRecentHistoryFlow(limit: Int): Flow<List<LHistory>> =
-        historyDao.getRecentHistory(limit)
+    override suspend fun updateHistory(
+        id: Long,
+        duration: Long,
+        repeatCount: Int,
+        startTime: Long
+    ) {
+        historyDao.updateHistory(
+            id = id,
+            duration = duration,
+            repeatCount = repeatCount,
+            startTime = startTime
+        )
+    }
 
-    override fun getRecentHistoryIdsWithLastTime(count: Int): Flow<Map<String, Long>> =
-        historyDao.getRecentHistoryIdsWithLastTime(count)
+    override fun clearHistories() {
+        launch { historyDao.clear() }
+    }
 
-    override fun getHistoryCount(): Flow<Int> =
-        historyDao.getHistoryCount()
+    override fun getAllData(): PagingSource<Int, LHistory> {
+        return historyDao.getAllData()
+    }
 
-    override suspend fun insert(history: LHistory): Long =
-        historyDao.insert(history)
+    override fun getHistoriesFlow(limit: Int): Flow<List<LHistory>> {
+        return historyDao
+            .getFlow(limit)
+            .distinctUntilChanged()
+    }
 
-    override suspend fun update(history: LHistory) =
-        historyDao.update(history)
+    override fun getHistoriesWithCount(limit: Int): Flow<Map<LHistory, Int>> {
+        return historyDao
+            .getFlowWithCount(limit)
+            .distinctUntilChanged()
+    }
 
-    override suspend fun delete(history: LHistory) =
-        historyDao.delete(history)
+    override fun getHistoriesCountByMediaId(mediaId: String): Int {
+        return countMap.get()?.get(mediaId) ?: 0
+    }
 
-    override suspend fun deleteById(id: Long) =
-        historyDao.deleteById(id)
+    override fun getHistoriesLastTimeByMediaId(mediaId: String): Long {
+        return lastTimeMap.get()?.get(mediaId) ?: 0L
+    }
 
-    override suspend fun deleteAll() =
-        historyDao.deleteAll()
+    override fun getHistoriesIdsMapWithCount(): Flow<Map<String, Int>> {
+        return countMap
+    }
 
-    override suspend fun updateHistory(id: Long, duration: Long, repeatCount: Int, startTime: Long) =
-        historyDao.updateHistory(id, duration, repeatCount, startTime)
-
-    override suspend fun getUnUsedPreSaveHistory(contentId: String): LHistory? =
-        historyDao.getUnUsedPreSaveHistory(contentId)
-
-    override suspend fun preSaveHistory(history: LHistory): Long =
-        historyDao.insert(history)
+    override fun getHistoriesIdsMapWithLastTime(): Flow<Map<String, Long>> {
+        return lastTimeMap
+    }
 }

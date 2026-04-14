@@ -9,6 +9,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import coil3.SingletonImageLoader
@@ -18,9 +19,6 @@ import com.lalilu.adaptiveValue
 import com.lalilu.component.LazyGridContent
 import com.lalilu.component.divider
 import com.lalilu.lhistory.viewmodel.HistoryVM
-import com.lalilu.lmedia.data.LMedia
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
 import com.lalilu.slot
@@ -39,6 +37,7 @@ class HistoryPanel : LazyGridContent {
         val scope = rememberCoroutineScope()
         val context = LocalPlatformContext.current
         val vm = koinViewModel<HistoryVM>()
+        val items by vm.historyState
 
         val columnsValue = adaptiveValue(
             compact = { 1 },
@@ -52,7 +51,7 @@ class HistoryPanel : LazyGridContent {
                     modifier = Modifier.fillMaxWidth(),
                     key = "recommend_title",
                 ) {
-                    "title" reg "历史播放"
+                    "title" reg "最近播放"
                     "extraContent" reg @Composable {
                         FilterChip(
                             selected = true,
@@ -73,7 +72,7 @@ class HistoryPanel : LazyGridContent {
             }
 
             gridItems(
-                items = { vm.recentSongsFlow.value },
+                items = { items },
                 key = { it.idValue() },
                 contentType = { "HISTORY_ITEM" },
                 span = { columnsValue.value }
@@ -83,12 +82,14 @@ class HistoryPanel : LazyGridContent {
                     "subtitle" reg it.subtitleValue()
                     "imageData" reg it
                     "onPlay" reg {
-                        scope.launch {
-                            PlayerAction.UpdateList(
-                                ids = LMedia.instance.get<LAudio>().map(LItem::idValue),
-                                id = it.idValue(),
-                                start = true
-                            ).action()
+                        vm.getHistoryPlayedIds { list ->
+                            scope.launch {
+                                PlayerAction.UpdateList(
+                                    ids = list,
+                                    id = it.idValue(),
+                                    start = true
+                                ).action()
+                            }
                         }
                     }
                     "onNavigateToDetail" reg {

@@ -17,7 +17,6 @@
 
 package com.lalilu.lhistory.entity
 
-import androidx.room3.ColumnInfo
 import androidx.room3.Entity
 import androidx.room3.PrimaryKey
 
@@ -36,28 +35,15 @@ import androidx.room3.PrimaryKey
 @Entity(tableName = "m_history")
 data class LHistory(
     @PrimaryKey(autoGenerate = true)
-    @ColumnInfo("id")
     val id: Long = 0L,
 
-    @ColumnInfo("content_id")
     val contentId: String,
-
-    @ColumnInfo("content_title")
     val contentTitle: String,
-
-    @ColumnInfo("parent_id")
     val parentId: String = "",
-
-    @ColumnInfo("parent_title")
     val parentTitle: String = "",
 
     // 数据库层面0为正常值，而-1代表预保存记录，即会被清除的记录
-    @ColumnInfo("duration")
     val duration: Long = -1L,
-
-    @ColumnInfo("repeat_count")
     val repeatCount: Int = 0,
-
-    @ColumnInfo("start_time")
     val startTime: Long = 0L,
 )

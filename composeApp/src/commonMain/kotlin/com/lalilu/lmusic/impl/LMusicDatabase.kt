@@ -1,6 +1,7 @@
 package com.lalilu.lmusic.impl
 
 import androidx.room3.*
+import androidx.room3.paging.PagingSourceDaoReturnTypeConverter
 import com.lalilu.lhistory.entity.LHistory
 import com.lalilu.lhistory.repository.ILHistoryDatabase
 import com.lalilu.lhistory.repository.LHistoryDao
@@ -34,6 +35,7 @@ import org.koin.core.annotation.Single
     ],
     exportSchema = true,
 )
+@DaoReturnTypeConverters(PagingSourceDaoReturnTypeConverter::class)
 @TypeConverters(
     StringListConverter::class,
     MetadataConverter::class,

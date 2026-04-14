@@ -81,6 +81,7 @@ kotlin {
             implementation(libs.compose.material)
             implementation(libs.compose.resources)
             implementation(libs.compose.preview)
+            implementation(libs.room3.paging)
 
             implementation(libs.filekit.dialogs)
             implementation(libs.filekit.dialogs.compose)

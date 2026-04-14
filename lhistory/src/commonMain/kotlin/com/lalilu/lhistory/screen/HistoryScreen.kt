@@ -17,27 +17,42 @@
 
 package com.lalilu.lhistory.screen
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhistory.component.HistoryItemCard
-import com.lalilu.lhistory.viewmodel.HistoryVM
 import com.lalilu.lhistory.entity.LHistory
+import com.lalilu.lhistory.lhistory.generated.resources.Res
+import com.lalilu.lhistory.lhistory.generated.resources.history_screen_title
+import com.lalilu.lhistory.viewmodel.HistoryVM
+import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lplayer.action.PlayerAction
+import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
+import com.lalilu.navigation.smartbar.NavigatorHeader
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 @Destination(router = ["/pages/history"])
 data object HistoryScreen : Screen, ScreenInfoFactory {
@@ -54,60 +69,85 @@ data object HistoryScreen : Screen, ScreenInfoFactory {
     @Composable
     override fun Content() {
         val viewModel: HistoryVM = koinViewModel()
-        val histories by viewModel.historiesFlow.collectAsState(initial = emptyList())
+        val items = viewModel.pager.collectAsLazyPagingItems()
 
         HistoryScreenContent(
-            histories = { histories }
+            items = items,
+            onGetHistoryList = { callback -> viewModel.getHistoryPlayedIds { callback(it) } }
         )
     }
 }
 
+@OptIn(ExperimentalTime::class)
 @Composable
 private fun HistoryScreenContent(
-    histories: () -> List<LHistory>
+    items: LazyPagingItems<LHistory>,
+    onGetHistoryList: ((List<String>) -> Unit) -> Unit = {},
 ) {
-    val statusBar = WindowInsets.statusBars.asPaddingValues()
-    val navigationBar = WindowInsets.navigationBars.asPaddingValues()
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            top = statusBar.calculateTopPadding() + 16.dp,
-            bottom = navigationBar.calculateBottomPadding() + 12.dp
-        )
+        modifier = Modifier
+            .fillMaxSize(),
+//            .fadeEdgeForStatusBar(),
+        state = listState
     ) {
-        item(key = "header") {
-            Column(
+        item(key = "历史记录") {
+            NavigatorHeader(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = "历史记录",
-                    fontSize = 20.sp,
-                    lineHeight = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "播放过的歌曲记录",
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                    fontSize = 12.sp,
-                    lineHeight = 12.sp,
+                    .statusBarsPadding(),
+                title = stringResource(Res.string.history_screen_title),
+                subTitle = "播放过的歌曲记录"
+            )
+        }
+
+        items(
+            count = items.itemCount,
+            key = items.itemKey { it.id }
+        ) { index ->
+            val item = items[index]
+            val audio = remember { item?.contentId?.let { LMedia.instance.flow<LAudio>(it) } }
+                ?.collectAsStateWithLifecycle(null)
+
+            HistoryItemCard(
+                modifier = Modifier.animateItem(),
+                imageData = { audio?.value },
+                title = { item?.contentTitle ?: "" },
+                startTime = { item?.startTime ?: Clock.System.now().toEpochMilliseconds() },
+                duration = { item?.duration ?: 0 },
+                repeatCount = { item?.repeatCount ?: 0 },
+                onLongClick = {
+                    AppRouter.route("/song/detail")
+                        .with("mediaId", item?.contentId)
+                        .with("song", audio?.value)
+                        .jump()
+                },
+                onClick = {
+                    onGetHistoryList { list ->
+                        scope.launch {
+                            PlayerAction.UpdateList(
+                                ids = list,
+                                id = item?.contentId ?: "",
+                                start = true
+                            ).action()
+                        }
+                    }
+                }
+            )
+        }
+
+        if (items.loadState.append == LoadState.Loading) {
+            item {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentWidth(Alignment.CenterHorizontally)
                 )
             }
         }
 
-        items(
-            items = histories(),
-            key = { it.id }
-        ) { history ->
-            HistoryItemCard(
-                title = { history.contentTitle },
-                startTime = { history.startTime },
-                duration = { history.duration },
-                repeatCount = { history.repeatCount }
-            )
-        }
+//        smartBarPadding()
     }
 }

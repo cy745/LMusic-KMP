@@ -41,6 +41,7 @@ applyMultiplatform {
         implementation(libs.remixicon.kmp)
         implementation(libs.compose.resources)
         implementation(libs.compose.preview)
+        implementation(libs.paging.compose)
     }
 
     test.dependencies {

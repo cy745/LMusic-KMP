@@ -1,62 +1,65 @@
 package com.lalilu.lhistory.repository
 
-import androidx.room3.Dao
-import androidx.room3.Delete
-import androidx.room3.Insert
-import androidx.room3.MapColumn
-import androidx.room3.Query
-import androidx.room3.Transaction
-import androidx.room3.Update
+import androidx.paging.PagingSource
+import androidx.room3.*
 import com.lalilu.lhistory.entity.LHistory
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LHistoryDao {
-    @Insert
-    suspend fun insert(history: LHistory): Long
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun save(history: LHistory): Long
 
-    @Update
-    suspend fun update(history: LHistory)
+    @Update(entity = LHistory::class)
+    fun update(vararg history: LHistory)
 
-    @Delete
-    suspend fun delete(history: LHistory)
+    @Query("UPDATE m_history SET duration = :duration, repeatCount = :repeatCount, startTime = :startTime WHERE id = :id;")
+    fun updateHistory(id: Long, duration: Long, repeatCount: Int, startTime: Long)
 
-    @Query("DELETE FROM m_history WHERE id = :id")
-    suspend fun deleteById(id: Long)
+    @Query("DELETE FROM m_history;")
+    fun clear()
 
-    @Query("DELETE FROM m_history")
-    suspend fun deleteAll()
+    @Delete(entity = LHistory::class)
+    fun delete(vararg history: LHistory)
 
-    @Transaction
-    @Query("SELECT * FROM m_history ORDER BY start_time DESC")
-    fun getAllHistory(): Flow<List<LHistory>>
+    @Query("SELECT * FROM m_history ORDER BY startTime DESC")
+    fun getAllData(): PagingSource<Int, LHistory>
 
-    @Transaction
-    @Query("SELECT * FROM m_history WHERE id = :id")
-    fun getHistory(id: Long): Flow<LHistory?>
+    @Query("SELECT * FROM m_history WHERE id = :id;")
+    fun getById(id: Long): LHistory?
 
-    @Transaction
-    @Query("SELECT * FROM m_history WHERE content_id = :audioId ORDER BY start_time DESC LIMIT 1")
-    fun getHistoryByAudioId(audioId: String): Flow<LHistory?>
-
-    @Query("SELECT * FROM m_history ORDER BY start_time DESC LIMIT :limit")
-    fun getRecentHistory(limit: Int): Flow<List<LHistory>>
-
-    @Query("SELECT content_id, MAX(start_time) as lastTime FROM m_history GROUP BY content_id ORDER BY lastTime DESC LIMIT :count")
-    fun getRecentHistoryIdsWithLastTime(count: Int): Flow<Map<@MapColumn("content_id") String, @MapColumn("lastTime") Long>>
-
-    @Query("SELECT COUNT(*) FROM m_history")
-    fun getHistoryCount(): Flow<Int>
+    @Query("SELECT * FROM m_history ORDER BY id DESC LIMIT 1")
+    fun getLatestHistory(): LHistory?
 
     /**
-     * 更新历史记录的播放时长、重复次数和开始时间
+     * 查询播放历史，去除重复的记录，只保留最近的一条，按照最近播放时间排序
      */
-    @Query("UPDATE m_history SET duration = :duration, repeat_count = :repeatCount, start_time = :startTime WHERE id = :id")
-    suspend fun updateHistory(id: Long, duration: Long, repeatCount: Int, startTime: Long)
+    @Query(
+        "SELECT * FROM " +
+                "(SELECT id, contentId, contentTitle, parentId, parentTitle, duration, repeatCount, max(startTime) as 'startTime' FROM m_history GROUP BY contentId) as A " +
+                "ORDER BY A.startTime DESC LIMIT :limit;"
+    )
+    fun getFlow(limit: Int): Flow<List<LHistory>>
 
     /**
-     * 获取指定内容ID的未使用预保存历史记录（duration = -1）
+     * 查询播放历史，按照最近播放时间排序且计算每首歌的播放次数
      */
-    @Query("SELECT * FROM m_history WHERE content_id = :contentId AND duration = -1 LIMIT 1")
-    suspend fun getUnUsedPreSaveHistory(contentId: String): LHistory?
+    @Query(
+        "SELECT * FROM " +
+                "(SELECT id, contentId, contentTitle, parentId, parentTitle, duration, repeatCount, (count(contentId) + repeatCount) as 'count', max(startTime) as 'startTime' FROM m_history GROUP BY contentId) as A " +
+                "ORDER BY A.startTime DESC LIMIT :limit;"
+    )
+    fun getFlowWithCount(limit: Int): Flow<Map<LHistory, @MapColumn(columnName = "count") Int>>
+
+    @Query(
+        "SELECT contentId, (count(contentId) + repeatCount) as 'count' FROM m_history GROUP BY contentId " +
+                "LIMIT :limit;"
+    )
+    fun getFlowIdsMapWithCount(limit: Int): Flow<Map<@MapColumn(columnName = "contentId") String, @MapColumn(columnName = "count") Int>>
+
+    @Query(
+        "SELECT contentId, max(startTime) as 'startTime' FROM m_history GROUP BY contentId " +
+                "LIMIT :limit;"
+    )
+    fun getFlowIdsMapWithLastTime(limit: Int): Flow<Map<@MapColumn(columnName = "contentId") String, @MapColumn(columnName = "startTime") Long>>
 }
