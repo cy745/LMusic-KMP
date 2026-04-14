@@ -1,23 +1,16 @@
 package com.lalilu.lplaylist.screen
 
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActionScope
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,7 +27,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lalilu.slot
+import com.lalilu.navigation.smartbar.NavigatorHeader
 
 @Composable
 internal fun PlaylistEditScreenContent(
@@ -53,9 +46,13 @@ internal fun PlaylistEditScreenContent(
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item {
-            slot(modifier = Modifier.statusBarsPadding(), key = "recommend_title") {
-                "title" reg if (isEditing()) "更新歌单" else "创建歌单"
-            }
+            NavigatorHeader(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding(),
+                title = if (isEditing()) "更新歌单" else "创建歌单",
+                subTitle = if (isEditing()) "更新歌单" else "创建歌单"
+            )
         }
         item {
             EditText(
@@ -135,12 +132,12 @@ fun EditText(
             onDone = onDone
         ),
         textStyle = TextStyle.Default.copy(
-            color = MaterialTheme.colors.onBackground,
+            color = MaterialTheme.colorScheme.onBackground,
             fontSize = 16.sp,
             lineHeight = 24.sp
         ),
         minLines = 2,
-        cursorBrush = SolidColor(MaterialTheme.colors.onBackground),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.onBackground),
         value = text(),
         onValueChange = onUpdateText
     ) { innerTextField ->
@@ -153,12 +150,12 @@ fun EditText(
                 Text(
                     text = title,
                     fontSize = 12.sp,
-                    color = MaterialTheme.colors.onBackground
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
 
             Surface(
-                color = MaterialTheme.colors.onBackground.copy(0.05f),
+                color = MaterialTheme.colorScheme.onBackground.copy(0.05f),
                 shape = RoundedCornerShape(8.dp),
             ) {
                 Row(

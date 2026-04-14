@@ -13,11 +13,11 @@ import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenActionFactory
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
-import com.lalilu.navigation.koinScreenViewModel
 import com.lalilu.remixicon.Design
 import com.lalilu.remixicon.System
 import com.lalilu.remixicon.design.editBoxFill
 import com.lalilu.remixicon.system.deleteBinLine
+import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 
@@ -40,7 +40,7 @@ data class PlaylistEditScreen(
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
-        val vm = koinScreenViewModel<PlaylistEditVM>(
+        val vm = koinViewModel<PlaylistEditVM>(
             parameters = { parametersOf(playlistId) }
         )
 
@@ -68,7 +68,7 @@ data class PlaylistEditScreen(
 
     @Composable
     override fun Content() {
-        val vm = koinScreenViewModel<PlaylistEditVM>(
+        val vm = koinViewModel<PlaylistEditVM>(
             parameters = { parametersOf(playlistId) }
         )
 
