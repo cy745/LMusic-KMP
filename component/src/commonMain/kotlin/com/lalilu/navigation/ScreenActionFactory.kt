@@ -30,7 +30,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 @Stable
 @Immutable
 data class ActionContext(
-    val isFullyExpanded: Boolean = false
+    val isFullyExpanded: Boolean = false,
+    val onDismiss: () -> Unit = {}
 )
 
 
@@ -50,8 +51,8 @@ sealed class ScreenAction {
         val color: @Composable () -> Color = { Color.Unspecified },
         val icon: @Composable () -> ImageVector? = { null },
         val dotColor: @Composable () -> Color? = { null },
-        val longClick: () -> Boolean = { false },
-        val onAction: () -> Unit = {}
+        val longClick: (ActionContext) -> Boolean = { false },
+        val onAction: (ActionContext) -> Unit = {}
     ) : ScreenAction()
 
     /**

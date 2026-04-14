@@ -74,7 +74,7 @@ internal fun ActionItem(
         }
 
         is ScreenAction.Static -> {
-            if (action.longClick()) {
+            if (action.longClick(actionContext)) {
                 LongClickActionItemContent(
                     modifier = modifier,
                     color = action.color(),
@@ -82,7 +82,7 @@ internal fun ActionItem(
                     subTitle = action.subTitle(),
                     icon = action.icon(),
                     dotColor = action.dotColor(),
-                    onAction = action.onAction
+                    onAction = { action.onAction(actionContext) }
                 )
             } else {
                 ActionItemContent(
@@ -92,7 +92,7 @@ internal fun ActionItem(
                     subTitle = action.subTitle(),
                     icon = action.icon(),
                     dotColor = action.dotColor(),
-                    onAction = action.onAction
+                    onAction = { action.onAction(actionContext) }
                 )
             }
         }

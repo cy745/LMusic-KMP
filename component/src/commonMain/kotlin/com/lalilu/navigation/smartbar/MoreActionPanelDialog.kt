@@ -48,7 +48,7 @@ internal fun MoreActionPanelDialog(
         DialogItem.Dynamic(backgroundColor = Color.Transparent) {
             MoreActionPanelDialogContent(
                 actions = actions,
-                onDismiss = onDismiss
+                onDismiss = { dismiss() }
             )
         }
     }
@@ -94,7 +94,10 @@ private fun MoreActionPanelDialogContent(
                 ) {
                     ActionItem(
                         action = action,
-                        actionContext = ActionContext(isFullyExpanded = true)
+                        actionContext = ActionContext(
+                            isFullyExpanded = true,
+                            onDismiss = onDismiss
+                        )
                     )
                 }
             }
