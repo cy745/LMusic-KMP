@@ -8,7 +8,7 @@ import com.lalilu.lmedia.sortable.Sortable
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
-@Entity(tableName = "l_audio")
+@Entity(tableName = "l_audio", ignoredColumns = ["refs"])
 @Serializable
 data class LAudio(
     @PrimaryKey

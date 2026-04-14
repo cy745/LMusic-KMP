@@ -732,7 +732,7 @@ internal object AnchoredDraggableDefaults {
     val AnimationSpec = SpringSpec<Float>()
 }
 
-private class AnchoredDragFinishedSignal() : CancellationException(null)
+private class AnchoredDragFinishedSignal() : CancellationException(message = null)
 
 private suspend fun <I> restartable(inputs: () -> I, block: suspend (I) -> Unit) {
     try {

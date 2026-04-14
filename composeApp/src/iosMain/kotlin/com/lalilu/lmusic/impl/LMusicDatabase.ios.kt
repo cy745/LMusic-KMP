@@ -18,23 +18,36 @@
 package com.lalilu.lmusic.impl
 
 import androidx.room3.Room
+import androidx.room3.RoomDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import platform.Foundation.NSDocumentDirectory
+import platform.Foundation.NSSearchPathForDirectoriesInDomains
+import platform.Foundation.NSUserDomainMask
 
-actual inline fun <reified T : androidx.room3.RoomDatabase> requireDatabase(
+actual inline fun <reified T : RoomDatabase> requireDatabase(
     name: String,
-    forceMemory: Boolean
+    forceMemory: Boolean,
+    builder: RoomDatabase.Builder<T>.() -> RoomDatabase.Builder<T>
 ): T {
     if (forceMemory) {
         return Room.inMemoryDatabaseBuilder<T>()
             .setQueryCoroutineContext(Dispatchers.IO)
             .setDriver(BundledSQLiteDriver())
+            .builder()
             .build()
     }
 
-    return Room.databaseBuilder<T>(name = "db/$name.db")
+    val documentDirectory = NSSearchPathForDirectoriesInDomains(
+        NSDocumentDirectory,
+        NSUserDomainMask,
+        true
+    ).firstOrNull() as? String ?: throw IllegalStateException("Could not find document directory")
+
+    return Room.databaseBuilder<T>(name = "$documentDirectory/$name.db")
         .setQueryCoroutineContext(Dispatchers.IO)
         .setDriver(BundledSQLiteDriver())
+        .builder()
         .build()
 }

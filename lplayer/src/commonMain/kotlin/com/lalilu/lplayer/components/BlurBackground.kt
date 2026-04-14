@@ -110,7 +110,7 @@ fun DefaultBlurBackground(
     val context = LocalPlatformContext.current
     val blur = rememberUpdatedState(blurProgress())
     val blurRadius = remember { { ((blur.value * 50f)).roundToInt().dp } }
-    val vm = viewModel<BlurBackgroundViewModel>()
+    val vm = viewModel { BlurBackgroundViewModel() }
 
     LaunchedEffect(Unit) {
         vm.bgColorState

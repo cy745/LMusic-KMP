@@ -8,28 +8,28 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface LHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun save(history: LHistory): Long
+    suspend fun save(history: LHistory): Long
 
     @Update(entity = LHistory::class)
-    fun update(vararg history: LHistory)
+    suspend fun update(vararg history: LHistory)
 
     @Query("UPDATE m_history SET duration = :duration, repeatCount = :repeatCount, startTime = :startTime WHERE id = :id;")
-    fun updateHistory(id: Long, duration: Long, repeatCount: Int, startTime: Long)
+    suspend fun updateHistory(id: Long, duration: Long, repeatCount: Int, startTime: Long)
 
     @Query("DELETE FROM m_history;")
-    fun clear()
+    suspend fun clear()
 
     @Delete(entity = LHistory::class)
-    fun delete(vararg history: LHistory)
+    suspend fun delete(vararg history: LHistory)
 
     @Query("SELECT * FROM m_history ORDER BY startTime DESC")
     fun getAllData(): PagingSource<Int, LHistory>
 
     @Query("SELECT * FROM m_history WHERE id = :id;")
-    fun getById(id: Long): LHistory?
+    suspend fun getById(id: Long): LHistory?
 
     @Query("SELECT * FROM m_history ORDER BY id DESC LIMIT 1")
-    fun getLatestHistory(): LHistory?
+    suspend fun getLatestHistory(): LHistory?
 
     /**
      * 查询播放历史，去除重复的记录，只保留最近的一条，按照最近播放时间排序

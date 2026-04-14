@@ -5,7 +5,7 @@ import androidx.room3.Entity
 import androidx.room3.PrimaryKey
 import kotlinx.serialization.Serializable
 
-@Entity(tableName = "l_genre")
+@Entity(tableName = "l_genre", ignoredColumns = ["refs"])
 @Serializable
 data class LGenre(
     @PrimaryKey
