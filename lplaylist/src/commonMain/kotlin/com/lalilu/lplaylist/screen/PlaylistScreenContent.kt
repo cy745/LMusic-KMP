@@ -4,25 +4,15 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.toMutableStateList
@@ -35,10 +25,14 @@ import androidx.compose.ui.unit.dp
 import com.lalilu.RemixIcon
 import com.lalilu.lplaylist.component.PlaylistCard
 import com.lalilu.lplaylist.entity.LPlaylist
+import com.lalilu.lplaylist.lplaylist.generated.resources.Res
+import com.lalilu.lplaylist.lplaylist.generated.resources.playlist_screen_title
 import com.lalilu.navigation.AppRouter
+import com.lalilu.navigation.smartbar.NavigatorHeader
 import com.lalilu.remixicon.System
 import com.lalilu.remixicon.system.addLargeLine
 import com.lalilu.remixicon.system.search2Line
+import org.jetbrains.compose.resources.stringResource
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -80,61 +74,49 @@ internal fun PlaylistScreenContent(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item(key = "HEADER") {
-            Row(
-                modifier = Modifier
-                    .statusBarsPadding()
-                    .fillMaxWidth()
-                    .padding(
-                        top = 26.dp,
-                        bottom = 20.dp,
-                        start = 20.dp,
-                        end = 12.dp
-                    ),
-            ) {
-                Text(
-                    modifier = Modifier.weight(1f),
-                    text = "Playlist",
-                    style = MaterialTheme.typography.h5,
-                    color = MaterialTheme.colors.onBackground
-                )
-
-                IconButton(onClick = {
-                    AppRouter.route("/pages/playlist/edit")
-                        .push()
-                }) {
-                    Icon(
-                        imageVector = RemixIcon.System.addLargeLine,
-                        contentDescription = null,
-                        tint = MaterialTheme.colors.onBackground
-                    )
-                }
-
-                Box {
-                    IconButton(onClick = onStartSearch) {
+            NavigatorHeader(
+                modifier = Modifier.statusBarsPadding(),
+                title = stringResource(Res.string.playlist_screen_title),
+                subTitle = "长按后拖拽调整歌单显示顺序",
+                extraContent = rowExtra@{
+                    IconButton(onClick = {
+                        AppRouter.route("/pages/playlist/edit")
+                            .push()
+                    }) {
                         Icon(
-                            imageVector = RemixIcon.System.search2Line,
+                            imageVector = RemixIcon.System.addLargeLine,
                             contentDescription = null,
-                            tint = MaterialTheme.colors.onBackground
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
 
-                    this@Row.AnimatedVisibility(
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .offset(8.dp, 8.dp),
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                        visible = isSearching()
-                    ) {
-                        Spacer(
+                    Box {
+                        IconButton(onClick = onStartSearch) {
+                            Icon(
+                                imageVector = RemixIcon.System.search2Line,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+
+                        this@rowExtra.AnimatedVisibility(
                             modifier = Modifier
-                                .clip(CircleShape)
-                                .background(color = Color.Red)
-                                .size(8.dp)
-                        )
+                                .align(Alignment.TopStart)
+                                .offset(8.dp, 8.dp),
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                            visible = isSearching()
+                        ) {
+                            Spacer(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(color = Color.Red)
+                                    .size(8.dp)
+                            )
+                        }
                     }
                 }
-            }
+            )
         }
 
         items(

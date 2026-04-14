@@ -21,6 +21,8 @@ import com.lalilu.RemixIcon
 import com.lalilu.component.LongClickableTextButton
 import com.lalilu.extensions.LocalToaster
 import com.lalilu.krouter.annotation.Destination
+import com.lalilu.lplaylist.lplaylist.generated.resources.Res
+import com.lalilu.lplaylist.lplaylist.generated.resources.playlist_screen_title
 import com.lalilu.lplaylist.viewmodel.PlaylistsAction
 import com.lalilu.lplaylist.viewmodel.PlaylistsVM
 import com.lalilu.navigation.AppRouter
@@ -35,6 +37,7 @@ import com.lalilu.remixicon.Media
 import com.lalilu.remixicon.System
 import com.lalilu.remixicon.media.playListFill
 import com.lalilu.remixicon.system.deleteBinLine
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 
@@ -45,7 +48,7 @@ object PlaylistScreen : Screen, ScreenInfoFactory, ScreenBarFactory {
     @Composable
     override fun provideScreenInfo(): ScreenInfo = remember {
         ScreenInfo(
-            title = { "Playlist" },
+            title = { stringResource(Res.string.playlist_screen_title) },
             icon = RemixIcon.Media.playListFill
         )
     }
