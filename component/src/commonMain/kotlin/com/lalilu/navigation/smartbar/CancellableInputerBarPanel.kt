@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lhome.screen.songs
+package com.lalilu.navigation.smartbar
 
 import androidx.annotation.MainThread
 import androidx.compose.animation.AnimatedVisibility
@@ -66,8 +66,9 @@ import com.lalilu.remixicon.System
 import com.lalilu.remixicon.arrows.arrowLeftSLine
 import com.lalilu.remixicon.system.closeLine
 
+
 @Composable
-fun ScreenBarFactory.SongsSearcherPanel(
+fun ScreenBarFactory.CancellableInputerBarPanel(
     isVisible: () -> Boolean,
     onDismiss: () -> Unit,
     keyword: () -> String,
@@ -78,7 +79,7 @@ fun ScreenBarFactory.SongsSearcherPanel(
         onDismiss = onDismiss,
         onBackPressed = { }
     ) {
-        SongsSearcherPanelContent(
+        CancellableInputerBarPanelContent(
             modifier = Modifier,
             keyword = keyword,
             onUpdateKeyword = onUpdateKeyword,
@@ -88,7 +89,7 @@ fun ScreenBarFactory.SongsSearcherPanel(
 }
 
 @Composable
-private fun SongsSearcherPanelContent(
+private fun CancellableInputerBarPanelContent(
     modifier: Modifier = Modifier,
     keyword: () -> String,
     onUpdateKeyword: (String) -> Unit,

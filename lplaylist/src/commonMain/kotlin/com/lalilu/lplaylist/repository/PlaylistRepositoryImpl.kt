@@ -39,7 +39,7 @@ internal class PlaylistRepositoryImpl(
     }
 
     override suspend fun setPlaylists(playlists: List<LPlaylist>) {
-        playlistDao.insertAll(playlists.distinctBy { it.id })
+        playlistDao.updatePlaylists(playlists.distinctBy { it.id })
     }
 
     override suspend fun save(playlist: LPlaylist) {

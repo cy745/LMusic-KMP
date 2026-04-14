@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lhome.screen.songs
+package com.lalilu.navigation.smartbar
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -25,14 +25,11 @@ import com.lalilu.RemixIcon
 import com.lalilu.navigation.ActionContext
 import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenBarFactory
-import com.lalilu.navigation.smartbar.BackActionBtn
-import com.lalilu.navigation.smartbar.NavigateCommonBarContent
 import com.lalilu.remixicon.System
 import com.lalilu.remixicon.system.closeLine
 
-
 @Composable
-fun ScreenBarFactory.SongsSelectorPanel(
+fun ScreenBarFactory.CancellableScreenBarPanel(
     isVisible: () -> Boolean,
     onDismiss: () -> Unit,
     screenActions: List<ScreenAction>? = null,
@@ -42,7 +39,7 @@ fun ScreenBarFactory.SongsSelectorPanel(
         onDismiss = onDismiss,
         onBackPressed = { }
     ) {
-        SongsSelectorPanelContent(
+        CancellableScreenBarPanelContent(
             modifier = Modifier,
             screenActions = screenActions,
             onBackPress = { onDismiss() }
@@ -51,7 +48,7 @@ fun ScreenBarFactory.SongsSelectorPanel(
 }
 
 @Composable
-private fun SongsSelectorPanelContent(
+private fun CancellableScreenBarPanelContent(
     modifier: Modifier = Modifier,
     screenActions: List<ScreenAction>?,
     onBackPress: (() -> Unit)? = null

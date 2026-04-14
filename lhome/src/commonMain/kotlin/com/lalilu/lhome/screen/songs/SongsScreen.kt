@@ -34,6 +34,8 @@ import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.*
+import com.lalilu.navigation.smartbar.CancellableInputerBarPanel
+import com.lalilu.navigation.smartbar.CancellableScreenBarPanel
 import com.lalilu.remixicon.Design
 import com.lalilu.remixicon.Editor
 import com.lalilu.remixicon.System
@@ -130,7 +132,7 @@ data class SongsScreen(
             onUpdateSortConfig = { vm.intent(SongsAction.UpdateSortConfig(it)) }
         )
 
-        SongsSearcherPanel(
+        CancellableInputerBarPanel(
             isVisible = { state.showSearcherPanel },
             onDismiss = { vm.intent(SongsAction.HideSearcherPanel) },
             keyword = { state.searchKeyWord },
@@ -144,7 +146,7 @@ data class SongsScreen(
             onSelectItem = { vm.intent(SongsAction.LocaleToGroupItem(it)) }
         )
 
-        SongsSelectorPanel(
+        CancellableScreenBarPanel(
             isVisible = { vm.selector.isSelecting.value },
             onDismiss = { vm.selector.isSelecting.value = false },
             screenActions = listOfNotNull(
