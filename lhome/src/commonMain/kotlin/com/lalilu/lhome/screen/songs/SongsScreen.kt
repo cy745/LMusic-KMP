@@ -49,6 +49,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
 
@@ -67,7 +68,7 @@ data class SongsScreen(
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
-        val vm: SongsVM = koinScreenViewModel()
+        val vm = koinViewModel<SongsVM>()
         val state by vm.state
 
         return remember {
@@ -116,7 +117,7 @@ data class SongsScreen(
 
     @Composable
     override fun Content() {
-        val vm: SongsVM = koinScreenViewModel()
+        val vm = koinViewModel<SongsVM>()
         val songs by vm.songs
         val state by vm.state
         val sortAction = vm.sorter.selectedAction.collectAsState()
