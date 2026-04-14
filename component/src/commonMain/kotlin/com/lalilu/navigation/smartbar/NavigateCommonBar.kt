@@ -34,9 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lalilu.RemixIcon
 import com.lalilu.navigation.ActionContext
-import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenAction
-import com.lalilu.navigation.ScreenActionFactory
 import com.lalilu.remixicon.Arrows
 import com.lalilu.remixicon.arrows.arrowLeftSLine
 
@@ -48,11 +46,11 @@ import com.lalilu.remixicon.arrows.arrowLeftSLine
 fun NavigateCommonBar(
     modifier: Modifier = Modifier,
     previousScreenTitle: String?,
-    currentScreen: () -> Screen?,
+    screenActions: () -> List<ScreenAction>? = { emptyList() },
     onBackPress: (() -> Unit)? = null
 ) {
-    val screenActions = (currentScreen() as? ScreenActionFactory)?.provideScreenActions()
-    val actionContext = ActionContext(isFullyExpanded = false)
+    val screenActions = screenActions()
+    val actionContext = remember { ActionContext(isFullyExpanded = false) }
     var isDialogVisible by remember { mutableStateOf(false) }
 
     NavigateCommonBarContent(

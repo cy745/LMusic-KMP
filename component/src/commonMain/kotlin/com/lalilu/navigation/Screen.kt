@@ -3,6 +3,7 @@ package com.lalilu.navigation
 import androidx.compose.runtime.Composable
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
+import com.lalilu.navigation.smartbar.SmartbarStackHolder
 import kotlin.reflect.KClass
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -64,7 +65,7 @@ fun Screen.toNavEntry(): NavEntry<Screen> {
         key = this,
         contentKey = this.key,
         metadata = metadata,
-        content = { it.Content() }
+        content = { SmartbarStackHolder.Wrap(it) }
     )
 }
 

@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,17 +41,22 @@ private sealed interface NavigationBarType {
     /**
      * Tab 类型的导航栏（主页面）
      */
-    data object TabBar : NavigationBarType
+    data class TabBar(val currentScreen: Screen) : NavigationBarType
 
     /**
      * 通用导航栏（详情页面，带返回按钮）
      */
-    data object CommonBar : NavigationBarType
+    open class CommonBar(val actions: List<ScreenAction>) : NavigationBarType
 
     /**
      * 自定义导航栏（由 Screen 提供）
      */
     data class NormalBar(val barComponent: ScreenBarComponent) : NavigationBarType
+
+    /**
+     * 空导航栏
+     */
+    data object EmptyBar : CommonBar(emptyList())
 }
 
 /**
@@ -67,15 +73,23 @@ fun NavigationSmartBar(
     tabScreens: () -> List<Screen> = { emptyList() },
 ) {
     val backStack = LocalBackStack.current
-    val currentScreen = backStack.lastOrNull()
-        ?.actualScreen()
+    val navigationBar = remember {
+        derivedStateOf {
+            val currentScreen = backStack.lastOrNull()
+                ?.actualScreen()
 
-    val mainContent = (currentScreen as? ScreenBarFactory)?.content()
-    val navigationBar: NavigationBarType = remember(mainContent, currentScreen) {
-        when {
-            mainContent != null -> NavigationBarType.NormalBar(mainContent)
-            currentScreen is ScreenInfoFactory && currentScreen.isTabScreen() -> NavigationBarType.TabBar
-            else -> NavigationBarType.CommonBar
+            val pair = SmartbarStackHolder.stackMap[currentScreen?.key]
+                ?: return@derivedStateOf NavigationBarType.EmptyBar
+            val (barComponent, actions) = pair
+
+            when {
+                barComponent != null -> NavigationBarType.NormalBar(barComponent)
+                currentScreen is ScreenInfoFactory && currentScreen.isTabScreen() ->
+                    NavigationBarType.TabBar(currentScreen)
+
+                actions != null -> NavigationBarType.CommonBar(actions)
+                else -> NavigationBarType.EmptyBar
+            }
         }
     }
 
@@ -93,7 +107,7 @@ fun NavigationSmartBar(
             )
         },
         contentAlignment = Alignment.BottomCenter,
-        targetState = navigationBar,
+        targetState = navigationBar.value,
         label = "NavigationBar"
     ) { item ->
         Box(modifier = Modifier.fillMaxSize()) {
@@ -105,7 +119,7 @@ fun NavigationSmartBar(
                 is NavigationBarType.TabBar -> {
                     NavigateTabBar(
                         modifier = Modifier.fillMaxHeight(),
-                        currentScreen = { currentScreen },
+                        currentScreen = { item.currentScreen },
                         tabScreens = tabScreens,
                         onSelectTab = { screen -> backStack.add(screen) }
                     )
@@ -129,7 +143,7 @@ fun NavigationSmartBar(
                     NavigateCommonBar(
                         modifier = Modifier.fillMaxHeight(),
                         previousScreenTitle = previousTitle,
-                        currentScreen = { currentScreen },
+                        screenActions = { item.actions },
                         onBackPress = {
                             if (backStack.size > 1) {
                                 backStack.removeAt(backStack.size - 1)

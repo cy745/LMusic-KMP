@@ -99,10 +99,8 @@ fun App() = ScreenModeHandler {
                                         modifier = Modifier.fillMaxSize()
                                             .preferredFrameRate(FrameRateCategory.High),
                                         backStack = backStack,
-                                        transitionState = { scene -> remember { SeekableTransitionState(scene) } },
                                         sharedTransitionScope = this@shareScope,
                                         entryDecorators = listOf(
-                                            rememberViewModelStoreMapperNavEntryDecorator(),
                                             rememberSaveableStateHolderNavEntryDecorator(),
                                             rememberViewModelStoreNavEntryDecorator(),
                                             rememberDefaultBackgroundColorNavEntryDecorator()

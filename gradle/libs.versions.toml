@@ -77,7 +77,7 @@ androidx-startup-runtime = { module = "androidx.startup:startup-runtime", versio
 androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version = "1.1.0-alpha01" }
 jbx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
 jbx-lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
-jbx-lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3", version = "2.10.0-alpha03" }
+jbx-lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3", version = "2.10.0" }
 jbx-navigationevent-compose = { module = "org.jetbrains.androidx.navigationevent:navigationevent-compose", version = "1.0.0-rc02" }
 
 krouter-core = { module = "io.github.cy745.KRouter:core", version.ref = "krouter" }
