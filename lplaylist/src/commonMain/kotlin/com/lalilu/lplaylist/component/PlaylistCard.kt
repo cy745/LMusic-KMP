@@ -24,9 +24,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Icon
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -59,9 +59,9 @@ fun PlaylistCard(
 ) {
     val bgColor by animateColorAsState(
         targetValue = when {
-            isDragging() -> MaterialTheme.colors.onBackground.copy(0.25f)
-            isSelected() -> MaterialTheme.colors.onBackground.copy(0.2f)
-            else -> MaterialTheme.colors.onBackground.copy(0.05f)
+            isDragging() -> MaterialTheme.colorScheme.onBackground.copy(0.25f)
+            isSelected() -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else -> MaterialTheme.colorScheme.onBackground.copy(0.05f)
         },
         label = ""
     )
@@ -89,7 +89,7 @@ fun PlaylistCard(
         ) {
             Text(
                 text = playlist.title,
-                color = MaterialTheme.colors.onBackground,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 14.sp,
                 lineHeight = 14.sp,
                 maxLines = 1,
@@ -99,7 +99,7 @@ fun PlaylistCard(
             if (playlist.subTitle.isNotBlank()) {
                 Text(
                     text = playlist.subTitle,
-                    color = MaterialTheme.colors.onBackground.copy(0.8f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(0.8f),
                     fontSize = 10.sp,
                     lineHeight = 16.sp,
                     maxLines = 1,
@@ -120,9 +120,9 @@ fun PlaylistCard(
 
         Text(
             text = "${playlist.mediaIds.size}",
-            style = MaterialTheme.typography.body1,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colors.onBackground.copy(alpha = 0.8f)
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
         )
 
         AnimatedVisibility(

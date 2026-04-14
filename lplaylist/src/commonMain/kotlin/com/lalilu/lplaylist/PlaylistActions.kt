@@ -29,10 +29,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material.Icon
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -60,6 +60,7 @@ import com.lalilu.remixicon.Media
 import com.lalilu.remixicon.healthandmedical.heart3Fill
 import com.lalilu.remixicon.healthandmedical.heart3Line
 import com.lalilu.remixicon.media.playListAddLine
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -74,7 +75,8 @@ fun provideAddToPlaylistAction(
     title = { "添加到歌单" },
     icon = { RemixIcon.Media.playListAddLine },
     color = { Color(0xFF24A800) },
-    onAction = {
+    onAction = { context ->
+        context.onDismiss()
         val items = selectedItems()
 
         AppRouter.route("/playlist/add")
@@ -83,6 +85,7 @@ fun provideAddToPlaylistAction(
     }
 )
 
+@OptIn(DelicateCoroutinesApi::class)
 @Factory(binds = [ScreenAction::class])
 @Named("add_to_favourite_action")
 fun provideAddToFavouriteAction(
@@ -90,16 +93,26 @@ fun provideAddToFavouriteAction(
 ): ScreenAction.Static = ScreenAction.Static(
     title = { "添加到我喜欢" },
     icon = { RemixIcon.HealthAndMedical.heart3Line },
-    color = { MaterialTheme.colors.primary },
-    onAction = {
+    color = { MaterialTheme.colorScheme.primary },
+    onAction = { context ->
         val items = selectedItems().map { it.id }
+        if (items.isEmpty()) {
+            context.onDismiss()
+            GlobalToaster?.show("请先选中歌曲")
+            return@Static
+        }
+
         val playlistRepo = requestFor<PlaylistRepository>()
+        if (playlistRepo == null) {
+            context.onDismiss()
+            GlobalToaster?.show("播放列表未初始化")
+            return@Static
+        }
 
         GlobalScope.launch(Dispatchers.io) {
-            playlistRepo?.let {
-                it.addMediaIdsToFavourite(items)
-                GlobalToaster?.show("已添加${items.size}首歌曲至我喜欢")
-            }
+            context.onDismiss()
+            playlistRepo.addMediaIdsToFavourite(items)
+            GlobalToaster?.show("已添加${items.size}首歌曲至我喜欢")
         }
     }
 )
@@ -118,8 +131,8 @@ fun provideLikeAction(
     val haptic = LocalHapticFeedback.current
     val pressedState = interactionSource.collectIsPressedAsState()
     val iconColor by animateColorAsState(
-        targetValue = if (isLiked) MaterialTheme.colors.primary
-        else MaterialTheme.colors.onBackground.copy(0.3f),
+        targetValue = if (isLiked) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.onBackground.copy(0.3f),
         label = ""
     )
     val scaleValue by animateFloatAsState(
