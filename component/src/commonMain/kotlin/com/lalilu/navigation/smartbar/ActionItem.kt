@@ -17,14 +17,18 @@
 
 package com.lalilu.navigation.smartbar
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,11 +48,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lalilu.component.LongClickableTextButton
 import com.lalilu.navigation.ActionContext
 import com.lalilu.navigation.ScreenAction
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.random.Random
+import kotlin.random.nextInt
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
@@ -105,72 +111,125 @@ fun LongClickActionItemContent(
     subTitle: String? = null,
     icon: ImageVector? = null,
     dotColor: Color? = null,
+    fullyExpended: Boolean = false,
     onAction: () -> Unit = {}
 ) {
     val tipsShow = remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(tipsShow.longValue) {
         delay(3000)
+
         if (!isActive) return@LaunchedEffect
         tipsShow.longValue = 0L
     }
 
-    Box(
-        modifier = modifier
-            .combinedClickable(
-                onClick = { tipsShow.longValue = Clock.System.now().toEpochMilliseconds() },
-                onLongClick = {
-                    tipsShow.longValue = 0
-                    onAction()
-                }
-            ),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            icon?.let {
-                Image(
-                    modifier = Modifier.size(20.dp),
-                    imageVector = icon,
-                    contentDescription = title,
-                    colorFilter = ColorFilter.tint(color = color)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-            }
-
-            Column(
-                modifier = Modifier,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 14.sp,
-                    lineHeight = 14.sp,
-                    color = color,
-                    fontWeight = FontWeight.Medium
-                )
-
-                AnimatedVisibility(visible = tipsShow.longValue > 0) {
-                    Text(
-                        modifier = Modifier.alpha(0.6f),
-                        text = subTitle ?: "Long click to execute",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = color
-                    )
-                }
-            }
+    LongClickableTextButton(
+        modifier = modifier,
+        colors = ButtonDefaults.textButtonColors(
+            backgroundColor = color.copy(alpha = 0.15f),
+            contentColor = color
+        ),
+        horizontalArrangement = Arrangement.Start,
+        contentPadding = PaddingValues(0.dp),
+        onClick = { tipsShow.longValue = Clock.System.now().toEpochMilliseconds() },
+        onLongClick = {
+            tipsShow.longValue = 0
+            onAction()
         }
+    ) {
+        Box(
+            modifier = Modifier,
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                icon?.let {
+                    Image(
+                        modifier = Modifier.size(20.dp),
+                        imageVector = icon,
+                        contentDescription = title,
+                        colorFilter = ColorFilter.tint(color = color)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
 
-        dotColor?.let { dot ->
-            ActionDotIndicator(
-                color = dot,
-                modifier = Modifier
-                    .padding(8.dp)
-                    .align(Alignment.TopStart)
-            )
+                Column(
+                    modifier = Modifier,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 14.sp,
+                        lineHeight = 14.sp,
+                        color = color,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    if (fullyExpended && subTitle != null) {
+                        AnimatedContent(
+                            targetState = tipsShow.longValue > 0,
+                            transitionSpec = { fadeIn() togetherWith fadeOut() },
+                            label = ""
+                        ) { show ->
+                            if (show) {
+                                Text(
+                                    modifier = Modifier.alpha(0.6f),
+                                    text = "长按以执行",
+                                    fontSize = 10.sp,
+                                    lineHeight = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = color
+                                )
+                            } else {
+                                Text(
+                                    text = subTitle,
+                                    fontSize = 10.sp,
+                                    lineHeight = 10.sp,
+                                    color = color.copy(0.5f),
+                                )
+                            }
+                        }
+                    } else {
+                        AnimatedVisibility(visible = tipsShow.longValue > 0) {
+                            Text(
+                                modifier = Modifier.alpha(0.6f),
+                                text = subTitle ?: "长按以执行",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = color
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (dotColor != null) {
+                val animation = rememberInfiniteTransition(label = "")
+                val scaleValue = animation.animateFloat(
+                    initialValue = 0.1f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1000),
+                        repeatMode = RepeatMode.Reverse,
+                        initialStartOffset = StartOffset(
+                            offsetMillis = remember { Random.nextInt(0..1000) }
+                        )
+                    ),
+                    label = ""
+                )
+
+                Spacer(
+                    modifier = Modifier
+                        .graphicsLayer { alpha = scaleValue.value }
+                        .padding(8.dp)
+                        .align(Alignment.TopStart)
+                        .clip(CircleShape)
+                        .background(color = dotColor)
+                        .size(8.dp)
+                )
+            }
         }
     }
 }
