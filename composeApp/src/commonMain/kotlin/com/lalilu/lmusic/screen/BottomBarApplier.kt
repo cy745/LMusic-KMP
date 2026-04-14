@@ -63,7 +63,7 @@ fun BottomBarApplier(
     val tabsScreen = remember {
         listOfNotNull(
             AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
-            AppRouter.route("/media_source").get(),
+            AppRouter.route("/pages/playlist").get(),
             AppRouter.route("/log").get()
         )
     }

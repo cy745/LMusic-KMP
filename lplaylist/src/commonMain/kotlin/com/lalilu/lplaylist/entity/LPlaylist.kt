@@ -23,8 +23,9 @@ import com.lalilu.lmedia.entity.TextMatchable
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
+
 @OptIn(ExperimentalTime::class)
-@Entity(tableName = "l_playlist")
+@Entity(tableName = LPlaylist.TABLE_NAME)
 data class LPlaylist(
     @PrimaryKey
     val id: String,
@@ -36,4 +37,8 @@ data class LPlaylist(
     val modifyTime: Long = Clock.System.now().toEpochMilliseconds(),
 ) : TextMatchable {
     override fun getMatchText(): String = "$title$subTitle"
+
+    companion object {
+        const val TABLE_NAME = "l_playlist"
+    }
 }

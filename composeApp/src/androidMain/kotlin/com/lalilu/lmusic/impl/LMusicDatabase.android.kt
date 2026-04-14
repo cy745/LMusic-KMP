@@ -26,7 +26,8 @@ import org.koin.mp.KoinPlatform
 
 actual inline fun <reified T : RoomDatabase> requireDatabase(
     name: String,
-    forceMemory: Boolean
+    forceMemory: Boolean,
+    builder: RoomDatabase.Builder<T>.() -> RoomDatabase.Builder<T>
 ): T {
     val context = KoinPlatform.getKoin().get<Context>()
 
@@ -36,6 +37,7 @@ actual inline fun <reified T : RoomDatabase> requireDatabase(
             klass = T::class.java
         ).setQueryCoroutineContext(Dispatchers.IO)
             .setDriver(BundledSQLiteDriver())
+            .builder()
             .build()
     }
 
@@ -44,5 +46,6 @@ actual inline fun <reified T : RoomDatabase> requireDatabase(
         name = "$name.db"
     ).setQueryCoroutineContext(Dispatchers.IO)
         .setDriver(BundledSQLiteDriver())
+        .builder()
         .build()
 }

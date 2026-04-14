@@ -20,6 +20,7 @@ package com.lalilu.lplaylist.repository
 import androidx.room3.Dao
 import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
+import androidx.room3.Query
 import com.lalilu.lplaylist.entity.LPlaylist
 import kotlinx.coroutines.flow.Flow
 
@@ -28,6 +29,9 @@ interface LPlaylistDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(playlists: List<LPlaylist>)
 
+    @Query("SELECT * FROM ${LPlaylist.TABLE_NAME}")
     suspend fun getAll(): List<LPlaylist>
+
+    @Query("SELECT * FROM ${LPlaylist.TABLE_NAME}")
     fun getAllFlow(): Flow<List<LPlaylist>>
 }

@@ -63,7 +63,9 @@ abstract class LMusicDatabase : RoomDatabase(),
     ]
 )
 fun provideDatabase(): LMusicDatabase {
-    return requireDatabase<LMusicDatabase>(forceMemory = false)
+    return requireDatabase<LMusicDatabase>(forceMemory = false) {
+        this.addCallback(ILPlaylistDatabase.CALLBACK)
+    }
 }
 
 expect object LMusicDatabaseConstructor : RoomDatabaseConstructor<LMusicDatabase> {
@@ -72,5 +74,6 @@ expect object LMusicDatabaseConstructor : RoomDatabaseConstructor<LMusicDatabase
 
 expect inline fun <reified T : RoomDatabase> requireDatabase(
     name: String = T::class.qualifiedName!!,
-    forceMemory: Boolean = true
+    forceMemory: Boolean = true,
+    builder: RoomDatabase.Builder<T>.() -> RoomDatabase.Builder<T> = { this }
 ): T

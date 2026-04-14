@@ -24,17 +24,20 @@ import kotlinx.coroutines.Dispatchers
 
 actual inline fun <reified T : RoomDatabase> requireDatabase(
     name: String,
-    forceMemory: Boolean
+    forceMemory: Boolean,
+    builder: RoomDatabase.Builder<T>.() -> RoomDatabase.Builder<T>
 ): T {
     if (forceMemory) {
         return Room.inMemoryDatabaseBuilder<T>()
             .setQueryCoroutineContext(Dispatchers.IO)
             .setDriver(BundledSQLiteDriver())
+            .builder()
             .build()
     }
 
     return Room.databaseBuilder<T>(name = "db/$name.db")
         .setQueryCoroutineContext(Dispatchers.IO)
         .setDriver(BundledSQLiteDriver())
+        .builder()
         .build()
 }

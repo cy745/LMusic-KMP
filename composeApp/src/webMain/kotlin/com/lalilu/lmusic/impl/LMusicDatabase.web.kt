@@ -24,7 +24,8 @@ import kotlinx.coroutines.Dispatchers
 
 actual inline fun <reified T : RoomDatabase> requireDatabase(
     name: String,
-    forceMemory: Boolean
+    forceMemory: Boolean,
+    builder: RoomDatabase.Builder<T>.() -> RoomDatabase.Builder<T>
 ): T {
     val driver = createWebWorkerSQLiteDriver()
 
@@ -32,11 +33,13 @@ actual inline fun <reified T : RoomDatabase> requireDatabase(
         return Room.inMemoryDatabaseBuilder<T>()
             .setQueryCoroutineContext(Dispatchers.Default)
             .setDriver(driver)
+            .builder()
             .build()
     }
 
     return Room.databaseBuilder<T>(name = "db/$name.db")
         .setQueryCoroutineContext(Dispatchers.Default)
         .setDriver(driver)
+        .builder()
         .build()
 }
