@@ -40,7 +40,7 @@ private sealed interface NavigationBarType {
     /**
      * Tab 类型的导航栏（主页面）
      */
-    data class TabBar(val currentScreen: Screen) : NavigationBarType
+    data object TabBar : NavigationBarType
 
     /**
      * 通用导航栏（详情页面，带返回按钮）
@@ -83,9 +83,7 @@ fun NavigationSmartBar(
             .collect { (barComponent, actions, currentScreen) ->
                 navigationBar.value = when {
                     barComponent != null -> NavigationBarType.NormalBar(barComponent)
-                    currentScreen is ScreenInfoFactory && currentScreen.isTabScreen() ->
-                        NavigationBarType.TabBar(currentScreen)
-
+                    currentScreen is ScreenInfoFactory && currentScreen.isTabScreen() -> NavigationBarType.TabBar
                     actions != null -> NavigationBarType.CommonBar(actions)
                     else -> NavigationBarType.EmptyBar
                 }
@@ -116,9 +114,11 @@ fun NavigationSmartBar(
                 }
 
                 is NavigationBarType.TabBar -> {
+                    val currentScreen = backStack.lastOrNull()?.actualScreen()
+
                     NavigateTabBar(
                         modifier = Modifier.fillMaxHeight(),
-                        currentScreen = { item.currentScreen },
+                        currentScreen = { currentScreen },
                         tabScreens = tabScreens,
                         onSelectTab = { screen -> backStack.add(screen) }
                     )
