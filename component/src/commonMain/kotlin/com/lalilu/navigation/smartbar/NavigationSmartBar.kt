@@ -120,7 +120,7 @@ fun NavigationSmartBar(
                         modifier = Modifier.fillMaxHeight(),
                         currentScreen = { currentScreen },
                         tabScreens = tabScreens,
-                        onSelectTab = { screen -> backStack.add(screen) }
+                        onSelectTab = { screen -> AppRouter.intent(NavIntent.Push(screen)) }
                     )
                 }
 
@@ -143,11 +143,7 @@ fun NavigationSmartBar(
                         modifier = Modifier.fillMaxHeight(),
                         previousScreenTitle = previousTitle,
                         screenActions = { item.actions },
-                        onBackPress = {
-                            if (backStack.size > 1) {
-                                backStack.removeAt(backStack.size - 1)
-                            }
-                        }
+                        onBackPress = { AppRouter.intent(NavIntent.Pop) }
                     )
                 }
             }

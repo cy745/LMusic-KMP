@@ -63,11 +63,14 @@ val DefaultInterceptorForTabScreen = NavInterceptor { backstack, intent ->
         else -> return@NavInterceptor intent
     }
 
-//    if (screen !is TabScreen) {
-//        return@NavInterceptor intent
-//    }
-//
-//    backstack.popUntilRoot()
+    // 若不是TabScreen则返回
+    if ((screen.actualScreen() as? ScreenInfoFactory)?.isTabScreen() != true) {
+        return@NavInterceptor intent
+    }
+
+    val first = backstack.removeAt(0)
+    backstack.clear()
+    backstack.add(first)
 
     // 如果栈顶的页面与目标页面不同则替换
     if (backstack.lastOrNull() != screen) {
