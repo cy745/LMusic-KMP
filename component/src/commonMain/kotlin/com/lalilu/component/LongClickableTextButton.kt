@@ -26,7 +26,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.Surface
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -106,7 +111,7 @@ private fun ProgressTextButton(
     onProgressFinished: ((Float) -> Unit)? = null,
     content: @Composable RowScope.() -> Unit
 ) {
-    val contentColor by colors.contentColor(enabled)
+    val contentColor = if (enabled) colors.contentColor else colors.disabledContentColor
     val maskColor = remember(contentColor) { contentColor.copy(alpha = 0.3f) }
     val maskWidthProgress by animateFloatAsState(
         label = "Animate mask width progress",
@@ -119,12 +124,14 @@ private fun ProgressTextButton(
     Surface(
         modifier = modifier,
         shape = shape,
-        color = colors.backgroundColor(enabled).value,
+        color = if (enabled) colors.containerColor
+        else colors.disabledContainerColor,
         contentColor = contentColor.copy(alpha = 1f),
         border = border,
-        elevation = 0.dp
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
-        ProvideTextStyle(value = MaterialTheme.typography.button) {
+        ProvideTextStyle(value = MaterialTheme.typography.labelMedium) {
             Row(
                 Modifier
                     .drawBehind {

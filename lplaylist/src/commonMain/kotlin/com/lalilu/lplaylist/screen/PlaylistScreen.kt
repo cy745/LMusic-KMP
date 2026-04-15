@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.ButtonDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -78,7 +78,7 @@ object PlaylistScreen : Screen, ScreenInfoFactory, ScreenBarFactory {
                         shape = RectangleShape,
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         colors = ButtonDefaults.textButtonColors(
-                            backgroundColor = color.copy(alpha = 0.15f),
+                            containerColor = color.copy(alpha = 0.15f),
                             contentColor = color
                         ),
                         onLongClick = { vm.intent(PlaylistsAction.TryRemovePlaylist(vm.selector.selected())) },

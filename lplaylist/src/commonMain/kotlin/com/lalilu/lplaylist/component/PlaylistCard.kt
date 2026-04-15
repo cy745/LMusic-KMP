@@ -133,6 +133,7 @@ fun PlaylistCard(
                 modifier = draggingModifier
                     .padding(start = 16.dp),
                 imageVector = RemixIcon.Editor.draggable,
+                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
                 contentDescription = "DragHandle",
             )
         }

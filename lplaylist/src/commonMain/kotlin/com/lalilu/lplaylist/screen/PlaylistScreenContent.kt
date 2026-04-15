@@ -10,9 +10,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.toMutableStateList
@@ -30,7 +29,7 @@ import com.lalilu.lplaylist.lplaylist.generated.resources.playlist_screen_title
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.smartbar.NavigatorHeader
 import com.lalilu.remixicon.System
-import com.lalilu.remixicon.system.addLargeLine
+import com.lalilu.remixicon.system.addLargeFill
 import com.lalilu.remixicon.system.search2Line
 import org.jetbrains.compose.resources.stringResource
 import sh.calvin.reorderable.ReorderableItem
@@ -78,16 +77,26 @@ internal fun PlaylistScreenContent(
                 modifier = Modifier.statusBarsPadding(),
                 title = stringResource(Res.string.playlist_screen_title),
                 subTitle = "长按后拖拽调整歌单显示顺序",
+                rowExtraSpace = 8.dp,
                 extraContent = rowExtra@{
-                    IconButton(onClick = {
-                        AppRouter.route("/pages/playlist/edit")
-                            .push()
-                    }) {
+                    TextButton(
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(0.3f),
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(0.7f),
+                        ),
+                        onClick = {
+                            AppRouter.route("/pages/playlist/edit")
+                                .push()
+                        }
+                    ) {
                         Icon(
-                            imageVector = RemixIcon.System.addLargeLine,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onBackground
+                            modifier = Modifier.size(16.dp),
+                            imageVector = RemixIcon.System.addLargeFill,
+                            contentDescription = "新建歌单",
                         )
+                        Spacer(Modifier.width(4.dp))
+                        Text(text = "新建歌单")
                     }
 
                     Box {

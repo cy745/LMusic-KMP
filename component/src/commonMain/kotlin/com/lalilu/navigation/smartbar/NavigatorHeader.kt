@@ -46,10 +46,14 @@ fun NavigatorHeader(
         start = 20.dp,
         end = 20.dp
     ),
+    columnExtraSpace: Dp = 4.dp,
+    rowExtraSpace: Dp = 12.dp,
     extraContent: @Composable RowScope.() -> Unit = {}
 ) = NavigatorHeader(
     modifier = modifier,
     title = title,
+    columnExtraSpace = columnExtraSpace,
+    rowExtraSpace = rowExtraSpace,
     rowExtraContent = extraContent,
     paddingValues = paddingValues,
     columnExtraContent = {
