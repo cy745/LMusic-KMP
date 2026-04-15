@@ -41,6 +41,7 @@ import com.lalilu.lmusic.component.PlayerBottomSheetContent
 import com.lalilu.lmusic.component.PlayerBottomSheetScaffold
 import com.lalilu.lmusic.component.ScaleBottomSheetLayout
 import com.lalilu.navigation.AppRouter
+import com.lalilu.navigation.Screen
 import com.lalilu.navigation.smartbar.NavigationSmartBar
 import com.lalilu.preview.preview
 
@@ -49,6 +50,7 @@ import com.lalilu.preview.preview
 fun BottomBarApplier(
     modifier: Modifier = Modifier,
     bottomBarModifier: Modifier = Modifier,
+    tabsScreen: () -> List<Screen> = { emptyList() },
     content: @Composable (isBottomSheetVisible: () -> Boolean) -> Unit
 ) {
     val windowClass = currentWindowAdaptiveInfo().windowSizeClass
@@ -60,13 +62,6 @@ fun BottomBarApplier(
 
     val playerScreen = remember { AppRouter.route("/player").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
     val padPlayerScreen = remember { AppRouter.route("/player_pad").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
-    val tabsScreen = remember {
-        listOfNotNull(
-            AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
-            AppRouter.route("/pages/playlist").get(),
-            AppRouter.route("/log").get()
-        )
-    }
 
     val mainContent = remember(content) {
         movableContentOf<() -> Boolean> { content(it) }
@@ -75,7 +70,7 @@ fun BottomBarApplier(
         movableContentOf<Modifier> {
             NavigationSmartBar(
                 modifier = it,
-                tabScreens = { tabsScreen }
+                tabScreens = tabsScreen
             )
         }
     }

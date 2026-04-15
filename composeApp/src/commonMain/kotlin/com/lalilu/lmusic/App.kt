@@ -63,6 +63,13 @@ fun App() = ScreenModeHandler {
             NavSidebarItem.Divider
         )
     }
+    val tabsScreen = remember {
+        listOfNotNull(
+            AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
+            AppRouter.route("/pages/playlist").get(),
+            AppRouter.route("/log").get()
+        )
+    }
 
     LMusicTheme {
         SharedTransitionLayout shareScope@{
@@ -84,6 +91,7 @@ fun App() = ScreenModeHandler {
                         BottomBarApplier(
                             modifier = Modifier.fillMaxSize(),
                             bottomBarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 20f),
+                            tabsScreen = { tabsScreen }
                         ) { isBottomSheetVisible ->
                             CompositionLocalProvider(
                                 LocalOnBackPressEnableState provides isBottomSheetVisible
