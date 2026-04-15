@@ -732,7 +732,8 @@ internal object AnchoredDraggableDefaults {
     val AnimationSpec = SpringSpec<Float>()
 }
 
-private class AnchoredDragFinishedSignal() : CancellationException(message = null)
+private val EMPTY_EXCEPTION = Exception("AnchoredDraggable finished")
+private fun anchoredDragFinishedSignal() = CancellationException(null, EMPTY_EXCEPTION)
 
 private suspend fun <I> restartable(inputs: () -> I, block: suspend (I) -> Unit) {
     try {
@@ -741,17 +742,19 @@ private suspend fun <I> restartable(inputs: () -> I, block: suspend (I) -> Unit)
             snapshotFlow(inputs)
                 .collect { latestInputs ->
                     previousDrag?.apply {
-                        cancel(AnchoredDragFinishedSignal())
+                        cancel(anchoredDragFinishedSignal())
                         join()
                     }
                     previousDrag = launch(start = CoroutineStart.UNDISPATCHED) {
                         block(latestInputs)
-                        this@coroutineScope.cancel(AnchoredDragFinishedSignal())
+                        this@coroutineScope.cancel(anchoredDragFinishedSignal())
                     }
                 }
         }
-    } catch (anchoredDragFinished: AnchoredDragFinishedSignal) {
-        // Ignored
+    } catch (anchoredDragFinished: CancellationException) {
+        if (anchoredDragFinished.cause != EMPTY_EXCEPTION) {
+            throw anchoredDragFinished
+        }
     }
 }
 
