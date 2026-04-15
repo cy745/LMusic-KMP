@@ -1,5 +1,6 @@
-package com.lalilu.lhome.component
+package com.lalilu.lmedia.component
 
+import androidx.compose.runtime.Composable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,7 +9,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +47,7 @@ fun slotAudioItemCard() = SlotContent { modifier ->
 @Composable
 fun AudioItemCard(
     modifier: Modifier = Modifier,
+    coverModifier: Modifier = Modifier,
     title: String,
     subtitle: String,
     imageData: Any = Unit,
@@ -95,7 +96,7 @@ fun AudioItemCard(
         }
 
         AsyncImage(
-            modifier = Modifier
+            modifier = coverModifier
                 .size(64.dp)
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(8.dp))

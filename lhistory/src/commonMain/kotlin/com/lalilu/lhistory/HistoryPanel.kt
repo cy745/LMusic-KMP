@@ -15,13 +15,14 @@ import androidx.compose.ui.Modifier
 import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.request.Options
+import com.lalilu.Slot
 import com.lalilu.adaptiveValue
 import com.lalilu.component.LazyGridContent
 import com.lalilu.component.divider
 import com.lalilu.lhistory.viewmodel.HistoryVM
+import com.lalilu.lmedia.component.AudioItemCard
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
-import com.lalilu.slot
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.annotation.Named
@@ -47,7 +48,7 @@ class HistoryPanel : LazyGridContent {
 
         return fun LazyGridScope.() {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                slot(
+                Slot(
                     modifier = Modifier.fillMaxWidth(),
                     key = "recommend_title",
                 ) {
@@ -77,11 +78,12 @@ class HistoryPanel : LazyGridContent {
                 contentType = { "HISTORY_ITEM" },
                 span = { columnsValue.value }
             ) {
-                slot(modifier = Modifier.fillMaxWidth(), key = "audio_item_card") {
-                    "title" reg it.titleValue()
-                    "subtitle" reg it.subtitleValue()
-                    "imageData" reg it
-                    "onPlay" reg {
+                AudioItemCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    title = it.titleValue(),
+                    subtitle = it.subtitleValue(),
+                    imageData = it,
+                    onPlay = {
                         vm.getHistoryPlayedIds { list ->
                             scope.launch {
                                 PlayerAction.UpdateList(
@@ -91,8 +93,8 @@ class HistoryPanel : LazyGridContent {
                                 ).action()
                             }
                         }
-                    }
-                    "onNavigateToDetail" reg {
+                    },
+                    onNavigateToDetail = {
                         val imageLoader = SingletonImageLoader.get(context)
                         val coverMemoryKey = imageLoader.components.key(it, Options(context))
 
@@ -102,7 +104,7 @@ class HistoryPanel : LazyGridContent {
                             .with("coverCacheKey", coverMemoryKey)
                             .jump()
                     }
-                }
+                )
             }
 
             divider()

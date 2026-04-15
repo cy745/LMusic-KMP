@@ -5,9 +5,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Card
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateMapOf
@@ -31,7 +31,7 @@ fun interface SlotContent {
 }
 
 @Composable
-fun slot(
+fun Slot(
     modifier: Modifier = Modifier,
     key: String,
     elseContent: @Composable (modifier: Modifier) -> Unit = { UnlinkSlot(modifier = it, key = key) },
@@ -100,8 +100,6 @@ private fun UnlinkSlot(
         Card(
             modifier = Modifier.padding(16.dp),
             shape = RoundedCornerShape(8.dp),
-            elevation = 0.dp,
-            backgroundColor = MaterialTheme.colors.onBackground.copy(0.1f)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -110,15 +108,15 @@ private fun UnlinkSlot(
                 Text(
                     modifier = Modifier,
                     text = "Unsupported content, Please upgrade to latest version.",
-                    style = MaterialTheme.typography.subtitle1,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colors.onBackground
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
                     modifier = Modifier,
                     text = "UnlinkSlot: $key",
-                    style = MaterialTheme.typography.subtitle2,
-                    color = MaterialTheme.colors.onBackground.copy(0.7f)
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(0.7f)
                 )
             }
         }

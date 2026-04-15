@@ -1,4 +1,4 @@
-package com.lalilu.lhome.screen.dialog
+package com.lalilu.lmedia.dialog
 
 
 import androidx.compose.foundation.layout.*
@@ -29,7 +29,7 @@ import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lmedia.sortable.Sortable
 
 @Composable
-fun <T : Sortable> SongsHeaderJumperDialog(
+fun <T : Sortable> GroupIdJumperDialog(
     isVisible: () -> Boolean,
     onDismiss: () -> Unit,
     sortResult: SortResult<T>,
@@ -39,7 +39,7 @@ fun <T : Sortable> SongsHeaderJumperDialog(
 
     val dialog = remember {
         DialogItem.Dynamic(backgroundColor = Color.Transparent) {
-            SongsHeaderJumperDialogContent(
+            GroupIdJumperDialogContent(
                 items = { items.value.groups.mapNotNull { it.groupId } },
                 onDismiss = ::dismiss,
                 onSelectItem = {
@@ -58,7 +58,7 @@ fun <T : Sortable> SongsHeaderJumperDialog(
 }
 
 @Composable
-private fun SongsHeaderJumperDialogContent(
+private fun GroupIdJumperDialogContent(
     modifier: Modifier = Modifier,
     items: () -> Collection<GroupId>,
     onSelectItem: (item: GroupId) -> Unit = {},

@@ -20,14 +20,14 @@ import com.lalilu.RemixIcon
 import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.*
 import com.lalilu.krouter.annotation.Destination
-import com.lalilu.lhome.component.AudioItemCard
-import com.lalilu.lhome.screen.dialog.SongsHeaderJumperDialog
-import com.lalilu.lhome.screen.dialog.SongsSortPanelDialog
 import com.lalilu.lhome.viewmodel.SongsAction
 import com.lalilu.lhome.viewmodel.SongsEvent
 import com.lalilu.lhome.viewmodel.SongsState
 import com.lalilu.lhome.viewmodel.SongsVM
+import com.lalilu.lmedia.component.AudioItemCard
 import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.dialog.GroupIdJumperDialog
+import com.lalilu.lmedia.dialog.SortPanelDialog
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.sortable.GroupId
@@ -123,7 +123,7 @@ data class SongsScreen(
         val sortAction = vm.sorter.selectedAction.collectAsState()
         val sortConfig = vm.sorter.sortConfig.collectAsState()
 
-        SongsSortPanelDialog(
+        SortPanelDialog(
             isVisible = { state.showSortPanel },
             onDismiss = { vm.intent(SongsAction.HideSortPanel) },
             supportSortActions = vm.sorter.supportedActions,
@@ -140,7 +140,7 @@ data class SongsScreen(
             onUpdateKeyword = { vm.intent(SongsAction.SearchFor(it)) }
         )
 
-        SongsHeaderJumperDialog(
+        GroupIdJumperDialog(
             isVisible = { state.showJumperDialog },
             onDismiss = { vm.intent(SongsAction.HideJumperDialog) },
             sortResult = songs,

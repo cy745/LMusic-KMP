@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lhome.screen.dialog
+package com.lalilu.lmedia.dialog
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -45,7 +45,7 @@ import com.lalilu.lmedia.sortable.SortRuleNormal
 
 
 @Composable
-fun SongsSortPanelDialog(
+fun SortPanelDialog(
     isVisible: () -> Boolean,
     onDismiss: () -> Unit,
     supportSortActions: Collection<SortAction>,
@@ -56,7 +56,7 @@ fun SongsSortPanelDialog(
 ) {
     val dialog = remember {
         DialogItem.Dynamic(backgroundColor = Color.Transparent) {
-            SongsSortPanelDialogContent(
+            SortPanelDialogContent(
                 supportSortActions = supportSortActions,
                 selectedSortAction = selectedSortAction,
                 onSelectSortAction = onSelectSortAction,
@@ -75,7 +75,7 @@ fun SongsSortPanelDialog(
 }
 
 @Composable
-private fun SongsSortPanelDialogContent(
+private fun SortPanelDialogContent(
     modifier: Modifier = Modifier,
     supportSortActions: Collection<SortAction>,
     selectedSortAction: () -> SortAction? = { null },
@@ -241,7 +241,7 @@ private fun SortItem(
 )
 @Composable
 private fun SongsSortPanelDialogPVDay() {
-    SongsSortPanelDialogContent(
+    SortPanelDialogContent(
         supportSortActions = setOf(SortRuleNormal())
     )
 }
@@ -253,7 +253,7 @@ private fun SongsSortPanelDialogPVDay() {
 )
 @Composable
 private fun SongsSortPanelDialogPV() {
-    SongsSortPanelDialogContent(
+    SortPanelDialogContent(
         supportSortActions = setOf(SortRuleNormal())
     )
 }
