@@ -1,7 +1,6 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
 import com.lalilu.*
-import com.lalilu.gradle.XcodeDetector
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -33,20 +32,5 @@ applyMultiplatform {
     androidMain.dependencies {
         api(libs.androidx.core.ktx)
         api(libs.androidx.test.ktx)
-    }
-}
-
-afterEvaluate {
-    tasks.named("kspKotlinJvm") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
-    tasks.named("kspDebugKotlinAndroid") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
-    tasks.named("kspReleaseKotlinAndroid") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
-    tasks.named("kspKotlinIosArm64") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
     }
 }

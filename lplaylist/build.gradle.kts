@@ -47,18 +47,3 @@ applyMultiplatform {
         implementation(libs.kotlin.test)
     }
 }
-
-afterEvaluate {
-    tasks.named("kspKotlinJvm") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
-    tasks.named("kspDebugKotlinAndroid") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
-    tasks.named("kspReleaseKotlinAndroid") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
-    tasks.named("kspKotlinIosArm64") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
-}

@@ -7,7 +7,7 @@
 
     <application>
         <service
-                android:name=".service.MService"
+                android:name="com.lalilu.lplayer.service.MService"
                 android:exported="true"
                 android:foregroundServiceType="mediaPlayback">
             <intent-filter>

@@ -3,7 +3,8 @@ package com.lalilu.gradle
 import com.lalilu.Constants
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
-import org.gradle.kotlin.dsl.dependencies
+import org.gradle.kotlin.dsl.configure
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import kotlin.jvm.optionals.getOrNull
 
 fun Project.applyKoin() {
@@ -18,7 +19,11 @@ fun Project.applyKoin() {
         ?.let { "${it.module}:${it.version}" }
         ?: throw IllegalStateException("Koin Compiler is not found for alias [${Constants.KOIN_COMPILER_ALIAS}]")
 
-    dependencies {
-        add("kspCommonMainMetadata", koinCompiler)
+    plugins.withId(Constants.KOTLIN_MULTIPLATFORM_PLUGIN) {
+        extensions.configure<KotlinMultiplatformExtension> {
+            commonMainKspDependencies {
+                ksp(koinCompiler)
+            }
+        }
     }
 }

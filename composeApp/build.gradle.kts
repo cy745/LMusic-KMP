@@ -1,4 +1,6 @@
 import com.lalilu.gradle.XcodeDetector
+import com.lalilu.gradle.commonMainKspDependencies
+import com.lalilu.gradle.kspDependenciesForAllTargets
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -111,6 +113,13 @@ kotlin {
             implementation(libs.sqlite.web)
         }
     }
+
+    kspDependenciesForAllTargets {
+        ksp(libs.room3.compiler)
+    }
+    commonMainKspDependencies {
+        ksp(libs.koin.compiler)
+    }
 }
 
 val keystoreProps = rootProject.file("keystore.properties")
@@ -178,30 +187,6 @@ ksp {
 
 dependencies {
     debugImplementation(compose.uiTooling)
-    kspCommonMainMetadata(libs.koin.compiler)
-
-    add("kspDesktop", libs.room3.compiler)
-    add("kspAndroid", libs.room3.compiler)
-    add("kspWasmJs", libs.room3.compiler)
-    XcodeDetector.whenXcodeInstalled {
-        add("kspIosArm64", libs.room3.compiler)
-        add("kspIosSimulatorArm64", libs.room3.compiler)
-    }
-}
-
-afterEvaluate {
-    tasks.named("kspKotlinDesktop") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
-    tasks.named("kspDebugKotlinAndroid") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
-    tasks.named("kspReleaseKotlinAndroid") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
-    tasks.named("kspKotlinIosArm64") {
-        dependsOn(tasks.named("kspCommonMainKotlinMetadata"))
-    }
 }
 
 compose.desktop {

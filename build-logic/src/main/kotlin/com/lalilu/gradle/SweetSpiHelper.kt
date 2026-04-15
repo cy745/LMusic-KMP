@@ -5,9 +5,6 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
-import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
-import org.jetbrains.kotlin.gradle.plugin.KotlinTarget
-import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinCommonCompilation
 import kotlin.jvm.optionals.getOrNull
 
 fun Project.applySweetSpi() {
@@ -29,15 +26,14 @@ fun Project.applySweetSpi() {
 
     plugins.withId(Constants.KOTLIN_MULTIPLATFORM_PLUGIN) {
         extensions.configure<KotlinMultiplatformExtension> {
-            project.dependencies.apply {
-                add("kspCommonMainMetadata", sweetSpiProcessor)
+            commonMainKspDependencies {
+                ksp(sweetSpiProcessor)
+            }
+            kspDependenciesForAllTargets {
+                ksp(sweetSpiProcessor)
             }
 
             targets.forEach { target ->
-                getKspConfigurationName(target).forEach { configurationName ->
-                    project.dependencies.add(configurationName, sweetSpiProcessor)
-                }
-
                 target.compilations.forEach { compilation ->
                     val configurationName = compilation.defaultSourceSet.implementationConfigurationName
                     project.dependencies.add(configurationName, sweetSpiRuntime)
@@ -45,30 +41,4 @@ fun Project.applySweetSpi() {
             }
         }
     }
-}
-
-private fun getKspConfigurationName(target: KotlinTarget): List<String> {
-    val targetName = target.name
-
-    return when {
-        targetName == "android" -> listOf("kspAndroid", "kspAndroidTest")
-        else -> target.compilations.mapNotNull { getKotlinConfigurationName(it) }
-    }
-}
-
-// tries to mimic KSP logic...
-private fun getKotlinConfigurationName(compilation: KotlinCompilation<*>): String? {
-    val isMain = compilation.name == KotlinCompilation.MAIN_COMPILATION_NAME
-    // Note: on single-platform, the target name is conveniently set to "".
-    val name = when {
-        // skip, this will be dropped and unused now
-        isMain && compilation is KotlinCommonCompilation -> return null
-        isMain -> compilation.target.name
-        compilation is KotlinCommonCompilation -> {
-            compilation.defaultSourceSet.name + compilation.target.name.replaceFirstChar(Char::uppercase)
-        }
-
-        else -> compilation.defaultSourceSet.name
-    }
-    return "ksp" + name.replaceFirstChar(Char::uppercase)
 }

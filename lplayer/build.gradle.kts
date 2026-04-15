@@ -1,10 +1,8 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
-import com.lalilu.gradle.XcodeDetector
-import com.lalilu.gradle.makeSureAllSourcesJarAfterKsp
-import com.vanniktech.maven.publish.JavadocJar
-import com.vanniktech.maven.publish.KotlinMultiplatform
+import com.lalilu.*
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCompilation
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -20,111 +18,54 @@ plugins {
 
 group = "com.lalilu.lplayer"
 version = "1.0.0"
+extra.set("artifactId", "core")
 
-kotlin {
-    jvm()
-    androidTarget {
-    }
-    XcodeDetector.whenXcodeInstalled {
-        listOf(
-            iosArm64(),
-            iosSimulatorArm64()
-        ).forEach {
-            it.compilations.getByName("main") {
-                val observer by cinterops.creating {
+applyMultiplatform(
+    configureBlock = {
+        targets.filter { it.name.startsWith("ios") }.forEach {
+            it.compilations.getByName<KotlinNativeCompilation>("main") {
+                val observer by cinterops.creating
+                observer.apply {
                     definitionFile.set(file("src/nativeInterop/cinterop/observer.def"))
                 }
             }
         }
     }
-    wasmJs {
-        browser()
-        binaries.executable()
+) {
+    main.dependencies {
+        api(project(":component"))
+        api(project(":lmedia:lmedia-core"))
+        api(project(":lmedia:lmedia-data"))
+        api(project(":llyricview"))
+        api(libs.compose.resources)
+        api(libs.compose.preview)
+
+        api(libs.koin.core)
+        api(libs.koin.annotations)
+        api(libs.kotlinx.coroutines.core)
+        api(libs.kotlinx.io)
+        api(libs.filekit.core)
+        api(libs.bundles.settings)
     }
-
-    sourceSets {
-        val commonMain by getting {
-            dependencies {
-                api(project(":component"))
-                api(project(":lmedia:lmedia-core"))
-                api(project(":lmedia:lmedia-data"))
-                api(project(":llyricview"))
-                api(libs.compose.resources)
-                api(libs.compose.preview)
-
-                api(libs.koin.core)
-                api(libs.koin.annotations)
-                api(libs.kotlinx.coroutines.core)
-                api(libs.kotlinx.io)
-                api(libs.filekit.core)
-                api(libs.bundles.settings)
-            }
-        }
-        val commonTest by getting {
-            dependencies {
-                implementation(libs.kotlin.test)
-            }
-        }
-        iosMain.dependencies {
-        }
-        androidMain.dependencies {
-            implementation(libs.media3.session)
-            implementation(libs.media3.exoplayer)
-            implementation(libs.kotlinx.coroutines.guava)
-            implementation(project(":lplayer:lib-decoder-flac"))
-        }
-        jvmMain.dependencies {
-            implementation(libs.vlcj)
-            implementation(libs.bundles.rococoa)
-            implementation(project(":lplayer:libwrapper"))
-        }
-        val jvmTest by getting {
-            dependencies {
-                implementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
-                implementation("org.junit.jupiter:junit-jupiter-engine:5.13.4")
-                implementation("org.junit.platform:junit-platform-launcher:1.13.4")
-            }
+    test.dependencies {
+        implementation(libs.kotlin.test)
+    }
+    androidMain.dependencies {
+        implementation(libs.media3.session)
+        implementation(libs.media3.exoplayer)
+        implementation(libs.kotlinx.coroutines.guava)
+        implementation(project(":lplayer:lib-decoder-flac"))
+    }
+    jvmMain.dependencies {
+        implementation(libs.vlcj)
+        implementation(libs.bundles.rococoa)
+        implementation(project(":lplayer:libwrapper"))
+    }
+    val jvmTest by getting {
+        dependencies {
+            implementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
+            implementation("org.junit.jupiter:junit-jupiter-engine:5.13.4")
+            implementation("org.junit.platform:junit-platform-launcher:1.13.4")
         }
     }
-}
-
-dependencies {
-    kspCommonMainMetadata(libs.koin.compiler)
-}
-
-android {
-    namespace = group.toString()
-    compileSdk = libs.versions.android.targetSdk.get().toInt()
-
-    defaultConfig {
-        ndk {
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v7a", "arm64-v8a", "x86", "x86_64"))
-        }
-    }
-}
-
-makeSureAllSourcesJarAfterKsp()
-
-mavenPublishing {
-    coordinates(
-        groupId = group.toString(),
-        version = version.toString(),
-        artifactId = "core",
-    )
-
-    configure(
-        KotlinMultiplatform(
-            javadocJar = JavadocJar.Dokka("dokkaGenerate"),
-            sourcesJar = true,
-        )
-    )
-
-    pom {
-        name = "LPlayer"
-        description = "LPlayer"
-        inceptionYear = "2025"
-    }
-
-    publishToMavenCentral(true)
-//    signAllPublications()
 }
