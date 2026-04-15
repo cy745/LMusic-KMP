@@ -1,3 +1,4 @@
+package com.lalilu.lplaylist.screen
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState

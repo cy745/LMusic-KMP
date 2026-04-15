@@ -67,8 +67,7 @@ internal fun PlaylistScreenContent(
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize()
-            .statusBarsPadding(),
+        modifier = modifier.fillMaxSize(),
         state = listState,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
