@@ -7,6 +7,7 @@ import androidx.room3.PrimaryKey
 import com.lalilu.lmedia.sortable.Sortable
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlin.reflect.KClass
 
 @Entity(tableName = "l_audio", ignoredColumns = ["refs"])
 @Serializable
@@ -25,9 +26,9 @@ data class LAudio(
     @Ignore
     @Transient
     var sourceItem: SourceItem = SourceItemDefaults.Empty,
-) : LItem, Sourceable, Available, Playable, TextMatchable, Sortable,
-    Linkable by linkableImpl(),
+) : LItem, Sourceable, Available, Playable, TextMatchable, Sortable, Linkable,
     Extensible by extensibleImpl({ extra }) {
+    override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
 
     // Identifiable implementation
     override fun idValue(): String = id

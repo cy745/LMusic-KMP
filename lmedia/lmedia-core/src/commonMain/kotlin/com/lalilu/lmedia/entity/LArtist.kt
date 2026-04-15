@@ -4,6 +4,7 @@ import androidx.room3.ColumnInfo
 import androidx.room3.Entity
 import androidx.room3.PrimaryKey
 import kotlinx.serialization.Serializable
+import kotlin.reflect.KClass
 
 @Entity(tableName = "l_artist", ignoredColumns = ["refs"])
 @Serializable
@@ -14,7 +15,8 @@ data class LArtist(
     var title: String = "",
     var subtitle: String = "",
     var extra: Map<String, String>? = null
-) : LItem, Linkable by linkableImpl(), Extensible by extensibleImpl({ extra }) {
+) : LItem, Linkable, Extensible by extensibleImpl({ extra }) {
+    override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
     override fun idValue(): String = id
     override fun titleValue(): String = title
     override fun subtitleValue(): String = subtitle
