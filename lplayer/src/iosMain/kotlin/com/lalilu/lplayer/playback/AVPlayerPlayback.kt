@@ -11,7 +11,11 @@ import com.lalilu.lplayer.helper.*
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
 import com.lalilu.lplayer.notifacation.RemoteCommandHandler
 import kotlinx.cinterop.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import platform.AVFAudio.AVAudioPlayer
@@ -23,7 +27,7 @@ import platform.Foundation.*
 @OptIn(ExperimentalForeignApi::class)
 class AVPlayerPlayback(
     private val library: Library
-) : AbstractPlayback(), KoinComponent {
+) : AbstractPlayback(CoroutineScope(Dispatchers.Main + SupervisorJob())), KoinComponent {
     companion object Companion {
         const val TAG = "AVPlayerPlayback"
     }
@@ -75,7 +79,7 @@ class AVPlayerPlayback(
         }
     }
 
-    override suspend fun playItem(item: LAudio) {
+    override suspend fun playItem(item: LAudio) = withContext(Dispatchers.Main) {
         AudioSessionHelper.ensureAudioSessionActive()
         val source = platformMediaSource.sources
             .firstOrNull { item.mediaSourceName == it.name }
@@ -176,7 +180,7 @@ class AVPlayerPlayback(
         }
     }
 
-    override suspend fun play() {
+    override suspend fun play() = withContext(Dispatchers.Main) {
         volumeFadeHelper.play()
         try {
             AudioSessionHelper.ensureAudioSessionActive()
@@ -230,7 +234,7 @@ class AVPlayerPlayback(
         if (_isPlaying.value) pause() else play()
     }
 
-    override suspend fun stop() {
+    override suspend fun stop() = withContext(Dispatchers.Main) {
         try {
             audioPlayer?.stop()
             audioPlayer = null
@@ -245,7 +249,7 @@ class AVPlayerPlayback(
         }
     }
 
-    override suspend fun skipTo(index: Int) {
+    override suspend fun skipTo(index: Int) = withContext(Dispatchers.Main) {
         try {
             val targetItem = _playlist.value.flatten<LAudio>().getOrNull(index)
                 ?: throw Exception("Invalid index")
@@ -261,7 +265,7 @@ class AVPlayerPlayback(
         }
     }
 
-    override suspend fun seekTo(positionMs: Long) {
+    override suspend fun seekTo(positionMs: Long) = withContext(Dispatchers.Main) {
         try {
             if (audioPlayer != null) {
                 audioPlayer?.setCurrentTime(positionMs / 1000.0)
