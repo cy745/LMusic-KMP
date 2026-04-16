@@ -1,20 +1,18 @@
 package com.lalilu.lmusic.util
 
-import co.touchlab.kermit.Logger
 import com.skydoves.compose.stability.runtime.RecompositionEvent
 import com.skydoves.compose.stability.runtime.RecompositionLogger
+import io.github.oshai.kotlinlogging.KotlinLogging
 
 object DebugRecomposeLogger : RecompositionLogger {
 
     private val tag = "Recomposition"
+    private val logger = KotlinLogging.logger(tag)
 
     override fun log(event: RecompositionEvent) {
         val tagSuffix = if (event.tag.isNotEmpty()) " (tag: ${event.tag})" else ""
 
-        Logger.i(
-            tag = tag,
-            messageString = "[Recomposition #${event.recompositionCount}] ${event.composableName}$tagSuffix",
-        )
+        logger.info { "Recomposition #${event.recompositionCount} ${event.composableName}$tagSuffix" }
 
         // Log parameter changes
         event.parameterChanges.forEachIndexed { index, change ->
@@ -32,12 +30,12 @@ object DebugRecomposeLogger : RecompositionLogger {
                 else -> "unstable (${safeToString(change.newValue)})"
             }
 
-            Logger.i(tag = tag, messageString = "$prefix ${change.name}: ${change.type} $status")
+            logger.info { "$prefix ${change.name}: ${change.type} $status" }
         }
 
         // Log unstable parameters summary
         if (event.unstableParameters.isNotEmpty()) {
-            Logger.i(tag = tag, messageString = "  └─ Unstable parameters: ${event.unstableParameters}")
+            logger.info { "  └─ Unstable parameters summary: ${event.unstableParameters}" }
         }
     }
 

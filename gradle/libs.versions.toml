@@ -82,7 +82,7 @@ jbx-navigationevent-compose = { module = "org.jetbrains.androidx.navigationevent
 
 krouter-core = { module = "io.github.cy745.KRouter:core", version.ref = "krouter" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
-kotlin-logging = { module = "io.github.oshai:kotlin-logging", version = "7.0.3" }
+kotlin-logging = { module = "io.github.oshai:kotlin-logging", version = "8.0.01" }
 human-readable = { module = "nl.jacobras:Human-Readable", version.ref = "human-readable" }
 xmlutil-core = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlutil" }
 xmlutil-serialization = { module = "io.github.pdvrieze.xmlutil:serialization", version.ref = "xmlutil" }

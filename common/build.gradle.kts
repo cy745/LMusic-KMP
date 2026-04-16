@@ -19,7 +19,6 @@ applyMultiplatform {
     main.dependencies {
         api(libs.compose.ui)
         api(libs.compose.runtime)
-        api(libs.kermit)
         api(libs.kotlin.logging)
         api(libs.human.readable)
         api(libs.krouter.core)

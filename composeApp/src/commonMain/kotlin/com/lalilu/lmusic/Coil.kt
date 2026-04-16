@@ -1,13 +1,12 @@
 package com.lalilu.lmusic
 
-import co.touchlab.kermit.Logger
 import coil3.ComponentRegistry
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.serviceLoaderEnabled
 import com.lalilu.lmedia.coil.LAudioFetcherFactory
 import com.lalilu.lmedia.coil.LAudioKeyer
-import com.lalilu.lmusic.util.KermitCoilLogger
+import com.lalilu.lmusic.util.CoilLogger
 
 fun platformSetupCoil(
     components: ComponentRegistry.Builder.() -> Unit = {},
@@ -16,7 +15,7 @@ fun platformSetupCoil(
     SingletonImageLoader.setSafe {
         ImageLoader.Builder(it)
             .serviceLoaderEnabled(true)
-//            .logger(KermitCoilLogger(Logger.withTag("Coil")))
+            .logger(CoilLogger)
             .components {
                 add(LAudioFetcherFactory())
                 add(LAudioKeyer())

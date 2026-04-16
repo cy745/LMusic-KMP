@@ -15,7 +15,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import co.touchlab.kermit.Severity
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmusic.util.MemoryLogItem
 import com.lalilu.lmusic.util.MemoryLogWriter
@@ -23,6 +22,7 @@ import com.lalilu.navigation.Screen
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import androidx.compose.ui.tooling.preview.Preview
+import io.github.oshai.kotlinlogging.Level
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -39,7 +39,7 @@ fun LoggerScreenContent() {
     val state = rememberLazyListState()
 
     LaunchedEffect(MemoryLogWriter.logs.size) {
-        state.requestScrollToItem(MemoryLogWriter.logs.size - 1)
+        state.requestScrollToItem((MemoryLogWriter.logs.size - 1).coerceAtLeast(0))
     }
 
     LazyColumn(
@@ -70,20 +70,20 @@ fun LogItem(
     val string = remember(logItem) {
         val time = Instant.fromEpochMilliseconds(logItem.timestamp)
             .toLocalDateTime(TimeZone.currentSystemDefault())
-        val severityColor = when (logItem.severity) {
-            Severity.Verbose -> Color.Gray
-            Severity.Debug -> Color.Blue
-            Severity.Info -> Color(0xFF30FF30)
-            Severity.Warn -> Color.Yellow
-            Severity.Error -> Color.Red
-            Severity.Assert -> Color.Red
+        val severityColor = when (logItem.level) {
+            Level.TRACE -> Color.Gray
+            Level.DEBUG -> Color.Blue
+            Level.INFO -> Color(0xFF30FF30)
+            Level.WARN -> Color.Yellow
+            Level.ERROR -> Color.Red
+            Level.OFF -> Color.Red
         }
 
         buildAnnotatedString {
             append("[${time.hour}:${time.minute}:${time.second}.${time.nanosecond % 10000}]")
 
             withStyle(style = SpanStyle(color = severityColor)) {
-                append("[${logItem.severity.name}]")
+                append("[${logItem.level.name}]")
             }
             withStyle(style = SpanStyle(color = Color.DarkGray)) {
                 append("[${logItem.tag}]")
