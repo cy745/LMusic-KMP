@@ -22,5 +22,6 @@ keystore.jks
 keystore.properties
 .vercel
 /.omc
+/.planning
 /lmedia/lmedia-data/db/
 /composeApp/db/
