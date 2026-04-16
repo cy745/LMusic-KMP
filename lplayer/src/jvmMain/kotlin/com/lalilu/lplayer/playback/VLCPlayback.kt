@@ -189,7 +189,12 @@ class VLCPlayback(
             }
 
             override fun finished(mediaPlayer: MediaPlayer?) {
-                launch { skipToNext() }
+                if (_pauseWhenCompletion) {
+                    _pauseWhenCompletion = false
+                    _isPlaying.value = false
+                } else {
+                    launch { skipToNext() }
+                }
             }
 
             override fun timeChanged(mediaPlayer: MediaPlayer?, newTime: Long) {
