@@ -13,8 +13,7 @@ interface Playback {
     suspend fun togglePlayPause()
     suspend fun stop()
     suspend fun skipTo(index: Int)
-
-    // TODO suspend fun skipTo(index: Int, start: Boolean)
+    suspend fun skipTo(index: Int, start: Boolean)
     suspend fun skipToNext()
     suspend fun skipToPrevious()
     suspend fun seekTo(positionMs: Long)

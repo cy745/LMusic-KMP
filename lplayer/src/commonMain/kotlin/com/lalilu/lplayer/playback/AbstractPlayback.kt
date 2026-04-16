@@ -34,6 +34,11 @@ abstract class AbstractPlayback(
     protected val _playbackMode = MutableStateFlow(PlaybackMode.SEQUENTIAL)
     protected var shuffledIndices: List<Int> = emptyList()
     protected var currentIndexInShuffled: Int = 0
+    protected var _pauseWhenCompletion: Boolean = false
+
+    fun setPauseWhenCompletion(cancel: Boolean) {
+        _pauseWhenCompletion = !cancel
+    }
 
     // Public state flows
     override val playlist: StateFlow<List<LItem>> = _playlist.asStateFlow()
@@ -120,6 +125,22 @@ abstract class AbstractPlayback(
         }
     }
 
+    // PLAY-07: Implement skipTo(index: Int, start: Boolean)
+    override suspend fun skipTo(index: Int, start: Boolean) {
+        if (index < 0) {
+            skipToPrevious()  // D-03: handles PLAY-09
+            return
+        }
+        skipTo(index)  // Platform-specific: plays the item at index
+        if (start) play()
+    }
+
+    // Override single-arg skipTo(index: Int) to delegate to the two-arg version
+    // This allows updatePlaylist(playlist, startIndex, start) to call skipTo(startIndex, start)
+    override suspend fun skipTo(index: Int) {
+        skipTo(index, false)
+    }
+
     override suspend fun updatePlaylist(playlist: List<LItem>) {
         _playlist.value = playlist
         if (_playbackMode.value == PlaybackMode.SHUFFLE) {
@@ -130,7 +151,7 @@ abstract class AbstractPlayback(
 
     override suspend fun updatePlaylist(playlist: List<LItem>, startIndex: Int, start: Boolean) {
         updatePlaylist(playlist)
-        skipTo(startIndex) // TODO start 逻辑实现
+        skipTo(startIndex, start)
     }
 
     override suspend fun clearPlaylist() {
