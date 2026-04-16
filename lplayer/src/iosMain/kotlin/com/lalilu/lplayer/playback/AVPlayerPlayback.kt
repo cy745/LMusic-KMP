@@ -1,6 +1,6 @@
 package com.lalilu.lplayer.playback
 
-import co.touchlab.kermit.Logger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.flatten
@@ -28,8 +28,9 @@ class AVPlayerPlayback(
         const val TAG = "AVPlayerPlayback"
     }
 
+    private val logger = KotlinLogging.logger(TAG)
     private fun debugLog(message: String) {
-        Logger.i(tag = TAG, messageString = message)
+        logger.info { message }
     }
 
     private val observerContext: COpaquePointer = cOpaquePtr()
@@ -92,7 +93,7 @@ class AVPlayerPlayback(
 
                 avPlayer.pause()
 
-                Logger.i(tag = "AVPlayer", messageString = "prepared with url: ${data.url}")
+                logger.info { "prepared with url: ${data.url}" }
                 val url = NSURL.URLWithString(data.url)!!
                 val playerItem = AVPlayerItem(url)
 
@@ -122,7 +123,7 @@ class AVPlayerPlayback(
             }
 
             is MediaData.Bytes -> {
-                Logger.i(tag = "AVPlayer", messageString = "prepared with bytes: ${data.bytes.size}")
+                logger.info { "prepared with bytes: ${data.bytes.size}" }
 
                 val player = memScoped {
                     val data = NSData.dataWithBytes(
@@ -205,7 +206,7 @@ class AVPlayerPlayback(
 
             playItem(current)
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+            logger.error(e) { e.message ?: "Unknown error" }
             emitError(e)
         }
     }
@@ -220,7 +221,7 @@ class AVPlayerPlayback(
                     avPlayer.pause()
                 }
             } catch (e: Exception) {
-                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                logger.error(e) { e.message ?: "Unknown error" }
                 emitError(e)
             }
         }
@@ -240,7 +241,7 @@ class AVPlayerPlayback(
             _currentItemIndex.value = 0
             updateNavigationCapabilities()
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+            logger.error(e) { e.message ?: "Unknown error" }
             emitError(e)
         }
     }
@@ -256,7 +257,7 @@ class AVPlayerPlayback(
                 playItem(targetItem)
             }
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+            logger.error(e) { e.message ?: "Unknown error" }
             emitError(e)
         }
     }
@@ -271,7 +272,7 @@ class AVPlayerPlayback(
                 avPlayer.seekToTime(time)
             }
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+            logger.error(e) { e.message ?: "Unknown error" }
             emitError(e)
         }
     }
@@ -300,7 +301,7 @@ fun NSError.print() {
         [localizedRecoverySuggestion]: $localizedRecoverySuggestion
         [localizedRecoveryOptions]: $localizedRecoveryOptions
     """.trimIndent()
-    Logger.e(tag = "NSError", messageString = log)
+    KotlinLogging.logger("NSError").error { log }
 }
 
 // 扩展函数：获取精确毫秒数（Double 类型，保留小数，适合需要高精度的场景）

@@ -1,6 +1,5 @@
 package com.lalilu.lplayer.notification
 
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
@@ -21,11 +20,8 @@ import kotlin.coroutines.CoroutineContext
 
 object BrowserMediaSessionHelper : CoroutineScope, KoinComponent {
     override val coroutineContext: CoroutineContext = Dispatchers.io
-    private val logger = Logger.withTag("BrowserMediaSessionHelper")
     private val mediaSession: MediaSession? by lazy { mediaSessionOrNull() }
     private val platformMediaSource: PlatformMediaSource by inject()
-
-    fun debugLog(message: String) = logger.i(message)
 
     fun bindPlayback(playback: Playback) {
         val session = mediaSession ?: return

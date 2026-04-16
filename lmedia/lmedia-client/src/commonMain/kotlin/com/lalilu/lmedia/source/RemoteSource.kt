@@ -1,10 +1,10 @@
 package com.lalilu.lmedia.source
 
 import androidx.compose.runtime.getValue
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.md5
 import com.lalilu.lmedia.entity.*
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.*
@@ -28,6 +28,7 @@ class RemoteSource(
     private val json: Json,
     private val saver: Saver
 ) : MediaSource, MediaDataSource, CoroutineScope {
+    private val logger = KotlinLogging.logger(TAG)
 
     companion object {
         private const val TAG = "RemoteSource"
@@ -35,7 +36,7 @@ class RemoteSource(
 
     override val coroutineContext: CoroutineContext =
         Dispatchers.io + SupervisorJob() + CoroutineExceptionHandler { _, throwable ->
-            Logger.e(tag = TAG, throwable = throwable, messageString = "${throwable.message}")
+            logger.error(throwable) { "${throwable.message}" }
         }
 
     override val name: String = TAG
@@ -194,7 +195,7 @@ class RemoteSource(
         action: suspend () -> Unit
     ) {
         runCatching { action() }.getOrElse {
-            Logger.e(tag = TAG, messageString = "${it.message}", throwable = it)
+            logger.error(it) { "${it.message}" }
 
             snapshotFlow.value = snapshotFlow.value.copy(
                 state = SnapshotState.Error(message = "[$name]${it.message}")

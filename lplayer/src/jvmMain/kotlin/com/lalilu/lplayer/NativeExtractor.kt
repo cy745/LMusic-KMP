@@ -1,8 +1,7 @@
 package com.lalilu.lplayer
 
-import co.touchlab.kermit.Logger
-import co.touchlab.kermit.StaticConfig
 import com.lalilu.common.ext.io
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.filesDir
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +16,7 @@ import java.util.*
 object NativeExtractor {
     const val TAG = "NativeExtractor"
 
+    private val logger = KotlinLogging.logger(TAG)
     private val classLoader by lazy { Thread.currentThread().contextClassLoader }
     private val osName: String by lazy { System.getProperty("os.name").lowercase(Locale.getDefault()) }
     val extractDir by lazy { File(FileKit.filesDir.file, "native_libs") }
@@ -42,7 +42,7 @@ object NativeExtractor {
     }
 
     suspend fun doExtract(forceOverride: Boolean = false) = withContext(Dispatchers.io) {
-        Logger.i(tag = TAG, messageString = "Start doExtract, targetExtractDir: ${extractDir.absolutePath}")
+        logger.info { "Start doExtract, targetExtractDir: ${extractDir.absolutePath}" }
         val extractList = readExtractList()
         if (extractList.isEmpty()) {
             throw IllegalStateException("extractList is empty")
@@ -82,7 +82,7 @@ object NativeExtractor {
         }
 
         jobs.awaitAll()
-        Logger.i("Extract completed")
+        logger.info { "Extract completed" }
     }
 
     fun isNix() = listOf("nux", "nix", "freebsd").any { osName.contains(it) }
@@ -91,10 +91,9 @@ object NativeExtractor {
 
 
     var showDebugLog: Boolean = false
-    private val logger = Logger(tag = TAG, config = StaticConfig())
-    private inline fun debugLog(crossinline msg: () -> String) {
+    private fun debugLog(msg: () -> String) {
         if (showDebugLog) {
-            logger.d(tag = TAG, message = msg)
+            logger.debug(msg)
         }
     }
 }

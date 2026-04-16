@@ -1,6 +1,5 @@
 package com.lalilu.lplayer.notification
 
-import co.touchlab.kermit.Logger
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
@@ -9,6 +8,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.lplayer.macos.*
 import com.lalilu.lplayer.menu.FoundationCallback
 import com.lalilu.lplayer.playback.Playback
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -56,6 +56,8 @@ class MacOSNotification(
         )
     }
     private val imageLoader by lazy { SingletonImageLoader.get(PlatformContext.INSTANCE) }
+    private val logger = KotlinLogging.logger("MacOSNotification")
+
     private val playInfoDictionary by lazy {
         val keys = NSArray.CLASS.arrayWithObjects(
             MPMediaItemProperty.Title.nativeValue,
@@ -113,7 +115,7 @@ class MacOSNotification(
         }.launchIn(this)
 
         playback.currentItem.onEach { audio ->
-            Logger.i("currentItem: $audio")
+            logger.info { "currentItem: $audio" }
 
             val title = audio?.title ?: "Unknown"
             val subtitle = audio?.subtitle ?: "sub"
@@ -171,7 +173,7 @@ class MacOSNotification(
     }
 
     override fun handleCommand(event: MPRemoteCommandEvent): MPRemoteCommandHandlerStatus {
-        Logger.i("event: ${event.command()} timestamp: ${event.timestamp()}")
+        logger.info { "event: ${event.command()} timestamp: ${event.timestamp()}" }
         val command = event.command()
 
         when (command) {
@@ -182,7 +184,7 @@ class MacOSNotification(
             remoteCommandCenter.nextTrackCommand() -> launch { playback.skipToNext() }
             remoteCommandCenter.previousTrackCommand() -> launch { playback.skipToPrevious() }
             else -> {
-                Logger.i("UnRecognized command: $command timestamp: ${event.timestamp()}")
+                logger.info { "UnRecognized command: $command timestamp: ${event.timestamp()}" }
             }
         }
 

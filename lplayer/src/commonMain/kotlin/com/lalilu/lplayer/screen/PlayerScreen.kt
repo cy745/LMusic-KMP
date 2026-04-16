@@ -21,7 +21,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import co.touchlab.kermit.Logger
 import com.lalilu.LocalSeedColor
 import com.lalilu.RemixIcon
 import com.lalilu.common.ext.io
@@ -39,6 +38,7 @@ import com.lalilu.lplayer.viewmodel.PlayerViewModel
 import com.lalilu.navigation.*
 import com.lalilu.remixicon.Media
 import com.lalilu.remixicon.media.music2Line
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -51,6 +51,7 @@ import kotlin.math.pow
 class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
 
     override fun provideMetadata(): Map<String, Any> = Metadata.player()
+    private val logger = KotlinLogging.logger { }
 
 
     @Composable
@@ -311,7 +312,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                             }
                         },
                         onSeekTo = { position ->
-                            Logger.i("seekTo: $position")
+                            logger.info { "seekTo: $position" }
                             PlayerAction.SeekTo(position.toLong()).action()
                         },
                         onSwitchTo = { index ->

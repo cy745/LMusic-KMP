@@ -3,7 +3,7 @@ package com.lalilu.lmedia.server
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import co.touchlab.kermit.Logger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import com.lalilu.common.ext.io
 import io.github.vinceglb.filekit.*
 import io.ktor.http.*
@@ -81,11 +81,7 @@ object SandBoxFileSystemServer : CoroutineScope, KoinComponent {
             }
         }.getOrElse {
             onError(it)
-            Logger.i(
-                tag = "SandBoxFileSystemSourceContent",
-                messageString = "Error starting server",
-                throwable = it
-            )
+            KotlinLogging.logger("SandBoxFileSystemSourceContent").error(it) { "Error starting server" }
         }
     }
 
@@ -101,11 +97,7 @@ object SandBoxFileSystemServer : CoroutineScope, KoinComponent {
                     server = null
                 }
             }.getOrElse {
-                Logger.i(
-                    tag = "SandBoxFileSystemSourceContent",
-                    messageString = "Error stopping server",
-                    throwable = it
-                )
+                KotlinLogging.logger("SandBoxFileSystemSourceContent").error(it) { "Error stopping server" }
             }
         }
     }

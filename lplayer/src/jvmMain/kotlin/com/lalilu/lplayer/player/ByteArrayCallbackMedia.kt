@@ -1,8 +1,8 @@
 package com.lalilu.lplayer.player
 
-import co.touchlab.kermit.Logger
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.LongByReference
+import io.github.oshai.kotlinlogging.KotlinLogging
 import uk.co.caprica.vlcj.binding.internal.libvlc_media_close_cb
 import uk.co.caprica.vlcj.binding.internal.libvlc_media_open_cb
 import uk.co.caprica.vlcj.binding.internal.libvlc_media_read_cb
@@ -23,6 +23,7 @@ class ByteArrayCallbackMedia private constructor(
     companion object {
         private const val TAG = "ByteArrayCallbackMedia"
         private val cache = mutableSetOf<ByteArrayCallbackMedia>()
+        private val logger = KotlinLogging.logger(TAG)
 
         /**
          * 创建或重用ByteArrayCallbackMedia实例
@@ -33,14 +34,14 @@ class ByteArrayCallbackMedia private constructor(
 
             // 若存在，则重用
             if (media != null) {
-                Logger.i(tag = TAG, messageString = "Reuse: currentSize: ${cache.size}")
+                logger.info { "Reuse: currentSize: ${cache.size}" }
                 return media.reset(data)
             }
 
             // 创建新的ByteArrayCallbackMedia实例
             return ByteArrayCallbackMedia(data)
                 .also { cache.add(it) }
-                .also { Logger.i(tag = TAG, messageString = "New: currentSize: ${cache.size}") }
+                .also { logger.info { "New: currentSize: ${cache.size}" } }
         }
     }
 

@@ -4,7 +4,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import co.touchlab.kermit.Logger
 import com.lalilu.MviWithIntent
 import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.ItemRecorder
@@ -15,6 +14,7 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.mviImplWithIntent
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
@@ -85,6 +85,7 @@ sealed interface SongsAction {
 class SongsVM(
     private val mediaIds: List<String>,
 ) : ViewModel(), MviWithIntent<SongsState, SongsEvent, SongsAction> by mviImplWithIntent(SongsState(mediaIds)) {
+    private val logger = KotlinLogging.logger { }
     val recorder = ItemRecorder()
     val selector = ItemSelector<LAudio>()
     val sorter = SortManager(
@@ -122,14 +123,14 @@ class SongsVM(
             is SongsAction.LocaleToGroupItem -> postEvent { SongsEvent.ScrollToItem(intent.item) }
             is SongsAction.LocaleToPlayingItem -> {
                 val mediaId = LPlayer.instance.currentItem.value?.idValue() ?: run {
-                    Logger.e("can not find playing item's mediaId")
+                    logger.error { "can not find playing item's mediaId" }
                     return@launch
                 }
                 postEvent { SongsEvent.ScrollToItem(mediaId) }
             }
 
             else -> {
-                Logger.w("Not implemented action: $intent")
+                logger.warn { "Not implemented action: $intent" }
             }
         }
     }

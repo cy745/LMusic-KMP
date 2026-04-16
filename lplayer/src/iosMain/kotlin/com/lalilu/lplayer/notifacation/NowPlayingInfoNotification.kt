@@ -1,6 +1,6 @@
 package com.lalilu.lplayer.notifacation
 
-import co.touchlab.kermit.Logger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
@@ -29,12 +29,12 @@ import kotlin.coroutines.resume
 @OptIn(ExperimentalForeignApi::class)
 object NowPlayingInfoNotification : CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io
-    private val logger = Logger.withTag("NowPlayingInfoNotification")
+    private val logger = KotlinLogging.logger("NowPlayingInfoNotification")
     private val nowPlayingInfoCenter = MPNowPlayingInfoCenter.defaultCenter()
     private val nowPlayingInfo = mutableMapOf<String, Any>()
     private val updateMutex = Mutex()
 
-    fun debugLog(message: String) = logger.i(messageString = message)
+    fun debugLog(message: String) = logger.info { message }
 
     fun bindPlayback(playback: Playback) {
         debugLog("Binding playback to NowPlayingInfoNotification")

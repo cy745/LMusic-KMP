@@ -1,6 +1,6 @@
 package com.lalilu.lplayer.playback
 
-import co.touchlab.kermit.Logger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.flatten
@@ -32,6 +32,8 @@ class VLCPlayback(
     private var lastTime: Long = 0L
     private var lastRecordTime: Long = 0L
 
+    private val logger = KotlinLogging.logger("VLCPlayback")
+
     init {
         VLCPlayerLoader.initialize()
         VLCPlayerLoader.whenReady {
@@ -50,12 +52,12 @@ class VLCPlayback(
 
         when (val data = source.dataSource.getMedia(item)) {
             is MediaData.Url -> {
-                Logger.i(tag = "VLCPlayback", messageString = "prepared with url: ${data.url}")
+                logger.info { "prepared with url: ${data.url}" }
                 player.media().prepare(data.url)
             }
 
             is MediaData.Bytes -> {
-                Logger.i(tag = "VLCPlayback", messageString = "prepared with bytes: ${data.bytes.size}")
+                logger.info { "prepared with bytes: ${data.bytes.size}" }
                 player.media().prepare(ByteArrayCallbackMedia.obtain(data.bytes))
             }
 
@@ -65,7 +67,7 @@ class VLCPlayback(
                     ?.file?.absolutePath
                     ?: throw Exception("Invalid source item: ${item.sourceItem}")
 
-                Logger.i(tag = "VLCPlayback", messageString = "prepared with path: $path")
+                logger.info { "prepared with path: $path" }
                 player.media().prepare(path)
             }
         }
@@ -87,7 +89,7 @@ class VLCPlayback(
                 playItem(current)
             }
         } catch (e: Exception) {
-            Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
+            logger.error(e) { e.message ?: "Unknown error" }
             emitError(e)
         }
     }
@@ -97,7 +99,7 @@ class VLCPlayback(
             player.controls().pause()
             _isPlaying.value = false
         } catch (e: Exception) {
-            Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
+            logger.error(e) { e.message ?: "Unknown error" }
             emitError(e)
         }
     }
@@ -112,7 +114,7 @@ class VLCPlayback(
                 _isPlaying.value = true
             }
         } catch (e: Exception) {
-            Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
+            logger.error(e) { e.message ?: "Unknown error" }
             emitError(e)
         }
     }
@@ -124,7 +126,7 @@ class VLCPlayback(
             _currentItemIndex.value = 0
             updateNavigationCapabilities()
         } catch (e: Exception) {
-            Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
+            logger.error(e) { e.message ?: "Unknown error" }
             emitError(e)
         }
     }
@@ -149,7 +151,7 @@ class VLCPlayback(
                 isNormalTransition = old?.idValue() != targetItem.idValue()
             )
         } catch (e: Exception) {
-            Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
+            logger.error(e) { e.message ?: "Unknown error" }
             emitError(e)
         }
     }
@@ -158,7 +160,7 @@ class VLCPlayback(
         try {
             player.controls().setTime(positionMs)
         } catch (e: Exception) {
-            Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
+            logger.error(e) { e.message ?: "Unknown error" }
             emitError(e)
         }
     }

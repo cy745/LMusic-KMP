@@ -1,6 +1,6 @@
 package com.lalilu.lplayer.helper
 
-import co.touchlab.kermit.Logger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
 import kotlinx.cinterop.*
@@ -15,9 +15,9 @@ import kotlin.coroutines.CoroutineContext
 object AudioSessionHelper : CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io
     private val audioSession by lazy { AVAudioSession.sharedInstance() }
-    private val logger = Logger.withTag("AudioSessionInterruptionHelper")
+    private val logger = KotlinLogging.logger("AudioSessionInterruptionHelper")
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
-    fun debugLog(message: String) = logger.i(messageString = message)
+    fun debugLog(message: String) = logger.info { message }
 
     fun setUpAudioSession(): Boolean {
         if (!audioSession.setCategory(

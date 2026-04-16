@@ -1,7 +1,6 @@
 package com.lalilu.lmedia.source.subsonic
 
 import androidx.compose.runtime.getValue
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.md5
 import com.lalilu.common.ext.retrieveAllPage
@@ -9,6 +8,7 @@ import com.lalilu.lmedia.entity.*
 import com.lalilu.lmedia.source.*
 import com.lalilu.lmedia.source.subsonic.entity.toLrcContent
 import de.jensklingenberg.ktorfit.ktorfit
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.*
 import io.ktor.client.plugins.api.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -28,6 +28,7 @@ class SubsonicSource(
     private val json: Json,
     private val saver: Saver
 ) : MediaSource, MediaDataSource, CoroutineScope {
+    private val logger = KotlinLogging.logger(TAG)
 
     companion object {
         private const val TAG = "SubsonicSource"
@@ -35,11 +36,10 @@ class SubsonicSource(
 
     override val coroutineContext: CoroutineContext =
         Dispatchers.io + SupervisorJob() + CoroutineExceptionHandler { _, throwable ->
-            Logger.e(tag = TAG, throwable = throwable, messageString = "${throwable.message}")
+            logger.error(throwable) { "${throwable.message}" }
         }
 
     override val name: String = TAG
-    private val logger = Logger.withTag(name)
 
     private var client: HttpClient? = null
     private var subsonicApi: SubsonicApi? = null
@@ -90,7 +90,7 @@ class SubsonicSource(
             }
         ).onCall {
             // TODO: 实现取消逻辑
-            logger.i(messageString = "Cancel requested")
+            logger.info { "Cancel requested" }
         }
 
         // 重置功能
@@ -169,7 +169,7 @@ class SubsonicSource(
             // 6. 加载数据
             loadData()
         } catch (e: Exception) {
-            logger.e(messageString = "连接失败: ${e.message}", throwable = e)
+            logger.error(e) { "连接失败: ${e.message}" }
             snapshotFlow.value = Snapshot(state = SnapshotState.Error("[${name}]${e.message}"))
         }
     }
@@ -199,7 +199,7 @@ class SubsonicSource(
 
             snapshotFlow.value = Snapshot(audios = audios, state = SnapshotState.Success)
         } catch (e: Exception) {
-            logger.e(messageString = "加载数据失败: ${e.message}", throwable = e)
+            logger.error(e) { "加载数据失败: ${e.message}" }
             snapshotFlow.value = Snapshot(state = SnapshotState.Error("[${name}]${e.message}"))
         }
     }

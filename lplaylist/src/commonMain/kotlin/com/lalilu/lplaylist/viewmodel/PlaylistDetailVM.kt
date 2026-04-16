@@ -4,7 +4,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import co.touchlab.kermit.Logger
 import com.lalilu.MviWithIntent
 import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.ItemRecorder
@@ -21,6 +20,7 @@ import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplaylist.entity.LPlaylist
 import com.lalilu.lplaylist.repository.PlaylistRepository
 import com.lalilu.mviImplWithIntent
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
@@ -105,6 +105,7 @@ class PlaylistDetailVM(
         private const val TAG = "PlaylistDetailVM"
     }
 
+    private val logger = KotlinLogging.logger(TAG)
     val selector = ItemSelector<LAudio>()
     val recorder = ItemRecorder()
     val sorter = SortManager(
@@ -149,7 +150,7 @@ class PlaylistDetailVM(
 
             is PlaylistDetailAction.LocaleToPlayingItem -> {
                 val mediaId = LPlayer.instance.currentItem.value?.idValue() ?: run {
-                    Logger.e(tag = TAG, messageString = "can not find playing item's mediaId")
+                    logger.error { "can not find playing item's mediaId" }
                     return@launch
                 }
                 postEvent { PlaylistDetailEvent.ScrollToItem(mediaId) }
@@ -168,7 +169,7 @@ class PlaylistDetailVM(
             }
 
             else -> {
-                Logger.i(tag = TAG, messageString = "Not implemented action: $intent")
+                logger.info { "Not implemented action: $intent" }
             }
         }
     }

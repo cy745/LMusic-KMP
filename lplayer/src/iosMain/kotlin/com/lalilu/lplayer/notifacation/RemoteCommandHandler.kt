@@ -1,6 +1,6 @@
 package com.lalilu.lplayer.notifacation
 
-import co.touchlab.kermit.Logger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
 import kotlinx.coroutines.CoroutineScope
@@ -12,8 +12,8 @@ import kotlin.coroutines.CoroutineContext
 object RemoteCommandHandler : CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io
     private val remoteCommandCenter = MPRemoteCommandCenter.sharedCommandCenter()
-    private val logger = Logger.withTag("RemoteCommandHandler")
-    fun debugLog(message: String) = logger.i(messageString = message)
+    private val logger = KotlinLogging.logger("RemoteCommandHandler")
+    fun debugLog(message: String) = logger.info { message }
 
 
     fun bindPlayback(playback: Playback) {

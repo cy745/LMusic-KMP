@@ -1,7 +1,7 @@
 package com.lalilu.lplayer.extensions
 
 import androidx.compose.animation.core.*
-import co.touchlab.kermit.Logger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import com.lalilu.common.ext.io
 import kotlinx.coroutines.*
 import kotlin.coroutines.CoroutineContext
@@ -12,6 +12,7 @@ class VolumeFadeHelper(
     val onGetVolume: (() -> Float)? = null
 ) : CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io
+    private val logger = KotlinLogging.logger("VolumeFadeHelper")
     private var currentVelocity: Float = 0f
     private var animationJob: Job? = null
 
@@ -28,7 +29,7 @@ class VolumeFadeHelper(
                 val newVolume = (value / 100f).coerceIn(0f..1f)
                 onSetVolume(newVolume)
                 if (debug) {
-                    Logger.i("onSetVolume: $newVolume")
+                    logger.info { "onSetVolume: $newVolume" }
                 }
             }
         }
@@ -40,7 +41,7 @@ class VolumeFadeHelper(
         }
         superPlay()
         if (debug) {
-            Logger.i("superPlay: $volumeOverride")
+            logger.info { "superPlay: $volumeOverride" }
         }
     }
 
@@ -53,7 +54,7 @@ class VolumeFadeHelper(
 
                 superPause()
                 if (debug) {
-                    Logger.i("superPause: $volumeOverride")
+                    logger.info { "superPause: $volumeOverride" }
                 }
             }
         }

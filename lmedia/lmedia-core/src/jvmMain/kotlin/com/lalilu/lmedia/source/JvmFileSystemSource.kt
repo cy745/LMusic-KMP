@@ -2,11 +2,11 @@ package com.lalilu.lmedia.source
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.entity.*
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +29,8 @@ class JvmFileSystemSource(
 
     private var loadingJob: Job? = null
 
+    private val logger = KotlinLogging.logger(name)
+
     override val config: MediaSourceConfig = buildConfig(
         key = name,
         name = "文件系统源",
@@ -42,7 +44,7 @@ class JvmFileSystemSource(
             description = "取消当前任务",
             isAvailable = { stateValue.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic } }
         ).onCall {
-            Logger.i(tag = name, messageString = "On Cancel")
+            logger.info { "On Cancel" }
             loadingJob?.cancel()
         }
 
@@ -51,7 +53,7 @@ class JvmFileSystemSource(
             description = "重置",
             isAvailable = { stateValue.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
         ).onCall {
-            Logger.i(tag = name, messageString = "On Reset")
+            logger.info { "On Reset" }
             stateFlow.value = stateFlow.value.copy(state = SnapshotState.Idle)
         }
 
@@ -60,7 +62,7 @@ class JvmFileSystemSource(
             description = "重新扫描",
             isAvailable = { stateValue.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
         ).onCall {
-            Logger.i(tag = name, messageString = "On Rescan")
+            logger.info { "On Rescan" }
 
             loadingJob?.cancel()
             loadingJob = scope.launch {

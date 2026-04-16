@@ -1,8 +1,8 @@
 package com.lalilu.lplayer.menu
 
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -13,6 +13,7 @@ import kotlin.coroutines.CoroutineContext
 
 class MacOSMenu(private val playback: Playback) : CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io
+    private val logger = KotlinLogging.logger { }
 
     /**
      * MACOS的根menu是不显示的，只是一个隐藏的容器
@@ -52,7 +53,7 @@ class MacOSMenu(private val playback: Playback) : CoroutineScope {
         Foundation.runOnMainThread {
             NSApplication.sharedApplication()
                 .setMainMenu(rootMenu)
-            Logger.i("菜单初始化完成")
+            logger.info { "菜单初始化完成" }
         }
     }
 

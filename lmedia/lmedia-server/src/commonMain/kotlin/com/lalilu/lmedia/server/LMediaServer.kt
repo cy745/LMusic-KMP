@@ -1,6 +1,5 @@
 package com.lalilu.lmedia.server
 
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.md5
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
@@ -8,6 +7,7 @@ import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.server.entity.RemoteServerConfig
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lmedia.source.MediaSource
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -92,6 +92,8 @@ private fun provideServer(
     }
 
     return embeddedServer(SERVER_ENGINE_FACTORY, port) {
+        val logger = KotlinLogging.logger("RemoteServer")
+
         install(CORS) {
             anyHost()
             anyMethod()
@@ -132,11 +134,7 @@ private fun provideServer(
                     call.respondText(lyric)
                 } catch (e: Exception) {
                     call.respondText(text = "${e.message}")
-                    Logger.e(
-                        tag = "RemoteServer",
-                        messageString = "getLyric: ${e.message}",
-                        throwable = e
-                    )
+                    logger.error(e) { "getLyric: ${e.message}" }
                 }
             }
             get("/picture/{id}") {
@@ -160,11 +158,7 @@ private fun provideServer(
                     }
                 } catch (e: Exception) {
                     call.respondText(text = "${e.message}")
-                    Logger.e(
-                        tag = "RemoteServer",
-                        messageString = "getPicture: ${e.message}",
-                        throwable = e
-                    )
+                    logger.error(e) { "getPicture: ${e.message}" }
                 }
             }
             get("/media/{id}") {
@@ -188,11 +182,7 @@ private fun provideServer(
                     }
                 } catch (e: Exception) {
                     call.respondText(text = "${e.message}")
-                    Logger.e(
-                        tag = "RemoteServer",
-                        messageString = "getMedia: ${e.message}",
-                        throwable = e
-                    )
+                    logger.error(e) { "getMedia: ${e.message}" }
                 }
             }
         }

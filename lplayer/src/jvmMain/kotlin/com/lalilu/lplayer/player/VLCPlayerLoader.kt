@@ -1,11 +1,11 @@
 package com.lalilu.lplayer.player
 
-import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.ReadyState
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.readyStateImpl
 import com.lalilu.lplayer.NativeExtractor
 import com.sun.jna.NativeLibrary
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -17,6 +17,7 @@ import kotlin.coroutines.CoroutineContext
 
 object VLCPlayerLoader : CoroutineScope, ReadyState by readyStateImpl() {
     override val coroutineContext: CoroutineContext = Dispatchers.io
+    private val logger = KotlinLogging.logger(TAG)
 
     const val TAG = "VLCPlayerLoader"
 
@@ -25,7 +26,7 @@ object VLCPlayerLoader : CoroutineScope, ReadyState by readyStateImpl() {
     }
 
     fun initialize(forceOverride: Boolean = false) = launch {
-        Logger.i(tag = TAG, messageString = "start Initialize")
+        logger.info { "start Initialize" }
 
         NativeExtractor.doExtract(forceOverride = forceOverride)
         val targetExtractDir = NativeExtractor.extractDir
@@ -48,7 +49,7 @@ object VLCPlayerLoader : CoroutineScope, ReadyState by readyStateImpl() {
         NativeDiscovery(*strategies)
             .discover()
 
-        Logger.i("NativeDiscovery completed")
+        logger.info { "NativeDiscovery completed" }
         onReady()
     }
 }

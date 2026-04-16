@@ -1,8 +1,8 @@
 package com.lalilu.navigation
 
 import androidx.navigation3.runtime.NavBackStack
-import co.touchlab.kermit.Logger
 import com.lalilu.krouter.KRouter
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -139,6 +139,7 @@ val DefaultHandler = NavHandler { backstack, intent ->
 
 @OptIn(DelicateCoroutinesApi::class)
 object AppRouter {
+    private val logger = KotlinLogging.logger {}
     private val sharedFlow = MutableSharedFlow<NavIntent>()
     private var handler: NavHandler = DefaultHandler
     private val interceptors = mutableListOf(
@@ -193,11 +194,7 @@ object AppRouter {
         private fun requestResult(): Screen? {
             val screen = runCatching { KRouter.route<Screen>(baseUrl, params) }
                 .getOrElse {
-                    Logger.e(
-                        tag = "AppRouter",
-                        messageString = "route request for [$baseUrl] Failed",
-                        throwable = it
-                    )
+                    logger.error(it) { "route request for [$baseUrl] Failed" }
                     null
                 }
             return screen?.wrapWith(params)

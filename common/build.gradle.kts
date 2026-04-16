@@ -48,10 +48,11 @@ applyMultiplatform {
     androidMain.dependencies {
         api("com.blankj:utilcodex:1.31.1")
         api(libs.ktor.client.okhttp)
+        api(libs.logback)
     }
     jvmMain.dependencies {
         api(libs.ktor.client.okhttp)
-        api("ch.qos.logback:logback-classic:1.5.18")
+        api(libs.logback)
     }
     iosMain?.dependencies {
         api(libs.ktor.client.darwin)
