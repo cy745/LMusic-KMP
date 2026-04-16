@@ -2,16 +2,16 @@ package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.flatten
-import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.extensions.VolumeFadeHelper
 import com.lalilu.lplayer.helper.*
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
 import com.lalilu.lplayer.notifacation.RemoteCommandHandler
 import kotlinx.cinterop.*
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import platform.AVFAudio.AVAudioPlayer
@@ -23,7 +23,7 @@ import platform.Foundation.*
 @OptIn(ExperimentalForeignApi::class)
 class AVPlayerPlayback(
     private val library: Library
-) : AbstractPlayback(), KoinComponent {
+) : AbstractPlayback(CoroutineScope(Dispatchers.Main + SupervisorJob())), KoinComponent {
     companion object Companion {
         const val TAG = "AVPlayerPlayback"
     }
@@ -75,7 +75,7 @@ class AVPlayerPlayback(
         }
     }
 
-    override suspend fun playItem(item: LAudio) {
+    private suspend fun playItem(item: LAudio, start: Boolean) = withContext(Dispatchers.Main) {
         AudioSessionHelper.ensureAudioSessionActive()
         val source = platformMediaSource.sources
             .firstOrNull { item.mediaSourceName == it.name }
@@ -105,7 +105,9 @@ class AVPlayerPlayback(
 
                 _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
                 avPlayer.replaceCurrentItemWithPlayerItem(playerItem)
-                avPlayer.play()
+                if (start) {
+                    avPlayer.play()
+                }
 
                 // 监听播放完成事件
                 AVPlayerItemEventObserver.observe(
@@ -113,7 +115,7 @@ class AVPlayerPlayback(
                     target = playerItem,
                     callback = {
                         debugLog("AVPlayerItemDidPlayToEndTimeNotification")
-                        this@AVPlayerPlayback.skipToNext()
+                        this@AVPlayerPlayback.onCompletion()
                     }
                 )
 
@@ -136,7 +138,7 @@ class AVPlayerPlayback(
                     player = player,
                     onFinishPlaying = { _, isSuccess ->
                         debugLog("AVAudioPlayerDidPlayToEndTimeNotification: $isSuccess")
-                        launch { this@AVPlayerPlayback.skipToNext() }
+                        launch { this@AVPlayerPlayback.onCompletion() }
                     },
                     onEndInterruptionWithFlags = { _, flags ->
                         debugLog("AVAudioPlayerDidEndInterruptionWithFlags: $flags")
@@ -159,9 +161,11 @@ class AVPlayerPlayback(
                 avPlayer.replaceCurrentItemWithPlayerItem(null)
                 player.volume = avPlayer.volume
                 player.prepareToPlay()
-                player.play()
+                if (start) {
+                    player.play()
+                    _isPlaying.value = true
+                }
 
-                _isPlaying.value = true
                 _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
                 _currentDuration.value = (player.duration * 1000L).toLong()
                 updateNavigationCapabilities()
@@ -176,7 +180,7 @@ class AVPlayerPlayback(
         }
     }
 
-    override suspend fun play() {
+    override suspend fun play() = withContext(Dispatchers.Main) {
         volumeFadeHelper.play()
         try {
             AudioSessionHelper.ensureAudioSessionActive()
@@ -186,7 +190,7 @@ class AVPlayerPlayback(
 
                 audioPlayer?.play()
                 _isPlaying.value = true
-                return
+                return@withContext
             }
 
             // 若player存在播放中的元素，则直接播放
@@ -195,7 +199,7 @@ class AVPlayerPlayback(
 
                 avPlayer.play()
                 _isPlaying.value = true
-                return
+                return@withContext
             }
 
             // 获取当前播放元素，并进行播放
@@ -203,7 +207,7 @@ class AVPlayerPlayback(
                 ?: throw Exception("No media to play")
             debugLog("playing: ${current.id} ${current.title} ${current.subtitle} ${current.mediaSourceName}")
 
-            playItem(current)
+            playItem(current, true)
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
             emitError(e)
@@ -212,16 +216,18 @@ class AVPlayerPlayback(
 
     override suspend fun pause() {
         _isPlaying.value = false
-        volumeFadeHelper.pause {
-            try {
-                if (audioPlayer != null) {
-                    audioPlayer?.pause()
-                } else {
-                    avPlayer.pause()
+        withContext(Dispatchers.Main) {
+            volumeFadeHelper.pause {
+                try {
+                    if (audioPlayer != null) {
+                        audioPlayer?.pause()
+                    } else {
+                        avPlayer.pause()
+                    }
+                } catch (e: Exception) {
+                    Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                    emitError(e)
                 }
-            } catch (e: Exception) {
-                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-                emitError(e)
             }
         }
     }
@@ -230,7 +236,7 @@ class AVPlayerPlayback(
         if (_isPlaying.value) pause() else play()
     }
 
-    override suspend fun stop() {
+    override suspend fun stop() = withContext(Dispatchers.Main) {
         try {
             audioPlayer?.stop()
             audioPlayer = null
@@ -245,7 +251,7 @@ class AVPlayerPlayback(
         }
     }
 
-    override suspend fun skipTo(index: Int) {
+    override suspend fun skipTo(index: Int, start: Boolean) = withContext(Dispatchers.Main) {
         try {
             val targetItem = _playlist.value.flatten<LAudio>().getOrNull(index)
                 ?: throw Exception("Invalid index")
@@ -253,7 +259,7 @@ class AVPlayerPlayback(
             if (targetItem.id == currentItem.value?.id) {
                 seekTo(0)
             } else {
-                playItem(targetItem)
+                playItem(targetItem, start)
             }
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
@@ -261,7 +267,7 @@ class AVPlayerPlayback(
         }
     }
 
-    override suspend fun seekTo(positionMs: Long) {
+    override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
         try {
             if (audioPlayer != null) {
                 audioPlayer?.setCurrentTime(positionMs / 1000.0)

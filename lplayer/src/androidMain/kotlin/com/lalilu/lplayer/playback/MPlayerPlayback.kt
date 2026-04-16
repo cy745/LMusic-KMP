@@ -4,9 +4,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
 import androidx.annotation.OptIn
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -18,10 +15,7 @@ import com.blankj.utilcode.util.LogUtils
 import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
-import com.lalilu.lmedia.entity.flatten
 import com.lalilu.lplayer.LPlayerKV
-import com.lalilu.lplayer.action.Action
-import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.extensions.MMedia
 import com.lalilu.lplayer.extensions.PlayMode
 import com.lalilu.lplayer.extensions.playMode
@@ -30,16 +24,13 @@ import com.lalilu.lplayer.service.CustomCommand
 import com.lalilu.lplayer.service.MService
 import com.lalilu.lplayer.service.saveHistoryIds
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.guava.await
-import kotlin.coroutines.CoroutineContext
 
 @OptIn(UnstableApi::class)
 class MPlayerPlayback(
     private val context: Context,
     private val library: Library
-) : CoroutineScope, Player.Listener, Playback, Runnable {
-    override val coroutineContext: CoroutineContext = Dispatchers.IO
+) : AbstractPlayback(CoroutineScope(Dispatchers.Main + SupervisorJob())), Player.Listener, Runnable {
     private val sessionToken by lazy {
         SessionToken(context, ComponentName(context, MService::class.java))
     }
@@ -51,50 +42,6 @@ class MPlayerPlayback(
             .Builder(context, sessionToken)
             .buildAsync()
     }
-
-    var pauseWhenCompletion: Boolean by mutableStateOf(false)
-        private set
-
-    // Protected mutable state flows
-    private val _playlist = MutableStateFlow<List<LItem>>(emptyList())
-    private val _currentItemIndex = MutableStateFlow(0)
-    private val _isPlaying = MutableStateFlow(false)
-    private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
-    private val _errors = MutableSharedFlow<Throwable>()
-    private val _currentDuration = MutableStateFlow(0L)
-    private val _currentBufferedPosition = MutableStateFlow(0L)
-    private val _canSeek = MutableStateFlow(false)
-    private val _canSkipNext = MutableStateFlow(false)
-    private val _canSkipPrevious = MutableStateFlow(false)
-    private val _playbackMode = MutableStateFlow(PlaybackMode.SEQUENTIAL)
-    private var shuffledIndices: List<Int> = emptyList()
-    private var currentIndexInShuffled: Int = 0
-
-    // Public state flows
-    override val playlist: StateFlow<List<LItem>> = _playlist.asStateFlow()
-    override val currentItemIndex: StateFlow<Int> = _currentItemIndex.asStateFlow()
-    override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
-    override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
-    override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
-    override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
-    override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
-    override val canSeek: StateFlow<Boolean> = _canSeek.asStateFlow()
-    override val canSkipNext: StateFlow<Boolean> = _canSkipNext.asStateFlow()
-    override val canSkipPrevious: StateFlow<Boolean> = _canSkipPrevious.asStateFlow()
-    override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
-
-    private val flattenedPlaylist: StateFlow<List<LAudio>> = _playlist
-        .flatten<LAudio>()
-        .stateIn(this, SharingStarted.Eagerly, emptyList())
-
-    // Computed properties
-    override val currentItem: StateFlow<LAudio?> = flattenedPlaylist
-        .combine(_currentItemIndex) { playlist, index -> playlist.getOrNull(index) }
-        .onEach {
-            val id = it?.id
-            if (id != null) LPlayerKV.historyPlayId.value = id else LPlayerKV.historyPlayId.remove()
-        }
-        .stateIn(this, SharingStarted.Eagerly, null)
 
     private var loadedHistories: List<LAudio> = emptyList()
 
@@ -137,45 +84,13 @@ class MPlayerPlayback(
         browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
         browser.setMediaItems(mediaItems, lastPlayIndex, lastPosition)
         browser.prepare()
-    }
 
-    fun doAction(action: Action) = launch(Dispatchers.Main) {
-        val browser = browserFuture.await()
-
-        when (action) {
-            is PlayerAction.SeekTo -> {
-                browser.seekTo(action.positionMs)
-            }
-
-//            is PlayerAction.CustomAction -> {}
-            is PlayerAction.PauseWhenCompletion -> {
-                pauseWhenCompletion = !action.cancel
-            }
-
-            is PlayerAction.AddToNext -> {
-                val item = browser.getItem(action.id).await().value ?: return@launch
-                val index = browser.currentTimeline.indexOf(action.id)
-
-                if (index != -1) {
-                    val offset = if (index > browser.currentMediaItemIndex) 1 else 0
-                    browser.moveMediaItem(index, browser.currentMediaItemIndex + offset)
-                } else {
-                    browser.addMediaItem(browser.currentMediaItemIndex + 1, item)
-                }
-            }
-
-            is PlayerAction.UpdateList -> {
-                val index = action.id?.let { action.ids.indexOf(it) }
-                    ?.takeIf { it >= 0 }
-                    ?: 0
-
-                val items = MMedia.mapItems(action.ids)
-                browser.setMediaItems(items, index, 0)
-                if (action.start) {
-                    browser.play()
-                }
-            }
-        }
+        // PLAY-02: Call updateItems() with explicit timeline/index instead of relying on
+        // onMediaItemTransition which may fire before timeline is updated
+        updateItems(
+            timeline = browser.currentTimeline.takeIf { it.windowCount > 0 },
+            currentIndex = lastPlayIndex
+        )
     }
 
     override fun currentPosition(): Long {
@@ -199,21 +114,14 @@ class MPlayerPlayback(
         stop()
     }
 
-    override suspend fun skipTo(
-        index: Int
-    ) = runWithBrowser {
+    override suspend fun skipTo(index: Int, start: Boolean) = runWithBrowser {
         if (index == -1) {
-            // TODO
-//            val item = browser.getItem(id)
-//                .await().value ?: return
-//
-//            browser.addMediaItem(0, item)
-//            browser.prepare()
-//            browser.play()
-        } else {
-            seekTo(index, 0)
-            play()
+            skipToPrevious()
+            return@runWithBrowser
         }
+
+        seekTo(index, 0)
+        if (start) play()
     }
 
     override suspend fun skipToNext() = runWithBrowser {
@@ -279,6 +187,15 @@ class MPlayerPlayback(
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         this@MPlayerPlayback._isPlaying.value = isPlaying
 
+        // PLAY-06: Update _playbackState based on isPlaying
+        currentItem.value?.let { item ->
+            this@MPlayerPlayback._playbackState.value = if (isPlaying) {
+                PlaybackState.Playing(item)
+            } else {
+                PlaybackState.Paused(item)
+            }
+        }
+
         loopJob?.cancel()
         if (isPlaying) {
             loopJob = launch {
@@ -294,16 +211,45 @@ class MPlayerPlayback(
 
     @OptIn(UnstableApi::class)
     override fun onPlaybackStateChanged(playbackState: Int) {
+        // PLAY-06: Map Media3 Player.STATE_* Int values to PlaybackState enum
+        // PlaybackState has: Idle, Loading(item), Playing(item), Paused(item), Error, Stopped
+        // No Buffering or Completed states exist, so map them to closest alternatives
+        this@MPlayerPlayback._playbackState.value = when (playbackState) {
+            Player.STATE_IDLE -> PlaybackState.Idle
+            Player.STATE_BUFFERING -> currentItem.value?.let { PlaybackState.Loading(it) }
+                ?: PlaybackState.Idle
 
+            Player.STATE_READY -> currentItem.value?.let {
+                if (_isPlaying.value) PlaybackState.Playing(it) else PlaybackState.Paused(it)
+            } ?: PlaybackState.Idle
+
+            Player.STATE_ENDED -> currentItem.value?.let { PlaybackState.Paused(it) }
+                ?: PlaybackState.Idle
+
+            else -> PlaybackState.Idle
+        }
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        _currentItemIndex.value = browserInstance?.currentMediaItemIndex ?: 0
-        updateItems()
+        val browser = browserInstance ?: return  // Guard against null (PLAY-02 safety)
+        _currentItemIndex.value = browser.currentMediaItemIndex
+        // PLAY-02: Pass explicit timeline to avoid stale browser state
+        updateItems(
+            timeline = browser.currentTimeline.takeIf { it.windowCount > 0 },
+            currentIndex = browser.currentMediaItemIndex
+        )
 
-        if (pauseWhenCompletion) {
+        // PLAY-01: KV persistence moved from currentItem.onEach
+        mediaItem?.let {
+            val id = it.mediaId
+            if (id.isNotEmpty()) LPlayerKV.historyPlayId.value = id
+            else LPlayerKV.historyPlayId.remove()
+        }
+
+        // PLAY-08: PauseWhenCompletion -- check inherited flag
+        if (_pauseWhenCompletion) {
             browserInstance?.pause()
-            pauseWhenCompletion = false
+            _pauseWhenCompletion = false
         }
     }
 
@@ -329,11 +275,12 @@ class MPlayerPlayback(
 
         _playlist.value = runBlocking { library.mapBy<LAudio>(ids) }
         _currentItemIndex.value = currentIndex
+        updateNavigationCapabilities()  // PLAY-05: Update canSkip* after index changes
         saveHistoryIds(mediaIds = ids)
     }
 
     suspend fun runWithBrowser(
-        block: MediaBrowser.() -> Unit = {}
+        block: suspend MediaBrowser.() -> Unit = {}
     ) = withContext(Dispatchers.IO) {
         val browser = browserFuture.await()
         withContext(Dispatchers.Main) {

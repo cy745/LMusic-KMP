@@ -32,8 +32,9 @@ abstract class AbstractPlayback(
     protected val _canSkipNext = MutableStateFlow(false)
     protected val _canSkipPrevious = MutableStateFlow(false)
     protected val _playbackMode = MutableStateFlow(PlaybackMode.SEQUENTIAL)
-    protected var shuffledIndices: List<Int> = emptyList()
-    protected var currentIndexInShuffled: Int = 0
+    protected var _pauseWhenCompletion: Boolean = false
+    protected var _shuffledIndices: List<Int> = emptyList()
+    protected var _currentIndexInShuffled: Int = 0
 
     // Public state flows
     override val playlist: StateFlow<List<LItem>> = _playlist.asStateFlow()
@@ -57,6 +58,13 @@ abstract class AbstractPlayback(
         .combine(_currentItemIndex) { playlist, index -> playlist.getOrNull(index) }
         .stateIn(this, SharingStarted.WhileSubscribed(), null)
 
+    /**
+     * 当播放完成时调用
+     */
+    protected suspend fun onCompletion() {
+        if (_pauseWhenCompletion) pause() else skipToNext()
+    }
+
     // Default implementations
     override suspend fun togglePlayPause() {
         if (_isPlaying.value) pause() else play()
@@ -69,11 +77,11 @@ abstract class AbstractPlayback(
         val nextIndex = when (_playbackMode.value) {
             PlaybackMode.SINGLE_LOOP -> _currentItemIndex.value
             PlaybackMode.SHUFFLE -> {
-                if (shuffledIndices.isEmpty()) {
+                if (_shuffledIndices.isEmpty()) {
                     updateShuffledIndices()
                 }
-                currentIndexInShuffled = (currentIndexInShuffled + 1) % shuffledIndices.size
-                shuffledIndices[currentIndexInShuffled]
+                _currentIndexInShuffled = (_currentIndexInShuffled + 1) % _shuffledIndices.size
+                _shuffledIndices[_currentIndexInShuffled]
             }
 
             PlaybackMode.LOOP -> (_currentItemIndex.value + 1) % flattened.size
@@ -87,7 +95,7 @@ abstract class AbstractPlayback(
         }
 
         if (nextIndex != -1) {
-            skipTo(nextIndex)
+            skipTo(index = nextIndex, start = true)
         }
     }
 
@@ -98,11 +106,11 @@ abstract class AbstractPlayback(
         val previousIndex = when (_playbackMode.value) {
             PlaybackMode.SINGLE_LOOP -> _currentItemIndex.value
             PlaybackMode.SHUFFLE -> {
-                if (shuffledIndices.isEmpty()) {
+                if (_shuffledIndices.isEmpty()) {
                     updateShuffledIndices()
                 }
-                currentIndexInShuffled = (currentIndexInShuffled - 1 + shuffledIndices.size) % shuffledIndices.size
-                shuffledIndices[currentIndexInShuffled]
+                _currentIndexInShuffled = (_currentIndexInShuffled - 1 + _shuffledIndices.size) % _shuffledIndices.size
+                _shuffledIndices[_currentIndexInShuffled]
             }
 
             PlaybackMode.LOOP -> (_currentItemIndex.value - 1 + flattened.size) % flattened.size
@@ -116,7 +124,7 @@ abstract class AbstractPlayback(
         }
 
         if (previousIndex != -1) {
-            skipTo(previousIndex)
+            skipTo(index = previousIndex, true)
         }
     }
 
@@ -130,14 +138,14 @@ abstract class AbstractPlayback(
 
     override suspend fun updatePlaylist(playlist: List<LItem>, startIndex: Int, start: Boolean) {
         updatePlaylist(playlist)
-        skipTo(startIndex) // TODO start 逻辑实现
+        skipTo(startIndex, start)
     }
 
     override suspend fun clearPlaylist() {
         _playlist.value = emptyList()
         _currentItemIndex.value = 0
-        shuffledIndices = emptyList()
-        currentIndexInShuffled = 0
+        _shuffledIndices = emptyList()
+        _currentIndexInShuffled = 0
         updateNavigationCapabilities()
     }
 
@@ -152,15 +160,19 @@ abstract class AbstractPlayback(
             if (mode == PlaybackMode.SHUFFLE) {
                 updateShuffledIndices()
                 // Update current index in shuffled list
-                currentIndexInShuffled = shuffledIndices.indexOf(_currentItemIndex.value).takeIf { it >= 0 } ?: 0
+                _currentIndexInShuffled = _shuffledIndices.indexOf(_currentItemIndex.value).takeIf { it >= 0 } ?: 0
             } else {
                 // When leaving shuffle mode, we might want to adjust the current index
                 // to match the original playlist order
                 if (oldMode == PlaybackMode.SHUFFLE) {
-                    _currentItemIndex.value = shuffledIndices.getOrNull(currentIndexInShuffled) ?: 0
+                    _currentItemIndex.value = _shuffledIndices.getOrNull(_currentIndexInShuffled) ?: 0
                 }
             }
         }
+    }
+
+    override suspend fun setPauseWhenCompletion(cancel: Boolean) {
+        _pauseWhenCompletion = !cancel
     }
 
     // Helper methods
@@ -191,10 +203,10 @@ abstract class AbstractPlayback(
         }
     }
 
-    protected fun updateShuffledIndices() {
+    private fun updateShuffledIndices() {
         val size = _playlist.value.flatten<LAudio>().size
-        shuffledIndices = (0 until size).toList().shuffled(Random.Default)
-        currentIndexInShuffled = shuffledIndices.indexOf(_currentItemIndex.value).takeIf { it >= 0 } ?: 0
+        _shuffledIndices = (0 until size).toList().shuffled(Random.Default)
+        _currentIndexInShuffled = _shuffledIndices.indexOf(_currentItemIndex.value).takeIf { it >= 0 } ?: 0
     }
 
     protected fun emitError(error: Throwable) {
@@ -203,11 +215,4 @@ abstract class AbstractPlayback(
             _playbackState.value = PlaybackState.Error(error)
         }
     }
-
-    protected fun updatePlaybackState(state: PlaybackState) {
-        _playbackState.value = state
-    }
-
-    // Abstract methods that platform implementations must provide
-    protected abstract suspend fun playItem(item: LAudio)
 }

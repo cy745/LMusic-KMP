@@ -4,6 +4,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
+import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.PlayMode
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -46,13 +47,18 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
 
             PlayerAction.SkipToNext -> LPlayer.instance.skipToNext()
             PlayerAction.SkipToPrevious -> LPlayer.instance.skipToPrevious()
-            is PlayerAction.SkipToIndex -> LPlayer.instance.skipTo(action.index)
+            is PlayerAction.SetPlayMode -> {
+                LPlayerKV.playMode.value = action.playMode.name
+            }
+
+            is PlayerAction.PauseWhenCompletion -> LPlayer.instance.setPauseWhenCompletion(action.cancel)
+            is PlayerAction.SkipToIndex -> LPlayer.instance.skipTo(action.index, true)
             is PlayerAction.SeekTo -> LPlayer.instance.seekTo(action.positionMs)
             is PlayerAction.PlayById -> {
                 val index = LPlayer.instance.playlist.value
                     .indexOfFirst { item -> item.idValue() == action.id }
 
-                LPlayer.instance.skipTo(index)
+                LPlayer.instance.skipTo(index, true)
             }
 
             is PlayerAction.UpdateList -> {

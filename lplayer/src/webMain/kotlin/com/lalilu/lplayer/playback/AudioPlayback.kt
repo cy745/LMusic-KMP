@@ -2,9 +2,9 @@ package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.flatten
-import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.notification.BrowserMediaSessionHelper
 import io.github.vinceglb.filekit.utils.toJsArray
@@ -16,6 +16,7 @@ import org.w3c.dom.url.URL
 import org.w3c.files.Blob
 import org.w3c.files.BlobPropertyBag
 
+@OptIn(ExperimentalWasmJsInterop::class)
 class AudioPlayback(
     private val library: Library
 ) : AbstractPlayback(), KoinComponent {
@@ -33,7 +34,7 @@ class AudioPlayback(
         }
     }
 
-    override suspend fun playItem(item: LAudio) {
+    private suspend fun playItem(item: LAudio, start: Boolean) {
         val source = platformMediaSource.sources
             .firstOrNull { item.mediaSourceName == it.name }
             ?: throw Exception("No source item found for ${item.mediaSourceName}")
@@ -61,8 +62,10 @@ class AudioPlayback(
             }
         }
 
-        player.play()
-        _isPlaying.value = true
+        if (start) {
+            player.play()
+            _isPlaying.value = true
+        }
         _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
         updateNavigationCapabilities()
     }
@@ -77,7 +80,7 @@ class AudioPlayback(
                 val current = currentItem.value
                     ?: throw Exception("No media to play")
 
-                playItem(current)
+                playItem(current, true)
             }
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
@@ -111,7 +114,7 @@ class AudioPlayback(
         }
     }
 
-    override suspend fun skipTo(index: Int) {
+    override suspend fun skipTo(index: Int, start: Boolean) {
         try {
             val targetItem = _playlist.value.flatten<LAudio>().getOrNull(index)
                 ?: throw Exception("Invalid index")
@@ -119,7 +122,7 @@ class AudioPlayback(
             if (targetItem.id == currentItem.value?.id) {
                 seekTo(0)
             } else {
-                playItem(targetItem)
+                playItem(targetItem, start)
             }
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)

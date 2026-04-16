@@ -1,10 +1,10 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
+import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.entity.flatten
-import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.notification.MacOSNotification
@@ -45,7 +45,7 @@ class VLCPlayback(
         }
     }
 
-    override suspend fun playItem(item: LAudio) {
+    private suspend fun playItem(item: LAudio, start: Boolean) {
         val source = library.requireMediaSource(item.source())
 
         when (val data = source.dataSource.getMedia(item)) {
@@ -70,7 +70,9 @@ class VLCPlayback(
             }
         }
         lastRecordTime = -1
-        player.controls().play()
+        if (start) {
+            player.controls().play()
+        }
         _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
         updateNavigationCapabilities()
     }
@@ -84,7 +86,7 @@ class VLCPlayback(
                 val current = currentItem.value
                     ?: throw Exception("No media to play")
 
-                playItem(current)
+                playItem(current, true)
             }
         } catch (e: Exception) {
             Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
@@ -129,7 +131,7 @@ class VLCPlayback(
         }
     }
 
-    override suspend fun skipTo(index: Int) {
+    override suspend fun skipTo(index: Int, start: Boolean) {
         try {
             val targetItem = playlist.value.flatten<LAudio>().getOrNull(index)
                 ?: throw Exception("Invalid index")
@@ -138,7 +140,7 @@ class VLCPlayback(
             if (targetItem.id == currentItem.value?.id) {
                 seekTo(0)
             } else {
-                playItem(targetItem)
+                playItem(targetItem, start)
             }
 
             // TODO 启动时初始化播放数据为null，导致后续无法正常更新播放时长
@@ -156,6 +158,8 @@ class VLCPlayback(
 
     override suspend fun seekTo(positionMs: Long) {
         try {
+            lastTime = positionMs
+            lastRecordTime = -1
             player.controls().setTime(positionMs)
         } catch (e: Exception) {
             Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
@@ -189,7 +193,12 @@ class VLCPlayback(
             }
 
             override fun finished(mediaPlayer: MediaPlayer?) {
-                launch { skipToNext() }
+                if (_pauseWhenCompletion) {
+                    _pauseWhenCompletion = false
+                    _isPlaying.value = false
+                } else {
+                    launch { skipToNext() }
+                }
             }
 
             override fun timeChanged(mediaPlayer: MediaPlayer?, newTime: Long) {

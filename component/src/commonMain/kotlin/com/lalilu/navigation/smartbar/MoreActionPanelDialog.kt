@@ -74,8 +74,7 @@ private fun MoreActionPanelDialogContent(
             .fillMaxWidth()
             .wrapContentHeight()
             .padding(horizontal = 16.dp)
-            .padding(bottom = 8.dp)
-            .navigationBarsPadding(),
+            .padding(bottom = 8.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(0.1f)),
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.background,
