@@ -190,7 +190,7 @@ class AVPlayerPlayback(
 
                 audioPlayer?.play()
                 _isPlaying.value = true
-                return
+                return@withContext
             }
 
             // 若player存在播放中的元素，则直接播放
@@ -199,7 +199,7 @@ class AVPlayerPlayback(
 
                 avPlayer.play()
                 _isPlaying.value = true
-                return
+                return@withContext
             }
 
             // 获取当前播放元素，并进行播放
@@ -251,7 +251,7 @@ class AVPlayerPlayback(
         }
     }
 
-    override suspend fun skipTo(index: Int) = withContext(Dispatchers.Main) {
+    override suspend fun skipTo(index: Int): Unit = withContext(Dispatchers.Main) {
         try {
             val targetItem = _playlist.value.flatten<LAudio>().getOrNull(index)
                 ?: throw Exception("Invalid index")
@@ -267,7 +267,7 @@ class AVPlayerPlayback(
         }
     }
 
-    override suspend fun seekTo(positionMs: Long) = withContext(Dispatchers.Main) {
+    override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
         try {
             if (audioPlayer != null) {
                 audioPlayer?.setCurrentTime(positionMs / 1000.0)

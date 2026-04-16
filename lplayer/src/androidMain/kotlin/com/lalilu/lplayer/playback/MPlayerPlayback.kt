@@ -142,6 +142,14 @@ class MPlayerPlayback(
             .getOrNull() ?: 0L
     }
 
+    // PLAY-01: playItem loads single item into MediaBrowser
+    override suspend fun playItem(item: LAudio) = runWithBrowser {
+        val mediaItem = item.toMediaItem()
+        setMediaItems(listOf(mediaItem), 0, 0)
+        prepare()
+        play()
+    }
+
     override suspend fun play() = runWithBrowser {
         play()
     }
