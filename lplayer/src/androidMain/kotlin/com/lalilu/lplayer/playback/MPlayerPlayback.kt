@@ -289,7 +289,7 @@ class MPlayerPlayback(
     }
 
     suspend fun runWithBrowser(
-        block: MediaBrowser.() -> Unit = {}
+        block: suspend MediaBrowser.() -> Unit = {}
     ) = withContext(Dispatchers.IO) {
         val browser = browserFuture.await()
         withContext(Dispatchers.Main) {
