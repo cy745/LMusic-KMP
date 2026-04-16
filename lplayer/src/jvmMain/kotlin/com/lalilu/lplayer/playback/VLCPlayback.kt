@@ -156,6 +156,8 @@ class VLCPlayback(
 
     override suspend fun seekTo(positionMs: Long) {
         try {
+            lastTime = positionMs
+            lastRecordTime = -1
             player.controls().setTime(positionMs)
         } catch (e: Exception) {
             Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
