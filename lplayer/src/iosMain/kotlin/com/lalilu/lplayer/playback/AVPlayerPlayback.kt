@@ -216,16 +216,18 @@ class AVPlayerPlayback(
 
     override suspend fun pause() {
         _isPlaying.value = false
-        volumeFadeHelper.pause {
-            try {
-                if (audioPlayer != null) {
-                    audioPlayer?.pause()
-                } else {
-                    avPlayer.pause()
+        withContext(Dispatchers.Main) {
+            volumeFadeHelper.pause {
+                try {
+                    if (audioPlayer != null) {
+                        audioPlayer?.pause()
+                    } else {
+                        avPlayer.pause()
+                    }
+                } catch (e: Exception) {
+                    Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                    emitError(e)
                 }
-            } catch (e: Exception) {
-                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-                emitError(e)
             }
         }
     }
