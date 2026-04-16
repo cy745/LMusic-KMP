@@ -91,6 +91,13 @@ class MPlayerPlayback(
         browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
         browser.setMediaItems(mediaItems, lastPlayIndex, lastPosition)
         browser.prepare()
+
+        // PLAY-02: Call updateItems() with explicit timeline/index instead of relying on
+        // onMediaItemTransition which may fire before timeline is updated
+        updateItems(
+            timeline = browser.currentTimeline.takeIf { it.windowCount > 0 },
+            currentIndex = lastPlayIndex
+        )
     }
 
     fun doAction(action: Action) = launch(Dispatchers.Main) {
@@ -227,6 +234,15 @@ class MPlayerPlayback(
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         this@MPlayerPlayback._isPlaying.value = isPlaying
 
+        // PLAY-06: Update _playbackState based on isPlaying
+        currentItem.value?.let { item ->
+            this@MPlayerPlayback._playbackState.value = if (isPlaying) {
+                PlaybackState.Playing(item)
+            } else {
+                PlaybackState.Paused(item)
+            }
+        }
+
         loopJob?.cancel()
         if (isPlaying) {
             loopJob = launch {
@@ -242,12 +258,30 @@ class MPlayerPlayback(
 
     @OptIn(UnstableApi::class)
     override fun onPlaybackStateChanged(playbackState: Int) {
-
+        // PLAY-06: Map Media3 Player.STATE_* Int values to PlaybackState enum
+        // PlaybackState has: Idle, Loading(item), Playing(item), Paused(item), Error, Stopped
+        // No Buffering or Completed states exist, so map them to closest alternatives
+        this@MPlayerPlayback._playbackState.value = when (playbackState) {
+            Player.STATE_IDLE -> PlaybackState.Idle
+            Player.STATE_BUFFERING -> currentItem.value?.let { PlaybackState.Loading(it) }
+                ?: PlaybackState.Idle
+            Player.STATE_READY -> currentItem.value?.let {
+                if (_isPlaying.value) PlaybackState.Playing(it) else PlaybackState.Paused(it)
+            } ?: PlaybackState.Idle
+            Player.STATE_ENDED -> currentItem.value?.let { PlaybackState.Paused(it) }
+                ?: PlaybackState.Idle
+            else -> PlaybackState.Idle
+        }
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        _currentItemIndex.value = browserInstance?.currentMediaItemIndex ?: 0
-        updateItems()
+        val browser = browserInstance ?: return  // Guard against null (PLAY-02 safety)
+        _currentItemIndex.value = browser.currentMediaItemIndex
+        // PLAY-02: Pass explicit timeline to avoid stale browser state
+        updateItems(
+            timeline = browser.currentTimeline.takeIf { it.windowCount > 0 },
+            currentIndex = browser.currentMediaItemIndex
+        )
 
         // PLAY-01: KV persistence moved from currentItem.onEach
         mediaItem?.let {
@@ -285,6 +319,7 @@ class MPlayerPlayback(
 
         _playlist.value = runBlocking { library.mapBy<LAudio>(ids) }
         _currentItemIndex.value = currentIndex
+        updateNavigationCapabilities()  // PLAY-05: Update canSkip* after index changes
         saveHistoryIds(mediaIds = ids)
     }
 
