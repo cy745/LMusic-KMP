@@ -33,7 +33,6 @@ fun KoinApplication.koinSetup() {
     modules(SharedModule)
     modules(AppModule.module)
     modules(LHomeModule.module)
-    modules(LPlayerModule.module)
     modules(
         ServiceLoader.load(KModule::class)
             .map(KModule::get)

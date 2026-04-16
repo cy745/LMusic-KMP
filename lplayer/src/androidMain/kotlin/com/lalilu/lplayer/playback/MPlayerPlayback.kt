@@ -1,6 +1,7 @@
 package com.lalilu.lplayer.playback
 
 import android.content.ComponentName
+import android.content.Context
 import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
@@ -14,7 +15,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import com.blankj.utilcode.util.LogUtils
-import com.blankj.utilcode.util.Utils
 import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
@@ -36,18 +36,19 @@ import kotlin.coroutines.CoroutineContext
 
 @OptIn(UnstableApi::class)
 class MPlayerPlayback(
+    private val context: Context,
     private val library: Library
 ) : CoroutineScope, Player.Listener, Playback, Runnable {
     override val coroutineContext: CoroutineContext = Dispatchers.IO
     private val sessionToken by lazy {
-        SessionToken(Utils.getApp(), ComponentName(Utils.getApp(), MService::class.java))
+        SessionToken(context, ComponentName(context, MService::class.java))
     }
 
     private var loopJob: Job? = null
     private var browserInstance: MediaBrowser? = null
     private val browserFuture by lazy {
         MediaBrowser
-            .Builder(Utils.getApp(), sessionToken)
+            .Builder(context, sessionToken)
             .buildAsync()
     }
 

@@ -1,18 +1,11 @@
 package com.lalilu.lplayer
 
-import com.lalilu.lmedia.data.Library
 import com.lalilu.lplayer.playback.Playback
-import com.lalilu.lplayer.playback.platformPlayback
-import org.koin.core.annotation.Single
 import org.koin.mp.KoinPlatform
 
-
-@Single(createdAtStart = true)
-class LPlayer(library: Library) : Playback by platformPlayback(library) {
-
+class LPlayer {
     companion object {
-        val instance: LPlayer by KoinPlatform.getKoin()
-            .inject<LPlayer>()
+        val instance: Playback by KoinPlatform.getKoin()
+            .inject<Playback>()
     }
 }
-
