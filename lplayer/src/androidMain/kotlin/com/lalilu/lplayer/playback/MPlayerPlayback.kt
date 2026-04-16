@@ -4,9 +4,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
 import androidx.annotation.OptIn
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -32,14 +29,12 @@ import com.lalilu.lplayer.service.saveHistoryIds
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.guava.await
-import kotlin.coroutines.CoroutineContext
 
 @OptIn(UnstableApi::class)
 class MPlayerPlayback(
     private val context: Context,
     private val library: Library
-) : CoroutineScope, Player.Listener, Playback, Runnable {
-    override val coroutineContext: CoroutineContext = Dispatchers.IO
+) : AbstractPlayback(CoroutineScope(Dispatchers.Main + SupervisorJob())), Player.Listener, Runnable {
     private val sessionToken by lazy {
         SessionToken(context, ComponentName(context, MService::class.java))
     }
@@ -52,49 +47,8 @@ class MPlayerPlayback(
             .buildAsync()
     }
 
-    var pauseWhenCompletion: Boolean by mutableStateOf(false)
-        private set
-
-    // Protected mutable state flows
-    private val _playlist = MutableStateFlow<List<LItem>>(emptyList())
-    private val _currentItemIndex = MutableStateFlow(0)
-    private val _isPlaying = MutableStateFlow(false)
-    private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
-    private val _errors = MutableSharedFlow<Throwable>()
-    private val _currentDuration = MutableStateFlow(0L)
-    private val _currentBufferedPosition = MutableStateFlow(0L)
-    private val _canSeek = MutableStateFlow(false)
-    private val _canSkipNext = MutableStateFlow(false)
-    private val _canSkipPrevious = MutableStateFlow(false)
-    private val _playbackMode = MutableStateFlow(PlaybackMode.SEQUENTIAL)
-    private var shuffledIndices: List<Int> = emptyList()
-    private var currentIndexInShuffled: Int = 0
-
-    // Public state flows
-    override val playlist: StateFlow<List<LItem>> = _playlist.asStateFlow()
-    override val currentItemIndex: StateFlow<Int> = _currentItemIndex.asStateFlow()
-    override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
-    override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
-    override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
-    override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
-    override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
-    override val canSeek: StateFlow<Boolean> = _canSeek.asStateFlow()
-    override val canSkipNext: StateFlow<Boolean> = _canSkipNext.asStateFlow()
-    override val canSkipPrevious: StateFlow<Boolean> = _canSkipPrevious.asStateFlow()
-    override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
-
-    private val flattenedPlaylist: StateFlow<List<LAudio>> = _playlist
-        .flatten<LAudio>()
-        .stateIn(this, SharingStarted.Eagerly, emptyList())
-
-    // Computed properties
-    override val currentItem: StateFlow<LAudio?> = flattenedPlaylist
-        .combine(_currentItemIndex) { playlist, index -> playlist.getOrNull(index) }
-        .onEach {
-            val id = it?.id
-            if (id != null) LPlayerKV.historyPlayId.value = id else LPlayerKV.historyPlayId.remove()
-        }
-        .stateIn(this, SharingStarted.Eagerly, null)
+    // Protected mutable state flows (now inherited from AbstractPlayback)
+    // shuffledIndices and currentIndexInShuffled (now inherited from AbstractPlayback)
 
     private var loadedHistories: List<LAudio> = emptyList()
 
@@ -148,9 +102,7 @@ class MPlayerPlayback(
             }
 
 //            is PlayerAction.CustomAction -> {}
-            is PlayerAction.PauseWhenCompletion -> {
-                pauseWhenCompletion = !action.cancel
-            }
+//            is PlayerAction.PauseWhenCompletion -> {} // Handled via setPauseWhenCompletion() in PlayerAction.android.kt
 
             is PlayerAction.AddToNext -> {
                 val item = browser.getItem(action.id).await().value ?: return@launch
@@ -199,17 +151,13 @@ class MPlayerPlayback(
         stop()
     }
 
-    override suspend fun skipTo(
-        index: Int
-    ) = runWithBrowser {
+    // PLAY-09: skipTo(-1) delegates to skipToPrevious()
+    // PLAY-07: start parameter handled by AbstractPlayback.skipTo(index,start)
+    // MPlayerPlayback overrides the single-arg version for MediaBrowser API
+    override suspend fun skipTo(index: Int) = runWithBrowser {
         if (index == -1) {
-            // TODO
-//            val item = browser.getItem(id)
-//                .await().value ?: return
-//
-//            browser.addMediaItem(0, item)
-//            browser.prepare()
-//            browser.play()
+            // D-03: skipTo(-1) means "previous track"
+            skipToPrevious()
         } else {
             seekTo(index, 0)
             play()
@@ -301,9 +249,17 @@ class MPlayerPlayback(
         _currentItemIndex.value = browserInstance?.currentMediaItemIndex ?: 0
         updateItems()
 
-        if (pauseWhenCompletion) {
+        // PLAY-01: KV persistence moved from currentItem.onEach
+        mediaItem?.let {
+            val id = it.mediaId
+            if (id.isNotEmpty()) LPlayerKV.historyPlayId.value = id
+            else LPlayerKV.historyPlayId.remove()
+        }
+
+        // PLAY-08: PauseWhenCompletion -- check inherited flag
+        if (_pauseWhenCompletion) {
             browserInstance?.pause()
-            pauseWhenCompletion = false
+            _pauseWhenCompletion = false
         }
     }
 
