@@ -89,6 +89,15 @@ private abstract class CustomSearchPathStrategy(
     override fun onFound(path: String?): Boolean = true
 
     override fun onSetPluginPath(path: String?): Boolean {
-        return LibC.INSTANCE.setenv("VLC_PLUGIN_PATH", pluginsPath, 1) == 0
+        return when {
+            RuntimeUtil.isWindows() -> {
+                System.setProperty("VLC_PLUGIN_PATH", pluginsPath)
+                true
+            }
+
+            else -> {
+                LibC.INSTANCE.setenv("VLC_PLUGIN_PATH", pluginsPath, 1) == 0
+            }
+        }
     }
 }
