@@ -13,6 +13,7 @@ import androidx.media3.session.*
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession.ConnectionResult.AcceptedResultBuilder
+import co.touchlab.kermit.Logger
 import com.blankj.utilcode.util.ActivityUtils
 import com.blankj.utilcode.util.AppUtils
 import com.google.common.collect.ImmutableList
@@ -22,7 +23,6 @@ import com.lalilu.common.kv.KVContext
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.*
-import com.lalilu.lplayer.extensions.setUpQueueControl
 import com.lalilu.lplayer.playback.IPlaybackDataTracker
 import com.lalilu.lplayer.service.CustomCommand.SeekToNext
 import com.lalilu.lplayer.service.CustomCommand.SeekToPrevious
@@ -161,10 +161,17 @@ private class MPlayerListener(
 
 @OptIn(UnstableApi::class)
 private class MServiceCallback(private val player: Player) : MediaLibrarySession.Callback {
+    private val logger = Logger.withTag("MServiceCallback")
+
     override fun onConnect(
         session: MediaSession,
         controller: MediaSession.ControllerInfo
     ): MediaSession.ConnectionResult {
+        logger.i {
+            "onConnect: packageName=${controller.packageName}, uid=${controller.uid}, " +
+                    "isTrusted=${controller.isTrusted}, controllerVersion=${controller.controllerVersion}"
+        }
+
         val sessionCommands = MediaSession.ConnectionResult
             .DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
             .registerCustomCommands()
@@ -172,7 +179,9 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
 
         return AcceptedResultBuilder(session)
             .setAvailableSessionCommands(sessionCommands)
-            .build()
+            .build().also {
+                logger.i { "onConnect: accepted with ${it.availableSessionCommands.commands.size} sessionCommands and ${it.availablePlayerCommands.size()} playerCommands" }
+            }
     }
 
     override fun onCustomCommand(
@@ -181,10 +190,20 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         customCommand: SessionCommand,
         args: Bundle
     ): ListenableFuture<SessionResult> {
+        logger.i {
+            "onCustomCommand: customAction=${customCommand.customAction}, " +
+                    "args=$args, packageName=${controller.packageName}"
+        }
+
         return CoroutineScope(Dispatchers.IO).future {
             val action = customCommand.toCustomCommendOrNull()
-                ?: SessionResult(SessionError.ERROR_NOT_SUPPORTED)
 
+            if (action == null) {
+                logger.i { "onCustomCommand: unsupported customAction=${customCommand.customAction}" }
+                return@future SessionResult(SessionError.ERROR_NOT_SUPPORTED)
+            }
+
+            logger.i { "onCustomCommand: executing action=$action" }
             withContext(Dispatchers.Main) {
                 when (action) {
                     SeekToNext -> player.seekToNext()
@@ -213,9 +232,15 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         session: MediaLibrarySession,
         browser: MediaSession.ControllerInfo,
         params: LibraryParams?
-    ): ListenableFuture<LibraryResult<MediaItem>> = Futures.immediateFuture(
-        LibraryResult.ofItem(buildBrowsableItem(MMedia.ROOT, "LMedia Library"), params)
-    )
+    ): ListenableFuture<LibraryResult<MediaItem>> {
+        logger.i {
+            "onGetLibraryRoot: packageName=${browser.packageName}, " +
+                    "isTrusted=${browser.isTrusted}, params=$params"
+        }
+        return Futures.immediateFuture(
+            LibraryResult.ofItem(buildBrowsableItem(MMedia.ROOT, "LMedia Library"), params)
+        )
+    }
 
     override fun onGetChildren(
         session: MediaLibrarySession,
@@ -225,9 +250,14 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         pageSize: Int,
         params: LibraryParams?
     ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+        logger.i {
+            "onGetChildren: parentId=$parentId, page=$page, pageSize=$pageSize, " +
+                    "packageName=${browser.packageName}"
+        }
+
         return CoroutineScope(Dispatchers.IO).future {
-            if (parentId == MMedia.ROOT) {
-                return@future LibraryResult.ofItemList(
+            val result = if (parentId == MMedia.ROOT) {
+                LibraryResult.ofItemList(
                     listOf(
                         buildBrowsableItem(MMedia.ALL_SONGS, "All Songs"),
                         buildBrowsableItem(MMedia.ALL_ARTISTS, "All Artists"),
@@ -235,8 +265,12 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
                     ),
                     params
                 )
+            } else {
+                LibraryResult.ofItemList(MMedia.getChildren(parentId), params)
             }
-            LibraryResult.ofItemList(MMedia.getChildren(parentId), params)
+
+            logger.i { "onGetChildren: parentId=$parentId, resultItemCount=${result.value?.size}" }
+            result
         }
     }
 
@@ -245,11 +279,24 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         browser: MediaSession.ControllerInfo,
         mediaId: String
     ): ListenableFuture<LibraryResult<MediaItem>> {
+        logger.i {
+            "onGetItem: mediaId=$mediaId, packageName=${browser.packageName}"
+        }
+
         return CoroutineScope(Dispatchers.IO).future {
+            if (mediaId == MMedia.ROOT) {
+                return@future LibraryResult.ofItem(buildBrowsableItem(MMedia.ROOT, "LMedia Library"), null)
+            }
+
             val item = MMedia.getItem(mediaId)
 
-            if (item != null) LibraryResult.ofItem(item, null)
-            else LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
+            if (item != null) {
+                logger.i { "onGetItem: mediaId=$mediaId found, title=${item.mediaMetadata.title}" }
+                LibraryResult.ofItem(item, null)
+            } else {
+                logger.i { "onGetItem: mediaId=$mediaId not found" }
+                LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
+            }
         }
     }
 
@@ -260,9 +307,21 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         startIndex: Int,
         startPositionMs: Long
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        logger.i {
+            "onSetMediaItems: ids=${mediaItems.map { it.mediaId }}, " +
+                    "startIndex=$startIndex, startPositionMs=$startPositionMs, " +
+                    "packageName=${controller.packageName}"
+        }
+
         return CoroutineScope(Dispatchers.IO).future {
             val ids = mediaItems.map { it.mediaId }
             val items = MMedia.getItems(ids)
+
+            logger.i {
+                "onSetMediaItems: requested=${ids.size} ids, " +
+                        "resolved=${items.size} items, " +
+                        "items=${items.map { it.mediaId }}"
+            }
 
             MediaSession.MediaItemsWithStartPosition(
                 items,
@@ -277,9 +336,18 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         controller: MediaSession.ControllerInfo,
         mediaItems: MutableList<MediaItem>
     ): ListenableFuture<MutableList<MediaItem>> {
+        logger.i {
+            "onAddMediaItems: ids=${mediaItems.map { it.mediaId }}, " +
+                    "packageName=${controller.packageName}"
+        }
+
         return CoroutineScope(Dispatchers.IO).future {
             val ids = mediaItems.map { it.mediaId }
             val items = MMedia.getItems(ids)
+
+            logger.i {
+                "onAddMediaItems: requested=${ids.size} ids, resolved=${items.size} items"
+            }
 
             items.toMutableList()
         }
@@ -289,11 +357,19 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         mediaSession: MediaSession,
         controller: MediaSession.ControllerInfo
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        logger.i {
+            "onPlaybackResumption: packageName=${controller.packageName}"
+        }
+
         return CoroutineScope(Dispatchers.IO).future {
             val history = LPlayerKV.historyPlaylistIds.getData()
 
+            logger.i { "onPlaybackResumption: historySize=${history.size}, history=$history" }
+
             val items = if (history.isNotEmpty()) history.mapNotNull { mediaId -> MMedia.getItem(mediaId) }
             else MMedia.getChildren(MMedia.ALL_SONGS)
+
+            logger.i { "onPlaybackResumption: resolvedItems=${items.size}, source=${if (history.isNotEmpty()) "history" else "allSongs"}" }
 
             MediaSession.MediaItemsWithStartPosition(items, 0, 0L)
         }

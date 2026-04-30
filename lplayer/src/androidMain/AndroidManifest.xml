@@ -11,8 +11,10 @@
                 android:exported="true"
                 android:foregroundServiceType="mediaPlayback">
             <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService"/>
                 <action android:name="androidx.media3.session.MediaSessionService"/>
                 <action android:name="android.media.browse.MediaBrowserService"/>
+                <action android:name="android.support.v4.media.MediaBrowserCompat"/>
             </intent-filter>
         </service>
 
