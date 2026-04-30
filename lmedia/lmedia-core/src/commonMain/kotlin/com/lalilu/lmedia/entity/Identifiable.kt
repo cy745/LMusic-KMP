@@ -1,5 +1,7 @@
 package com.lalilu.lmedia.entity
 
+import androidx.annotation.CallSuper
+
 /**
  * 定义具有唯一标识符的实体接口。
  * 实现此接口的类必须提供一个返回唯一字符串 ID 的方法。
@@ -10,5 +12,11 @@ interface Identifiable {
      *
      * @return 代表该实体唯一身份的字符串 ID。
      */
-    fun idValue(): String
+    @CallSuper
+    fun idValue(): String = idPrefix()
+
+    /**
+     * 获取实体的标识符前缀。
+     */
+    fun idPrefix(): String = ""
 }

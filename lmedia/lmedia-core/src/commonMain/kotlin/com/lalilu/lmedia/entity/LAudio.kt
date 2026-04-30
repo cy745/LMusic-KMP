@@ -31,7 +31,8 @@ data class LAudio(
     override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
 
     // Identifiable implementation
-    override fun idValue(): String = id
+    override fun idValue(): String = "${super.idValue()}$id"
+    override fun idPrefix(): String = ID_PREFIX
 
     // Describable implementation
     override fun titleValue(): String = title
@@ -60,6 +61,10 @@ data class LAudio(
             Sortable.COMPARE_KEY_DURATION -> extra?.get("duration")?.toLongOrNull() ?: metadata.duration
             else -> super.getValueBy<T>(key)
         } as? T?
+    }
+
+    companion object {
+        const val ID_PREFIX = "audio_"
     }
 }
 

@@ -64,11 +64,21 @@ class LMedia(
 
     override fun <T : LItem> getSourcesFlowByClass(clazz: KClass<T>): Flow<Map<String, T>>? {
         return when (clazz) {
-            LAudio::class -> database.audioDao().getAllAudio().mapLatest { list -> list.associateBy { it.id } }
-            LArtist::class -> database.artistDao().getAllArtist().mapLatest { list -> list.associateBy { it.id } }
-            LAlbum::class -> database.albumDao().getAllAlbum().mapLatest { list -> list.associateBy { it.id } }
-            LGenre::class -> database.genreDao().getAllGenre().mapLatest { list -> list.associateBy { it.id } }
-            LFolder::class -> database.folderDao().getAllFolder().mapLatest { list -> list.associateBy { it.id } }
+            LAudio::class -> database.audioDao().getAllAudio()
+                .mapLatest { list -> list.associateBy { it.idValue() } }
+
+            LArtist::class -> database.artistDao().getAllArtist()
+                .mapLatest { list -> list.associateBy { it.idValue() } }
+
+            LAlbum::class -> database.albumDao().getAllAlbum()
+                .mapLatest { list -> list.associateBy { it.idValue() } }
+
+            LGenre::class -> database.genreDao().getAllGenre()
+                .mapLatest { list -> list.associateBy { it.idValue() } }
+
+            LFolder::class -> database.folderDao().getAllFolder()
+                .mapLatest { list -> list.associateBy { it.idValue() } }
+
             else -> null
         } as Flow<Map<String, T>>?
     }

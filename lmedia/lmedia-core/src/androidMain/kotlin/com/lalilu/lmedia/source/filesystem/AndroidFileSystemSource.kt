@@ -180,7 +180,7 @@ class AndroidFileSystemSource(
     }
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
-        val audio = stateFlow.value.audios.firstOrNull { it.idValue() == song.id }
+        val audio = stateFlow.value.audios.firstOrNull { it.idValue() == song.idValue() }
 
         val sourceItem = audio?.sourceItem
             ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
@@ -222,7 +222,7 @@ class AndroidFileSystemSource(
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? = withContext(Dispatchers.io) {
-        val audio = stateFlow.value.audios.firstOrNull { it.idValue() == song.id }
+        val audio = stateFlow.value.audios.firstOrNull { it.idValue() == song.idValue() }
 
         val sourceItem = audio?.sourceItem
             ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
@@ -264,7 +264,7 @@ class AndroidFileSystemSource(
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? = withContext(Dispatchers.io) {
-        val audio = stateFlow.value.audios.firstOrNull { it.idValue() == song.id }
+        val audio = stateFlow.value.audios.firstOrNull { it.idValue() == song.idValue() }
 
         val sourceItem = audio?.sourceItem
             ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
