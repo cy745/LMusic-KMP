@@ -14,30 +14,16 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.Assertions
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
-import androidx.media3.session.CommandButton
-import androidx.media3.session.DefaultMediaNotificationProvider
-import androidx.media3.session.DefaultMediaNotificationProvider.COMMAND_KEY_COMPACT_VIEW_INDEX
-import androidx.media3.session.DefaultMediaNotificationProvider.GROUP_KEY
-import androidx.media3.session.DefaultMediaNotificationProvider.NotificationIdProvider
-import androidx.media3.session.MediaNotification
+import androidx.media3.session.*
 import androidx.media3.session.MediaNotification.Provider.Callback
-import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaStyleNotificationHelper
-import androidx.media3.session.R
-import androidx.media3.session.SessionCommand
 import coil3.Bitmap
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.toBitmap
 import com.google.common.collect.ImmutableList
 import com.lalilu.lplayer.extensions.FlymeStatusLyricHelper
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import java.util.Arrays
+import kotlinx.coroutines.*
+import java.util.*
 import kotlin.coroutines.CoroutineContext
 
 
@@ -53,9 +39,10 @@ class MNotificationProvider(
     val flymeStatusLyricHelper by lazy { FlymeStatusLyricHelper() }
     private val channelId: String = DefaultMediaNotificationProvider.DEFAULT_CHANNEL_ID
     private val channelName: String by lazy { getString(DefaultMediaNotificationProvider.DEFAULT_CHANNEL_NAME_RESOURCE_ID) }
-    private val notificationIdProvider = NotificationIdProvider { session: MediaSession? ->
-        DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID
-    }
+    private val notificationIdProvider =
+        DefaultMediaNotificationProvider.NotificationIdProvider { session: MediaSession? ->
+            DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID
+        }
 
     override fun createNotification(
         mediaSession: MediaSession,
@@ -92,10 +79,7 @@ class MNotificationProvider(
         if (player.isCommandAvailable(Player.COMMAND_STOP) || Util.SDK_INT < 21) {
             // We must include a cancel intent for pre-L devices.
             mediaStyle.setCancelButtonIntent(
-                actionFactory.createMediaActionPendingIntent(
-                    mediaSession,
-                    Player.COMMAND_STOP.toLong()
-                )
+                actionFactory.createMediaActionPendingIntent(mediaSession, Player.COMMAND_STOP)
             )
         }
 
@@ -104,15 +88,13 @@ class MNotificationProvider(
             .setStyle(mediaStyle)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(false)
-            .setGroup(GROUP_KEY)
+            .setGroup(DefaultMediaNotificationProvider.GROUP_KEY)
             .setWhen(if (displayElapsedTimeWithChronometer) playbackStartTimeMs else 0L)
             .setShowWhen(displayElapsedTimeWithChronometer)
             .setUsesChronometer(displayElapsedTimeWithChronometer)
             .setContentIntent(mediaSession.sessionActivity)
             .setDeleteIntent(
-                actionFactory.createMediaActionPendingIntent(
-                    mediaSession, Player.COMMAND_STOP.toLong()
-                )
+                actionFactory.createMediaActionPendingIntent(mediaSession, Player.COMMAND_STOP)
             )
 
         if (Util.SDK_INT >= 31) {
@@ -156,6 +138,13 @@ class MNotificationProvider(
         extras: Bundle
     ): Boolean {
         return false
+    }
+
+    override fun getNotificationChannelInfo(): MediaNotification.Provider.NotificationChannelInfo {
+        return MediaNotification.Provider.NotificationChannelInfo(
+            channelId,
+            channelName
+        )
     }
 
     private var loadedKey: Any? = null
@@ -304,7 +293,7 @@ class MNotificationProvider(
             }
 
             val compactViewIndex = button.extras
-                .getInt(COMMAND_KEY_COMPACT_VIEW_INDEX, C.INDEX_UNSET)
+                .getInt(DefaultMediaNotificationProvider.COMMAND_KEY_COMPACT_VIEW_INDEX, C.INDEX_UNSET)
 
             if (compactViewIndex >= 0 && compactViewIndex < compactViewIndices.size) {
                 // 将当前展开状态下的元素index存储在，收窄状态数组中的自定义index位置处
@@ -336,7 +325,7 @@ class MNotificationProvider(
 
     private fun getString(resId: Int): String = context.getString(resId)
     private fun createCommandButtonExtra() =
-        Bundle().apply { putInt(COMMAND_KEY_COMPACT_VIEW_INDEX, C.INDEX_UNSET) }
+        Bundle().apply { putInt(DefaultMediaNotificationProvider.COMMAND_KEY_COMPACT_VIEW_INDEX, C.INDEX_UNSET) }
 
     private fun getPlaybackStartTimeEpochMs(player: Player): Long {
         // Changing "showWhen" causes notification flicker if SDK_INT < 21.
