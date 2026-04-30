@@ -29,6 +29,7 @@ import com.lalilu.lplayer.service.CustomCommand.SeekToPrevious
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.guava.future
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.koin.mp.KoinPlatform
@@ -180,15 +181,19 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         customCommand: SessionCommand,
         args: Bundle
     ): ListenableFuture<SessionResult> {
-        val action = customCommand.toCustomCommendOrNull()
-            ?: return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
+        return CoroutineScope(Dispatchers.IO).future {
+            val action = customCommand.toCustomCommendOrNull()
+                ?: SessionResult(SessionError.ERROR_NOT_SUPPORTED)
 
-        when (action) {
-            SeekToNext -> player.seekToNext()
-            SeekToPrevious -> player.seekToPrevious()
+            withContext(Dispatchers.Main) {
+                when (action) {
+                    SeekToNext -> player.seekToNext()
+                    SeekToPrevious -> player.seekToPrevious()
+                }
+            }
+
+            SessionResult(SessionResult.RESULT_SUCCESS)
         }
-
-        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
     }
 
     private fun buildBrowsableItem(id: String, title: String): MediaItem {
@@ -202,10 +207,6 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
             .setMediaId(id)
             .setMediaMetadata(metadata)
             .build()
-    }
-
-    private fun resolveMediaItems(mediaItems: List<MediaItem>): List<MediaItem> {
-        return mediaItems.mapNotNull { item -> MMedia.getItem(item.mediaId) }
     }
 
     override fun onGetLibraryRoot(
@@ -224,9 +225,9 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         pageSize: Int,
         params: LibraryParams?
     ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
-        if (parentId == MMedia.ROOT) {
-            return Futures.immediateFuture(
-                LibraryResult.ofItemList(
+        return CoroutineScope(Dispatchers.IO).future {
+            if (parentId == MMedia.ROOT) {
+                return@future LibraryResult.ofItemList(
                     listOf(
                         buildBrowsableItem(MMedia.ALL_SONGS, "All Songs"),
                         buildBrowsableItem(MMedia.ALL_ARTISTS, "All Artists"),
@@ -234,12 +235,9 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
                     ),
                     params
                 )
-            )
-        }
-
-        return Futures.immediateFuture(
+            }
             LibraryResult.ofItemList(MMedia.getChildren(parentId), params)
-        )
+        }
     }
 
     override fun onGetItem(
@@ -247,12 +245,12 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         browser: MediaSession.ControllerInfo,
         mediaId: String
     ): ListenableFuture<LibraryResult<MediaItem>> {
-        val item = MMedia.getItem(mediaId)
+        return CoroutineScope(Dispatchers.IO).future {
+            val item = MMedia.getItem(mediaId)
 
-        return Futures.immediateFuture(
             if (item != null) LibraryResult.ofItem(item, null)
             else LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
-        )
+        }
     }
 
     override fun onSetMediaItems(
@@ -261,31 +259,44 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         mediaItems: MutableList<MediaItem>,
         startIndex: Int,
         startPositionMs: Long
-    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = Futures.immediateFuture(
-        MediaSession.MediaItemsWithStartPosition(
-            resolveMediaItems(mediaItems),
-            startIndex,
-            startPositionMs
-        )
-    )
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        return CoroutineScope(Dispatchers.IO).future {
+            val ids = mediaItems.map { it.mediaId }
+            val items = MMedia.getItems(ids)
+
+            MediaSession.MediaItemsWithStartPosition(
+                items,
+                startIndex,
+                startPositionMs
+            )
+        }
+    }
 
     override fun onAddMediaItems(
         mediaSession: MediaSession,
         controller: MediaSession.ControllerInfo,
         mediaItems: MutableList<MediaItem>
-    ): ListenableFuture<MutableList<MediaItem>> = Futures.immediateFuture(
-        resolveMediaItems(mediaItems).toMutableList()
-    )
+    ): ListenableFuture<MutableList<MediaItem>> {
+        return CoroutineScope(Dispatchers.IO).future {
+            val ids = mediaItems.map { it.mediaId }
+            val items = MMedia.getItems(ids)
+
+            items.toMutableList()
+        }
+    }
 
     override fun onPlaybackResumption(
         mediaSession: MediaSession,
         controller: MediaSession.ControllerInfo
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-        return Futures.submitAsync({
-            Futures.immediateFuture(
-                MediaSession.MediaItemsWithStartPosition(getHistoryItems(), 0, 0L)
-            )
-        }, Dispatchers.IO.asExecutor())
+        return CoroutineScope(Dispatchers.IO).future {
+            val history = LPlayerKV.historyPlaylistIds.getData()
+
+            val items = if (history.isNotEmpty()) history.mapNotNull { mediaId -> MMedia.getItem(mediaId) }
+            else MMedia.getChildren(MMedia.ALL_SONGS)
+
+            MediaSession.MediaItemsWithStartPosition(items, 0, 0L)
+        }
     }
 }
 
@@ -298,15 +309,4 @@ private fun Context.getLauncherPendingIntent(): PendingIntent {
             )
         }, PendingIntent.FLAG_IMMUTABLE
     )
-}
-
-internal fun getHistoryItems(): List<MediaItem> {
-    val history = LPlayerKV.historyPlaylistIds.getData()
-
-    return if (history.isNotEmpty()) MMedia.mapItems(history)
-    else MMedia.getChildren(MMedia.ALL_SONGS)
-}
-
-internal fun saveHistoryIds(mediaIds: List<String>) {
-    LPlayerKV.historyPlaylistIds.setData(mediaIds)
 }

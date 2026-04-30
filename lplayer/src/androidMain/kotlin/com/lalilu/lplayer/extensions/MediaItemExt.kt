@@ -13,12 +13,13 @@ import com.lalilu.lmedia.entity.LGenre
 import com.lalilu.lmedia.entity.ref
 import android.net.Uri
 import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.entity.refCount
 import io.ktor.http.encodeURLPathPart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
-fun LAudio.toMediaItem(): MediaItem {
+fun LAudio.toMediaItem(parentId: String? = null): MediaItem {
     val uri = Uri.Builder()
         .scheme("lmusic")
         .path("audio")
@@ -26,8 +27,9 @@ fun LAudio.toMediaItem(): MediaItem {
         .build()
 
     return MediaItem.Builder()
-        .setMediaId(id)
+        .setMediaId(idValue())
         .setUri(uri)
+        .setTag(parentId)
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
@@ -48,7 +50,7 @@ fun LAudio.toMediaItem(): MediaItem {
 
 fun LArtist.toMediaItem(): MediaItem {
     return MediaItem.Builder()
-        .setMediaId("${MMedia.ARTIST_PREFIX}$id")
+        .setMediaId(idValue())
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
@@ -63,7 +65,7 @@ fun LArtist.toMediaItem(): MediaItem {
 
 fun LAlbum.toMediaItem(): MediaItem {
     return MediaItem.Builder()
-        .setMediaId("${MMedia.ALBUM_PREFIX}$id")
+        .setMediaId(idValue())
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
@@ -78,7 +80,7 @@ fun LAlbum.toMediaItem(): MediaItem {
 
 fun LFolder.toMediaItem(): MediaItem {
     return MediaItem.Builder()
-        .setMediaId("${MMedia.FOLDER_PREFIX}$id")
+        .setMediaId(idValue())
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
@@ -93,7 +95,7 @@ fun LFolder.toMediaItem(): MediaItem {
 
 fun LGenre.toMediaItem(): MediaItem {
     return MediaItem.Builder()
-        .setMediaId("${MMedia.GENRE_PREFIX}$id")
+        .setMediaId(idValue())
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
@@ -106,62 +108,37 @@ fun LGenre.toMediaItem(): MediaItem {
         .build()
 }
 
-object MMedia {
-    const val ARTIST_PREFIX = "artist_"
-    const val ALBUM_PREFIX = "album_"
-    const val GENRE_PREFIX = "genre_"
-    const val FOLDER_PREFIX = "folder_"
+fun LItem.toMediaItem(): MediaItem? {
+    return when (this) {
+        is LAudio -> toMediaItem()
+        is LArtist -> toMediaItem()
+        is LAlbum -> toMediaItem()
+        is LGenre -> toMediaItem()
+        is LFolder -> toMediaItem()
+        else -> null
+    }
+}
 
+object MMedia {
     const val ROOT = "root"
     const val ALL_SONGS = "all_songs"
     const val ALL_ARTISTS = "all_artists"
     const val ALL_ALBUMS = "all_albums"
 
-    fun getItem(mediaId: String): MediaItem? = LMedia.instance.run {
-        runBlocking(Dispatchers.IO) {
-            when {
-                mediaId.startsWith(ARTIST_PREFIX) -> get<LArtist>(mediaId)?.toMediaItem()
-                mediaId.startsWith(ALBUM_PREFIX) -> get<LAlbum>(mediaId)?.toMediaItem()
-                mediaId.startsWith(GENRE_PREFIX) -> get<LGenre>(mediaId)?.toMediaItem()
-                mediaId.startsWith(FOLDER_PREFIX) -> get<LFolder>(mediaId)?.toMediaItem()
-                else -> get<LAudio>(mediaId)?.toMediaItem()
-            }
-        }
+    suspend fun getItem(mediaId: String): MediaItem? = withContext(Dispatchers.IO) {
+        LMedia.instance.getByPrefix(mediaId)?.toMediaItem()
     }
 
-    fun mapItems(mediaIds: List<String>): List<MediaItem> {
-        return mediaIds.mapNotNull { getItem(mediaId = it) }
+    suspend fun getItems(mediaIds: List<String>): List<MediaItem> = withContext(Dispatchers.IO) {
+        LMedia.instance.mapByByPrefix(mediaIds).mapNotNull { it.toMediaItem() }
     }
 
-    fun getChildren(parentId: String): List<MediaItem> = LMedia.instance.run {
-        runBlocking {
-            when {
-                parentId == "all_songs" -> {
-                    get<LAudio>().map { it.toMediaItem() }
-                }
+    suspend fun getChildren(parentId: String): List<MediaItem> = withContext(Dispatchers.IO) {
+        if (parentId == ALL_SONGS) return@withContext LMedia.instance.get<LAlbum>().map { it.toMediaItem() }
 
-                parentId.startsWith(ARTIST_PREFIX) -> {
-                    val mediaId = parentId.substring(ARTIST_PREFIX.length)
-                    get<LArtist>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
-                }
-
-                parentId.startsWith(ALBUM_PREFIX) -> {
-                    val mediaId = parentId.substring(ALBUM_PREFIX.length)
-                    get<LAlbum>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
-                }
-
-                parentId.startsWith(GENRE_PREFIX) -> {
-                    val mediaId = parentId.substring(GENRE_PREFIX.length)
-                    get<LGenre>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
-                }
-
-                parentId.startsWith(FOLDER_PREFIX) -> {
-                    val mediaId = parentId.substring(FOLDER_PREFIX.length)
-                    get<LFolder>(mediaId)?.ref<LAudio>()?.map { it.toMediaItem() }
-                }
-
-                else -> emptyList()
-            } ?: emptyList()
-        }
+        LMedia.instance.getByPrefix(parentId)
+            ?.ref<LAudio>()
+            ?.map { it.toMediaItem(parentId) }
+            ?: emptyList()
     }
 }

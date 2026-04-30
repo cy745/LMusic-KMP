@@ -1,13 +1,23 @@
 package com.lalilu.lmedia.data
 
+import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.entity.LAlbum
+import com.lalilu.lmedia.entity.LArtist
+import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.LFolder
+import com.lalilu.lmedia.entity.LGenre
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.source.MediaSource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.withContext
 import kotlin.reflect.KClass
 
 
@@ -50,4 +60,21 @@ abstract class Library {
         getSourcesFlowByClass(T::class)
             ?.mapLatest { it.values.toList() }
             ?: flowOf(emptyList())
+
+    suspend fun getByPrefix(mediaId: String): LItem? {
+        return when {
+            mediaId.startsWith(LArtist.ID_PREFIX) -> get<LArtist>(mediaId.substringAfter(LArtist.ID_PREFIX))
+            mediaId.startsWith(LAlbum.ID_PREFIX) -> get<LAlbum>(mediaId.substringAfter(LAlbum.ID_PREFIX))
+            mediaId.startsWith(LGenre.ID_PREFIX) -> get<LGenre>(mediaId.substringAfter(LGenre.ID_PREFIX))
+            mediaId.startsWith(LFolder.ID_PREFIX) -> get<LFolder>(mediaId.substringAfter(LFolder.ID_PREFIX))
+            mediaId.startsWith(LAudio.ID_PREFIX) -> get<LAudio>(mediaId.substringAfter(LAudio.ID_PREFIX))
+            else -> get<LAudio>(mediaId)
+        }
+    }
+
+    suspend fun mapByByPrefix(ids: List<String>): List<LItem> = withContext(Dispatchers.io) {
+        ids.map { mediaId -> async { getByPrefix(mediaId) } }
+            .awaitAll()
+            .filterNotNull()
+    }
 }
