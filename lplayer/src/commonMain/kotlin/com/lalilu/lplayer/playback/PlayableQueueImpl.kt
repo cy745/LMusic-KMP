@@ -55,7 +55,7 @@ class PlayableQueueImpl(
                 targetIndex = newList.indexOfFirst { it.key == currentKey }
             }
 
-            newList to targetIndex.coerceIn(0, newList.lastIndex)
+            newList to targetIndex.coerceAtMost(newList.lastIndex)
         }
     }
 
