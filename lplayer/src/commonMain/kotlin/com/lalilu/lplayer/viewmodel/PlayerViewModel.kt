@@ -10,8 +10,9 @@ import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
@@ -24,17 +25,10 @@ class PlayerViewModel(
     val currentItem = LPlayer.instance.currentItem
     val currentTime = mutableStateOf(0L)
     val lyricItems = mutableStateOf<List<LyricItem>>(emptyList())
-    val currentPlaylist = LPlayer.instance.playlist
-        .combine(LPlayer.instance.currentItem) { list, item ->
-            val indexOfFirst = list
-                .indexOfFirst { it.idValue() == item?.idValue() }
-                .coerceAtLeast(0)
 
-            list.runCatching { drop(indexOfFirst) + take(indexOfFirst) }
-                .getOrNull()
-                ?.mapNotNull { item -> item as? LAudio }
-                ?: emptyList()
-        }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val currentPlaylist = LPlayer.instance.playlist
+        .mapLatest { it.filterIsInstance<LAudio>() }
         .toState(
             scope = viewModelScope,
             defaultValue = emptyList()

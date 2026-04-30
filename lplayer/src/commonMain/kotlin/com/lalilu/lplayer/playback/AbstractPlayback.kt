@@ -38,7 +38,6 @@ abstract class AbstractPlayback(
 
     // Public state flows
     override val playlist: StateFlow<List<LItem>> = _playlist.asStateFlow()
-    override val currentItemIndex: StateFlow<Int> = _currentItemIndex.asStateFlow()
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
     override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
     override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()

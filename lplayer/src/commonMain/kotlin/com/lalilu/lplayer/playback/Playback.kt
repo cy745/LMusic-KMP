@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.StateFlow
 
 
 interface Playback {
+    val queue: PlayableQueue
+        get() = PlayableQueueImpl() // TODO 待移除
+
     // Playback State
     val isPlaying: StateFlow<Boolean>
     val playbackState: StateFlow<PlaybackState>
@@ -26,7 +29,6 @@ interface Playback {
     // Queue Management
     val playlist: StateFlow<List<LItem>>
     val currentItem: StateFlow<LAudio?>
-    val currentItemIndex: StateFlow<Int>
 
     // Controls
     suspend fun play()
