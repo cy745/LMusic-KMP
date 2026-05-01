@@ -71,7 +71,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
         vm.bindToLifecycle()
 
         val isPlaying = vm.isPlaying.collectAsState()
-        val currentItem = vm.currentItem.collectAsState()
+        val currentItem = vm.currentItem.collectAsState(null)
         val currentTime = vm.currentTime
         val isLyricScrollEnable = remember { mutableStateOf(false) }
 
@@ -259,7 +259,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                 PlaylistLayout(
                     modifier = modifier,
                     listState = listState,
-                    items = { vm.currentPlaylist.value },
+                    items = { vm.currentQueue.value },
                 )
             },
             overlayContent = {

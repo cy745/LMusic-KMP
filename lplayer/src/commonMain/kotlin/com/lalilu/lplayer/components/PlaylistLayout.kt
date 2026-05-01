@@ -24,6 +24,7 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.SongCard
 import com.lalilu.lplayer.action.PlayerAction
+import com.lalilu.lplayer.playback.Playable
 import com.lalilu.navigation.AppRouter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -35,16 +36,27 @@ fun PlaylistLayout(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     forceRefresh: () -> Boolean = { false },
-    items: () -> List<LAudio> = { emptyList() }
+    items: () -> List<Playable.Item<LAudio>> = { emptyList() }
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalPlatformContext.current
 
-    var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
+    val list by remember { derivedStateOf(items) }
+    var actualItems by remember { mutableStateOf(emptyList<Item<Playable.Item<LAudio>>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
 
-    LaunchedEffect(items()) {
-        val newList = actualItems.diff(items()) { it.id }
+    LaunchedEffect(list) {
+        val newList = actualItems.diff(
+            items = list,
+            getId = { it.key },
+            isSameItem = { a, b -> a.key == b.key },
+            isSameContent = { a, b ->
+                a.key == b.key
+                        && a.item.title == b.item.title
+                        && a.item.subtitle == b.item.subtitle
+                        && a.item.mediaSourceName == b.item.mediaSourceName
+            }
+        )
         val newListFirst = newList.firstOrNull()
         val oldListFirst = actualItems.firstOrNull()
 
@@ -88,23 +100,24 @@ fun PlaylistLayout(
                 if (index == 0 && isPlaying.value) MaterialTheme.colorScheme.onBackground.copy(0.01f)
                 else Color.Transparent
             )
+            val data = item.data.item
 
             SongCard(
                 modifier = Modifier
                     .animateItem()
                     .drawBehind { drawRect(color = bgColor.value) },
-                id = item.data.id,
-                imageData = item.data,
-                title = item.data.title,
-                subtitle = item.data.subtitle,
-                onClick = { PlayerAction.PlayById(item.data.id).action() },
+                id = data.idValue(),
+                imageData = data,
+                title = data.title,
+                subtitle = data.subtitle,
+                onClick = { PlayerAction.PlayById(data.idValue()).action() },
                 onLongClick = { sharedMap ->
                     val imageLoader = SingletonImageLoader.get(context)
                     val coverMemoryKey = imageLoader.components.key(item, Options(context))
 
                     AppRouter.route("/song/detail")
-                        .with("mediaId", item.data.id)
-                        .with("song", item.data)
+                        .with("mediaId", data.idValue())
+                        .with("song", data)
                         .with("sharedMap", sharedMap)
                         .with("coverCacheKey", coverMemoryKey)
                         .jump()

@@ -295,7 +295,7 @@ fun SongsScreenContent(
 
                 itemsIndexedWithRecord(
                     items = items,
-                    key = { index, item -> item.id },
+                    key = { index, item -> item.idValue() },
                     contentType = { index, item -> item::class }
                 ) { index, item ->
                     val extra = extras.getOrNull(index)

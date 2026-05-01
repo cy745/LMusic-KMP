@@ -17,22 +17,19 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @Single
 class PlayerViewModel(
     private val platformSource: PlatformMediaSource
 ) : ViewModel(), LifecycleEventObserver {
     val isPlaying = LPlayer.instance.isPlaying
-    val currentItem = LPlayer.instance.currentItem
+    val currentItem = LPlayer.instance.queue.currentItemFlow().mapLatest { it?.item }
     val currentTime = mutableStateOf(0L)
     val lyricItems = mutableStateOf<List<LyricItem>>(emptyList())
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val currentPlaylist = LPlayer.instance.playlist
-        .mapLatest { it.filterIsInstance<LAudio>() }
-        .toState(
-            scope = viewModelScope,
-            defaultValue = emptyList()
-        )
+    val currentQueue = LPlayer.instance.queue.expandedItems
+        .mapLatest { it.rearrange() }
+        .toState(scope = viewModelScope, defaultValue = emptyList())
 
     init {
         // TODO 待重构启动时填充播放列表的逻辑
@@ -44,7 +41,7 @@ class PlayerViewModel(
 //            }
 //        }
 
-        LPlayer.instance.currentItem
+        currentItem
             .onEach { lyricItems.value = retrieveLyric(it) }
             .launchIn(viewModelScope)
     }

@@ -112,7 +112,8 @@ class MacOSNotification(
             nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
         }.launchIn(this)
 
-        playback.currentItem.onEach { audio ->
+        playback.queue.currentItemFlow().onEach {
+            val audio = it?.item
             Logger.i("currentItem: $audio")
 
             val title = audio?.title ?: "Unknown"

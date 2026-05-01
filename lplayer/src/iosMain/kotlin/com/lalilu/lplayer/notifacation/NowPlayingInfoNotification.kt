@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
@@ -38,8 +39,9 @@ object NowPlayingInfoNotification : CoroutineScope {
 
     fun bindPlayback(playback: Playback) {
         debugLog("Binding playback to NowPlayingInfoNotification")
-        playback.currentItem
-            .onEach { track ->
+        playback.queue.currentItemFlow()
+            .onEach { item ->
+                val track = item?.item
                 debugLog("Received new track: ${track?.title} by ${track?.subtitle}")
                 nowPlayingInfo.apply {
                     this[MPMediaItemPropertyTitle] = track?.title ?: ""

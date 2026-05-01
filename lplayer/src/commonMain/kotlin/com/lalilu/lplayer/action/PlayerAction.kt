@@ -55,8 +55,9 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
             is PlayerAction.SkipToIndex -> LPlayer.instance.skipTo(action.index, true)
             is PlayerAction.SeekTo -> LPlayer.instance.seekTo(action.positionMs)
             is PlayerAction.PlayById -> {
-                val index = LPlayer.instance.playlist.value
-                    .indexOfFirst { item -> item.idValue() == action.id }
+                // TODO 待重构播放列表逻辑
+                val index = LPlayer.instance.queue.stateSnapshot().list
+                    .indexOfFirst { item -> item.item.idValue() == action.id }
 
                 LPlayer.instance.skipTo(index, true)
             }

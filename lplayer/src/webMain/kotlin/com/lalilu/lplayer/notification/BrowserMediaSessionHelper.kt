@@ -19,6 +19,7 @@ import org.w3c.dom.url.URL
 import kotlin.coroutines.CoroutineContext
 
 
+@OptIn(ExperimentalWasmJsInterop::class)
 object BrowserMediaSessionHelper : CoroutineScope, KoinComponent {
     override val coroutineContext: CoroutineContext = Dispatchers.io
     private val logger = Logger.withTag("BrowserMediaSessionHelper")
@@ -43,7 +44,8 @@ object BrowserMediaSessionHelper : CoroutineScope, KoinComponent {
             launch { playback.skipToNext() }
         }
 
-        playback.currentItem.onEach { item ->
+        playback.queue.currentItemFlow().onEach {
+            val item = it?.item
             item?.let {
                 createMetadata(
                     it.title,

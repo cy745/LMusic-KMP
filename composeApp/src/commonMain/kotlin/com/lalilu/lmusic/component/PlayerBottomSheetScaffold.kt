@@ -66,7 +66,8 @@ fun PlayerBottomSheetContent(
     smartBarContent: @Composable (Modifier) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
-    val currentPlaying = LPlayer.instance.currentItem.collectAsState(null)
+    val currentPlaying = remember { LPlayer.instance.queue.currentItemFlow() }
+        .collectAsState(null)
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
     val hasNext = LPlayer.instance.canSkipNext.collectAsState(false)
     val currentDuration = LPlayer.instance.currentDuration.collectAsState(0L)
@@ -115,7 +116,7 @@ fun PlayerBottomSheetContent(
         ) {
             PlayingInfoCard(
                 modifier = Modifier,
-                currentPlaying = { currentPlaying.value },
+                currentPlaying = { currentPlaying.value?.item },
                 currentProgress = {
                     (currentPosition.value / currentDuration.value.toFloat()).coerceIn(0f, 1f)
                 },

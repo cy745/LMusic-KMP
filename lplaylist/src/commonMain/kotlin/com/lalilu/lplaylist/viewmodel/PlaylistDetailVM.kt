@@ -12,11 +12,7 @@ import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.toState
 import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.sortable.GroupId
-import com.lalilu.lmedia.sortable.SortAction
-import com.lalilu.lmedia.sortable.SortConfig
-import com.lalilu.lmedia.sortable.SortManager
-import com.lalilu.lmedia.sortable.doSortState
+import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplaylist.entity.LPlaylist
 import com.lalilu.lplaylist.repository.PlaylistRepository
@@ -148,7 +144,7 @@ class PlaylistDetailVM(
             }
 
             is PlaylistDetailAction.LocaleToPlayingItem -> {
-                val mediaId = LPlayer.instance.currentItem.value?.idValue() ?: run {
+                val mediaId = LPlayer.instance.queue.currentItem()?.item?.idValue() ?: run {
                     Logger.e(tag = TAG, messageString = "can not find playing item's mediaId")
                     return@launch
                 }
