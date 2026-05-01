@@ -4,7 +4,6 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.flatten
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.extensions.VolumeFadeHelper
 import com.lalilu.lplayer.helper.*
@@ -64,7 +63,6 @@ class AVPlayerPlayback(
                 debugLog("status: AVPlayerStatusReadyToPlay")
                 _isPlaying.value = true
                 playerItem.duration.useContents { _currentDuration.value = toMilliseconds().toLong() }
-                updateNavigationCapabilities()
                 avPlayer.play()
             }
 
@@ -75,13 +73,15 @@ class AVPlayerPlayback(
         }
     }
 
-    private suspend fun playItem(item: LAudio, start: Boolean) = withContext(Dispatchers.Main) {
+    private suspend fun playItem(item: Playable.Item<LAudio>, start: Boolean) = withContext(Dispatchers.Main) {
         AudioSessionHelper.ensureAudioSessionActive()
-        val source = platformMediaSource.sources
-            .firstOrNull { item.mediaSourceName == it.name }
-            ?: throw Exception("No source item found for ${item.mediaSourceName}")
 
-        when (val data = source.dataSource.getMedia(item)) {
+        val target = item.item
+        val source = platformMediaSource.sources
+            .firstOrNull { target.mediaSourceName == it.name }
+            ?: throw Exception("No source item found for ${target.mediaSourceName}")
+
+        when (val data = source.dataSource.getMedia(target)) {
             is MediaData.Url -> {
                 // 移除旧的监听
                 avPlayer.currentItem?.removeObserver(
@@ -103,7 +103,8 @@ class AVPlayerPlayback(
                     context = observerContext
                 )
 
-                _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
+                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.key == item.key }
+                queue.switchTo(index = targetIndex)
                 avPlayer.replaceCurrentItemWithPlayerItem(playerItem)
                 if (start) {
                     avPlayer.play()
@@ -166,9 +167,9 @@ class AVPlayerPlayback(
                     _isPlaying.value = true
                 }
 
-                _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
+                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.key == item.key }
+                queue.switchTo(index = targetIndex)
                 _currentDuration.value = (player.duration * 1000L).toLong()
-                updateNavigationCapabilities()
 
                 audioPlayer?.stop()
                 audioPlayer = player
@@ -203,9 +204,9 @@ class AVPlayerPlayback(
             }
 
             // 获取当前播放元素，并进行播放
-            val current = currentItem.value
+            val current = queue.currentItem()
                 ?: throw Exception("No media to play")
-            debugLog("playing: ${current.id} ${current.title} ${current.subtitle} ${current.mediaSourceName}")
+            debugLog("playing: ${current.item.id} ${current.item.title} ${current.item.subtitle} ${current.item.mediaSourceName}")
 
             playItem(current, true)
         } catch (e: Exception) {
@@ -243,8 +244,6 @@ class AVPlayerPlayback(
             avPlayer.pause()
             avPlayer.replaceCurrentItemWithPlayerItem(null)
             _isPlaying.value = false
-            _currentItemIndex.value = 0
-            updateNavigationCapabilities()
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
             emitError(e)
@@ -253,12 +252,12 @@ class AVPlayerPlayback(
 
     override suspend fun skipTo(index: Int, start: Boolean) = withContext(Dispatchers.Main) {
         try {
-            val targetItem = _playlist.value.flatten<LAudio>().getOrNull(index)
-                ?: throw Exception("Invalid index")
-
-            if (targetItem.id == currentItem.value?.id) {
+            val state = queue.stateSnapshot()
+            if (index == state.index) {
                 seekTo(0)
             } else {
+                val targetItem = state.list.getOrNull(index)
+                    ?: throw Exception("Invalid index")
                 playItem(targetItem, start)
             }
         } catch (e: Exception) {

@@ -4,7 +4,6 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.flatten
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.notification.BrowserMediaSessionHelper
 import io.github.vinceglb.filekit.utils.toJsArray
@@ -34,14 +33,15 @@ class AudioPlayback(
         }
     }
 
-    private suspend fun playItem(item: LAudio, start: Boolean) {
+    private suspend fun playItem(item: Playable.Item<LAudio>, start: Boolean) {
+        val target = item.item
         val source = platformMediaSource.sources
-            .firstOrNull { item.mediaSourceName == it.name }
-            ?: throw Exception("No source item found for ${item.mediaSourceName}")
+            .firstOrNull { target.mediaSourceName == it.name }
+            ?: throw Exception("No source item found for ${target.mediaSourceName}")
 
         player.pause()
 
-        val data = source.dataSource.getMedia(item)
+        val data = source.dataSource.getMedia(target)
         when (data) {
             is MediaData.Url -> {
                 Logger.i(tag = TAG, messageString = "prepared with url: ${data.url}")
@@ -66,8 +66,8 @@ class AudioPlayback(
             player.play()
             _isPlaying.value = true
         }
-        _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
-        updateNavigationCapabilities()
+        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.key == item.key }
+        queue.switchTo(index = targetIndex)
     }
 
 
@@ -77,7 +77,7 @@ class AudioPlayback(
                 player.play()
                 _isPlaying.value = true
             } else {
-                val current = currentItem.value
+                val current = queue.currentItem()
                     ?: throw Exception("No media to play")
 
                 playItem(current, true)
@@ -106,8 +106,7 @@ class AudioPlayback(
         try {
             player.pause()
             _isPlaying.value = false
-            _currentItemIndex.value = 0
-            updateNavigationCapabilities()
+            queue.switchTo(0)
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
             emitError(e)
@@ -116,12 +115,12 @@ class AudioPlayback(
 
     override suspend fun skipTo(index: Int, start: Boolean) {
         try {
-            val targetItem = _playlist.value.flatten<LAudio>().getOrNull(index)
-                ?: throw Exception("Invalid index")
-
-            if (targetItem.id == currentItem.value?.id) {
+            val state = queue.stateSnapshot()
+            if (index == state.index) {
                 seekTo(0)
             } else {
+                val targetItem = state.list.getOrNull(index)
+                    ?: throw Exception("Invalid index")
                 playItem(targetItem, start)
             }
         } catch (e: Exception) {

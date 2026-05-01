@@ -15,7 +15,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import com.lalilu.lmedia.data.Library
-import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.MMedia
@@ -27,7 +26,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.guava.await
 import kotlin.coroutines.CoroutineContext
-import kotlin.run
 
 @OptIn(UnstableApi::class, ExperimentalCoroutinesApi::class)
 class MPlayerPlayback(
@@ -54,43 +52,15 @@ class MPlayerPlayback(
 
     // Protected mutable state flows
     private val _isPlaying = MutableStateFlow(false)
-    private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     private val _errors = MutableSharedFlow<Throwable>()
     private val _currentDuration = MutableStateFlow(0L)
     private val _currentBufferedPosition = MutableStateFlow(0L)
-    private val _canSeek = MutableStateFlow(false)
-    private val _canSkipNext = MutableStateFlow(false)
-    private val _canSkipPrevious = MutableStateFlow(false)
     private val _playbackMode = MutableStateFlow(PlaybackMode.SEQUENTIAL)
 
-    // Public state flows
-    @kotlin.OptIn(ExperimentalCoroutinesApi::class)
-    override val playlist: StateFlow<List<LAudio>> = queue.expandedItems
-        .mapLatest { (list, index) ->
-            list.map { it.item }.run {
-                if (index in indices) {
-                    drop(index) + take(index)
-                } else {
-                    this
-                }
-            }
-        }
-        .stateIn(this, SharingStarted.Eagerly, emptyList())
-
-    // Computed properties
-    @kotlin.OptIn(ExperimentalCoroutinesApi::class)
-    override val currentItem: StateFlow<LAudio?> = playlist
-        .mapLatest { it.firstOrNull() }
-        .stateIn(this, SharingStarted.Eagerly, null)
-
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
-    override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
     override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
     override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
     override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
-    override val canSeek: StateFlow<Boolean> = _canSeek.asStateFlow()
-    override val canSkipNext: StateFlow<Boolean> = _canSkipNext.asStateFlow()
-    override val canSkipPrevious: StateFlow<Boolean> = _canSkipPrevious.asStateFlow()
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
     init {
@@ -177,13 +147,6 @@ class MPlayerPlayback(
         positionMs: Long
     ) = runWithBrowser {
         seekTo(positionMs)
-    }
-
-    override suspend fun updatePlaylist(
-        playlist: List<LItem>
-    ) = runWithBrowser {
-        val items = MMedia.getItems(playlist.map { item -> item.idValue() })
-        setMediaItems(items, 0, 0)
     }
 
     override suspend fun updatePlaylist(

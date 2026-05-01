@@ -4,7 +4,6 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.SourceItem
-import com.lalilu.lmedia.entity.flatten
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.notification.MacOSNotification
@@ -45,10 +44,11 @@ class VLCPlayback(
         }
     }
 
-    private suspend fun playItem(item: LAudio, start: Boolean) {
-        val source = library.requireMediaSource(item.source())
+    private suspend fun playItem(item: Playable.Item<LAudio>, start: Boolean) {
+        val target = item.item
+        val source = library.requireMediaSource(target.source())
 
-        when (val data = source.dataSource.getMedia(item)) {
+        when (val data = source.dataSource.getMedia(target)) {
             is MediaData.Url -> {
                 Logger.i(tag = "VLCPlayback", messageString = "prepared with url: ${data.url}")
                 player.media().prepare(data.url)
@@ -60,10 +60,10 @@ class VLCPlayback(
             }
 
             else -> {
-                val path = item.sourceItem
+                val path = target.sourceItem
                     .let { it as? SourceItem.FileItem }
                     ?.file?.absolutePath
-                    ?: throw Exception("Invalid source item: ${item.sourceItem}")
+                    ?: throw Exception("Invalid source item: ${target.sourceItem}")
 
                 Logger.i(tag = "VLCPlayback", messageString = "prepared with path: $path")
                 player.media().prepare(path)
@@ -73,8 +73,8 @@ class VLCPlayback(
         if (start) {
             player.controls().play()
         }
-        _currentItemIndex.value = _playlist.value.flatten<LAudio>().indexOf(item)
-        updateNavigationCapabilities()
+        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.key == item.key }
+        queue.switchTo(index = targetIndex)
     }
 
     override suspend fun play() {
@@ -83,7 +83,7 @@ class VLCPlayback(
                 player.controls().play()
                 _isPlaying.value = true
             } else {
-                val current = currentItem.value
+                val current = queue.currentItem()
                     ?: throw Exception("No media to play")
 
                 playItem(current, true)
@@ -123,8 +123,7 @@ class VLCPlayback(
         try {
             player.controls().stop()
             _isPlaying.value = false
-            _currentItemIndex.value = 0
-            updateNavigationCapabilities()
+            queue.switchTo(0)
         } catch (e: Exception) {
             Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
             emitError(e)
@@ -133,23 +132,23 @@ class VLCPlayback(
 
     override suspend fun skipTo(index: Int, start: Boolean) {
         try {
-            val targetItem = playlist.value.flatten<LAudio>().getOrNull(index)
-                ?: throw Exception("Invalid index")
-
-            val old: LAudio? = currentItem.value
-            if (targetItem.id == currentItem.value?.id) {
+            val state = queue.stateSnapshot()
+            if (index == state.index) {
                 seekTo(0)
             } else {
+                val oldItem = state.currentItem()
+                val targetItem = state.list.getOrNull(index)
+                    ?: throw Exception("Invalid index")
                 playItem(targetItem, start)
-            }
 
-            // TODO 启动时初始化播放数据为null，导致后续无法正常更新播放时长
-            dataTracker.onMediaItemTransition(
-                mediaId = targetItem.idValue(),
-                title = targetItem.titleValue(),
-                isRepeating = old?.idValue() == targetItem.idValue(),
-                isNormalTransition = old?.idValue() != targetItem.idValue()
-            )
+                // TODO 启动时初始化播放数据为null，导致后续无法正常更新播放时长
+                dataTracker.onMediaItemTransition(
+                    mediaId = targetItem.item.idValue(),
+                    title = targetItem.item.titleValue(),
+                    isRepeating = oldItem?.item?.idValue() == targetItem.item.idValue(),
+                    isNormalTransition = oldItem?.item?.idValue() != targetItem.item.idValue()
+                )
+            }
         } catch (e: Exception) {
             Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
             emitError(e)
@@ -178,17 +177,11 @@ class VLCPlayback(
         player.events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
             override fun playing(mediaPlayer: MediaPlayer?) {
                 _isPlaying.value = true
-                currentItem.value?.let { item ->
-                    _playbackState.value = PlaybackState.Playing(item)
-                }
                 dataTracker.onIsPlayingChanged(true)
             }
 
             override fun paused(mediaPlayer: MediaPlayer?) {
                 _isPlaying.value = false
-                currentItem.value?.let { item ->
-                    _playbackState.value = PlaybackState.Paused(item)
-                }
                 dataTracker.onIsPlayingChanged(false)
             }
 
@@ -208,7 +201,6 @@ class VLCPlayback(
 
             override fun lengthChanged(mediaPlayer: MediaPlayer?, newLength: Long) {
                 _currentDuration.value = newLength
-                updateNavigationCapabilities()
             }
         })
     }
