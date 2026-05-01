@@ -4,10 +4,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.common.flow.toUpdatableFlow
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.entity.SourceItem
-import com.lalilu.lmedia.entity.buildSnapshot
+import com.lalilu.lmedia.entity.*
 import com.lalilu.lmedia.source.*
 import io.github.vinceglb.filekit.*
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -54,14 +51,12 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
         } ?: emptyList()
     }.map { pairs ->
         val songs = pairs.map { (file, metadata) ->
-            LAudio(
-                id = file.absolutePath(),
-                title = metadata.title ?: "",
-                subtitle = metadata.artist ?: "",
-                sourceItem = SourceItem.FileItem(file),
-                metadata = metadata,
-                mediaSourceName = this@SandboxFileSystemSource.name,
-            )
+            buildAudio(id = file.absolutePath()) {
+                title(metadata.title)
+                subtitle(metadata.artist)
+                source(SourceItem.FileItem(file))
+                metadata(metadata)
+            }
         }
 
         songs.buildSnapshot()

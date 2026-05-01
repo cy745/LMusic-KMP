@@ -279,20 +279,20 @@ class SubsonicSource(
 
         // 歌曲转换LAudio统一格式
         val audios = songs.map { song ->
-            LAudio(
-                id = song.id,
-                title = song.title,
-                subtitle = song.artist,
-                metadata = Metadata(
-                    title = song.title,
-                    album = song.album,
-                    artist = song.artist,
-                    duration = song.duration * 1000L,
-                    date = "${song.year}",
-                    track = "${song.track}"
-                ),
-                mediaSourceName = this@SubsonicSource.name
-            )
+            buildAudio(id = song.id) {
+                title(song.title)
+                subtitle(song.artist)
+                metadata(
+                    Metadata(
+                        title = song.title,
+                        album = song.album,
+                        artist = song.artist,
+                        duration = song.duration * 1000L,
+                        date = "${song.year}",
+                        track = "${song.track}"
+                    )
+                )
+            }
         }
         return audios
     }

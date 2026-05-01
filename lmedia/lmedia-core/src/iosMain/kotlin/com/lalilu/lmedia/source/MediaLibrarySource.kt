@@ -12,9 +12,9 @@ package com.lalilu.lmedia.source
 //import androidx.compose.runtime.remember
 //import androidx.compose.ui.Modifier
 //import androidx.compose.ui.unit.dp
-import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.Snapshot
 import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.entity.buildAudio
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,12 +41,11 @@ object MediaLibrarySource : MediaSource {
                 ?: return@mapLatest Snapshot.Empty
 
             val songs = items.map {
-                LAudio(
-                    title = it.title ?: "unknown",
-                    subtitle = it.assetURL?.toString() ?: "unknownArtist",
-                    sourceItem = SourceItem.MPItem(it),
-                    mediaSourceName = this@MediaLibrarySource.name
-                )
+                buildAudio(id = "${it.persistentID}") {
+                    title(it.title)
+                    subtitle(it.assetURL?.toString())
+                    source(SourceItem.MPItem(it))
+                }
             }
 
             return@mapLatest Snapshot(audios = songs)

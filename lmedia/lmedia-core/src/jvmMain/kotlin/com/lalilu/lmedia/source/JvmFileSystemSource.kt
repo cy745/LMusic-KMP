@@ -135,14 +135,12 @@ class JvmFileSystemSource(
                 .awaitAll()
                 .filterNotNull()
                 .map { (source, metadata) ->
-                    LAudio(
-                        id = source.key,
-                        title = metadata.title ?: "",
-                        subtitle = metadata.artist ?: "",
-                        sourceItem = source,
-                        metadata = metadata,
-                        mediaSourceName = this@JvmFileSystemSource.name
-                    )
+                    buildAudio(id = source.key) {
+                        title(metadata.title)
+                        subtitle(metadata.artist)
+                        source(source)
+                        metadata(metadata)
+                    }
                 }
 
             songs.buildSnapshot()
