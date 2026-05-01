@@ -5,7 +5,7 @@ package com.lalilu.lplayer.playback
  */
 enum class PlaybackMode {
     /**
-     * 顺序播放
+     * 顺序播放（播放到列表末尾即停止）
      */
     SEQUENTIAL,
 
@@ -15,7 +15,7 @@ enum class PlaybackMode {
     LOOP,
 
     /**
-     * 单曲循环
+     * 单曲循环（同[SEQUENTIAL]）
      */
     SINGLE_LOOP,
 
