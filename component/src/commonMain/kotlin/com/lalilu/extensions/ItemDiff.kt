@@ -52,20 +52,25 @@ data class Item<T>(
  *
  * @param items 新的数据列表（业务数据）
  * @param getId 获取业务稳定 ID 的函数，用于生成新增项的 `key`
+ * @param isSameItem 旧项与新项是否为同一元素
+ * @param isSameContent 旧项与新项内容是否相同
  * @return 新的 `Item<T>` 列表（可直接用于 Compose `key`）
  */
 fun <T : Any> List<Item<T>>.diff(
     items: List<T>,
-    getId: (T) -> String
+    getId: (T) -> String,
+    isSameItem: (T, T) -> Boolean = { a, b -> a == b },
+    isSameContent: (T, T) -> Boolean = { a, b -> a == b }
 ): List<Item<T>> {
     val oldData = this.map { it.data }
     val n = oldData.size
     val m = items.size
 
+    // 使用 LCS 算法计算最长公共子序列，基于 isSameItem 判断是否为同一元素
     val dp = Array(n + 1) { IntArray(m + 1) }
     for (i in n - 1 downTo 0) {
         for (j in m - 1 downTo 0) {
-            dp[i][j] = if (oldData[i] == items[j]) dp[i + 1][j + 1] + 1
+            dp[i][j] = if (isSameItem(oldData[i], items[j])) dp[i + 1][j + 1] + 1
             else maxOf(dp[i + 1][j], dp[i][j + 1])
         }
     }
@@ -77,11 +82,19 @@ fun <T : Any> List<Item<T>>.diff(
     while (i < n && j < m) {
         val a = oldData[i]
         val b = items[j]
-        if (a == b) {
-            result.add(this[i])
+        if (isSameItem(a, b)) {
+            // 如果是同一个元素，检查内容是否相同
+            if (isSameContent(a, b)) {
+                // 内容也相同，直接复用旧的 Item（包括 key）
+                result.add(this[i])
+            } else {
+                // 是同一个元素但内容不同，更新数据但保留 key
+                result.add(Item(data = b, key = this[i].key))
+            }
             i++
             j++
         } else {
+            // 不是同一个元素，根据 DP 表决定是跳过旧元素还是添加新元素
             if (dp[i + 1][j] >= dp[i][j + 1]) {
                 i++
             } else {
@@ -90,6 +103,7 @@ fun <T : Any> List<Item<T>>.diff(
             }
         }
     }
+    // 处理剩余的新元素
     while (j < m) {
         val b = items[j]
         result.add(Item(data = b, key = "${generation}_${getId(b)}"))
