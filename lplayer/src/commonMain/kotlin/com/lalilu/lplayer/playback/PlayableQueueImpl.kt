@@ -8,13 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.mapLatest
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
-import kotlin.collections.plus
+import kotlinx.coroutines.flow.*
 
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -25,7 +19,7 @@ class PlayableQueueImpl(
 
     override val expandedItems: StateFlow<QueueState> = _rawQueue
         .mapLatest { (list, index) -> QueueState(list.flatten(), index) }
-        .stateIn(scope = scope, started = SharingStarted.Eagerly, initialValue = QueueState())
+        .stateIn(scope = scope, started = SharingStarted.Lazily, initialValue = QueueState())
 
     override fun addToStart(item: LItem) {
         _rawQueue.update {
@@ -41,6 +35,11 @@ class PlayableQueueImpl(
             val index = it.second  // 当前播放元素位置不变
             list to index
         }
+    }
+
+    override fun switchTo(index: Int) {
+        // 确保索引在队列范围内
+        _rawQueue.update { pair -> if (index in pair.first.indices) pair.first to index else pair }
     }
 
     override fun replaceAll(items: List<LItem>, index: Int) {
@@ -83,6 +82,10 @@ class PlayableQueueImpl(
 
     override fun remove(playable: Playable<LAudio>) {
         _rawQueue.update { (list, index) -> list.filter { it.key != playable.key } to index }
+    }
+
+    override fun clear() {
+        _rawQueue.update { emptyList<Playable<LAudio>>() to 0 }
     }
 
     override fun previousOf(target: Playable<LAudio>): Playable<LAudio>? {
