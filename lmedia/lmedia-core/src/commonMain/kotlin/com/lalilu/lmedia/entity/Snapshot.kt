@@ -111,7 +111,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
         .map { (album, songs) ->
             val name = album.takeIf { !it.isNullOrBlank() } ?: "Unknown"
             LAlbum(
-                id = name,
+                id = "${LAlbum.ID_PREFIX}$name",
                 title = name,
                 subtitle = ""
             ).also { albumEntity ->
@@ -131,7 +131,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
 
             names.map { name ->
                 LArtist(
-                    id = name,
+                    id = "${LArtist.ID_PREFIX}$name",
                     title = name,
                     subtitle = ""
                 ).also { artistEntity ->
@@ -146,9 +146,9 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
     val genres = list
         .groupBy { song -> song.metadata.genre }
         .map { (genre, songs) ->
-            val name = genre.takeIf { !it.isNullOrBlank() } ?: "Unknown"
+            val name = genre.takeIf { it.isNotBlank() } ?: "Unknown"
             LGenre(
-                id = name,
+                id = "${LGenre.ID_PREFIX}$name",
                 title = name,
                 subtitle = ""
             ).also { genreEntity ->

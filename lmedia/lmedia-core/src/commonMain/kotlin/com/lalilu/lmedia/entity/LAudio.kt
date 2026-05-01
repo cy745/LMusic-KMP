@@ -5,6 +5,7 @@ import androidx.room3.Entity
 import androidx.room3.Ignore
 import androidx.room3.PrimaryKey
 import com.lalilu.lmedia.sortable.Sortable
+import com.lalilu.lmedia.source.MediaSource
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlin.reflect.KClass
@@ -31,7 +32,7 @@ data class LAudio(
     override val refs: MutableMap<KClass<*>, MutableSet<Linkable>> = mutableMapOf()
 
     // Identifiable implementation
-    override fun idValue(): String = "${super.idValue()}$id"
+    override fun idValue(): String = id
     override fun idPrefix(): String = ID_PREFIX
 
     // Describable implementation
@@ -86,5 +87,45 @@ object SourceItemDefaults {
      */
     object RequestUrl : SourceItem {
         override val key: String = "RequestUrl"
+    }
+}
+
+interface BuildAudioScope {
+    fun title(title: String?)
+    fun subtitle(subtitle: String?)
+    fun metadata(metadata: Metadata)
+    fun extra(extra: Map<String, String>)
+    fun source(source: SourceItem)
+    fun direct(block: LAudio.() -> Unit)
+}
+
+context(source: MediaSource)
+fun buildAudio(id: String, block: BuildAudioScope.() -> Unit = {}): LAudio {
+    return LAudio(id = "${LAudio.ID_PREFIX}$id", mediaSourceName = source.name).apply {
+        object : BuildAudioScope {
+            override fun title(title: String?) {
+                this@apply.title = title?.takeIf { it.isNotBlank() } ?: "Unknown"
+            }
+
+            override fun subtitle(subtitle: String?) {
+                this@apply.subtitle = subtitle?.takeIf { it.isNotBlank() } ?: "Unknown Subs"
+            }
+
+            override fun metadata(metadata: Metadata) {
+                this@apply.metadata = metadata
+            }
+
+            override fun extra(extra: Map<String, String>) {
+                this@apply.extra = extra
+            }
+
+            override fun source(source: SourceItem) {
+                this@apply.sourceItem = source
+            }
+
+            override fun direct(block: LAudio.() -> Unit) {
+                this@apply.block()
+            }
+        }.apply(block)
     }
 }
