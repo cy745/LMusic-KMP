@@ -1,6 +1,7 @@
 package com.lalilu.lmedia.source.sandbox
 
 import com.lalilu.common.ext.io
+import com.lalilu.common.ext.md5
 import com.lalilu.common.flow.toUpdatableFlow
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
@@ -51,7 +52,7 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
         } ?: emptyList()
     }.map { pairs ->
         val songs = pairs.map { (file, metadata) ->
-            buildAudio(id = file.absolutePath()) {
+            buildAudio(id = buildMediaId(file, musicFolder)) {
                 title(metadata.title)
                 subtitle(metadata.artist)
                 source(SourceItem.FileItem(file))
@@ -109,6 +110,18 @@ object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
         }
 
         MediaData.Bytes(file.readBytes())
+    }
+
+    /**
+     * 构建媒体ID
+     * @param file 媒体文件
+     * @param baseDirectory 沙盒根目录
+     */
+    private fun buildMediaId(file: PlatformFile, baseDirectory: PlatformFile): String {
+        // 应用的沙盒路径每次重新安装都会改变，替换成相对路径确保唯一性
+        return file.absolutePath()
+            .substringAfter(baseDirectory.absolutePath())
+            .md5()
     }
 }
 
