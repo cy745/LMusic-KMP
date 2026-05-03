@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="album_screen_title">Albums</string>
+    <string name="album_detail_screen_title">Album Detail</string>
+    <string name="album_detail_count">%d songs</string>
+</resources>

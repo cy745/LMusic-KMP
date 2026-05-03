@@ -51,6 +51,7 @@ include(":llyricview")
 include(":lhome")
 include(":lhistory")
 include(":lplaylist")
+include(":lalbum")
 
 include("lmedia-server")
 include(":lmedia:lmedia-data")

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="album_screen_title">专辑</string>
+    <string name="album_detail_screen_title">专辑详情</string>
+    <string name="album_detail_count">%d 首歌曲</string>
+</resources>
