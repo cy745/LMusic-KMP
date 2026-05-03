@@ -11,9 +11,7 @@ import com.lalilu.lmedia.entity.SnapshotState
 import io.github.vinceglb.filekit.bookmarkData
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import kotlinx.coroutines.launch
-import pro.respawn.flowmvi.annotation.InternalFlowMVIAPI
 
-@OptIn(InternalFlowMVIAPI::class)
 @Composable
 fun MediaSource.JvmFileSystemSourceContent(modifier: Modifier) {
     val scope = rememberCoroutineScope()

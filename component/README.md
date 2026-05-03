@@ -14,4 +14,3 @@ UI 组件库，提供应用中可复用的 Compose 组件。
 - AndroidX Navigation3
 - Coil 图片加载
 - Koin
-- FlowMVI
