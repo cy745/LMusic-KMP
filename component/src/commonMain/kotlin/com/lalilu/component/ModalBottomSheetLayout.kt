@@ -17,31 +17,16 @@
 package com.lalilu.component
 
 import androidx.annotation.FloatRange
-import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.TweenSpec
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.contentColorFor
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -55,16 +40,12 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.collapse
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.dismiss
-import androidx.compose.ui.semantics.expand
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import com.lalilu.component.ModalBottomSheetState.Companion.Saver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.jvm.JvmName
@@ -114,7 +95,7 @@ class ModalBottomSheetState(
     density: Density,
     enableBottomSheetMode: () -> Boolean = { true },
     confirmValueChange: (ModalBottomSheetValue) -> Boolean = { true },
-    internal val animationSpec: AnimationSpec<Float> = ModalBottomSheetDefaults.AnimationSpec,
+    internal val animationSpec: () -> AnimationSpec<Float> = { ModalBottomSheetDefaults.AnimationSpec },
     internal val isSkipHalfExpanded: Boolean = false,
 ) {
 
@@ -257,7 +238,7 @@ class ModalBottomSheetState(
          * initial value.
          */
         fun Saver(
-            animationSpec: AnimationSpec<Float>,
+            animationSpec: () -> AnimationSpec<Float>,
             enableBottomSheetMode: () -> Boolean,
             confirmValueChange: (ModalBottomSheetValue) -> Boolean,
             skipHalfExpanded: Boolean,
@@ -295,7 +276,7 @@ class ModalBottomSheetState(
 fun rememberModalBottomSheetState(
     initialValue: ModalBottomSheetValue,
     enableBottomSheetMode: () -> Boolean = { true },
-    animationSpec: AnimationSpec<Float> = ModalBottomSheetDefaults.AnimationSpec,
+    animationSpec: () -> AnimationSpec<Float> = { ModalBottomSheetDefaults.AnimationSpec },
     confirmValueChange: (ModalBottomSheetValue) -> Boolean = { true },
     skipHalfExpanded: Boolean = false,
 ): ModalBottomSheetState {
@@ -459,7 +440,7 @@ fun ModalBottomSheetLayout(
                     }
                 ),
             shape = sheetShape,
-            elevation = sheetElevation,
+            shadowElevation = sheetElevation,
             color = sheetBackgroundColor,
             contentColor = sheetContentColor
         ) {
@@ -575,6 +556,8 @@ private fun ConsumeSwipeWithinBottomSheetBoundsNestedScrollConnection(
     orientation: Orientation,
     scope: CoroutineScope,
 ): NestedScrollConnection = object : NestedScrollConnection {
+    private inner class ConsumeSwipeCancellingException : PlatformOptimizedCancellationException(message = null)
+
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
         // 开始拖动时取消正在进行的动画
         if (source == NestedScrollSource.UserInput) {
@@ -614,8 +597,21 @@ private fun ConsumeSwipeWithinBottomSheetBoundsNestedScrollConnection(
     }
 
     override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-        state.settle(velocity = available.toFloat())
-        return available
+        val offset = state.requireOffset()
+        val minAnchor = state.anchors.minAnchor()
+        val flingY = available.y
+
+        // 若当前bottomSheet不处于展开状态，则触发settle
+        if (offset > minAnchor) {
+            state.settle(velocity = flingY)
+            return available
+        }
+
+        // 当向上滚动到边缘时，不消耗任何输入
+        if (flingY <= 0f) return Velocity.Zero
+
+        // 当向下滚动到边缘时，消耗所有输入，结束事件传递
+        throw ConsumeSwipeCancellingException()
     }
 
     private fun Float.toOffset(): Offset = Offset(

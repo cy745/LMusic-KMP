@@ -14,8 +14,14 @@
  * limitations under the License.
  */
 
+@file:Suppress("PrimitiveInCollection")
+
 package com.lalilu.component
 
+/**
+ * This is a copy of androidx.compose.foundation.gestures.AnchoredDraggable until that API is
+ * promoted to stable in foundation. Any changes there should be replicated here.
+ */
 import androidx.annotation.FloatRange
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.SpringSpec
@@ -28,16 +34,8 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.offset
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.runtime.Stable
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
@@ -48,21 +46,16 @@ import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.debugInspectorInfo
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
+import com.lalilu.component.AnchoredDraggableState.Companion.Saver
+import kotlinx.coroutines.*
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 
 /**
  * Structure that represents the anchors of a [AnchoredDraggableState].
  *
  * See the DraggableAnchors factory method to construct drag anchors using a default implementation.
  */
-@ExperimentalMaterialApi
 interface DraggableAnchors<T> {
 
     /**
@@ -84,7 +77,6 @@ interface DraggableAnchors<T> {
      * Find the closest anchor to the [position].
      *
      * @param position The position to start searching from
-     *
      * @return The closest anchor or null if the anchors are empty
      */
     fun closestAnchor(position: Float): T?
@@ -94,24 +86,17 @@ interface DraggableAnchors<T> {
      *
      * @param position The position to start searching from
      * @param searchUpwards Whether to search upwards from the current position or downwards
-     *
      * @return The closest anchor or null if the anchors are empty
      */
     fun closestAnchor(position: Float, searchUpwards: Boolean): T?
 
-    /**
-     * The smallest anchor, or [Float.NEGATIVE_INFINITY] if the anchors are empty.
-     */
+    /** The smallest anchor, or [Float.NEGATIVE_INFINITY] if the anchors are empty. */
     fun minAnchor(): Float
 
-    /**
-     * The biggest anchor, or [Float.POSITIVE_INFINITY] if the anchors are empty.
-     */
+    /** The biggest anchor, or [Float.POSITIVE_INFINITY] if the anchors are empty. */
     fun maxAnchor(): Float
 
-    /**
-     * The amount of anchors
-     */
+    /** The amount of anchors */
     val size: Int
 }
 
@@ -120,7 +105,6 @@ interface DraggableAnchors<T> {
  * corresponding [Float] positions. This [DraggableAnchorsConfig] is used to construct an immutable
  * [DraggableAnchors] instance later on.
  */
-@ExperimentalMaterialApi
 internal class DraggableAnchorsConfig<T> {
 
     internal val anchors = mutableMapOf<T, Float>()
@@ -141,9 +125,8 @@ internal class DraggableAnchorsConfig<T> {
  *
  * @param builder A function with a [DraggableAnchorsConfig] that offers APIs to configure anchors
  * @return A new [DraggableAnchors] instance with the anchor positions set by the `builder`
- * function.
+ *   function.
  */
-@ExperimentalMaterialApi
 internal fun <T : Any> DraggableAnchors(
     builder: DraggableAnchorsConfig<T>.() -> Unit
 ): DraggableAnchors<T> = MapDraggableAnchors(DraggableAnchorsConfig<T>().apply(builder).anchors)
@@ -152,40 +135,35 @@ internal fun <T : Any> DraggableAnchors(
  * Enable drag gestures between a set of predefined values.
  *
  * When a drag is detected, the offset of the [AnchoredDraggableState] will be updated with the drag
- * delta. You should use this offset to move your content accordingly (see [Modifier.offset]).
- * When the drag ends, the offset will be animated to one of the anchors and when that anchor is
- * reached, the value of the [AnchoredDraggableState] will also be updated to the value
- * corresponding to the new anchor.
+ * delta. You should use this offset to move your content accordingly (see [Modifier.offset]). When
+ * the drag ends, the offset will be animated to one of the anchors and when that anchor is reached,
+ * the value of the [AnchoredDraggableState] will also be updated to the value corresponding to the
+ * new anchor.
  *
  * Dragging is constrained between the minimum and maximum anchors.
  *
  * @param state The associated [AnchoredDraggableState].
  * @param orientation The orientation in which the [anchoredDraggable] can be dragged.
  * @param enabled Whether this [anchoredDraggable] is enabled and should react to the user's input.
- * @param reverseDirection Whether to reverse the direction of the drag, so a top to bottom
- * drag will behave like bottom to top, and a left to right drag will behave like right to left.
- * @param interactionSource Optional [MutableInteractionSource] that will passed on to
- * the internal [Modifier.draggable].
- * @param startDragImmediately when set to false, [draggable] will start dragging only when the
- * gesture crosses the touchSlop. This is useful to prevent users from "catching" an animating
- * widget when pressing on it. See [draggable] to learn more about startDragImmediately.
+ * @param reverseDirection Whether to reverse the direction of the drag, so a top to bottom drag
+ *   will behave like bottom to top, and a left to right drag will behave like right to left.
+ * @param interactionSource Optional [MutableInteractionSource] that will passed on to the internal
+ *   [Modifier.draggable].
  */
-@ExperimentalMaterialApi
 internal fun <T> Modifier.anchoredDraggable(
     state: AnchoredDraggableState<T>,
     orientation: Orientation,
     enabled: Boolean = true,
     reverseDirection: Boolean = false,
     interactionSource: MutableInteractionSource? = null,
-    startDragImmediately: Boolean = state.isAnimationRunning
 ) = draggable(
     state = state.draggableState,
     orientation = orientation,
     enabled = enabled,
     interactionSource = interactionSource,
     reverseDirection = reverseDirection,
-    startDragImmediately = startDragImmediately,
-    onDragStopped = { velocity -> launch { state.settle(velocity) } }
+    startDragImmediately = state.isAnimationRunning,
+    onDragStopped = { velocity -> launch { state.settle(velocity) } },
 )
 
 /**
@@ -193,9 +171,8 @@ internal fun <T> Modifier.anchoredDraggable(
  * a new value.
  *
  * @see [AnchoredDraggableState.anchoredDrag] to learn how to start the anchored drag and get the
- * access to this scope.
+ *   access to this scope.
  */
-@ExperimentalMaterialApi
 interface AnchoredDragScope {
     /**
      * Assign a new value for an offset value for [AnchoredDraggableState].
@@ -210,32 +187,31 @@ interface AnchoredDragScope {
 }
 
 /**
- * State of the [anchoredDraggable] modifier.
- * Use the constructor overload with anchors if the anchors are defined in composition, or update
- * the anchors using [updateAnchors].
+ * State of the [anchoredDraggable] modifier. Use the constructor overload with anchors if the
+ * anchors are defined in composition, or update the anchors using [updateAnchors].
  *
- * This contains necessary information about any ongoing drag or animation and provides methods
- * to change the state either immediately or by starting an animation.
+ * This contains necessary information about any ongoing drag or animation and provides methods to
+ * change the state either immediately or by starting an animation.
  *
  * @param initialValue The initial value of the state.
  * @param positionalThreshold The positional threshold, in px, to be used when calculating the
- * target state while a drag is in progress and when settling after the drag ends. This is the
- * distance from the start of a transition. It will be, depending on the direction of the
- * interaction, added or subtracted from/to the origin offset. It should always be a positive value.
+ *   target state while a drag is in progress and when settling after the drag ends. This is the
+ *   distance from the start of a transition. It will be, depending on the direction of the
+ *   interaction, added or subtracted from/to the origin offset. It should always be a positive
+ *   value.
  * @param velocityThreshold The velocity threshold (in px per second) that the end velocity has to
- * exceed in order to animate to the next state, even if the [positionalThreshold] has not been
- * reached.
+ *   exceed in order to animate to the next state, even if the [positionalThreshold] has not been
+ *   reached.
  * @param animationSpec The default animation that will be used to animate to a new state.
  * @param confirmValueChange Optional callback invoked to confirm or veto a pending state change.
  */
 @Stable
-@OptIn(ExperimentalMaterialApi::class)
 class AnchoredDraggableState<T>(
     initialValue: T,
     internal val positionalThreshold: (totalDistance: Float) -> Float,
     internal val velocityThreshold: () -> Float,
-    val animationSpec: AnimationSpec<Float>,
-    internal val confirmValueChange: (newValue: T) -> Boolean = { true }
+    val animationSpec: () -> AnimationSpec<Float>,
+    internal val confirmValueChange: (newValue: T) -> Boolean = { true },
 ) {
 
     /**
@@ -245,24 +221,23 @@ class AnchoredDraggableState<T>(
      * @param anchors The anchors of the state. Use [updateAnchors] to update the anchors later.
      * @param animationSpec The default animation that will be used to animate to a new state.
      * @param confirmValueChange Optional callback invoked to confirm or veto a pending state
-     * change.
+     *   change.
      * @param positionalThreshold The positional threshold, in px, to be used when calculating the
-     * target state while a drag is in progress and when settling after the drag ends. This is the
-     * distance from the start of a transition. It will be, depending on the direction of the
-     * interaction, added or subtracted from/to the origin offset. It should always be a positive
-     * value.
+     *   target state while a drag is in progress and when settling after the drag ends. This is the
+     *   distance from the start of a transition. It will be, depending on the direction of the
+     *   interaction, added or subtracted from/to the origin offset. It should always be a positive
+     *   value.
      * @param velocityThreshold The velocity threshold (in px per second) that the end velocity has
-     * to exceed in order to animate to the next state, even if the [positionalThreshold] has not
-     * been reached.
+     *   to exceed in order to animate to the next state, even if the [positionalThreshold] has not
+     *   been reached.
      */
-    @ExperimentalMaterialApi
     constructor(
         initialValue: T,
         anchors: DraggableAnchors<T>,
         positionalThreshold: (totalDistance: Float) -> Float,
         velocityThreshold: () -> Float,
-        animationSpec: AnimationSpec<Float>,
-        confirmValueChange: (newValue: T) -> Boolean = { true }
+        animationSpec: () -> AnimationSpec<Float>,
+        confirmValueChange: (newValue: T) -> Boolean = { true },
     ) : this(
         initialValue,
         positionalThreshold,
@@ -300,16 +275,14 @@ class AnchoredDraggableState<T>(
         }
     }
 
-    /**
-     * The current value of the [AnchoredDraggableState].
-     */
+    /** The current value of the [AnchoredDraggableState]. */
     var currentValue: T by mutableStateOf(initialValue)
         private set
 
     /**
      * The target value. This is the closest value to the current offset, taking into account
-     * positional thresholds. If no interactions like animations or drags are in progress, this
-     * will be the current value.
+     * positional thresholds. If no interactions like animations or drags are in progress, this will
+     * be the current value.
      */
     val targetValue: T by derivedStateOf {
         dragTarget ?: run {
@@ -348,9 +321,8 @@ class AnchoredDraggableState<T>(
     /**
      * Require the current offset.
      *
-     * @see offset
-     *
      * @throws IllegalStateException If the offset has not been initialized yet
+     * @see offset
      */
     fun requireOffset(): Float {
         check(!offset.isNaN()) {
@@ -360,9 +332,7 @@ class AnchoredDraggableState<T>(
         return offset
     }
 
-    /**
-     * Whether an animation is currently in progress.
-     */
+    /** Whether an animation is currently in progress. */
     val isAnimationRunning: Boolean get() = dragTarget != null
 
     /**
@@ -383,9 +353,8 @@ class AnchoredDraggableState<T>(
 
     /**
      * The velocity of the last known animation. Gets reset to 0f when an animation completes
-     * successfully, but does not get reset when an animation gets interrupted.
-     * You can use this value to provide smooth reconciliation behavior when re-targeting an
-     * animation.
+     * successfully, but does not get reset when an animation gets interrupted. You can use this
+     * value to provide smooth reconciliation behavior when re-targeting an animation.
      */
     var lastVelocity: Float by mutableFloatStateOf(0f)
         private set
@@ -402,13 +371,12 @@ class AnchoredDraggableState<T>(
      *
      * <b>If your anchors depend on the size of the layout, updateAnchors should be called in the
      * layout (placement) phase, e.g. through Modifier.onSizeChanged.</b> This ensures that the
-     * state is set up within the same frame.
-     * For static anchors, or anchors with different data dependencies, [updateAnchors] is safe to
-     * be called from side effects or layout.
+     * state is set up within the same frame. For static anchors, or anchors with different data
+     * dependencies, [updateAnchors] is safe to be called from side effects or layout.
      *
      * @param newAnchors The new anchors.
      * @param newTarget The new target, by default the closest anchor or the current target if there
-     * are no anchors.
+     *   are no anchors.
      */
     fun updateAnchors(
         newAnchors: DraggableAnchors<T>,
@@ -442,7 +410,7 @@ class AnchoredDraggableState<T>(
         val targetValue = computeTarget(
             offset = requireOffset(),
             currentValue = previousValue,
-            velocity = velocity
+            velocity = velocity,
         )
         if (confirmValueChange(targetValue)) {
             animateTo(targetValue, velocity)
@@ -520,8 +488,8 @@ class AnchoredDraggableState<T>(
      * anchors.
      *
      * All actions that change the [offset] of this [AnchoredDraggableState] must be performed
-     * within an [anchoredDrag] block (even if they don't call any other methods on this object)
-     * in order to guarantee that mutual exclusion is enforced.
+     * within an [anchoredDrag] block (even if they don't call any other methods on this object) in
+     * order to guarantee that mutual exclusion is enforced.
      *
      * If [anchoredDrag] is called from elsewhere with the [dragPriority] higher or equal to ongoing
      * drag, the ongoing drag will be cancelled.
@@ -559,8 +527,8 @@ class AnchoredDraggableState<T>(
      * anchors and target.
      *
      * All actions that change the [offset] of this [AnchoredDraggableState] must be performed
-     * within an [anchoredDrag] block (even if they don't call any other methods on this object)
-     * in order to guarantee that mutual exclusion is enforced.
+     * within an [anchoredDrag] block (even if they don't call any other methods on this object) in
+     * order to guarantee that mutual exclusion is enforced.
      *
      * This overload allows the caller to hint the target value that this [anchoredDrag] is intended
      * to arrive to. This will set [AnchoredDraggableState.targetValue] to provided value so
@@ -586,9 +554,7 @@ class AnchoredDraggableState<T>(
             try {
                 dragMutex.mutate(dragPriority) {
                     dragTarget = targetValue
-                    restartable(
-                        inputs = { anchors to this@AnchoredDraggableState.targetValue }
-                    ) { (latestAnchors, latestTarget) ->
+                    restartable(inputs = { anchors to this@AnchoredDraggableState.targetValue }) { (latestAnchors, latestTarget) ->
                         anchoredDragScope.block(latestAnchors, latestTarget)
                     }
                 }
@@ -643,12 +609,9 @@ class AnchoredDraggableState<T>(
     }
 
     companion object {
-        /**
-         * The default [Saver] implementation for [AnchoredDraggableState].
-         */
-        @ExperimentalMaterialApi
+        /** The default [Saver] implementation for [AnchoredDraggableState]. */
         fun <T : Any> Saver(
-            animationSpec: AnimationSpec<Float>,
+            animationSpec: () -> AnimationSpec<Float>,
             confirmValueChange: (T) -> Boolean,
             positionalThreshold: (distance: Float) -> Float,
             velocityThreshold: () -> Float,
@@ -668,16 +631,14 @@ class AnchoredDraggableState<T>(
 }
 
 /**
- * Snap to a [targetValue] without any animation.
- * If the [targetValue] is not in the set of anchors, the [AnchoredDraggableState.currentValue] will
- * be updated to the [targetValue] without updating the offset.
- *
- * @throws CancellationException if the interaction interrupted by another interaction like a
- * gesture interaction or another programmatic interaction like a [animateTo] or [snapTo] call.
+ * Snap to a [targetValue] without any animation. If the [targetValue] is not in the set of anchors,
+ * the [AnchoredDraggableState.currentValue] will be updated to the [targetValue] without updating
+ * the offset.
  *
  * @param targetValue The target value of the animation
+ * @throws CancellationException if the interaction interrupted by another interaction like a
+ *   gesture interaction or another programmatic interaction like a [animateTo] or [snapTo] call.
  */
-@ExperimentalMaterialApi
 internal suspend fun <T> AnchoredDraggableState<T>.snapTo(targetValue: T) {
     anchoredDrag(targetValue = targetValue) { anchors, latestTarget ->
         val targetOffset = anchors.positionOf(latestTarget)
@@ -686,17 +647,15 @@ internal suspend fun <T> AnchoredDraggableState<T>.snapTo(targetValue: T) {
 }
 
 /**
- * Animate to a [targetValue].
- * If the [targetValue] is not in the set of anchors, the [AnchoredDraggableState.currentValue] will
- * be updated to the [targetValue] without updating the offset.
- *
- * @throws CancellationException if the interaction interrupted by another interaction like a
- * gesture interaction or another programmatic interaction like a [animateTo] or [snapTo] call.
+ * Animate to a [targetValue]. If the [targetValue] is not in the set of anchors, the
+ * [AnchoredDraggableState.currentValue] will be updated to the [targetValue] without updating the
+ * offset.
  *
  * @param targetValue The target value of the animation
  * @param velocity The velocity the animation should start with
+ * @throws CancellationException if the interaction interrupted by another interaction like a
+ *   gesture interaction or another programmatic interaction like a [animateTo] or [snapTo] call.
  */
-@ExperimentalMaterialApi
 internal suspend fun <T> AnchoredDraggableState<T>.animateTo(
     targetValue: T,
     velocity: Float = this.lastVelocity,
@@ -705,7 +664,7 @@ internal suspend fun <T> AnchoredDraggableState<T>.animateTo(
         val targetOffset = anchors.positionOf(latestTarget)
         if (!targetOffset.isNaN()) {
             var prev = if (offset.isNaN()) 0f else offset
-            animate(prev, targetOffset, velocity, animationSpec) { value, velocity ->
+            animate(prev, targetOffset, velocity, animationSpec.invoke()) { value, velocity ->
                 // Our onDrag coerces the value within the bounds, but an animation may
                 // overshoot, for example a spring animation or an overshooting interpolator
                 // We respect the user's intention and allow the overshoot, but still use
@@ -717,23 +676,15 @@ internal suspend fun <T> AnchoredDraggableState<T>.animateTo(
     }
 }
 
-/**
- * Contains useful defaults for [anchoredDraggable] and [AnchoredDraggableState].
- */
+/** Contains useful defaults for [anchoredDraggable] and [AnchoredDraggableState]. */
 @Stable
-@ExperimentalMaterialApi
 internal object AnchoredDraggableDefaults {
-    /**
-     * The default animation used by [AnchoredDraggableState].
-     */
-    @get:ExperimentalMaterialApi
-    @Suppress("OPT_IN_MARKER_ON_WRONG_TARGET")
-    @ExperimentalMaterialApi
+    /** The default animation used by [AnchoredDraggableState]. */
     val AnimationSpec = SpringSpec<Float>()
 }
 
-private val EMPTY_EXCEPTION = Exception("AnchoredDraggable finished")
-private fun anchoredDragFinishedSignal() = CancellationException(null, EMPTY_EXCEPTION)
+internal class AnchoredDragFinishedSignal :
+    PlatformOptimizedCancellationException("Anchored drag finished")
 
 private suspend fun <I> restartable(inputs: () -> I, block: suspend (I) -> Unit) {
     try {
@@ -742,38 +693,31 @@ private suspend fun <I> restartable(inputs: () -> I, block: suspend (I) -> Unit)
             snapshotFlow(inputs)
                 .collect { latestInputs ->
                     previousDrag?.apply {
-                        cancel(anchoredDragFinishedSignal())
+                        cancel(AnchoredDragFinishedSignal())
                         join()
                     }
                     previousDrag = launch(start = CoroutineStart.UNDISPATCHED) {
                         block(latestInputs)
-                        this@coroutineScope.cancel(anchoredDragFinishedSignal())
+                        this@coroutineScope.cancel(AnchoredDragFinishedSignal())
                     }
                 }
         }
-    } catch (anchoredDragFinished: CancellationException) {
-        if (anchoredDragFinished.cause != EMPTY_EXCEPTION) {
-            throw anchoredDragFinished
-        }
+    } catch (anchoredDragFinished: AnchoredDragFinishedSignal) {
+        // Ignored
     }
 }
 
 private fun <T> emptyDraggableAnchors() = MapDraggableAnchors<T>(emptyMap())
 
-@OptIn(ExperimentalMaterialApi::class)
 private class MapDraggableAnchors<T>(private val anchors: Map<T, Float>) : DraggableAnchors<T> {
 
     override fun positionOf(value: T): Float = anchors[value] ?: Float.NaN
+
     override fun hasAnchorFor(value: T) = anchors.containsKey(value)
 
-    override fun closestAnchor(position: Float): T? = anchors.minByOrNull {
-        abs(position - it.value)
-    }?.key
+    override fun closestAnchor(position: Float): T? = anchors.minByOrNull { abs(position - it.value) }?.key
 
-    override fun closestAnchor(
-        position: Float,
-        searchUpwards: Boolean
-    ): T? {
+    override fun closestAnchor(position: Float, searchUpwards: Boolean): T? {
         return anchors.minByOrNull { (_, anchor) ->
             val delta = if (searchUpwards) anchor - position else position - anchor
             if (delta < 0) Float.POSITIVE_INFINITY else delta
@@ -801,23 +745,20 @@ private class MapDraggableAnchors<T>(private val anchors: Map<T, Float>) : Dragg
 
 /**
  * This Modifier allows configuring an [AnchoredDraggableState]'s anchors based on this layout
- * node's size and offsetting it.
- * It considers lookahead and reports the appropriate size and measurement for the appropriate
- * phase.
+ * node's size and offsetting it. It considers lookahead and reports the appropriate size and
+ * measurement for the appropriate phase.
  *
  * @param state The state the anchors should be attached to
  * @param orientation The orientation the component should be offset in
  * @param anchors Lambda to calculate the anchors based on this layout's size and the incoming
- * constraints. These can be useful to avoid subcomposition.
+ *   constraints. These can be useful to avoid subcomposition.
  */
-@ExperimentalMaterialApi
 internal fun <T> Modifier.draggableAnchors(
     state: AnchoredDraggableState<T>,
     orientation: Orientation,
     anchors: (size: IntSize, constraints: Constraints) -> Pair<DraggableAnchors<T>, T>,
 ) = this then DraggableAnchorsElement(state, anchors, orientation)
 
-@OptIn(ExperimentalMaterialApi::class)
 private class DraggableAnchorsElement<T>(
     private val state: AnchoredDraggableState<T>,
     private val anchors: (size: IntSize, constraints: Constraints) -> Pair<DraggableAnchors<T>, T>,
@@ -830,6 +771,18 @@ private class DraggableAnchorsElement<T>(
         node.state = state
         node.anchors = anchors
         node.orientation = orientation
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+
+        if (other !is DraggableAnchorsElement<*>) return false
+
+        if (state != other.state) return false
+        if (anchors !== other.anchors) return false
+        if (orientation != other.orientation) return false
+
+        return true
     }
 
     override fun hashCode(): Int {
@@ -846,26 +799,12 @@ private class DraggableAnchorsElement<T>(
             properties["orientation"] = orientation
         }
     }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other == null || this::class != other::class) return false
-
-        other as DraggableAnchorsElement<*>
-
-        if (state != other.state) return false
-        if (anchors != other.anchors) return false
-        if (orientation != other.orientation) return false
-
-        return true
-    }
 }
 
-@OptIn(ExperimentalMaterialApi::class)
 private class DraggableAnchorsNode<T>(
     var state: AnchoredDraggableState<T>,
     var anchors: (size: IntSize, constraints: Constraints) -> Pair<DraggableAnchors<T>, T>,
-    var orientation: Orientation
+    var orientation: Orientation,
 ) : Modifier.Node(), LayoutModifierNode {
     private var didLookahead: Boolean = false
 
@@ -896,7 +835,14 @@ private class DraggableAnchorsNode<T>(
             } else state.requireOffset()
             val xOffset = if (orientation == Orientation.Horizontal) offset else 0f
             val yOffset = if (orientation == Orientation.Vertical) offset else 0f
-            placeable.place(xOffset.roundToInt(), yOffset.roundToInt())
+            // Tagging as motion frame of reference placement, meaning the placement
+            // contains scrolling. This allows the consumer of this placement offset to
+            // differentiate this offset vs. offsets from structural changes. Generally
+            // speaking, this signals a preference to directly apply changes rather than
+            // animating, to avoid a chasing effect to scrolling.
+            withMotionFrameOfReferencePlacement {
+                placeable.place(xOffset.roundToInt(), yOffset.roundToInt())
+            }
         }
     }
 }
