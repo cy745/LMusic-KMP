@@ -1,10 +1,10 @@
 package com.lalilu.lmusic
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.SeekableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +27,7 @@ import androidx.navigation3.ui.LocalOnBackPressEnableState
 import androidx.navigation3.ui.NavDisplay
 import com.lalilu.LMusicTheme
 import com.lalilu.ScreenModeHandler
+import com.lalilu.component.rememberCupertinoOverscrollEffectFactory
 import com.lalilu.extensions.DialogWrapper
 import com.lalilu.extensions.ProvideLocalToaster
 import com.lalilu.lmusic.screen.BottomBarApplier
@@ -81,6 +82,7 @@ fun App() = ScreenModeHandler {
             CompositionLocalProvider(
                 LocalSharedTransitionScope provides this,
                 LocalBackStack provides backStack,
+                LocalOverscrollFactory provides rememberCupertinoOverscrollEffectFactory()
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize()
