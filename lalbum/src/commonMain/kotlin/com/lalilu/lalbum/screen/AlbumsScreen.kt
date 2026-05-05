@@ -101,9 +101,11 @@ data object AlbumsScreen : Screen, ScreenInfoFactory, ScreenActionFactory, Scree
         AlbumsScreenContent(
             albums = albums,
             showText = { state.showText },
-            onClickAlbum = {
+            onClickAlbum = { album, sharedMap ->
                 AppRouter.route("/pages/albums/detail")
-                    .with("albumId", it.id)
+                    .with("albumId", album.id)
+                    .with("album", album)
+                    .with("sharedMap", sharedMap)
                     .push()
             }
         )

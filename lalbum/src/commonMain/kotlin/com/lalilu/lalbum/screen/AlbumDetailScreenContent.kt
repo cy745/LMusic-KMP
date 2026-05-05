@@ -22,7 +22,6 @@ import com.lalilu.lalbum.viewmodel.AlbumDetailEvent
 import com.lalilu.lmedia.component.AudioItemCard
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.ref
 import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
@@ -86,7 +85,7 @@ internal fun AlbumDetailScreenContent(
     val coverHeader = CoverHeader.register { key ->
         when (key) {
             CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this
-            CoverHeader.Param.COVER -> album?.ref<LAudio>()?.firstOrNull()
+            CoverHeader.Param.COVER -> album
             CoverHeader.Param.TITLE -> album?.titleValue() ?: "Unknown Album"
             CoverHeader.Param.SUBTITLE -> album?.subtitleValue()?.takeIf { it.isNotBlank() }
                 ?: "${songs.itemList.size} songs"

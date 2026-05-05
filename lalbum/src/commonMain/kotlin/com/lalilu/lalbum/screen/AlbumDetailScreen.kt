@@ -13,8 +13,10 @@ import com.lalilu.lalbum.lalbum.generated.resources.Res
 import com.lalilu.lalbum.lalbum.generated.resources.album_detail_screen_title
 import com.lalilu.lalbum.viewmodel.AlbumDetailAction
 import com.lalilu.lalbum.viewmodel.AlbumDetailVM
+import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.dialog.GroupIdJumperDialog
 import com.lalilu.lmedia.dialog.SortPanelDialog
+import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.navigation.*
 import com.lalilu.navigation.smartbar.CancellableInputerBarPanel
 import com.lalilu.navigation.smartbar.CancellableScreenBarPanel
@@ -35,6 +37,7 @@ import org.koin.core.qualifier.named
 @Destination("/pages/albums/detail")
 data class AlbumDetailScreen(
     val albumId: String,
+    val album: LAlbum? = null,
     val sharedMap: Map<String, String> = emptyMap(),
 ) : Screen, ScreenInfoFactory, ScreenActionFactory, ScreenBarFactory {
     override val key: String = "${super.key}:$albumId"
@@ -100,9 +103,11 @@ data class AlbumDetailScreen(
 
         val state by vm.state
         val songs by vm.songs
-        val album by vm.album
         val sortAction = vm.sorter.selectedAction.collectAsState()
         val sortConfig = vm.sorter.sortConfig.collectAsState()
+
+        val album by remember { LMedia.instance.flow<LAlbum>(id = albumId) }
+            .collectAsState(album)
 
         SortPanelDialog(
             isVisible = { state.showSortPanel },

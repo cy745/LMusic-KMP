@@ -8,12 +8,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
@@ -22,24 +20,24 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.lalilu.animated
+import com.lalilu.extensions.SharedContext
+import com.lalilu.extensions.SharedMap
+import com.lalilu.extensions.buildSharedMap
 import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.ref
 
 @Composable
 fun AlbumCard(
     modifier: Modifier = Modifier,
     album: () -> LAlbum,
     showTitle: () -> Boolean = { true },
-    onClick: () -> Unit = {}
+    onClick: (SharedMap) -> Unit = {}
 ) {
     val item = remember { album() }
-    val firstSong = remember(item) { item.ref<LAudio>().firstOrNull() }
 
     AlbumCard(
         modifier = modifier,
-        imageData = { firstSong },
+        id = item.idValue(),
+        imageData = album,
         title = { item.titleValue() },
         showTitle = showTitle,
         onClick = onClick
@@ -49,10 +47,21 @@ fun AlbumCard(
 @Composable
 fun AlbumCard(
     modifier: Modifier = Modifier,
+    id: String = "",
     imageData: () -> Any?,
     title: () -> String,
     showTitle: () -> Boolean = { true },
-    onClick: () -> Unit = {}
+    onClick: (SharedMap) -> Unit = {}
+) = SharedContext(
+    sharedMap = buildSharedMap(
+        id = id,
+        keys = listOf(
+            "BOUND",
+            "COVER",
+            "TITLE",
+            "SUBTITLE"
+        )
+    )
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -61,14 +70,16 @@ fun AlbumCard(
             .fillMaxWidth()
     ) {
         AlbumCoverCard(
+            modifier = Modifier.sharedElementV2(key = "COVER"),
             imageData = imageData,
-            onClick = onClick,
+            onClick = { onClick(sharedMap) },
             interactionSource = interactionSource
         )
         AlbumTitleText(
+            modifier = Modifier.sharedBoundsV2(key = "TITLE"),
             title = title,
             showTitle = showTitle,
-            onClick = onClick,
+            onClick = { onClick(sharedMap) },
             interactionSource = interactionSource
         )
     }
@@ -103,7 +114,6 @@ fun AlbumTitleText(
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun AlbumCoverCard(
     modifier: Modifier = Modifier,
@@ -120,23 +130,13 @@ fun AlbumCoverCard(
         interactionSource = interactionSource,
         onClick = onClick
     ) {
-        val imageAspectRatio = remember { mutableStateOf(1f) }
-        val imageAspectRatioAnimated = imageAspectRatio.animated()
-
         AsyncImage(
             modifier = Modifier
                 .fillMaxWidth()
-                .animateContentSize()
-                .aspectRatio(imageAspectRatioAnimated.value),
+                .aspectRatio(1f),
             model = imageData(),
-            contentScale = ContentScale.FillWidth,
-            contentDescription = "Album Cover",
-            onSuccess = { response ->
-                imageAspectRatio.value = response.result.image
-                    .run { width.toFloat() / height }
-                    .takeIf { it > 0 }
-                    ?: 1f
-            }
+            contentScale = ContentScale.Crop,
+            contentDescription = "Album Cover"
         )
     }
 }

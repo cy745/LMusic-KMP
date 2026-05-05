@@ -130,9 +130,6 @@ class AlbumDetailVM(
         .distinctUntilChangedBy { it.distinctKey }
         .flatMapLatest { it.getSongsFlow() }
         .doSortState(sorter, viewModelScope)
-    val album = stateFlow()
-        .flatMapLatest { it.getAlbumFlow() }
-        .toState(viewModelScope)
     val state = stateFlow()
         .toState(AlbumDetailState(albumId), viewModelScope)
 

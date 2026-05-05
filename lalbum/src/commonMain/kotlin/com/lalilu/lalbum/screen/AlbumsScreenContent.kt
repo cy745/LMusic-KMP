@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lalilu.extensions.PassThroughHelper
+import com.lalilu.extensions.SharedMap
 import com.lalilu.lalbum.component.AlbumCard
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.sortable.SortResult
@@ -20,7 +21,7 @@ internal fun AlbumsScreenContent(
     modifier: Modifier = Modifier,
     albums: SortResult<LAlbum> = SortResult.empty(),
     showText: () -> Boolean = { true },
-    onClickAlbum: (LAlbum) -> Unit = {}
+    onClickAlbum: (LAlbum, SharedMap) -> Unit
 ) {
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
     val columns = if (windowSizeClass.windowWidthSizeClass.toString().contains("Expanded")) 3 else 2
@@ -64,7 +65,7 @@ internal fun AlbumsScreenContent(
                     .fillMaxWidth()
                     .animateItem(),
                 showTitle = { showText() },
-                onClick = { onClickAlbum.invoke(album) },
+                onClick = { onClickAlbum.invoke(album, it) },
             )
         }
     }
