@@ -22,8 +22,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.Surface
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
@@ -437,7 +437,7 @@ fun ModalBottomSheetLayout(
                     }
                 ),
             shape = sheetShape,
-            shadowElevation = sheetElevation,
+            elevation = sheetElevation,
             color = sheetBackgroundColor,
             contentColor = sheetContentColor
         ) {
