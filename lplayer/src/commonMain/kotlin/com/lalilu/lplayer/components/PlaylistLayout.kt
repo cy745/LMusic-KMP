@@ -25,6 +25,7 @@ import com.lalilu.lplayer.SongCard
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.playback.Playable
 import com.lalilu.navigation.AppRouter
+import com.lalilu.navigation.LocalModalBottomSheetState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,6 +44,7 @@ fun PlaylistLayout(
     val list by remember { derivedStateOf(items) }
     var actualItems by remember { mutableStateOf(emptyList<Item<Playable.Item<LAudio>>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
+    val bottomSheetState = LocalModalBottomSheetState.current
 
     LaunchedEffect(list) {
         val newList = actualItems.diff(
@@ -119,6 +121,8 @@ fun PlaylistLayout(
                         .with("sharedMap", sharedMap)
                         .with("coverCacheKey", coverMemoryKey)
                         .jump()
+
+                    scope.launch { bottomSheetState.show() }
                 }
             )
         }
