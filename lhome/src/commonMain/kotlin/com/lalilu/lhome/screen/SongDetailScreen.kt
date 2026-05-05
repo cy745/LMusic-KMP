@@ -22,18 +22,14 @@ import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.extensions.SharedContext
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.SongAlbumInfoCard
-import com.lalilu.lhome.screen.detail.CoverHeader
 import com.lalilu.lhome.screen.detail.MetadataInfos
 import com.lalilu.lmedia.data.LMedia
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.Metadata
-import com.lalilu.lmedia.entity.ref
+import com.lalilu.lmedia.entity.*
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenActionFactory
+import com.lalilu.packed.CoverHeader
 import com.lalilu.preview.preview
 import kotlinx.serialization.Serializable
 

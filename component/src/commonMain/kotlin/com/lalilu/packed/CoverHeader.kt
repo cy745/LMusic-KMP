@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.lalilu.lhome.screen.detail
+package com.lalilu.packed
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -52,7 +52,7 @@ object CoverHeader : LazyColumnContent<CoverHeader.Param> {
 
     @Composable
     override fun register(
-        values: (Param) -> Any?
+        values: (Param) -> Any?,
     ): LazyListScope.() -> Unit = with(values(Param.SHARED_CONTEXT_SCOPE) as SharedContextScope) {
         val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
         val statusBar = WindowInsets.statusBars.asPaddingValues()

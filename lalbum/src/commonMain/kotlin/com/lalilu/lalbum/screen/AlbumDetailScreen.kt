@@ -26,7 +26,6 @@ import com.lalilu.remixicon.design.focus3Line
 import com.lalilu.remixicon.editor.sortDesc
 import com.lalilu.remixicon.system.checkboxMultipleBlankLine
 import com.lalilu.remixicon.system.checkboxMultipleLine
-import com.lalilu.remixicon.system.deleteBinLine
 import com.lalilu.remixicon.system.menuSearchLine
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -35,7 +34,8 @@ import org.koin.core.qualifier.named
 
 @Destination("/pages/albums/detail")
 data class AlbumDetailScreen(
-    val albumId: String
+    val albumId: String,
+    val sharedMap: Map<String, String> = emptyMap(),
 ) : Screen, ScreenInfoFactory, ScreenActionFactory, ScreenBarFactory {
     override val key: String = "${super.key}:$albumId"
 
@@ -158,6 +158,7 @@ data class AlbumDetailScreen(
         AlbumDetailScreenContent(
             songs = songs,
             album = album,
+            sharedMap = sharedMap,
             keys = { vm.recorder.list().filterNotNull() },
             recorder = { vm.recorder },
             eventFlow = vm.eventFlow(),
