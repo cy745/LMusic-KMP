@@ -12,14 +12,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
-import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
-import coil3.request.Options
 import com.lalilu.RemixIcon
-import com.lalilu.extensions.ItemRecorder
-import com.lalilu.extensions.ItemSelector
-import com.lalilu.extensions.rememberLazyListAnimateScroller
-import com.lalilu.extensions.startRecord
+import com.lalilu.extensions.*
 import com.lalilu.lmedia.component.AudioItemCard
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.sortable.GroupId
@@ -176,8 +171,7 @@ internal fun PlaylistDetailScreenContent(
                                 }
                             },
                             onNavigateToDetail = {
-                                val imageLoader = SingletonImageLoader.get(context)
-                                val coverMemoryKey = imageLoader.components.key(item, Options(context))
+                                val coverMemoryKey = context.retrieveCacheKey(item)
 
                                 AppRouter.route("/song/detail")
                                     .with("mediaId", item.idValue())
@@ -238,8 +232,7 @@ internal fun PlaylistDetailScreenContent(
                                 }
                             },
                             onNavigateToDetail = {
-                                val imageLoader = SingletonImageLoader.get(context)
-                                val coverMemoryKey = imageLoader.components.key(item, Options(context))
+                                val coverMemoryKey = context.retrieveCacheKey(item)
 
                                 AppRouter.route("/song/detail")
                                     .with("mediaId", item.idValue())

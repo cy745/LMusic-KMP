@@ -38,6 +38,7 @@ import org.koin.core.qualifier.named
 data class AlbumDetailScreen(
     val albumId: String,
     val album: LAlbum? = null,
+    val coverCacheKey: String? = null,
     val sharedMap: Map<String, String> = emptyMap(),
 ) : Screen, ScreenInfoFactory, ScreenActionFactory, ScreenBarFactory {
     override val key: String = "${super.key}:$albumId"
@@ -164,6 +165,7 @@ data class AlbumDetailScreen(
             songs = songs,
             album = album,
             sharedMap = sharedMap,
+            coverCacheKey = coverCacheKey,
             keys = { vm.recorder.list().filterNotNull() },
             recorder = { vm.recorder },
             eventFlow = vm.eventFlow(),

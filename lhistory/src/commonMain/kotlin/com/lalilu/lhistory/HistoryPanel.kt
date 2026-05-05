@@ -11,13 +11,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
-import coil3.request.Options
 import com.lalilu.Slot
 import com.lalilu.adaptiveValue
 import com.lalilu.component.LazyGridContent
 import com.lalilu.component.divider
+import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lhistory.viewmodel.HistoryVM
 import com.lalilu.lmedia.component.AudioItemCard
 import com.lalilu.lplayer.action.PlayerAction
@@ -93,8 +92,7 @@ class HistoryPanel : LazyGridContent {
                         }
                     },
                     onNavigateToDetail = {
-                        val imageLoader = SingletonImageLoader.get(context)
-                        val coverMemoryKey = imageLoader.components.key(it, Options(context))
+                        val coverMemoryKey = context.retrieveCacheKey(it)
 
                         AppRouter.route("/song/detail")
                             .with("mediaId", it.idValue())

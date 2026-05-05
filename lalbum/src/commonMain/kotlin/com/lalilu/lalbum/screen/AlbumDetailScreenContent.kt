@@ -14,9 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
-import coil3.request.Options
+import coil3.request.ImageRequest
 import com.lalilu.extensions.*
 import com.lalilu.lalbum.viewmodel.AlbumDetailEvent
 import com.lalilu.lmedia.component.AudioItemCard
@@ -37,6 +36,7 @@ internal fun AlbumDetailScreenContent(
     album: LAlbum? = null,
     songs: SortResult<LAudio> = SortResult.empty(),
     sharedMap: SharedMap = emptyMap(),
+    coverCacheKey: String? = null,
     eventFlow: Flow<AlbumDetailEvent> = emptyFlow(),
     keys: () -> Collection<Any> = { emptyList() },
     recorder: () -> ItemRecorder,
@@ -45,7 +45,6 @@ internal fun AlbumDetailScreenContent(
 ) = SharedContext(sharedMap) {
     val context = LocalPlatformContext.current
     val density = LocalDensity.current
-    val statusBar = WindowInsets.statusBars
     val listState: LazyListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val stickyHeaderContentType = remember { "group" }
@@ -53,6 +52,15 @@ internal fun AlbumDetailScreenContent(
         listState = listState,
         keys = keys
     )
+
+    val statusBar = WindowInsets.statusBars
+    val statusBarPadding = statusBar.asPaddingValues()
+    val navigationBar = WindowInsets.navigationBars.asPaddingValues()
+    val smartBarHeight = PassThroughHelper.getValue(
+        key = "SmartBarHeight",
+        default = { navigationBar.calculateBottomPadding() }
+    )
+
 
     LaunchedEffect(Unit) {
         eventFlow.collectLatest { event ->
@@ -82,10 +90,17 @@ internal fun AlbumDetailScreenContent(
         }
     }
 
+    val coverData = remember(album) {
+        ImageRequest.Builder(context)
+            .placeholderMemoryCacheKey(coverCacheKey)
+            .data(album)
+            .build()
+    }
+
     val coverHeader = CoverHeader.register { key ->
         when (key) {
             CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this
-            CoverHeader.Param.COVER -> album
+            CoverHeader.Param.COVER -> coverData
             CoverHeader.Param.TITLE -> album?.titleValue() ?: "Unknown Album"
             CoverHeader.Param.SUBTITLE -> album?.subtitleValue()?.takeIf { it.isNotBlank() }
                 ?: "${songs.itemList.size} songs"
@@ -96,7 +111,8 @@ internal fun AlbumDetailScreenContent(
         modifier = Modifier.fillMaxSize(),
         state = listState,
         verticalArrangement = Arrangement.spacedBy(4.dp),
-        horizontalAlignment = Alignment.Start
+        horizontalAlignment = Alignment.Start,
+        contentPadding = PaddingValues(bottom = smartBarHeight() + 16.dp),
     ) {
         startRecord(recorder()) {
             coverHeader.invoke(this@LazyColumn)
@@ -140,8 +156,7 @@ internal fun AlbumDetailScreenContent(
                             }
                         },
                         onNavigateToDetail = {
-                            val imageLoader = SingletonImageLoader.get(context)
-                            val coverMemoryKey = imageLoader.components.key(item, Options(context))
+                            val coverMemoryKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/song/detail")
                                 .with("mediaId", item.idValue())

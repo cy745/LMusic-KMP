@@ -15,11 +15,10 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
-import coil3.request.Options
 import com.lalilu.extensions.Item
 import com.lalilu.extensions.diff
+import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.SongCard
@@ -112,8 +111,7 @@ fun PlaylistLayout(
                 subtitle = data.subtitle,
                 onClick = { PlayerAction.PlayById(data.idValue()).action() },
                 onLongClick = { sharedMap ->
-                    val imageLoader = SingletonImageLoader.get(context)
-                    val coverMemoryKey = imageLoader.components.key(item, Options(context))
+                    val coverMemoryKey = context.retrieveCacheKey(item)
 
                     AppRouter.route("/song/detail")
                         .with("mediaId", data.idValue())

@@ -14,9 +14,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
-import coil3.request.Options
 import com.lalilu.RemixIcon
 import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.*
@@ -319,8 +317,7 @@ fun SongsScreenContent(
                             }
                         },
                         onNavigateToDetail = {
-                            val imageLoader = SingletonImageLoader.get(context)
-                            val coverMemoryKey = imageLoader.components.key(item, Options(context))
+                            val coverMemoryKey = context.retrieveCacheKey(item)
                             AppRouter.route("/song/detail")
                                 .with("mediaId", item.idValue())
                                 .with("song", item)

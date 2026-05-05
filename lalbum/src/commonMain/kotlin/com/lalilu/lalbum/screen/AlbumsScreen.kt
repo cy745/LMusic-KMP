@@ -5,7 +5,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import coil3.compose.LocalPlatformContext
 import com.lalilu.RemixIcon
+import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lalbum.lalbum.generated.resources.Res
 import com.lalilu.lalbum.lalbum.generated.resources.album_screen_title
@@ -80,6 +82,7 @@ data object AlbumsScreen : Screen, ScreenInfoFactory, ScreenActionFactory, Scree
         val albums by vm.albums
         val sortAction = vm.sorter.selectedAction.collectAsState()
         val sortConfig = vm.sorter.sortConfig.collectAsState()
+        val context = LocalPlatformContext.current
 
         SortPanelDialog(
             isVisible = { state.showSortPanel },
@@ -102,10 +105,13 @@ data object AlbumsScreen : Screen, ScreenInfoFactory, ScreenActionFactory, Scree
             albums = albums,
             showText = { state.showText },
             onClickAlbum = { album, sharedMap ->
+                val coverCacheKey = context.retrieveCacheKey(album)
+
                 AppRouter.route("/pages/albums/detail")
                     .with("albumId", album.id)
                     .with("album", album)
                     .with("sharedMap", sharedMap)
+                    .with("coverCacheKey", coverCacheKey)
                     .push()
             }
         )

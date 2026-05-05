@@ -11,10 +11,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
-import coil3.request.Options
 import com.lalilu.component.LazyGridContent
+import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lhome.component.RecommendCard
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
@@ -73,8 +72,7 @@ object LatestPanel : LazyGridContent {
                         subTitle = item.subtitle,
                         imageData = item,
                         onClick = { sharedMap ->
-                            val imageLoader = SingletonImageLoader.get(context)
-                            val coverMemoryKey = imageLoader.components.key(item, Options(context))
+                            val coverMemoryKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/song/detail")
                                 .with("mediaId", item.id)
