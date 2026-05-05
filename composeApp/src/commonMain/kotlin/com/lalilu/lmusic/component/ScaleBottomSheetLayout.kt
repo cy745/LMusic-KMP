@@ -3,7 +3,6 @@ package com.lalilu.lmusic.component
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
@@ -29,7 +28,6 @@ import com.lalilu.navigation.LocalModalBottomSheetState
 import kotlinx.coroutines.launch
 
 
-@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun ScaleBottomSheetLayout(
     modifier: Modifier = Modifier,
@@ -131,7 +129,6 @@ fun ScaleBottomSheetLayout(
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class)
 private fun AnchoredDraggableState<ModalBottomSheetValue>.progressToTargetPosition(progress: Float): Float {
     val expanded = anchors.positionOf(ModalBottomSheetValue.Expanded)
     val hidden = anchors.positionOf(ModalBottomSheetValue.Hidden)

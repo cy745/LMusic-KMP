@@ -22,7 +22,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.contentColorFor
@@ -89,7 +88,6 @@ enum class ModalBottomSheetValue {
  * If supplied with [ModalBottomSheetValue.HalfExpanded] for the initialValue, an
  * [IllegalArgumentException] will be thrown.
  */
-@OptIn(ExperimentalMaterialApi::class)
 class ModalBottomSheetState(
     initialValue: ModalBottomSheetValue,
     density: Density,
@@ -336,7 +334,6 @@ fun rememberModalBottomSheetState(
  * when visible.
  * @param content The content of rest of the screen.
  */
-@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun ModalBottomSheetLayout(
     sheetContent: @Composable ColumnScope.() -> Unit,
@@ -449,7 +446,6 @@ fun ModalBottomSheetLayout(
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class)
 private fun Modifier.modalBottomSheetAnchors(sheetState: ModalBottomSheetState) = draggableAnchors(
     state = sheetState.anchoredDraggableState,
     orientation = Orientation.Vertical
@@ -550,7 +546,6 @@ object ModalBottomSheetDefaults {
     )
 }
 
-@OptIn(ExperimentalMaterialApi::class)
 private fun ConsumeSwipeWithinBottomSheetBoundsNestedScrollConnection(
     state: AnchoredDraggableState<*>,
     orientation: Orientation,

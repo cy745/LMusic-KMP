@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,7 +31,6 @@ import org.koin.core.annotation.Single
 @Named("history_panel")
 @Single
 class HistoryPanel : LazyGridContent {
-    @OptIn(ExperimentalMaterialApi::class)
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
         val scope = rememberCoroutineScope()
