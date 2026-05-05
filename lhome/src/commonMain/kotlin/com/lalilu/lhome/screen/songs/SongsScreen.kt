@@ -3,6 +3,7 @@ package com.lalilu.lhome.screen.songs
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -280,7 +281,7 @@ fun SongsScreenContent(
 
             songs.draw {
                 groupId?.let { groupId ->
-                    stickyHeaderWithRecord(
+                    stickyHeader(
                         key = groupId,
                         contentType = "group"
                     ) {
@@ -293,7 +294,7 @@ fun SongsScreenContent(
                     }
                 }
 
-                itemsIndexedWithRecord(
+                itemsIndexed(
                     items = items,
                     key = { index, item -> item.idValue() },
                     contentType = { index, item -> item::class }

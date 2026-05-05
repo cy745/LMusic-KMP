@@ -1,9 +1,7 @@
 package com.lalilu.lplaylist.screen
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -122,7 +120,7 @@ internal fun PlaylistDetailScreenContent(
         horizontalAlignment = Alignment.Start
     ) {
         startRecord(recorder()) {
-            itemWithRecord(key = "HEADER") {
+            item(key = "HEADER") {
                 NavigatorHeader(
                     modifier = Modifier
                         .statusBarsPadding()
@@ -147,7 +145,7 @@ internal fun PlaylistDetailScreenContent(
             }
 
             if (enableDraggable) {
-                itemsWithRecord(
+                items(
                     items = playlistState,
                     key = { it.idValue() },
                     contentType = { it::class }
@@ -193,7 +191,7 @@ internal fun PlaylistDetailScreenContent(
             } else {
                 songs.draw {
                     groupId?.let { groupId ->
-                        stickyHeaderWithRecord(
+                        stickyHeader(
                             key = groupId,
                             contentType = stickyHeaderContentType
                         ) {
@@ -211,7 +209,7 @@ internal fun PlaylistDetailScreenContent(
                         }
                     }
 
-                    itemsIndexedWithRecord(
+                    itemsIndexed(
                         items = items,
                         key = { index, item -> item.id },
                         contentType = { index, item -> item::class }

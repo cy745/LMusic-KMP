@@ -5,6 +5,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
@@ -145,7 +146,7 @@ fun LyricLayout(
         ) {
             startRecord(recorder) {
                 if (lyricEntry.value.isEmpty()) {
-                    itemWithRecord(key = "EMPTY_TIPS") {
+                    item(key = "EMPTY_TIPS") {
                         val item = remember {
                             LyricItem.NormalLyric(
                                 key = "0",
@@ -165,7 +166,7 @@ fun LyricLayout(
                         )
                     }
                 } else {
-                    itemsIndexedWithRecord(
+                    itemsIndexed(
                         items = lyricEntry.value,
                         key = { _, item -> item.key },
                         contentType = { _, _ -> LyricItem::class }

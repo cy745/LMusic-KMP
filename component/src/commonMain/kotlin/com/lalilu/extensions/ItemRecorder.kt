@@ -1,39 +1,17 @@
 package com.lalilu.extensions
 
-
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 
 class LazyListRecordScope internal constructor(
     var recorder: ItemRecorder,
-) {
+) : LazyListScope {
     var lazyListScope: LazyListScope? = null
         internal set
 
-    fun stickyHeaderWithRecord(
-        key: Any? = null,
-        contentType: Any? = null,
-        content: @Composable LazyItemScope.(Int) -> Unit
-    ) {
-        lazyListScope?.let { scope ->
-            recorder.record(key)
-            scope.stickyHeader(
-                key = key,
-                contentType = contentType,
-                content = content
-            )
-        }
-    }
-
-    fun itemWithRecord(
-        key: Any? = null,
-        contentType: Any? = null,
-        content: @Composable LazyItemScope.() -> Unit
-    ) {
+    override fun item(key: Any?, contentType: Any?, content: @Composable (LazyItemScope.() -> Unit)) {
         lazyListScope?.let { scope ->
             recorder.record(key)
             scope.item(
@@ -44,16 +22,16 @@ class LazyListRecordScope internal constructor(
         }
     }
 
-    inline fun <T : Any> itemsWithRecord(
-        items: List<T>,
-        noinline key: ((item: T) -> Any)? = null,
-        noinline contentType: (item: T) -> Any? = { null },
-        crossinline itemContent: @Composable LazyItemScope.(item: T) -> Unit
+    override fun items(
+        count: Int,
+        key: ((index: Int) -> Any)?,
+        contentType: (index: Int) -> Any?,
+        itemContent: @Composable (LazyItemScope.(index: Int) -> Unit)
     ) {
         lazyListScope?.let { scope ->
-            recorder.recordAll(items.map { key?.invoke(it) })
+            recorder.recordAll((0 until count).map { key?.invoke(it) })
             scope.items(
-                items = items,
+                count = count,
                 key = key,
                 contentType = contentType,
                 itemContent = itemContent
@@ -61,19 +39,13 @@ class LazyListRecordScope internal constructor(
         }
     }
 
-    inline fun <T> itemsIndexedWithRecord(
-        items: List<T>,
-        noinline key: ((index: Int, item: T) -> Any)? = null,
-        crossinline contentType: (index: Int, item: T) -> Any? = { _, _ -> null },
-        crossinline itemContent: @Composable LazyItemScope.(index: Int, item: T) -> Unit
-    ) {
+    override fun stickyHeader(key: Any?, contentType: Any?, content: @Composable (LazyItemScope.(Int) -> Unit)) {
         lazyListScope?.let { scope ->
-            recorder.recordAll(items.mapIndexed { index, item -> key?.invoke(index, item) })
-            scope.itemsIndexed(
-                items = items,
+            recorder.record(key)
+            scope.stickyHeader(
                 key = key,
                 contentType = contentType,
-                itemContent = itemContent
+                content = content
             )
         }
     }
