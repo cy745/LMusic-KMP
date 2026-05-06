@@ -89,6 +89,7 @@ qrcode-kotlin = { module = "io.github.g0dkar:qrcode-kotlin", version = "4.5.0" }
 sonner = { module = "io.github.brdominguez:compose-sonner", version = "0.4.0" }
 materialKolor = { module = "com.materialkolor:material-kolor", version.ref = "materialKolor" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
+diff-utils = { module = "io.github.petertrr:kotlin-multiplatform-diff", version = "1.3.0" }
 
 filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekit" }
 filekit-dialogs = { module = "io.github.vinceglb:filekit-dialogs", version.ref = "filekit" }

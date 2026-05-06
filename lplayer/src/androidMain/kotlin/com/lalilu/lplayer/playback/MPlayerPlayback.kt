@@ -15,16 +15,21 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import com.lalilu.lmedia.data.Library
+import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.MMedia
 import com.lalilu.lplayer.extensions.PlayMode
 import com.lalilu.lplayer.extensions.playMode
+import com.lalilu.lplayer.extensions.toMediaItem
 import com.lalilu.lplayer.service.CustomCommand
 import com.lalilu.lplayer.service.MService
+import io.github.petertrr.diffutils.algorithm.myers.MyersDiff
+import io.github.petertrr.diffutils.patch.DeltaType
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.guava.await
+import kotlin.collections.map
 import kotlin.coroutines.CoroutineContext
 
 @OptIn(UnstableApi::class, ExperimentalCoroutinesApi::class)
@@ -88,6 +93,11 @@ class MPlayerPlayback(
                 browser.setMediaItems(mediaItems, lastPlayIndex, lastPosition)
                 browser.prepare()
             }
+
+            // 监听播放列表更新，并刷新播放列表
+            queue.expandedItems
+                .onEach { state -> diffUpdateMediaItems(state.list.map { it.item }) }
+                .launchIn(this)
         }
     }
 
@@ -243,6 +253,41 @@ class MPlayerPlayback(
         val browser = browserFuture.await()
         withContext(Dispatchers.Main) {
             browser.block()
+        }
+    }
+
+    /**
+     * 差异更新媒体项，减少媒体项的更新，避免更新影响播放进度
+     *
+     * @param items 新的媒体项列表
+     */
+    private suspend fun diffUpdateMediaItems(items: List<LAudio>) = withContext(Dispatchers.IO) {
+        val browser = browserFuture.await()
+        val currentIds = withContext(Dispatchers.Main) { browser.currentTimeline.toMediaItems().map { it.mediaId } }
+
+        val mediaItems = items.map { it.toMediaItem() }
+        val newIds = mediaItems.map { it.mediaId }
+        val changes = MyersDiff<String>().computeDiff(source = currentIds, target = newIds)
+
+        withContext(Dispatchers.Main) {
+            changes.forEach { change ->
+                when (change.deltaType) {
+                    DeltaType.DELETE -> browser.removeMediaItems(change.startOriginal, change.endOriginal)
+
+                    DeltaType.INSERT -> browser.addMediaItems(
+                        change.startOriginal,
+                        mediaItems.subList(change.startRevised, change.endRevised)
+                    )
+
+                    DeltaType.CHANGE -> browser.replaceMediaItems(
+                        change.startOriginal,
+                        change.endOriginal,
+                        mediaItems.subList(change.startRevised, change.endRevised)
+                    )
+
+                    DeltaType.EQUAL -> {}
+                }
+            }
         }
     }
 }

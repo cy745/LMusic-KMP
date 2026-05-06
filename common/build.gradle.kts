@@ -39,6 +39,7 @@ applyMultiplatform {
         // kotlin crypto
         api(kotlincrypto.hash.md)
         api(libs.sweetspi.runtime)
+        api(libs.diff.utils)
 
         api(libs.room3.common)
         api(libs.paging.common)
