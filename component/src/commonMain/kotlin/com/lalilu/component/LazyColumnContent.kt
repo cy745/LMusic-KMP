@@ -30,6 +30,31 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isUnspecified
 
+data class ComposableContent(val block: @Composable () -> Unit)
+data class ComposableContentWithModifier(val block: @Composable (Modifier) -> Unit)
+
+interface RegisterScope {
+    fun composable(block: @Composable () -> Unit) = ComposableContent(block)
+    fun composable(block: @Composable (Modifier) -> Unit) = ComposableContentWithModifier(block)
+}
+
+typealias ContentMapper<T> = RegisterScope.(T) -> Any?
+
+fun <T : Any> ContentMapper<T>.get(key: T): Any? = invoke(object : RegisterScope {}, key)
+
+@Suppress("UNCHECKED_CAST")
+fun <T : Any, K : Any> ContentMapper<T>.cast(key: T): K = invoke(object : RegisterScope {}, key) as K
+
+@Composable
+fun <T : Any> ContentMapper<T>.Content(key: T) =
+    remember { invoke(object : RegisterScope {}, key)?.let { it as ComposableContent }?.block }
+        ?.invoke()
+
+@Composable
+fun <T : Any> ContentMapper<T>.Content(key: T, modifier: Modifier) =
+    remember { invoke(object : RegisterScope {}, key)?.let { it as ComposableContentWithModifier }?.block }
+        ?.invoke(modifier)
+
 /**
  * `LazyColumnContent` 是一个用于定义 LazyColumn 内容的接口，旨在提供一种灵活且可复用的方式来构建列表项。
  * 通过参数化设计，它支持将数据与 UI 解耦，使得开发者可以根据不同的参数动态生成列表内容。
@@ -70,13 +95,13 @@ interface LazyColumnContent<T : Any> {
     /**
      * 注册 LazyColumn 的内容项。
      *
-     * @param values 一个函数，接收类型为 `T` 的参数，返回任意类型的值（通常用于传递数据）。
+     * @param mapper 一个函数，接收类型为 `T` 的参数，返回任意类型的值（通常用于传递数据）。
      *               该函数的作用是根据传入的参数获取对应的数据，供 LazyColumn 内容使用。
      * @return 返回一个扩展函数，作用于 `LazyListScope`，用于构建 LazyColumn 的具体内容。
      *         该函数会在 LazyColumn 中被调用，以添加实际的 UI 元素。
      */
     @Composable
-    fun register(values: (T) -> Any?): LazyListScope.() -> Unit
+    fun register(mapper: ContentMapper<T>): LazyListScope.() -> Unit
 }
 
 inline fun <T> LazyListScope.gridItems(

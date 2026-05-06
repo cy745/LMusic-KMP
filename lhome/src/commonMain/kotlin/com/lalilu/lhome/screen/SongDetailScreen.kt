@@ -95,10 +95,11 @@ fun SongDetailScreenContent(
 
     val header = CoverHeader.register { key ->
         when (key) {
-            CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this
+            CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this@SharedContext
             CoverHeader.Param.COVER -> coverData
             CoverHeader.Param.TITLE -> song?.titleValue()
             CoverHeader.Param.SUBTITLE -> song?.subtitleValue()
+            else -> null
         }
     }
 

@@ -32,7 +32,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.lalilu.adaptiveValue
 import com.lalilu.animated
+import com.lalilu.component.ContentMapper
 import com.lalilu.component.LazyColumnContent
+import com.lalilu.component.get
 import com.lalilu.component.gridItems
 import com.lalilu.extensions.LocalToaster
 import com.lalilu.preview.preview
@@ -43,8 +45,10 @@ object MetadataInfos : LazyColumnContent<MetadataInfos.Param> {
     }
 
     @Composable
-    override fun register(values: (Param) -> Any?): LazyListScope.() -> Unit {
-        val list = (values(Param.METADATA_MAP) as? Map<*, *>)
+    override fun register(
+        mapper: ContentMapper<Param>
+    ): LazyListScope.() -> Unit {
+        val list = (mapper.get(Param.METADATA_MAP) as? Map<*, *>)
             ?.toList()
             ?: emptyList()
 

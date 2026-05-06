@@ -25,6 +25,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.movableContentOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -38,22 +40,24 @@ import com.lalilu.adaptive
 import com.lalilu.adaptiveValue
 import com.lalilu.animated
 import com.lalilu.atLeastMedium
-import com.lalilu.component.LazyColumnContent
+import com.lalilu.component.*
 import com.lalilu.extensions.SharedContextScope
 
+@Suppress("UNCHECKED_CAST")
 object CoverHeader : LazyColumnContent<CoverHeader.Param> {
 
     enum class Param {
         SHARED_CONTEXT_SCOPE,
         COVER,
         TITLE,
-        SUBTITLE
+        SUBTITLE,
+        EXTRA_CONTENT
     }
 
     @Composable
     override fun register(
-        values: (Param) -> Any?,
-    ): LazyListScope.() -> Unit = with(values(Param.SHARED_CONTEXT_SCOPE) as SharedContextScope) {
+        mapper: ContentMapper<Param>
+    ): LazyListScope.() -> Unit = mapper.cast<Param, SharedContextScope>(Param.SHARED_CONTEXT_SCOPE).run {
         val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
         val statusBar = WindowInsets.statusBars.asPaddingValues()
         val paddingTop = adaptiveValue(
@@ -76,7 +80,46 @@ object CoverHeader : LazyColumnContent<CoverHeader.Param> {
             medium = { 12.dp }
         ).animated()
 
+        val titleContent = remember {
+            movableContentOf { modifier: Modifier, atColumn: Boolean ->
+                val extraContent = remember {
+                    mapper.get(Param.EXTRA_CONTENT)
+                        ?.let { it as? ComposableContentWithModifier }
+                        ?.let { movableContentOf(it.block) }
+                }
+
+                Column(modifier = modifier) {
+                    Row {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                modifier = Modifier.padding(top = 8.dp)
+                                    .sharedBoundsV2(key = "TITLE"),
+                                text = mapper.get(Param.TITLE) as? String ?: "",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                            Text(
+                                modifier = Modifier.sharedBoundsV2("SUBTITLE")
+                                    .alpha(0.6f),
+                                text = mapper.get(Param.SUBTITLE) as? String ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                    }
+
+                    extraContent?.invoke(Modifier)
+                }
+            }
+        }
+
         return fun LazyListScope.() {
+            val atLeastMedium = windowSizeClass.atLeastMedium()
+
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth()
@@ -99,61 +142,28 @@ object CoverHeader : LazyColumnContent<CoverHeader.Param> {
                                 color = MaterialTheme.colorScheme.onBackground.copy(0.2f),
                                 shape = RoundedCornerShape(clipRadius.value)
                             ),
-                        model = values(Param.COVER),
+                        model = mapper.get(Param.COVER),
                         contentDescription = null,
                         contentScale = ContentScale.Crop
                     )
-                    if (windowSizeClass.atLeastMedium()) {
-                        Column(
-                            modifier = Modifier.weight(1f).padding(start = 32.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Text(
-                                modifier = Modifier.padding(top = 8.dp)
-                                    .sharedBoundsV2(key = "TITLE"),
-                                text = values(Param.TITLE) as? String ?: "",
-                                style = MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.Black,
-                                maxLines = 3,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                            Text(
-                                modifier = Modifier.sharedBoundsV2("SUBTITLE")
-                                    .alpha(0.6f),
-                                text = values(Param.SUBTITLE) as? String ?: "",
-                                maxLines = 3,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
+                    if (atLeastMedium) {
+                        titleContent(
+                            Modifier.weight(1f)
+                                .padding(start = 32.dp),
+                            false
+                        )
                     }
                 }
             }
 
-            if (!windowSizeClass.atLeastMedium()) {
+            if (!atLeastMedium) {
                 item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
+                    titleContent(
+                        Modifier.fillMaxWidth()
                             .padding(top = 16.dp)
                             .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            modifier = Modifier.padding(top = 8.dp)
-                                .sharedBoundsV2(key = "TITLE"),
-                            text = values(Param.TITLE) as? String ?: "",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                        Text(
-                            modifier = Modifier.sharedBoundsV2("SUBTITLE")
-                                .alpha(0.6f),
-                            text = values(Param.SUBTITLE) as? String ?: "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
+                        true
+                    )
                 }
             }
         }
