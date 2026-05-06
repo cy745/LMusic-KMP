@@ -4,6 +4,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lmedia.entity.ref
+import com.lalilu.lplayer.extensions.add
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,6 +35,15 @@ class PlayableQueueImpl(
             val list = it.first + item.toPlayable()
             val index = it.second  // 当前播放元素位置不变
             list to index
+        }
+    }
+
+    override fun addToNext(item: LItem) {
+        _rawQueue.update {
+            val list = it.first.toMutableList()
+            val targetIndex = (it.second + 1).coerceIn(it.first.indices)
+            list.add(targetIndex, item)
+            list to it.second
         }
     }
 

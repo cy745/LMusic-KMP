@@ -60,6 +60,11 @@ interface PlayableQueue {
     fun addToEnd(item: LItem)
 
     /**
+     * 添加到当前播放元素后
+     */
+    fun addToNext(item: LItem)
+
+    /**
      * 切换播放项
      *
      * @param index 新的当前播放元素索引
