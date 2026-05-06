@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -41,7 +42,9 @@ internal fun AlbumDetailScreenContent(
     keys: () -> Collection<Any> = { emptyList() },
     recorder: () -> ItemRecorder,
     selector: () -> ItemSelector<LAudio>,
-    onClickGroup: (GroupId) -> Unit = {}
+    onClickGroup: (GroupId) -> Unit = {},
+    onClickAddToPlaylist: () -> Unit = {},
+    onClickPlayAll: () -> Unit = {},
 ) = SharedContext(sharedMap) {
     val context = LocalPlatformContext.current
     val density = LocalDensity.current
@@ -99,11 +102,22 @@ internal fun AlbumDetailScreenContent(
 
     val coverHeader = CoverHeader.register { key ->
         when (key) {
-            CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this
+            CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this@SharedContext
             CoverHeader.Param.COVER -> coverData
             CoverHeader.Param.TITLE -> album?.titleValue() ?: "Unknown Album"
             CoverHeader.Param.SUBTITLE -> album?.subtitleValue()?.takeIf { it.isNotBlank() }
                 ?: "${songs.itemList.size} songs"
+
+            CoverHeader.Param.EXTRA_CONTENT -> composable { modifier: Modifier ->
+                Row(modifier = modifier) {
+                    TextButton(onClick = onClickAddToPlaylist) {
+                        Text(text = "添加专辑到播放列表")
+                    }
+                    TextButton(onClick = onClickPlayAll) {
+                        Text(text = "播放全部")
+                    }
+                }
+            }
         }
     }
 

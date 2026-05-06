@@ -1,9 +1,6 @@
 package com.lalilu.lalbum.screen
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import com.lalilu.RemixIcon
 import com.lalilu.common.ext.requestFor
@@ -17,6 +14,8 @@ import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.dialog.GroupIdJumperDialog
 import com.lalilu.lmedia.dialog.SortPanelDialog
 import com.lalilu.lmedia.entity.LAlbum
+import com.lalilu.lplayer.LPlayer
+import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.*
 import com.lalilu.navigation.smartbar.CancellableInputerBarPanel
 import com.lalilu.navigation.smartbar.CancellableScreenBarPanel
@@ -29,6 +28,7 @@ import com.lalilu.remixicon.editor.sortDesc
 import com.lalilu.remixicon.system.checkboxMultipleBlankLine
 import com.lalilu.remixicon.system.checkboxMultipleLine
 import com.lalilu.remixicon.system.menuSearchLine
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -161,6 +161,7 @@ data class AlbumDetailScreen(
             )
         )
 
+        val scope = rememberCoroutineScope()
         AlbumDetailScreenContent(
             songs = songs,
             album = album,
@@ -170,7 +171,16 @@ data class AlbumDetailScreen(
             recorder = { vm.recorder },
             eventFlow = vm.eventFlow(),
             selector = { vm.selector },
-            onClickGroup = { vm.intent(AlbumDetailAction.ToggleJumperDialog) }
+            onClickGroup = { vm.intent(AlbumDetailAction.ToggleJumperDialog) },
+            onClickAddToPlaylist = { album?.let { LPlayer.instance.queue.addToNext(it) } },
+            onClickPlayAll = {
+                scope.launch {
+                    PlayerAction.UpdateList(
+                        ids = songs.itemList.map { it.idValue() },
+                        start = true
+                    ).action()
+                }
+            }
         )
     }
 }
