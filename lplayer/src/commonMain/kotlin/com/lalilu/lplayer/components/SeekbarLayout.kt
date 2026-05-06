@@ -81,7 +81,7 @@ internal class SeekbarProgressKeeper(
         private set
 
     fun updateValue(value: Float) {
-        nowValue = value.coerceIn(minValue(), maxValue())
+        nowValue = value.coerceIn(minValue(), maxValue().takeIf { it > minValue() } ?: minValue())
     }
 
     fun updateValueByDelta(delta: Float) {

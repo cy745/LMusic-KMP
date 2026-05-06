@@ -18,7 +18,6 @@ import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lplayer.LPlayerKV
-import com.lalilu.lplayer.extensions.MMedia
 import com.lalilu.lplayer.extensions.PlayMode
 import com.lalilu.lplayer.extensions.playMode
 import com.lalilu.lplayer.extensions.toMediaItem
@@ -83,21 +82,47 @@ class MPlayerPlayback(
         launch {
             val lastPosition = LPlayerKV.historyPlayPosition.value
             val lastMediaIds = LPlayerKV.historyPlaylistIds.value
+            val lastParentIds = LPlayerKV.historyPlaylistParentIds.value
+            val mediaIdsParentIdsMap = run {
+                if (lastMediaIds.size != lastParentIds.size) return@run emptyList()
+                lastMediaIds.mapIndexed { index, string -> string to lastParentIds[index] }
+            }
+
             val lastPlayId = LPlayerKV.historyPlayId.value
             val lastPlayIndex = lastMediaIds.indexOf(lastPlayId)
+            val items = library.mapBy<LAudio>(lastMediaIds)
 
-            val mediaItems = MMedia.getItems(lastMediaIds)
+            val playableList = with(queue) {
+                items.mapIndexed { index, audio ->
+                    val pair = mediaIdsParentIdsMap.getOrNull(index)
+                    if (pair?.first == audio.idValue() && pair.second.isNotBlank()) {
+                        val parent = library.getByPrefix(pair.second)
+                        val sourceItem = parent?.toPlayable() as Playable.Items<LAudio, *>
+                        return@mapIndexed Playable.Item(audio, sourceItem)
+                    }
+                    audio.toPlayable()
+                }
+            }
+
+            queue.replaceAll(playableList, lastPlayIndex)
+            diffUpdateMediaItems(items)
 
             withContext(Dispatchers.Main) {
                 browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
-                browser.setMediaItems(mediaItems, lastPlayIndex, lastPosition)
+                browser.seekTo(lastPlayIndex, lastPosition)
                 browser.prepare()
             }
 
             // 监听播放列表更新，并刷新播放列表
             queue.expandedItems
-                .onEach { state -> diffUpdateMediaItems(state.list.map { it.item }) }
-                .launchIn(this)
+                .onEach { (list, index) ->
+                    val ids = list.map { it.item.idValue() }
+                    LPlayerKV.historyPlaylistIds.value = ids
+                    LPlayerKV.historyPlaylistParentIds.value = list.map { it.source?.source?.idValue() ?: "" }
+                    LPlayerKV.historyPlayId.value = ids.getOrNull(index) ?: ""
+                    diffUpdateMediaItems(list.map { it.item })
+                }
+                .launchIn(this@MPlayerPlayback)
         }
     }
 
@@ -163,14 +188,17 @@ class MPlayerPlayback(
         playlist: List<LItem>,
         startIndex: Int,
         start: Boolean
-    ) = runWithBrowser {
-        val items = MMedia.getItems(playlist.map { it.idValue() })
-        setMediaItems(items, startIndex, 0)
-        if (start) play()
-    }
+    ) = withContext(Dispatchers.IO) {
+        // 更新播放列表
+        queue.replaceAll(index = startIndex, items = with(queue) { playlist.map { it.toPlayable() } })
 
-    override suspend fun clearPlaylist() = runWithBrowser {
-        setMediaItems(emptyList())
+        // 读取播放列表展平后的可播放元素
+        val items = queue.expandedItems.value.list.map { it.item.toMediaItem() }
+
+        runWithBrowser {
+            setMediaItems(items, startIndex, 0)
+            if (start) play()
+        }
     }
 
     override suspend fun setPlaybackMode(
@@ -237,14 +265,9 @@ class MPlayerPlayback(
     ) {
         val items = timeline?.toMediaItems() ?: emptyList()
         val ids = items.map { it.mediaId }
-
-        LPlayerKV.historyPlaylistIds.value = ids
         LPlayerKV.historyPlayId.value = ids.getOrNull(currentIndex) ?: ""
 
-        launch {
-            val items = library.mapByByPrefix(ids)
-            queue.replaceAll(items, currentIndex)
-        }
+        queue.switchTo(currentIndex)
     }
 
     suspend fun runWithBrowser(
@@ -262,7 +285,7 @@ class MPlayerPlayback(
      * @param items 新的媒体项列表
      */
     private suspend fun diffUpdateMediaItems(items: List<LAudio>) = withContext(Dispatchers.IO) {
-        val browser = browserFuture.await()
+        val browser = browserFuture.runCatching { get() }.getOrNull() ?: return@withContext
         val currentIds = withContext(Dispatchers.Main) { browser.currentTimeline.toMediaItems().map { it.mediaId } }
 
         val mediaItems = items.map { it.toMediaItem() }

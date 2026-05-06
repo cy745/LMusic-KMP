@@ -3,7 +3,6 @@ package com.lalilu.lplayer.playback
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
-import com.lalilu.lmedia.entity.ref
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -51,19 +50,18 @@ class PlayableQueueImpl(
         _rawQueue.update { pair -> if (index in pair.first.indices) pair.first to index else pair }
     }
 
-    override fun replaceAll(items: List<LItem>, index: Int) {
+    override fun replaceAll(items: List<Playable<LAudio>>, index: Int) {
         _rawQueue.update { pair ->
-            val newList = items.map { item -> item.toPlayable() }
             var targetIndex = index
 
             // 重新计算当前播放元素位置
             if (targetIndex == -1) {
                 // 获取当前播放元素的Key
                 val currentKey = pair.first.getOrNull(pair.second)?.key
-                targetIndex = newList.indexOfFirst { it.key == currentKey }
+                targetIndex = items.indexOfFirst { it.key == currentKey }
             }
 
-            newList to targetIndex.coerceAtMost(newList.lastIndex)
+            items to targetIndex.coerceAtMost(items.lastIndex)
         }
     }
 
@@ -125,11 +123,6 @@ class PlayableQueueImpl(
         }
     }
 
-    private fun LItem.toPlayable(): Playable<LAudio> {
-        return when (this) {
-            is LAudio -> Playable.Item(this)
-            else -> Playable.Items(items = ref<LAudio>(), source = this)
-        }
-    }
+
 }
 

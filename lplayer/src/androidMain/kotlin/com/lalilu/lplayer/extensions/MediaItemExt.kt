@@ -19,7 +19,7 @@ import io.ktor.http.encodeURLPathPart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-fun LAudio.toMediaItem(parentId: String? = null): MediaItem {
+fun LAudio.toMediaItem(): MediaItem {
     val uri = Uri.Builder()
         .scheme("lmusic")
         .path("audio")
@@ -29,7 +29,6 @@ fun LAudio.toMediaItem(parentId: String? = null): MediaItem {
     return MediaItem.Builder()
         .setMediaId(idValue())
         .setUri(uri)
-        .setTag(parentId)
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
@@ -138,7 +137,7 @@ object MMedia {
 
         LMedia.instance.getByPrefix(parentId)
             ?.ref<LAudio>()
-            ?.map { it.toMediaItem(parentId) }
+            ?.map { it.toMediaItem() }
             ?: emptyList()
     }
 }

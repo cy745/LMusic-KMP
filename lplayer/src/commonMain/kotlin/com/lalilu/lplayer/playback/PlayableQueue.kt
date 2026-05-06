@@ -2,6 +2,7 @@ package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.entity.ref
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +20,7 @@ data class QueueState(
      */
     fun rearrange(): List<Playable.Item<LAudio>> {
         if (index !in list.indices) return list
-        return list.drop(index) + list.take(index)
+        return (list.drop(index) + list.take(index)).distinctBy { it.key }
     }
 
     /**
@@ -77,7 +78,10 @@ interface PlayableQueue {
      * @param items 新的播放项列表
      * @param index 新的当前播放元素的索引，为-1时需要重新计算当前播放元素索引
      */
-    fun replaceAll(items: List<LItem>, index: Int = -1)
+    fun replaceAll(
+        items: List<Playable<LAudio>>,
+        index: Int = -1,
+    )
 
     /**
      * 更新一个播放项
@@ -117,4 +121,11 @@ interface PlayableQueue {
      * @param target 目标参考播放项
      */
     fun previousOf(target: Playable<LAudio>): Playable<LAudio>?
+
+    fun LItem.toPlayable(): Playable<LAudio> {
+        return when (this) {
+            is LAudio -> Playable.Item(this)
+            else -> Playable.Items(items = ref<LAudio>(), source = this)
+        }
+    }
 }

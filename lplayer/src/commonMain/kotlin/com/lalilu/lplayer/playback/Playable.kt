@@ -17,6 +17,9 @@ sealed interface Playable<T : Identifiable> {
         val source: K
     ) : Playable<T> {
         override val key = source.idValue()
+
+        @Suppress("UNCHECKED_CAST")
+        fun <P : Any> source(): P? = source as? P
     }
 }
 

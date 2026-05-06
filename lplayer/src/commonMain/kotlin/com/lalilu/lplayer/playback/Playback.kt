@@ -39,7 +39,7 @@ interface Playback {
     suspend fun seekTo(positionMs: Long)
 
     suspend fun updatePlaylist(playlist: List<LItem>, startIndex: Int, start: Boolean)
-    suspend fun clearPlaylist()
+    suspend fun clearPlaylist() = queue.clear()
 
     // Playback Mode
     suspend fun setPlaybackMode(mode: PlaybackMode)

@@ -19,6 +19,7 @@ import coil3.compose.LocalPlatformContext
 import com.lalilu.extensions.Item
 import com.lalilu.extensions.diff
 import com.lalilu.extensions.retrieveCacheKey
+import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.SongCard
@@ -102,6 +103,7 @@ fun PlaylistLayout(
                 else Color.Transparent
             )
             val data = item.data.item
+            val sourceTitle = remember { item.data.source?.source<LAlbum>()?.titleValue() ?: "" }
 
             SongCard(
                 modifier = Modifier
@@ -111,6 +113,7 @@ fun PlaylistLayout(
                 imageData = data,
                 title = data.title,
                 subtitle = data.subtitle,
+                extraText = sourceTitle,
                 onClick = { PlayerAction.PlayById(data.idValue()).action() },
                 onLongClick = { sharedMap ->
                     val coverMemoryKey = context.retrieveCacheKey(item)

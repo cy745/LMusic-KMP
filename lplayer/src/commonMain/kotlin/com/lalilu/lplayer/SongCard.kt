@@ -30,6 +30,7 @@ fun SongCard(
     imageData: Any? = null,
     title: String = "",
     subtitle: String = "",
+    extraText: String = "",
     onClick: () -> Unit = {},
     onLongClick: ((SharedMap) -> Unit)? = null,
 ) = SharedContext(
@@ -92,14 +93,28 @@ fun SongCard(
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onBackground
             )
-            Text(
-                modifier = Modifier
-                    .sharedElementV2("SUBTITLE")
-                    .alpha(0.6f),
-                text = subtitle.ifBlank { "Unknown Artist" },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    modifier = Modifier
+                        .sharedElementV2("SUBTITLE")
+                        .alpha(0.6f)
+                        .weight(1f),
+                    text = subtitle.ifBlank { "Unknown Artist" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+
+                if (extraText.isNotBlank()) {
+                    Text(
+                        modifier = Modifier
+                            .alpha(0.6f),
+                        text = extraText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+            }
         }
     }
 }
