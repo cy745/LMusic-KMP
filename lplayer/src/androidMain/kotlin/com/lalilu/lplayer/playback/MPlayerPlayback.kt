@@ -80,31 +80,14 @@ class MPlayerPlayback(
         browser.addListener(this@MPlayerPlayback)
 
         launch {
-            val lastPosition = LPlayerKV.historyPlayPosition.value
+            val lastPosition = LPlayerKV.historyPlayPosition.value.coerceAtLeast(0)
             val lastMediaIds = LPlayerKV.historyPlaylistIds.value
-            val lastParentIds = LPlayerKV.historyPlaylistParentIds.value
-            val mediaIdsParentIdsMap = run {
-                if (lastMediaIds.size != lastParentIds.size) return@run emptyList()
-                lastMediaIds.mapIndexed { index, string -> string to lastParentIds[index] }
-            }
 
             val lastPlayId = LPlayerKV.historyPlayId.value
-            val lastPlayIndex = lastMediaIds.indexOf(lastPlayId)
+            val lastPlayIndex = lastMediaIds.indexOf(lastPlayId).coerceAtLeast(0)
             val items = library.mapBy<LAudio>(lastMediaIds)
 
-            val playableList = with(queue) {
-                items.mapIndexed { index, audio ->
-                    val pair = mediaIdsParentIdsMap.getOrNull(index)
-                    if (pair?.first == audio.idValue() && pair.second.isNotBlank()) {
-                        val parent = library.getByPrefix(pair.second)
-                        val sourceItem = parent?.toPlayable() as Playable.Items<LAudio, *>
-                        return@mapIndexed Playable.Item(audio, sourceItem)
-                    }
-                    audio.toPlayable()
-                }
-            }
-
-            queue.replaceAll(playableList, lastPlayIndex)
+            queue.replaceAll(items, lastPlayIndex)
             diffUpdateMediaItems(items)
 
             withContext(Dispatchers.Main) {
@@ -116,11 +99,10 @@ class MPlayerPlayback(
             // 监听播放列表更新，并刷新播放列表
             queue.expandedItems
                 .onEach { (list, index) ->
-                    val ids = list.map { it.item.idValue() }
+                    val ids = list.map { it.idValue() }
                     LPlayerKV.historyPlaylistIds.value = ids
-                    LPlayerKV.historyPlaylistParentIds.value = list.map { it.source?.source?.idValue() ?: "" }
                     LPlayerKV.historyPlayId.value = ids.getOrNull(index) ?: ""
-                    diffUpdateMediaItems(list.map { it.item })
+                    diffUpdateMediaItems(list)
                 }
                 .launchIn(this@MPlayerPlayback)
         }
@@ -190,10 +172,10 @@ class MPlayerPlayback(
         start: Boolean
     ) = withContext(Dispatchers.IO) {
         // 更新播放列表
-        queue.replaceAll(index = startIndex, items = with(queue) { playlist.map { it.toPlayable() } })
+        queue.replaceAll(index = startIndex, items = with(queue) { playlist.flatMap { it.toPlayable() } })
 
         // 读取播放列表展平后的可播放元素
-        val items = queue.expandedItems.value.list.map { it.item.toMediaItem() }
+        val items = queue.expandedItems.value.list.map { it.toMediaItem() }
 
         runWithBrowser {
             setMediaItems(items, startIndex, 0)

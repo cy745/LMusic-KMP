@@ -44,11 +44,10 @@ class VLCPlayback(
         }
     }
 
-    private suspend fun playItem(item: Playable.Item<LAudio>, start: Boolean) {
-        val target = item.item
-        val source = library.requireMediaSource(target.source())
+    private suspend fun playItem(item: LAudio, start: Boolean) {
+        val source = library.requireMediaSource(item.source())
 
-        when (val data = source.dataSource.getMedia(target)) {
+        when (val data = source.dataSource.getMedia(item)) {
             is MediaData.Url -> {
                 Logger.i(tag = "VLCPlayback", messageString = "prepared with url: ${data.url}")
                 player.media().prepare(data.url)
@@ -60,10 +59,10 @@ class VLCPlayback(
             }
 
             else -> {
-                val path = target.sourceItem
+                val path = item.sourceItem
                     .let { it as? SourceItem.FileItem }
                     ?.file?.absolutePath
-                    ?: throw Exception("Invalid source item: ${target.sourceItem}")
+                    ?: throw Exception("Invalid source item: ${item.sourceItem}")
 
                 Logger.i(tag = "VLCPlayback", messageString = "prepared with path: $path")
                 player.media().prepare(path)
@@ -73,7 +72,7 @@ class VLCPlayback(
         if (start) {
             player.controls().play()
         }
-        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.key == item.key }
+        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
         queue.switchTo(index = targetIndex)
     }
 
@@ -143,10 +142,10 @@ class VLCPlayback(
 
                 // TODO 启动时初始化播放数据为null，导致后续无法正常更新播放时长
                 dataTracker.onMediaItemTransition(
-                    mediaId = targetItem.item.idValue(),
-                    title = targetItem.item.titleValue(),
-                    isRepeating = oldItem?.item?.idValue() == targetItem.item.idValue(),
-                    isNormalTransition = oldItem?.item?.idValue() != targetItem.item.idValue()
+                    mediaId = targetItem.idValue(),
+                    title = targetItem.titleValue(),
+                    isRepeating = oldItem?.idValue() == targetItem.idValue(),
+                    isNormalTransition = oldItem?.idValue() != targetItem.idValue()
                 )
             }
         } catch (e: Exception) {

@@ -33,16 +33,14 @@ class AudioPlayback(
         }
     }
 
-    private suspend fun playItem(item: Playable.Item<LAudio>, start: Boolean) {
-        val target = item.item
+    private suspend fun playItem(item: LAudio, start: Boolean) {
         val source = platformMediaSource.sources
-            .firstOrNull { target.mediaSourceName == it.name }
-            ?: throw Exception("No source item found for ${target.mediaSourceName}")
+            .firstOrNull { item.mediaSourceName == it.name }
+            ?: throw Exception("No source item found for ${item.mediaSourceName}")
 
         player.pause()
 
-        val data = source.dataSource.getMedia(target)
-        when (data) {
+        when (val data = source.dataSource.getMedia(item)) {
             is MediaData.Url -> {
                 Logger.i(tag = TAG, messageString = "prepared with url: ${data.url}")
                 player.src = data.url
@@ -66,7 +64,7 @@ class AudioPlayback(
             player.play()
             _isPlaying.value = true
         }
-        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.key == item.key }
+        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
         queue.switchTo(index = targetIndex)
     }
 
@@ -144,6 +142,7 @@ class AudioPlayback(
 }
 
 // 将 Kotlin ByteArray 转换为 JS Blob
+@OptIn(ExperimentalWasmJsInterop::class)
 fun ByteArray.toJsBlob(mimeType: String = "application/octet-stream"): Blob {
     return Blob(
         blobParts = this.toJsArray(),

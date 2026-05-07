@@ -109,7 +109,7 @@ abstract class AbstractPlayback(
     }
 
     override suspend fun updatePlaylist(playlist: List<LItem>, startIndex: Int, start: Boolean) {
-        queue.replaceAll(index = startIndex, items = with(queue) { playlist.map { it.toPlayable() } })
+        queue.replaceAll(index = startIndex, items = with(queue) { playlist.flatMap { it.toPlayable() } })
         if (_playbackMode.value == PlaybackMode.SHUFFLE) {
             updateShuffledIndices()
         }
