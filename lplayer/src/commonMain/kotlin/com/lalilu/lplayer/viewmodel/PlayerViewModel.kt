@@ -23,7 +23,7 @@ class PlayerViewModel(
     private val platformSource: PlatformMediaSource
 ) : ViewModel(), LifecycleEventObserver {
     val isPlaying = LPlayer.instance.isPlaying
-    val currentItem = LPlayer.instance.queue.currentItemFlow().mapLatest { it?.item }
+    val currentItem = LPlayer.instance.queue.currentItemFlow()
     val currentTime = mutableStateOf(0L)
     val lyricItems = mutableStateOf<List<LyricItem>>(emptyList())
 
@@ -32,15 +32,6 @@ class PlayerViewModel(
         .toState(scope = viewModelScope, defaultValue = emptyList())
 
     init {
-        // TODO 待重构启动时填充播放列表的逻辑
-//        LMedia.instance.whenReady {
-//            viewModelScope.launch {
-//                val list = LMedia.instance.get<LAudio>()
-//                LPlayer.instance.updatePlaylist(list)
-//                Logger.i("[LPlayer] set list: ${list.size}")
-//            }
-//        }
-
         currentItem
             .onEach { lyricItems.value = retrieveLyric(it) }
             .launchIn(viewModelScope)

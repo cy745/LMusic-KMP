@@ -116,7 +116,7 @@ fun PlayerBottomSheetContent(
         ) {
             PlayingInfoCard(
                 modifier = Modifier,
-                currentPlaying = { currentPlaying.value?.item },
+                currentPlaying = { currentPlaying.value },
                 currentProgress = {
                     (currentPosition.value / currentDuration.value.toFloat()).coerceIn(0f, 1f)
                 },

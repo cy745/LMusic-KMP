@@ -19,12 +19,10 @@ import coil3.compose.LocalPlatformContext
 import com.lalilu.extensions.Item
 import com.lalilu.extensions.diff
 import com.lalilu.extensions.retrieveCacheKey
-import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.SongCard
 import com.lalilu.lplayer.action.PlayerAction
-import com.lalilu.lplayer.playback.Playable
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.LocalModalBottomSheetState
 import kotlinx.coroutines.Dispatchers
@@ -37,26 +35,26 @@ fun PlaylistLayout(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     forceRefresh: () -> Boolean = { false },
-    items: () -> List<Playable.Item<LAudio>> = { emptyList() }
+    items: () -> List<LAudio> = { emptyList() }
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalPlatformContext.current
 
     val list by remember { derivedStateOf(items) }
-    var actualItems by remember { mutableStateOf(emptyList<Item<Playable.Item<LAudio>>>()) }
+    var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
     val bottomSheetState = LocalModalBottomSheetState.current
 
     LaunchedEffect(list) {
         val newList = actualItems.diff(
             items = list,
-            getId = { it.key },
-            isSameItem = { a, b -> a.key == b.key },
+            getId = { it.idValue() },
+            isSameItem = { a, b -> a.idValue() == b.idValue() },
             isSameContent = { a, b ->
-                a.key == b.key
-                        && a.item.title == b.item.title
-                        && a.item.subtitle == b.item.subtitle
-                        && a.item.mediaSourceName == b.item.mediaSourceName
+                a.idValue() == b.idValue()
+                        && a.title == b.title
+                        && a.subtitle == b.subtitle
+                        && a.mediaSourceName == b.mediaSourceName
             }
         )
         val newListFirst = newList.firstOrNull()
@@ -102,8 +100,7 @@ fun PlaylistLayout(
                 if (index == 0 && isPlaying.value) MaterialTheme.colorScheme.onBackground.copy(0.01f)
                 else Color.Transparent
             )
-            val data = item.data.item
-            val sourceTitle = remember { item.data.source?.source<LAlbum>()?.titleValue() ?: "" }
+            val data = item.data
 
             SongCard(
                 modifier = Modifier
@@ -113,7 +110,6 @@ fun PlaylistLayout(
                 imageData = data,
                 title = data.title,
                 subtitle = data.subtitle,
-                extraText = sourceTitle,
                 onClick = { PlayerAction.PlayById(data.idValue()).action() },
                 onLongClick = { sharedMap ->
                     val coverMemoryKey = context.retrieveCacheKey(item)

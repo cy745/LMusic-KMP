@@ -57,7 +57,7 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
             is PlayerAction.PlayById -> {
                 // TODO 待重构播放列表逻辑
                 val index = LPlayer.instance.queue.stateSnapshot().list
-                    .indexOfFirst { item -> item.item.idValue() == action.id }
+                    .indexOfFirst { item -> item.idValue() == action.id }
 
                 LPlayer.instance.skipTo(index, true)
             }
