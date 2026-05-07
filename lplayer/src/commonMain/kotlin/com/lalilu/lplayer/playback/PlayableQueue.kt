@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.mapLatest
 
 data class QueueState(
-    val list: List<Playable.Item<LAudio>> = emptyList(),
+    val list: List<LAudio> = emptyList(),
     val index: Int = 0,
 ) {
     /**
@@ -18,15 +18,16 @@ data class QueueState(
      *
      * @return 重新排列后的播放项列表
      */
-    fun rearrange(): List<Playable.Item<LAudio>> {
+    fun rearrange(): List<LAudio> {
         if (index !in list.indices) return list
-        return (list.drop(index) + list.take(index)).distinctBy { it.key }
+        return (list.drop(index) + list.take(index))
+            .distinctBy { it.idValue() }
     }
 
     /**
      * 获取当前播放项
      */
-    fun currentItem(): Playable.Item<LAudio>? {
+    fun currentItem(): LAudio? {
         return list.getOrNull(index)
     }
 }
@@ -43,12 +44,12 @@ interface PlayableQueue {
     /**
      * 获取当前播放项
      */
-    fun currentItem(): Playable.Item<LAudio>? = stateSnapshot().currentItem()
+    fun currentItem(): LAudio? = stateSnapshot().currentItem()
 
     /**
      * 获取当前播放项流
      */
-    fun currentItemFlow(): Flow<Playable.Item<LAudio>?> = expandedItems.mapLatest { it.currentItem() }
+    fun currentItemFlow(): Flow<LAudio?> = expandedItems.mapLatest { it.currentItem() }
 
     /**
      * 添加一个播放项到开头
@@ -79,29 +80,14 @@ interface PlayableQueue {
      * @param index 新的当前播放元素的索引，为-1时需要重新计算当前播放元素索引
      */
     fun replaceAll(
-        items: List<Playable<LAudio>>,
+        items: List<LAudio>,
         index: Int = -1,
     )
 
     /**
-     * 更新一个播放项
-     *
-     * @param target 目标参考播放项
-     * @param item 新的播放项
-     */
-    fun update(target: Playable<LAudio>, item: LItem)
-
-    /**
-     * 查找所有相似的播放项
-     *
-     * @return 找到的播放项列表
-     */
-    fun find(item: LItem): List<Playable<LAudio>>
-
-    /**
      * 移除一个播放项
      */
-    fun remove(playable: Playable<LAudio>)
+    fun remove(item: LAudio)
 
     /**
      * 清空播放项列表
@@ -113,19 +99,19 @@ interface PlayableQueue {
      *
      * @param target 目标参考播放项
      */
-    fun nextOf(target: Playable<LAudio>): Playable<LAudio>?
+    fun nextOf(target: LAudio): LAudio?
 
     /**
      * 获取[target]的上一个播放项
      *
      * @param target 目标参考播放项
      */
-    fun previousOf(target: Playable<LAudio>): Playable<LAudio>?
+    fun previousOf(target: LAudio): LAudio?
 
-    fun LItem.toPlayable(): Playable<LAudio> {
+    fun LItem.toPlayable(): List<LAudio> {
         return when (this) {
-            is LAudio -> Playable.Item(this)
-            else -> Playable.Items(items = ref<LAudio>(), source = this)
+            is LAudio -> listOf(this)
+            else -> ref<LAudio>()
         }
     }
 }
