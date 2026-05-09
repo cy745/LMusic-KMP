@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.retain.retain
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.FrameRateCategory
 import androidx.compose.ui.Modifier
@@ -163,8 +164,10 @@ fun App() = ScreenModeHandler {
 
 @Composable
 fun backStackHandler(): NavBackStack<Screen> {
-    val homeScreen = remember { AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
-    val backStack = remember { NavBackStack(homeScreen) }
+    val backStack = retain {
+        val homeScreen = AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND
+        NavBackStack(homeScreen)
+    }
 
     // 绑定AppRouter导航
     LaunchedEffect(Unit) {
