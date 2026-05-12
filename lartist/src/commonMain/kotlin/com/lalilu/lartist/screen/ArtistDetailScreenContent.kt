@@ -1,0 +1,186 @@
+package com.lalilu.lartist.screen
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import com.lalilu.extensions.*
+import com.lalilu.lartist.viewmodel.ArtistDetailEvent
+import com.lalilu.lmedia.component.AudioItemCard
+import com.lalilu.lmedia.entity.LArtist
+import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.sortable.GroupId
+import com.lalilu.lmedia.sortable.SortResult
+import com.lalilu.lplayer.action.PlayerAction
+import com.lalilu.navigation.AppRouter
+import com.lalilu.packed.CoverHeader
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
+
+@Composable
+internal fun ArtistDetailScreenContent(
+    artist: LArtist? = null,
+    songs: SortResult<LAudio> = SortResult.empty(),
+    sharedMap: SharedMap = emptyMap(),
+    coverCacheKey: String? = null,
+    eventFlow: Flow<ArtistDetailEvent> = emptyFlow(),
+    keys: () -> Collection<Any> = { emptyList() },
+    recorder: () -> ItemRecorder,
+    selector: () -> ItemSelector<LAudio>,
+    onClickGroup: (GroupId) -> Unit = {},
+    onClickAddToPlaylist: () -> Unit = {},
+    onClickPlayAll: () -> Unit = {},
+) = SharedContext(sharedMap) {
+    val context = LocalPlatformContext.current
+    val density = LocalDensity.current
+    val listState: LazyListState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val stickyHeaderContentType = remember { "group" }
+    val scroller = rememberLazyListAnimateScroller(
+        listState = listState,
+        keys = keys
+    )
+
+    val statusBar = WindowInsets.statusBars
+    val statusBarPadding = statusBar.asPaddingValues()
+    val navigationBar = WindowInsets.navigationBars.asPaddingValues()
+    val smartBarHeight = PassThroughHelper.getValue(
+        key = "SmartBarHeight",
+        default = { navigationBar.calculateBottomPadding() }
+    )
+
+
+    LaunchedEffect(Unit) {
+        eventFlow.collectLatest { event ->
+            when (event) {
+                is ArtistDetailEvent.ScrollToItem -> {
+                    scroller.animateTo(
+                        key = event.key,
+                        isStickyHeader = { it.contentType == stickyHeaderContentType },
+                        offset = { item ->
+                            if (item.contentType == stickyHeaderContentType) {
+                                return@animateTo -statusBar.getTop(density)
+                            }
+
+                            val closestStickyHeaderSize = listState.layoutInfo.visibleItemsInfo
+                                .lastOrNull {
+                                    it.index < item.index && it.contentType == stickyHeaderContentType
+                                }
+                                ?.size ?: 0
+
+                            -(statusBar.getTop(density) + closestStickyHeaderSize)
+                        }
+                    )
+                }
+
+                else -> {}
+            }
+        }
+    }
+
+    val coverData = remember(artist) {
+        ImageRequest.Builder(context)
+            .placeholderMemoryCacheKey(coverCacheKey)
+            .data(artist)
+            .build()
+    }
+
+    val coverHeader = CoverHeader.register { key ->
+        when (key) {
+            CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this@SharedContext
+            CoverHeader.Param.COVER -> coverData
+            CoverHeader.Param.TITLE -> artist?.titleValue() ?: "Unknown Artist"
+            CoverHeader.Param.SUBTITLE -> artist?.subtitleValue()?.takeIf { it.isNotBlank() }
+                ?: "${songs.itemList.size} songs"
+
+            CoverHeader.Param.EXTRA_CONTENT -> composable { modifier: Modifier ->
+                Row(modifier = modifier) {
+                    TextButton(onClick = onClickAddToPlaylist) {
+                        Text(text = "添加歌手歌曲到播放列表")
+                    }
+                    TextButton(onClick = onClickPlayAll) {
+                        Text(text = "播放全部")
+                    }
+                }
+            }
+        }
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalAlignment = Alignment.Start,
+        contentPadding = PaddingValues(bottom = smartBarHeight() + 16.dp),
+    ) {
+        startRecord(recorder()) {
+            coverHeader.invoke(this@LazyColumn)
+
+            songs.draw {
+                groupId?.let { groupId ->
+                    stickyHeader(
+                        key = groupId,
+                        contentType = stickyHeaderContentType
+                    ) {
+                        Text(
+                            modifier = Modifier.animateItem(),
+                            text = groupId.text
+                        )
+                    }
+                }
+
+                itemsIndexed(
+                    items = items,
+                    key = { index, item -> item.id },
+                    contentType = { index, item -> item::class }
+                ) { index, item ->
+                    AudioItemCard(
+                        modifier = Modifier
+                            .animateItem()
+                            .fillMaxWidth(),
+                        title = item.titleValue(),
+                        subtitle = item.subtitleValue(),
+                        imageData = item,
+                        isSelecting = { selector().isSelecting.value },
+                        isSelected = { selector().isSelected(item) },
+                        onEnterSelect = { selector().onSelect(item) },
+                        onSelect = { selector().onSelect(item) },
+                        onPlay = {
+                            scope.launch {
+                                PlayerAction.UpdateList(
+                                    ids = songs.itemList.map { it.idValue() },
+                                    id = item.idValue(),
+                                    start = true
+                                ).action()
+                            }
+                        },
+                        onNavigateToDetail = {
+                            val coverMemoryKey = context.retrieveCacheKey(item)
+
+                            AppRouter.route("/song/detail")
+                                .with("mediaId", item.idValue())
+                                .with("song", item)
+                                .with("coverCacheKey", coverMemoryKey)
+                                .jump()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}

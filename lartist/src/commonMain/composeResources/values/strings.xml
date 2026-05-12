@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="artist_screen_title">Artists</string>
+    <string name="artist_detail_screen_title">Artist Detail</string>
+    <string name="artist_detail_count">%d songs</string>
+</resources>
