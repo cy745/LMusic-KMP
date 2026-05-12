@@ -40,8 +40,7 @@ object NowPlayingInfoNotification : CoroutineScope {
     fun bindPlayback(playback: Playback) {
         debugLog("Binding playback to NowPlayingInfoNotification")
         playback.queue.currentItemFlow()
-            .onEach { item ->
-                val track = item?.item
+            .onEach { track ->
                 debugLog("Received new track: ${track?.title} by ${track?.subtitle}")
                 nowPlayingInfo.apply {
                     this[MPMediaItemPropertyTitle] = track?.title ?: ""

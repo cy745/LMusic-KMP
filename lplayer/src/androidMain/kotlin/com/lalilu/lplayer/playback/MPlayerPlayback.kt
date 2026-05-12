@@ -17,6 +17,7 @@ import androidx.media3.session.SessionToken
 import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lplayer.HistoryRecover
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.PlayMode
 import com.lalilu.lplayer.extensions.playMode
@@ -41,15 +42,13 @@ class MPlayerPlayback(
         SessionToken(context, ComponentName(context, MService::class.java))
     }
 
-    private var loopJob: Job? = null
+    override val queue: PlayableQueue = PlayableQueueImpl()
     private var browserInstance: MediaBrowser? = null
     private val browserFuture by lazy {
         MediaBrowser
             .Builder(context, sessionToken)
             .buildAsync()
     }
-
-    override val queue: PlayableQueue = PlayableQueueImpl()
 
     var pauseWhenCompletion: Boolean by mutableStateOf(false)
         private set
@@ -79,32 +78,25 @@ class MPlayerPlayback(
         browserInstance = browser
         browser.addListener(this@MPlayerPlayback)
 
-        launch {
-            val lastPosition = LPlayerKV.historyPlayPosition.value.coerceAtLeast(0)
-            val lastMediaIds = LPlayerKV.historyPlaylistIds.value
+        HistoryRecover.recover { ids, index, position ->
+            launch {
+                val items = library.mapBy<LAudio>(ids)
+                val mediaIds = items.map { it.toMediaItem() }
+                queue.replaceAll(items, index)
 
-            val lastPlayId = LPlayerKV.historyPlayId.value
-            val lastPlayIndex = lastMediaIds.indexOf(lastPlayId).coerceAtLeast(0)
-            val items = library.mapBy<LAudio>(lastMediaIds)
-
-            queue.replaceAll(items, lastPlayIndex)
-            diffUpdateMediaItems(items)
-
-            withContext(Dispatchers.Main) {
-                browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
-                browser.seekTo(lastPlayIndex, lastPosition)
-                browser.prepare()
-            }
-
-            // 监听播放列表更新，并刷新播放列表
-            queue.expandedItems
-                .onEach { (list, index) ->
-                    val ids = list.map { it.idValue() }
-                    LPlayerKV.historyPlaylistIds.value = ids
-                    LPlayerKV.historyPlayId.value = ids.getOrNull(index) ?: ""
-                    diffUpdateMediaItems(list)
+                withContext(Dispatchers.Main) {
+                    browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
+                    browser.setMediaItems(mediaIds, index, position)
+                    browser.prepare()
                 }
-                .launchIn(this@MPlayerPlayback)
+
+                // 监听播放列表更新，并刷新播放列表
+                queue.expandedItems
+                    .onEach { (list, _) -> diffUpdateMediaItems(list) }
+                    .launchIn(this@MPlayerPlayback)
+
+                HistoryRecover.startRecord(this@MPlayerPlayback)
+            }
         }
     }
 
@@ -113,21 +105,11 @@ class MPlayerPlayback(
             .getOrNull() ?: 0L
     }
 
-    override suspend fun play() = runWithBrowser {
-        play()
-    }
-
-    override suspend fun pause() = runWithBrowser {
-        pause()
-    }
-
-    override suspend fun togglePlayPause() = runWithBrowser {
-        if (isPlaying) pause() else play()
-    }
-
-    override suspend fun stop() = runWithBrowser {
-        stop()
-    }
+    override suspend fun play() = runWithBrowser { play() }
+    override suspend fun pause() = runWithBrowser { pause() }
+    override suspend fun togglePlayPause() = runWithBrowser { if (isPlaying) pause() else play() }
+    override suspend fun stop() = runWithBrowser { stop() }
+    override suspend fun seekTo(positionMs: Long) = runWithBrowser { seekTo(positionMs) }
 
     override suspend fun skipTo(index: Int, start: Boolean) = runWithBrowser {
         if (index == -1) {
@@ -160,27 +142,18 @@ class MPlayerPlayback(
         }
     }
 
-    override suspend fun seekTo(
-        positionMs: Long
-    ) = runWithBrowser {
-        seekTo(positionMs)
-    }
-
     override suspend fun updatePlaylist(
         playlist: List<LItem>,
         startIndex: Int,
         start: Boolean
-    ) = withContext(Dispatchers.IO) {
-        // 更新播放列表
-        queue.replaceAll(index = startIndex, items = with(queue) { playlist.flatMap { it.toPlayable() } })
+    ) = runWithBrowser {
+        // 展平目标播放列表
+        val items = with(queue) { playlist.flatMap { it.toPlayable() } }
+        // 转换播放元素
+        val mediaItems = items.map { it.toMediaItem() }
 
-        // 读取播放列表展平后的可播放元素
-        val items = queue.expandedItems.value.list.map { it.toMediaItem() }
-
-        runWithBrowser {
-            setMediaItems(items, startIndex, 0)
-            if (start) play()
-        }
+        setMediaItems(mediaItems, startIndex, 0)
+        if (start) play()
     }
 
     override suspend fun setPlaybackMode(
@@ -199,24 +172,7 @@ class MPlayerPlayback(
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
-        this@MPlayerPlayback._isPlaying.value = isPlaying
-
-        loopJob?.cancel()
-        if (isPlaying) {
-            loopJob = launch {
-                while (isActive) {
-                    withContext(Dispatchers.Main) {
-                        LPlayerKV.historyPlayPosition.value = currentPosition()
-                    }
-                    delay(1000)
-                }
-            }
-        }
-    }
-
-    @OptIn(UnstableApi::class)
-    override fun onPlaybackStateChanged(playbackState: Int) {
-
+        _isPlaying.value = isPlaying
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -245,11 +201,21 @@ class MPlayerPlayback(
         timeline: Timeline? = browserInstance?.currentTimeline,
         currentIndex: Int = browserInstance?.currentMediaItemIndex ?: 0
     ) {
-        val items = timeline?.toMediaItems() ?: emptyList()
-        val ids = items.map { it.mediaId }
-        LPlayerKV.historyPlayId.value = ids.getOrNull(currentIndex) ?: ""
+        val mediaItems = timeline?.toMediaItems() ?: emptyList()
 
-        queue.switchTo(currentIndex)
+        launch {
+            val ids = mediaItems.map { it.mediaId }
+            val currentIds = queue.expandedItems.value.list.map { it.idValue() }
+            if (ids == currentIds) { // 元素未变化，则不触发列表更新，避免死循环
+                if (currentIndex != queue.expandedItems.value.index) {
+                    queue.switchTo(currentIndex)
+                }
+                return@launch
+            }
+
+            val items = library.mapBy<LAudio>(ids)
+            queue.replaceAll(items = items, index = currentIndex)
+        }
     }
 
     suspend fun runWithBrowser(

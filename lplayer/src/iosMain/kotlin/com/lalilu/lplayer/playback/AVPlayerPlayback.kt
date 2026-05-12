@@ -73,15 +73,13 @@ class AVPlayerPlayback(
         }
     }
 
-    private suspend fun playItem(item: Playable.Item<LAudio>, start: Boolean) = withContext(Dispatchers.Main) {
+    private suspend fun playItem(item: LAudio, start: Boolean) = withContext(Dispatchers.Main) {
         AudioSessionHelper.ensureAudioSessionActive()
-
-        val target = item.item
         val source = platformMediaSource.sources
-            .firstOrNull { target.mediaSourceName == it.name }
-            ?: throw Exception("No source item found for ${target.mediaSourceName}")
+            .firstOrNull { item.mediaSourceName == it.name }
+            ?: throw Exception("No source item found for ${item.mediaSourceName}")
 
-        when (val data = source.dataSource.getMedia(target)) {
+        when (val data = source.dataSource.getMedia(item)) {
             is MediaData.Url -> {
                 // 移除旧的监听
                 avPlayer.currentItem?.removeObserver(
@@ -103,7 +101,7 @@ class AVPlayerPlayback(
                     context = observerContext
                 )
 
-                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.key == item.key }
+                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
                 queue.switchTo(index = targetIndex)
                 avPlayer.replaceCurrentItemWithPlayerItem(playerItem)
                 if (start) {
@@ -167,7 +165,7 @@ class AVPlayerPlayback(
                     _isPlaying.value = true
                 }
 
-                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.key == item.key }
+                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
                 queue.switchTo(index = targetIndex)
                 _currentDuration.value = (player.duration * 1000L).toLong()
 
@@ -206,7 +204,7 @@ class AVPlayerPlayback(
             // 获取当前播放元素，并进行播放
             val current = queue.currentItem()
                 ?: throw Exception("No media to play")
-            debugLog("playing: ${current.item.id} ${current.item.title} ${current.item.subtitle} ${current.item.mediaSourceName}")
+            debugLog("playing: ${current.id} ${current.title} ${current.subtitle} ${current.mediaSourceName}")
 
             playItem(current, true)
         } catch (e: Exception) {
