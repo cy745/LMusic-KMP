@@ -1,10 +1,8 @@
 package com.lalilu.lartist.screen
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -19,12 +17,8 @@ import com.lalilu.navigation.smartbar.NavigatorHeader
 internal fun ArtistsScreenContent(
     modifier: Modifier = Modifier,
     artists: SortResult<LArtist> = SortResult.empty(),
-    showText: () -> Boolean = { true },
     onClickArtist: (LArtist, SharedMap) -> Unit
 ) {
-    val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
-    val columns = if (windowSizeClass.windowWidthSizeClass.toString().contains("Expanded")) 3 else 2
-
     val statusBar = WindowInsets.statusBars
     val statusBarPadding = statusBar.asPaddingValues()
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()
@@ -33,17 +27,13 @@ internal fun ArtistsScreenContent(
         default = { navigationBar.calculateBottomPadding() }
     )
 
-    LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Fixed(columns),
+    LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = 10.dp,
-            end = 10.dp,
             top = statusBarPadding.calculateTopPadding() + 16.dp,
             bottom = smartBarHeight() + 16.dp
         ),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalItemSpacing = 8.dp
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
             NavigatorHeader(
@@ -58,11 +48,10 @@ internal fun ArtistsScreenContent(
             key = { it.id }
         ) { artist ->
             ArtistCard(
-                artist = { artist },
+                artist = artist,
                 modifier = Modifier
                     .fillMaxWidth()
                     .animateItem(),
-                showTitle = { showText() },
                 onClick = { onClickArtist.invoke(artist, it) },
             )
         }

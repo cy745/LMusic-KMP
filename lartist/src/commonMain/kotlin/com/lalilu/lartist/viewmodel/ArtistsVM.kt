@@ -48,7 +48,6 @@ data class ArtistsState(
 
     // control params
     val searchKeyWord: String = "",
-    val showText: Boolean = true,
 ) {
     val distinctKey: Int = searchKeyWord.hashCode()
 
@@ -71,7 +70,6 @@ data class ArtistsState(
 sealed interface ArtistsAction {
     data object ToggleSortPanel : ArtistsAction
     data object ToggleSearcherPanel : ArtistsAction
-    data object ToggleShowText : ArtistsAction
 
     data object HideSortPanel : ArtistsAction
     data object HideSearcherPanel : ArtistsAction
@@ -122,7 +120,6 @@ class ArtistsVM : ViewModel(),
                 it.copy(showSortPanel = !it.showSortPanel)
             }
 
-            ArtistsAction.ToggleShowText -> reduce { it.copy(showText = !it.showText) }
             ArtistsAction.HideSortPanel -> reduce { it.copy(showSortPanel = false) }
             ArtistsAction.HideSearcherPanel -> reduce { it.copy(showSearcherPanel = false) }
             is ArtistsAction.SearchFor -> reduce { it.copy(searchKeyWord = intent.keyword) }

@@ -19,9 +19,7 @@ import com.lalilu.navigation.smartbar.CancellableInputerBarPanel
 import com.lalilu.remixicon.Editor
 import com.lalilu.remixicon.Media
 import com.lalilu.remixicon.System
-import com.lalilu.remixicon.editor.formatClear
 import com.lalilu.remixicon.editor.sortDesc
-import com.lalilu.remixicon.editor.text
 import com.lalilu.remixicon.media.albumFill
 import com.lalilu.remixicon.system.search2Line
 import org.jetbrains.compose.resources.stringResource
@@ -45,12 +43,6 @@ data object ArtistsScreen : Screen, ScreenInfoFactory, ScreenActionFactory, Scre
 
         return remember {
             listOf(
-                ScreenAction.Static(
-                    title = { if (state.showText) "隐藏歌手名" else "显示歌手名" },
-                    color = { Color(0xFF6E4AC3) },
-                    icon = { if (state.showText) RemixIcon.Editor.text else RemixIcon.Editor.formatClear },
-                    onAction = { vm.intent(ArtistsAction.ToggleShowText) }
-                ),
                 ScreenAction.Static(
                     title = { "排序" },
                     icon = { RemixIcon.Editor.sortDesc },
@@ -103,7 +95,6 @@ data object ArtistsScreen : Screen, ScreenInfoFactory, ScreenActionFactory, Scre
 
         ArtistsScreenContent(
             artists = artists,
-            showText = { state.showText },
             onClickArtist = { artist, sharedMap ->
                 val coverCacheKey = context.retrieveCacheKey(artist)
 

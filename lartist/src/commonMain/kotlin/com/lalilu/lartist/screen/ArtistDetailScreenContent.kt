@@ -1,27 +1,34 @@
 package com.lalilu.lartist.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.lalilu.extensions.*
+import com.lalilu.lartist.component.ArtistCard
 import com.lalilu.lartist.viewmodel.ArtistDetailEvent
 import com.lalilu.lmedia.component.AudioItemCard
+import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.ref
 import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
@@ -57,13 +64,24 @@ internal fun ArtistDetailScreenContent(
     )
 
     val statusBar = WindowInsets.statusBars
-    val statusBarPadding = statusBar.asPaddingValues()
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()
     val smartBarHeight = PassThroughHelper.getValue(
         key = "SmartBarHeight",
         default = { navigationBar.calculateBottomPadding() }
     )
 
+
+    val relateArtist = remember { mutableStateListOf<LArtist>() }
+    LaunchedEffect(artist) {
+        val songs = artist?.ref<LAudio>() ?: emptyList()
+        val actualSongs = LMedia.instance.mapBy<LAudio>(songs.map { it.idValue() })
+        val artists = actualSongs.flatMap { it.ref<LArtist>() }
+            .distinctBy { it.idValue() }
+            .filter { it.idValue() != artist?.idValue() }
+
+        relateArtist.clear()
+        relateArtist.addAll(artists)
+    }
 
     LaunchedEffect(Unit) {
         eventFlow.collectLatest { event ->
@@ -118,13 +136,15 @@ internal fun ArtistDetailScreenContent(
                     }
                 }
             }
+
+            else -> null
         }
     }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp).wrapBottomArrangement(),
         horizontalAlignment = Alignment.Start,
         contentPadding = PaddingValues(bottom = smartBarHeight() + 16.dp),
     ) {
@@ -146,7 +166,7 @@ internal fun ArtistDetailScreenContent(
 
                 itemsIndexed(
                     items = items,
-                    key = { index, item -> item.id },
+                    key = { index, item -> item.idValue() },
                     contentType = { index, item -> item::class }
                 ) { index, item ->
                     AudioItemCard(
@@ -180,7 +200,77 @@ internal fun ArtistDetailScreenContent(
                         }
                     )
                 }
+
+                if (relateArtist.isNotEmpty()) {
+                    item(key = "EXTRA_HEADER") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                                .statusBarsPadding(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "相关艺术家",
+                                fontSize = 20.sp,
+                                lineHeight = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
+
+                    itemsIndexed(
+                        items = relateArtist,
+                        key = { _, item -> item.idValue() },
+                        contentType = { _, _ -> LArtist::class }
+                    ) { _, item ->
+                        ArtistCard(
+                            modifier = Modifier.animateItem(),
+                            artist = item,
+                            onClick = { sharedMap ->
+                                val coverCacheKey = context.retrieveCacheKey(item)
+
+                                AppRouter.route("/pages/artists/detail")
+                                    .with("artistId", item.idValue())
+                                    .with("artist", item)
+                                    .with("sharedMap", sharedMap)
+                                    .with("coverCacheKey", coverCacheKey)
+                                    .push()
+                            }
+                        )
+                    }
+                }
             }
+
+            // 这个 item 占满 LazyColumn 剩余高度
+            item {
+                Spacer(
+                    modifier = Modifier
+                        .background(color = Color.Gray)
+                        .height(100.dp)
+                )
+            }
+        }
+    }
+}
+
+
+@Stable
+fun Arrangement.HorizontalOrVertical.wrapBottomArrangement(): Arrangement.HorizontalOrVertical {
+    return object : Arrangement.HorizontalOrVertical by this {
+        override fun Density.arrange(
+            totalSize: Int,
+            sizes: IntArray,
+            layoutDirection: LayoutDirection,
+            outPositions: IntArray
+        ) {
+            with(this@wrapBottomArrangement) { arrange(totalSize, sizes, layoutDirection, outPositions) }
+
+//            if (sizes.lastIndex == 0) return
+//            val index = sizes.lastIndex
+//            val size = sizes[index]
+//            outPositions[index] = totalSize - (size / 2)
         }
     }
 }
