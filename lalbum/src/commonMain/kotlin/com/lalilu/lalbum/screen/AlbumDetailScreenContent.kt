@@ -118,6 +118,8 @@ internal fun AlbumDetailScreenContent(
                     }
                 }
             }
+
+            else -> null
         }
     }
 

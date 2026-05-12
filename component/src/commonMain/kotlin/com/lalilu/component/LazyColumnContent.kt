@@ -30,11 +30,9 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isUnspecified
 
-data class ComposableContent(val block: @Composable () -> Unit)
 data class ComposableContentWithModifier(val block: @Composable (Modifier) -> Unit)
 
 interface RegisterScope {
-    fun composable(block: @Composable () -> Unit) = ComposableContent(block)
     fun composable(block: @Composable (Modifier) -> Unit) = ComposableContentWithModifier(block)
 }
 
@@ -46,14 +44,10 @@ fun <T : Any> ContentMapper<T>.get(key: T): Any? = invoke(object : RegisterScope
 fun <T : Any, K : Any> ContentMapper<T>.cast(key: T): K = invoke(object : RegisterScope {}, key) as K
 
 @Composable
-fun <T : Any> ContentMapper<T>.Content(key: T) =
-    remember { invoke(object : RegisterScope {}, key)?.let { it as ComposableContent }?.block }
-        ?.invoke()
-
-@Composable
-fun <T : Any> ContentMapper<T>.Content(key: T, modifier: Modifier) =
+fun <T : Any> ContentMapper<T>.Content(key: T, modifier: Modifier, fallback: @Composable () -> Unit = {}) =
     remember { invoke(object : RegisterScope {}, key)?.let { it as ComposableContentWithModifier }?.block }
         ?.invoke(modifier)
+        ?: fallback()
 
 /**
  * `LazyColumnContent` 是一个用于定义 LazyColumn 内容的接口，旨在提供一种灵活且可复用的方式来构建列表项。

@@ -51,6 +51,7 @@ object CoverHeader : LazyColumnContent<CoverHeader.Param> {
         COVER,
         TITLE,
         SUBTITLE,
+        SUBTITLE_OVERRIDE_CONTENT,
         EXTRA_CONTENT
     }
 
@@ -102,12 +103,18 @@ object CoverHeader : LazyColumnContent<CoverHeader.Param> {
                                 fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.onBackground,
                             )
-                            Text(
-                                modifier = Modifier.sharedBoundsV2("SUBTITLE")
-                                    .alpha(0.6f),
-                                text = mapper.get(Param.SUBTITLE) as? String ?: "",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onBackground,
+                            mapper.Content(
+                                key = Param.SUBTITLE_OVERRIDE_CONTENT,
+                                modifier = Modifier,
+                                fallback = {
+                                    Text(
+                                        modifier = Modifier.sharedBoundsV2("SUBTITLE")
+                                            .alpha(0.6f),
+                                        text = mapper.get(Param.SUBTITLE) as? String ?: "",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                    )
+                                }
                             )
                         }
                     }
