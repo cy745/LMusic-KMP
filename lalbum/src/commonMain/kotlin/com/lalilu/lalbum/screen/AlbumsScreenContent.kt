@@ -1,6 +1,5 @@
 package com.lalilu.lalbum.screen
 
-import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
@@ -34,7 +33,6 @@ internal fun AlbumsScreenContent(
         default = { navigationBar.calculateBottomPadding() }
     )
 
-    LocalOverscrollFactory
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(columns),
         modifier = modifier.fillMaxSize(),

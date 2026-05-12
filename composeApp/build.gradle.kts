@@ -79,6 +79,7 @@ kotlin {
             implementation(project(":lhistory"))
             implementation(project(":lplaylist"))
             implementation(project(":lalbum"))
+            implementation(project(":lartist"))
 
             implementation(libs.compose.ui.backhandler)
             implementation(libs.compose.material)

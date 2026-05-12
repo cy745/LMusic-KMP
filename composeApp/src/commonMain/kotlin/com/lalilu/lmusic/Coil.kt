@@ -5,6 +5,7 @@ import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.serviceLoaderEnabled
 import com.lalilu.lmedia.coil.LAlbumMapper
+import com.lalilu.lmedia.coil.LArtistMapper
 import com.lalilu.lmedia.coil.LAudioFetcherFactory
 import com.lalilu.lmedia.coil.LAudioKeyer
 
@@ -20,6 +21,7 @@ fun platformSetupCoil(
                 add(LAudioFetcherFactory())
                 add(LAudioKeyer())
                 add(LAlbumMapper())
+                add(LArtistMapper())
                 components()
             }
             .block()

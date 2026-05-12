@@ -52,6 +52,7 @@ include(":lhome")
 include(":lhistory")
 include(":lplaylist")
 include(":lalbum")
+include(":lartist")
 
 include("lmedia-server")
 include(":lmedia:lmedia-data")
