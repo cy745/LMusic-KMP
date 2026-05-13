@@ -1,6 +1,5 @@
 package com.lalilu.lartist.screen
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -12,11 +11,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.LocalPlatformContext
@@ -144,7 +140,7 @@ internal fun ArtistDetailScreenContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
-        verticalArrangement = Arrangement.spacedBy(4.dp).wrapBottomArrangement(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         horizontalAlignment = Alignment.Start,
         contentPadding = PaddingValues(bottom = smartBarHeight() + 16.dp),
     ) {
@@ -200,77 +196,49 @@ internal fun ArtistDetailScreenContent(
                         }
                     )
                 }
+            }
 
-                if (relateArtist.isNotEmpty()) {
-                    item(key = "EXTRA_HEADER") {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                                .statusBarsPadding(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "相关艺术家",
-                                fontSize = 20.sp,
-                                lineHeight = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
-                    }
-
-                    itemsIndexed(
-                        items = relateArtist,
-                        key = { _, item -> item.idValue() },
-                        contentType = { _, _ -> LArtist::class }
-                    ) { _, item ->
-                        ArtistCard(
-                            modifier = Modifier.animateItem(),
-                            artist = item,
-                            onClick = { sharedMap ->
-                                val coverCacheKey = context.retrieveCacheKey(item)
-
-                                AppRouter.route("/pages/artists/detail")
-                                    .with("artistId", item.idValue())
-                                    .with("artist", item)
-                                    .with("sharedMap", sharedMap)
-                                    .with("coverCacheKey", coverCacheKey)
-                                    .push()
-                            }
+            if (relateArtist.isNotEmpty()) {
+                item(key = "EXTRA_HEADER") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .statusBarsPadding(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "相关艺术家",
+                            fontSize = 20.sp,
+                            lineHeight = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 }
+
+                itemsIndexed(
+                    items = relateArtist,
+                    key = { _, item -> item.idValue() },
+                    contentType = { _, _ -> LArtist::class }
+                ) { _, item ->
+                    ArtistCard(
+                        modifier = Modifier.animateItem(),
+                        artist = item,
+                        sharedMapPrefix = "detail",
+                        onClick = { sharedMap ->
+                            val coverCacheKey = context.retrieveCacheKey(item)
+
+                            AppRouter.route("/pages/artists/detail")
+                                .with("artistId", item.idValue())
+                                .with("artist", item)
+                                .with("sharedMap", sharedMap)
+                                .with("coverCacheKey", coverCacheKey)
+                                .push()
+                        }
+                    )
+                }
             }
-
-            // 这个 item 占满 LazyColumn 剩余高度
-            item {
-                Spacer(
-                    modifier = Modifier
-                        .background(color = Color.Gray)
-                        .height(100.dp)
-                )
-            }
-        }
-    }
-}
-
-
-@Stable
-fun Arrangement.HorizontalOrVertical.wrapBottomArrangement(): Arrangement.HorizontalOrVertical {
-    return object : Arrangement.HorizontalOrVertical by this {
-        override fun Density.arrange(
-            totalSize: Int,
-            sizes: IntArray,
-            layoutDirection: LayoutDirection,
-            outPositions: IntArray
-        ) {
-            with(this@wrapBottomArrangement) { arrange(totalSize, sizes, layoutDirection, outPositions) }
-
-//            if (sizes.lastIndex == 0) return
-//            val index = sizes.lastIndex
-//            val size = sizes[index]
-//            outPositions[index] = totalSize - (size / 2)
         }
     }
 }

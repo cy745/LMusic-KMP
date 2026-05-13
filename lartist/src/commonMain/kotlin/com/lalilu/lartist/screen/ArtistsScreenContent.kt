@@ -52,6 +52,7 @@ internal fun ArtistsScreenContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .animateItem(),
+                sharedMapPrefix = "list",
                 onClick = { onClickArtist.invoke(artist, it) },
             )
         }

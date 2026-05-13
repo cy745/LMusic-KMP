@@ -36,11 +36,13 @@ import com.lalilu.lmedia.entity.ref
 fun ArtistCard(
     modifier: Modifier = Modifier,
     artist: LArtist,
+    sharedMapPrefix: String = "",
     onClick: (SharedMap) -> Unit = {}
 ) = SharedContext(
     sharedMap = buildSharedMap(
         id = artist.idValue(),
-        keys = listOf("TITLE", "SUBTITLE")
+        keys = listOf("TITLE", "SUBTITLE"),
+        prefix = sharedMapPrefix
     )
 ) {
     val title = artist.titleValue()
