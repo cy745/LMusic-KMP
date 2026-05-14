@@ -117,7 +117,7 @@ fun SongDetailScreenContent(
                                 modifier = Modifier.alpha(0.8f)
                                     .clickable {
                                         val coverCacheKey = context.retrieveCacheKey(artist)
-                                        
+
                                         AppRouter.route("/pages/artists/detail")
                                             .with("artistId", artist.id)
                                             .with("artist", artist)
@@ -151,8 +151,7 @@ fun SongDetailScreenContent(
     )
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize()
-            .sharedBoundsV2("BOUND"),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = smartBarHeight() + 16.dp),
     ) {
         header.invoke(this)

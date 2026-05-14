@@ -41,7 +41,6 @@ fun RecommendCard(
         sharedMap = rememberSharedMap(
             id = id,
             keys = listOf(
-                "BOUND",
                 "COVER",
                 "TITLE",
                 "SUBTITLE"
@@ -52,7 +51,6 @@ fun RecommendCard(
 
         Column(
             modifier = modifier
-                .sharedBoundsV2("BOUND")
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
