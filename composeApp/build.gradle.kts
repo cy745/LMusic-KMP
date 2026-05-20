@@ -175,6 +175,7 @@ android {
             )
 
             signingConfig = runCatching { signingConfigs["release"] }.getOrNull()
+                ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {
