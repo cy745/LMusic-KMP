@@ -32,8 +32,7 @@ kotlin {
     )
 
     listOf(
-        macosArm64(),
-        macosX64()
+        macosArm64()
     )
 
     sourceSets {
