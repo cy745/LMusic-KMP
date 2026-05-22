@@ -18,7 +18,7 @@ import kotlin.random.Random
 @Suppress("PropertyName")
 abstract class AbstractPlayback(
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.io + SupervisorJob()),
-    private val history: PlaybackHistory = PlaybackHistoryImpl()
+    private val history: PlaybackHistory
 ) : Playback,
     CoroutineScope by coroutineScope,
     PlaybackHistory by history {

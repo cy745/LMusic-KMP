@@ -14,6 +14,7 @@ import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
+import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
@@ -34,13 +35,14 @@ import kotlin.coroutines.CoroutineContext
 class MPlayerPlayback(
     private val context: Context,
     private val library: Library,
-    private val history: PlaybackHistory = PlaybackHistoryImpl()
+    private val history: PlaybackHistory
 ) : CoroutineScope,
     Player.Listener,
     Playback,
     Runnable,
     PlaybackHistory by history {
 
+    private val logger = Logger.withTag("MPlayerPlayback")
     override val coroutineContext: CoroutineContext = Dispatchers.IO
     private val sessionToken by lazy {
         SessionToken(context, ComponentName(context, MService::class.java))
@@ -91,11 +93,6 @@ class MPlayerPlayback(
                 onQueueRestored(snapshot)
             }
         }
-
-        // 监听播放列表更新，并刷新播放列表
-        queue.expandedItems
-            .onEach { (list, _) -> diffUpdateMediaItems(list) }
-            .launchIn(this@MPlayerPlayback)
 
         // 自动录制
         startRecording(this)
@@ -170,20 +167,25 @@ class MPlayerPlayback(
         pauseWhenCompletion = !cancel
     }
 
-    // ── PlaybackHistory 回调 ──
 
     override suspend fun onQueueRestored(snapshot: PlaybackHistory.HistorySnapshot) {
         val items = library.mapBy<LAudio>(snapshot.ids)
         val mediaIds = items.map { it.toMediaItem() }
         val browser = browserInstance ?: return
+
         withContext(Dispatchers.Main) {
             browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
             browser.setMediaItems(mediaIds, snapshot.index, snapshot.position)
             browser.prepare()
         }
+
+        // 监听播放列表更新，并刷新播放列表
+        queue.expandedItems
+            .filter { it.updateReason !is QueueUpdateReason.Sync }
+            .onEach { (list, _) -> diffUpdateMediaItems(list) }
+            .launchIn(this@MPlayerPlayback)
     }
 
-    // ── Player.Listener ──
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         _isPlaying.value = isPlaying
@@ -216,29 +218,14 @@ class MPlayerPlayback(
     ) {
         val mediaItems = timeline?.toMediaItems() ?: emptyList()
 
+        // 同步播放列表变化到playableQueue
         launch {
             val ids = mediaItems.map { it.mediaId }
-            val currentIds = queue.expandedItems.value.list.map { it.idValue() }
-            if (ids == currentIds) {
-                if (currentIndex != queue.expandedItems.value.index) {
-                    queue.update { switchTo(currentIndex) }
-                }
-                return@launch
-            }
-
             val items = library.mapBy<LAudio>(ids)
+
             queue.update(updateReason = QueueUpdateReason.Sync) {
                 replaceAll(items = items, index = currentIndex)
             }
-        }
-    }
-
-    suspend fun runWithBrowser(
-        block: suspend MediaBrowser.() -> Unit = {}
-    ) = withContext(Dispatchers.IO) {
-        val browser = browserFuture.await()
-        withContext(Dispatchers.Main) {
-            browser.block()
         }
     }
 
@@ -258,14 +245,25 @@ class MPlayerPlayback(
                         change.startOriginal,
                         mediaItems.subList(change.startRevised, change.endRevised)
                     )
+
                     DeltaType.CHANGE -> browser.replaceMediaItems(
                         change.startOriginal,
                         change.endOriginal,
                         mediaItems.subList(change.startRevised, change.endRevised)
                     )
+
                     DeltaType.EQUAL -> {}
                 }
             }
+        }
+    }
+
+    private suspend fun runWithBrowser(
+        block: suspend MediaBrowser.() -> Unit = {}
+    ) = withContext(Dispatchers.IO) {
+        val browser = browserFuture.await()
+        withContext(Dispatchers.Main) {
+            browser.block()
         }
     }
 }

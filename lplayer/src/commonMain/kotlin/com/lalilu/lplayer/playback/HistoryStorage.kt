@@ -1,6 +1,7 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.lplayer.LPlayerKV
+import org.koin.core.annotation.Single
 
 /**
  * 历史记录存储抽象，与具体的 KV 实现解耦。
@@ -19,6 +20,7 @@ interface HistoryStorage {
  * [HistoryStorage] 的默认实现，桥接 [LPlayerKV]。
  * [LPlayerKV] 本身不感知此接口的存在，保持纯 KV 存取职责。
  */
+@Single
 class HistoryStorageImpl(
     private val kv: LPlayerKV = LPlayerKV
 ) : HistoryStorage {

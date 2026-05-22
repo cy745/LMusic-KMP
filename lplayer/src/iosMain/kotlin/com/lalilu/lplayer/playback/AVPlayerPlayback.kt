@@ -10,7 +10,9 @@ import com.lalilu.lplayer.helper.*
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
 import com.lalilu.lplayer.notifacation.RemoteCommandHandler
 import kotlinx.cinterop.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import platform.AVFAudio.AVAudioPlayer
@@ -21,8 +23,9 @@ import platform.Foundation.*
 
 @OptIn(ExperimentalForeignApi::class)
 class AVPlayerPlayback(
-    private val library: Library
-) : AbstractPlayback(CoroutineScope(Dispatchers.Main + SupervisorJob())), KoinComponent {
+    private val library: Library,
+    private val history: PlaybackHistory
+) : AbstractPlayback(history = history), KoinComponent {
     companion object Companion {
         const val TAG = "AVPlayerPlayback"
     }
@@ -50,7 +53,8 @@ class AVPlayerPlayback(
         NowPlayingInfoNotification.bindPlayback(this)
         RemoteCommandHandler.bindPlayback(this)
         if (AudioSessionHelper.setUpAudioSession()) {
-            AudioSessionHelper.bindPlayback(this)        }
+            AudioSessionHelper.bindPlayback(this)
+        }
     }
 
     private val observer = Observer { keyPath, ofObject, change, context ->

@@ -20,8 +20,9 @@ import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalTime::class)
 class VLCPlayback(
-    private val library: Library
-) : AbstractPlayback(), KoinComponent {
+    private val library: Library,
+    private val history: PlaybackHistory
+) : AbstractPlayback(history = history), KoinComponent {
     private var playerInstance: MediaPlayer? = null
     private val dataTracker: IPlaybackDataTracker by inject()
 

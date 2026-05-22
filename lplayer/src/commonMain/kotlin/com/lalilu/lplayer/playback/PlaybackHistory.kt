@@ -1,12 +1,13 @@
 package com.lalilu.lplayer.playback
 
-import com.lalilu.lmedia.entity.LAudio
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.isActive
+import org.koin.core.annotation.Single
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -45,8 +46,9 @@ interface PlaybackHistory {
 /**
  * [PlaybackHistory] 的默认通用实现。
  */
+@Single
 class PlaybackHistoryImpl(
-    override val historyStorage: HistoryStorage = HistoryStorageImpl()
+    override val historyStorage: HistoryStorage
 ) : PlaybackHistory {
 
     override fun restoreFromHistory(): PlaybackHistory.HistorySnapshot? {
@@ -61,6 +63,7 @@ class PlaybackHistoryImpl(
         // 默认空实现 — 平台可按需 override
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun CoroutineScope.startRecording(playback: Playback) {
         // 监听队列变化 → 持久化 playlist 信息
         playback.queue.expandedItems
@@ -74,11 +77,10 @@ class PlaybackHistoryImpl(
         // 使用 transformLatest 确保前一个 position 循环在状态切换时自动取消
         playback.isPlaying
             .transformLatest<Boolean, Unit> { isPlaying ->
-                if (isPlaying) {
-                    while (isActive) {
-                        historyStorage.savePosition(playback.currentPosition())
-                        delay(1000.milliseconds)
-                    }
+                while (isActive) {
+                    historyStorage.savePosition(playback.currentPosition())
+                    if (!isPlaying) break
+                    delay(1000.milliseconds)
                 }
             }
             .launchIn(this)

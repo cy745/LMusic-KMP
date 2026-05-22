@@ -184,7 +184,7 @@ interface Playback {
 ```kotlin
 abstract class AbstractPlayback(
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.io + SupervisorJob()),
-    history: PlaybackHistory = PlaybackHistoryImpl()
+    history: PlaybackHistory
 ) : Playback,
     CoroutineScope by coroutineScope,
     PlaybackHistory by history {
@@ -218,7 +218,7 @@ abstract class AbstractPlayback(
 class MPlayerPlayback(
     private val context: Context,
     private val library: Library,
-    history: PlaybackHistory = PlaybackHistoryImpl()
+    history: PlaybackHistory
 ) : CoroutineScope,
     Player.Listener,
     Playback,
