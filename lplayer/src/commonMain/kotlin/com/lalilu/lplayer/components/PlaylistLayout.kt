@@ -26,6 +26,7 @@ import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.LocalModalBottomSheetState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -35,52 +36,52 @@ fun PlaylistLayout(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     forceRefresh: () -> Boolean = { false },
-    items: () -> List<LAudio> = { emptyList() }
+    items: Flow<List<LAudio>>
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalPlatformContext.current
-
-    val list by remember { derivedStateOf(items) }
     var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
     val bottomSheetState = LocalModalBottomSheetState.current
 
-    LaunchedEffect(list) {
-        val newList = actualItems.diff(
-            items = list,
-            getId = { it.idValue() },
-            isSameItem = { a, b -> a.idValue() == b.idValue() },
-            isSameContent = { a, b ->
-                a.idValue() == b.idValue()
-                        && a.title == b.title
-                        && a.subtitle == b.subtitle
-                        && a.mediaSourceName == b.mediaSourceName
+    LaunchedEffect(Unit) {
+        items.collect { list ->
+            val newList = actualItems.diff(
+                items = list,
+                getId = { it.idValue() },
+                isSameItem = { a, b -> a.idValue() == b.idValue() },
+                isSameContent = { a, b ->
+                    a.idValue() == b.idValue()
+                            && a.title == b.title
+                            && a.subtitle == b.subtitle
+                            && a.mediaSourceName == b.mediaSourceName
+                }
+            )
+            val newListFirst = newList.firstOrNull()
+            val oldListFirst = actualItems.firstOrNull()
+
+            // 若无法获取新列表的首元素，则说明新列表为空，及时返回
+            if (newListFirst == null) {
+                actualItems = emptyList()
+                return@collect
             }
-        )
-        val newListFirst = newList.firstOrNull()
-        val oldListFirst = actualItems.firstOrNull()
 
-        // 若无法获取新列表的首元素，则说明新列表为空，及时返回
-        if (newListFirst == null) {
+            // 判断新列表的首元素是否处于可视范围内
+            val isNewListTopVisible = listState.layoutInfo.visibleItemsInfo
+                .any { it.key == newListFirst.key }
+
+            // 判断旧列表的首元素是否处于可视范围内
+            val isOldListTopVisible = oldListFirst?.let { item ->
+                listState.layoutInfo.visibleItemsInfo
+                    .any { it.key == item.key }
+            } == true
+
             actualItems = emptyList()
-            return@LaunchedEffect
-        }
-
-        // 判断新列表的首元素是否处于可视范围内
-        val isNewListTopVisible = listState.layoutInfo.visibleItemsInfo
-            .any { it.key == newListFirst.key }
-
-        // 判断旧列表的首元素是否处于可视范围内
-        val isOldListTopVisible = oldListFirst?.let { item ->
-            listState.layoutInfo.visibleItemsInfo
-                .any { it.key == item.key }
-        } == true
-
-        actualItems = emptyList()
-        withContext(Dispatchers.Main) {
-            actualItems = newList
-            if (isNewListTopVisible || isOldListTopVisible || forceRefresh()) {
-                scope.launch { listState.animateScrollToItem(0) }
+            withContext(Dispatchers.Main) {
+                actualItems = newList
+                if (isNewListTopVisible || isOldListTopVisible || forceRefresh()) {
+                    scope.launch { listState.animateScrollToItem(0) }
+                }
             }
         }
     }

@@ -4,6 +4,8 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.ComposeFoundationFlags
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -39,9 +41,16 @@ import com.lalilu.lmusic.util.handleMouseBackPress
 import com.lalilu.navigation.*
 
 @Suppress("UNCHECKED_CAST")
-@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
+@OptIn(
+    ExperimentalSharedTransitionApi::class,
+    ExperimentalComposeUiApi::class,
+    ExperimentalMaterial3Api::class,
+    ExperimentalFoundationApi::class
+)
 @Composable
 fun App() = ScreenModeHandler {
+    ComposeFoundationFlags.isSkipItemPlacementAnimationFixEnabled = false
+
     // 构建导航栈
     val backStack = backStackHandler()
     val sidebarItems = remember {

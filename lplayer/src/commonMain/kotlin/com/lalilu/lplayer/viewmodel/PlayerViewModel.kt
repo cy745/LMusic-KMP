@@ -3,7 +3,6 @@ package com.lalilu.lplayer.viewmodel
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.*
 import com.lalilu.common.ext.io
-import com.lalilu.extensions.toState
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.LyricUtils
 import com.lalilu.lmedia.PlatformMediaSource
@@ -29,7 +28,6 @@ class PlayerViewModel(
 
     val currentQueue = LPlayer.instance.queue.expandedItems
         .mapLatest { it.rearrange() }
-        .toState(scope = viewModelScope, defaultValue = emptyList())
 
     init {
         currentItem

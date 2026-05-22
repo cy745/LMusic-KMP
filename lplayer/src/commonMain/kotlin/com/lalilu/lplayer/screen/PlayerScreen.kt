@@ -259,7 +259,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                 PlaylistLayout(
                     modifier = modifier,
                     listState = listState,
-                    items = { vm.currentQueue.value },
+                    items = vm.currentQueue,
                 )
             },
             overlayContent = {
