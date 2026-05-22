@@ -1,6 +1,7 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.common.ext.io
+import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -10,13 +11,32 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 /**
- * Abstract base implementation of Playback interface
- * Provides common functionality for all platform implementations
+ * Abstract base implementation of Playback interface.
+ * Provides common functionality for all platform implementations,
+ * including automatic history recovery and recording via [PlaybackHistory] delegation.
  */
 @Suppress("PropertyName")
 abstract class AbstractPlayback(
-    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.io + SupervisorJob())
-) : Playback, CoroutineScope by coroutineScope {
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.io + SupervisorJob()),
+    private val history: PlaybackHistory = PlaybackHistoryImpl()
+) : Playback,
+    CoroutineScope by coroutineScope,
+    PlaybackHistory by history {
+
+    init {
+        // 自动恢复历史队列
+        val snapshot = restoreFromHistory()
+        if (snapshot != null) {
+            launch {
+                val items = resolveMedia(snapshot.ids)
+                queue.update { replaceAll(items, snapshot.index) }
+                onQueueRestored(snapshot)
+            }
+        }
+
+        // 自动录制播放状态
+        startRecording(this)
+    }
 
     // Protected mutable state flows
     protected val _isPlaying = MutableStateFlow(false)
@@ -35,6 +55,12 @@ abstract class AbstractPlayback(
     override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
     override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
+
+    /**
+     * 将 id 列表解析为 [LAudio] 列表。
+     * 平台必须实现，通常依赖各自持有的 [com.lalilu.lmedia.data.Library] 实例。
+     */
+    protected abstract suspend fun resolveMedia(ids: List<String>): List<LAudio>
 
     /**
      * 当播放完成时调用
@@ -109,7 +135,6 @@ abstract class AbstractPlayback(
     }
 
     override suspend fun updatePlaylist(playlist: List<LItem>, startIndex: Int, start: Boolean) {
-        // 更新播放列表
         val items = playlist.flatMap { it.toPlayable() }
         queue.update { replaceAll(items = items, index = startIndex) }
 
@@ -131,17 +156,12 @@ abstract class AbstractPlayback(
         val oldMode = _playbackMode.value
         _playbackMode.value = mode
 
-        // When switching to or from shuffle mode, we need to update the indices
         if (oldMode == PlaybackMode.SHUFFLE || mode == PlaybackMode.SHUFFLE) {
             if (mode == PlaybackMode.SHUFFLE) {
                 updateShuffledIndices()
                 val currentIndex = queue.stateSnapshot().index
-
-                // Update current index in shuffled list
                 _currentIndexInShuffled = _shuffledIndices.indexOf(currentIndex).takeIf { it >= 0 } ?: 0
             } else {
-                // When leaving shuffle mode, we might want to adjust the current index
-                // to match the original playlist order
                 if (oldMode == PlaybackMode.SHUFFLE) {
                     queue.update { switchTo(_shuffledIndices.getOrNull(_currentIndexInShuffled) ?: 0) }
                 }

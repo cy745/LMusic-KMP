@@ -44,6 +44,8 @@ class VLCPlayback(
         }
     }
 
+    override suspend fun resolveMedia(ids: List<String>): List<LAudio> = library.mapBy<LAudio>(ids)
+
     private suspend fun playItem(item: LAudio, start: Boolean) {
         val source = library.requireMediaSource(item.source())
 

@@ -26,6 +26,8 @@ class AudioPlayback(
     private val platformMediaSource: PlatformMediaSource by inject()
     private val player = Audio()
 
+    override suspend fun resolveMedia(ids: List<String>): List<LAudio> = library.mapBy<LAudio>(ids)
+
     init {
         BrowserMediaSessionHelper.bindPlayback(this)
         player.addEventListener("ended") {

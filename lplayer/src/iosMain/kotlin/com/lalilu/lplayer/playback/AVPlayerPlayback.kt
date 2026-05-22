@@ -36,6 +36,9 @@ class AVPlayerPlayback(
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
     private val avPlayer: AVPlayer = AVPlayer()
     private var audioPlayer: AVAudioPlayer? = null
+
+    override suspend fun resolveMedia(ids: List<String>): List<LAudio> = library.mapBy<LAudio>(ids)
+
     private var volumeFadeHelper = VolumeFadeHelper(
         onSetVolume = {
             audioPlayer?.volume = it
@@ -47,8 +50,7 @@ class AVPlayerPlayback(
         NowPlayingInfoNotification.bindPlayback(this)
         RemoteCommandHandler.bindPlayback(this)
         if (AudioSessionHelper.setUpAudioSession()) {
-            AudioSessionHelper.bindPlayback(this)
-        }
+            AudioSessionHelper.bindPlayback(this)        }
     }
 
     private val observer = Observer { keyPath, ofObject, change, context ->
