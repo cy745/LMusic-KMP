@@ -29,7 +29,6 @@ import io.github.petertrr.diffutils.patch.DeltaType
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.guava.await
-import kotlin.collections.map
 import kotlin.coroutines.CoroutineContext
 
 @OptIn(UnstableApi::class, ExperimentalCoroutinesApi::class)
@@ -82,7 +81,7 @@ class MPlayerPlayback(
             launch {
                 val items = library.mapBy<LAudio>(ids)
                 val mediaIds = items.map { it.toMediaItem() }
-                queue.replaceAll(items, index)
+                queue.update { replaceAll(items, index) }
 
                 withContext(Dispatchers.Main) {
                     browser.playWhenReady = LPlayerKV.autoPlayWhenRestart.value
@@ -148,7 +147,7 @@ class MPlayerPlayback(
         start: Boolean
     ) = runWithBrowser {
         // 展平目标播放列表
-        val items = with(queue) { playlist.flatMap { it.toPlayable() } }
+        val items = playlist.flatMap { it.toPlayable() }
         // 转换播放元素
         val mediaItems = items.map { it.toMediaItem() }
 
@@ -208,13 +207,15 @@ class MPlayerPlayback(
             val currentIds = queue.expandedItems.value.list.map { it.idValue() }
             if (ids == currentIds) { // 元素未变化，则不触发列表更新，避免死循环
                 if (currentIndex != queue.expandedItems.value.index) {
-                    queue.switchTo(currentIndex)
+                    queue.update { switchTo(currentIndex) }
                 }
                 return@launch
             }
 
             val items = library.mapBy<LAudio>(ids)
-            queue.replaceAll(items = items, index = currentIndex)
+            queue.update(updateReason = QueueUpdateReason.Sync) {
+                replaceAll(items = items, index = currentIndex)
+            }
         }
     }
 

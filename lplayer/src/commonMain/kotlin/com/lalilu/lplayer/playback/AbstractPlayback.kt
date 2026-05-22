@@ -110,8 +110,8 @@ abstract class AbstractPlayback(
 
     override suspend fun updatePlaylist(playlist: List<LItem>, startIndex: Int, start: Boolean) {
         // 更新播放列表
-        val items = with(queue) { playlist.flatMap { it.toPlayable() } }
-        queue.replaceAll(index = startIndex, items = items)
+        val items = playlist.flatMap { it.toPlayable() }
+        queue.update { replaceAll(items = items, index = startIndex) }
 
         if (_playbackMode.value == PlaybackMode.SHUFFLE) {
             updateShuffledIndices()
@@ -120,7 +120,7 @@ abstract class AbstractPlayback(
     }
 
     override suspend fun clearPlaylist() {
-        queue.clear()
+        queue.update { clear() }
         _shuffledIndices = emptyList()
         _currentIndexInShuffled = 0
     }
@@ -143,7 +143,7 @@ abstract class AbstractPlayback(
                 // When leaving shuffle mode, we might want to adjust the current index
                 // to match the original playlist order
                 if (oldMode == PlaybackMode.SHUFFLE) {
-                    queue.switchTo(_shuffledIndices.getOrNull(_currentIndexInShuffled) ?: 0)
+                    queue.update { switchTo(_shuffledIndices.getOrNull(_currentIndexInShuffled) ?: 0) }
                 }
             }
         }

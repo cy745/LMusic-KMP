@@ -102,7 +102,7 @@ class AVPlayerPlayback(
                 )
 
                 val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
-                queue.switchTo(index = targetIndex)
+                queue.update { switchTo(index = targetIndex) }
                 avPlayer.replaceCurrentItemWithPlayerItem(playerItem)
                 if (start) {
                     avPlayer.play()
@@ -166,7 +166,7 @@ class AVPlayerPlayback(
                 }
 
                 val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
-                queue.switchTo(index = targetIndex)
+                queue.update { switchTo(index = targetIndex) }
                 _currentDuration.value = (player.duration * 1000L).toLong()
 
                 audioPlayer?.stop()

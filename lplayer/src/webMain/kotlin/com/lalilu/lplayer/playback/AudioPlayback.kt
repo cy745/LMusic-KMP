@@ -65,7 +65,7 @@ class AudioPlayback(
             _isPlaying.value = true
         }
         val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
-        queue.switchTo(index = targetIndex)
+        queue.update { switchTo(index = targetIndex) }
     }
 
 
@@ -104,7 +104,7 @@ class AudioPlayback(
         try {
             player.pause()
             _isPlaying.value = false
-            queue.switchTo(0)
+            queue.update { switchTo(0) }
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
             emitError(e)

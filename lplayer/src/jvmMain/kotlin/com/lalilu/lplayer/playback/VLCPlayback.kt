@@ -73,7 +73,7 @@ class VLCPlayback(
             player.controls().play()
         }
         val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
-        queue.switchTo(index = targetIndex)
+        queue.update { switchTo(index = targetIndex) }
     }
 
     override suspend fun play() {
@@ -122,7 +122,7 @@ class VLCPlayback(
         try {
             player.controls().stop()
             _isPlaying.value = false
-            queue.switchTo(0)
+            queue.update { switchTo(0) }
         } catch (e: Exception) {
             Logger.e(tag = "VLCPlayback", messageString = "${e.message}", throwable = e)
             emitError(e)

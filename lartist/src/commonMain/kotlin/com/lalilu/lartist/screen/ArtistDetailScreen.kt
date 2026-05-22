@@ -172,7 +172,15 @@ data class ArtistDetailScreen(
             eventFlow = vm.eventFlow(),
             selector = { vm.selector },
             onClickGroup = { vm.intent(ArtistDetailAction.ToggleJumperDialog) },
-            onClickAddToPlaylist = { currentArtist?.let { LPlayer.instance.queue.addToNext(it) } },
+            onClickAddToPlaylist = {
+                currentArtist?.let {
+                    scope.launch {
+                        LPlayer.instance.queue.update {
+                            addToNext(it)
+                        }
+                    }
+                }
+            },
             onClickPlayAll = {
                 scope.launch {
                     PlayerAction.UpdateList(
