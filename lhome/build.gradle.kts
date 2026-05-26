@@ -1,11 +1,12 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
 import com.lalilu.gradle.XcodeDetector
+import com.lalilu.gradle.commonMainKspDependencies
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
@@ -16,12 +17,11 @@ group = "com.lalilu.lhome"
 version = "1.0.0"
 
 kotlin {
-    jvm()
-    androidTarget {
-        compilerOptions {
-            // jvmTarget = JvmTarget.JVM_11
-        }
+    androidLibrary {
+        namespace = group.toString()
+        compileSdk = libs.versions.android.targetSdk.get().toInt()
     }
+    jvm()
     XcodeDetector.whenXcodeInstalled {
         listOf(
             iosArm64(),
@@ -52,13 +52,9 @@ kotlin {
             }
         }
     }
+
+    commonMainKspDependencies {
+        ksp(libs.koin.compiler)
+    }
 }
 
-android {
-    namespace = group.toString()
-    compileSdk = libs.versions.android.targetSdk.get().toInt()
-}
-
-dependencies {
-    kspCommonMainMetadata(libs.koin.compiler)
-}

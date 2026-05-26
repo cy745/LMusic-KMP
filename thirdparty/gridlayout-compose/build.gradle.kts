@@ -4,7 +4,7 @@ import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
@@ -13,7 +13,10 @@ plugins {
 
 kotlin {
     jvmToolchain(21)
-    androidTarget {}
+    androidLibrary {
+        namespace = "ComposeGridLayout"
+        compileSdk = libs.versions.android.targetSdk.get().toIntOrNull()
+    }
 
     jvm("desktop")
 
@@ -43,10 +46,4 @@ kotlin {
             }
         }
     }
-}
-
-
-android {
-    compileSdk = libs.versions.android.targetSdk.get().toIntOrNull()
-    namespace = "ComposeGridLayout"
 }
