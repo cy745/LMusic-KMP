@@ -1,10 +1,7 @@
-import com.lalilu.gradle.XcodeDetector
 import com.lalilu.gradle.kspDependenciesForAllTargets
 import com.lalilu.gradle.setupKoin
+import com.lalilu.gradle.setupMultiplatform
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
-import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
 
 plugins {
@@ -18,54 +15,51 @@ plugins {
 }
 
 kotlin {
-    androidLibrary {
-        namespace = "com.lalilu.app"
-        compileSdk = libs.versions.android.targetSdk.get().toInt()
-        minSdk = libs.versions.android.minSdk.get().toInt()
-
-        @OptIn(ExperimentalKotlinGradlePluginApi::class)
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_21)
-        }
-    }
-
-    XcodeDetector.whenXcodeInstalled {
-        listOf(
-            iosArm64(),
-            iosSimulatorArm64()
-        ).forEach {
-            it.binaries.framework {
-                baseName = "ComposeApp"
-                isStatic = true
+    setupMultiplatform(
+        setupAndroidTarget = {
+            namespace = "com.lalilu.app"
+            packaging {
+                resources {
+                    merges += "/META-INF/services/**"
+                    pickFirsts += "/META-INF/{AL2.0,LGPL2.1}"
+                    pickFirsts += "/META-INF/INDEX.LIST"
+                    pickFirsts += "/META-INF/io.netty.versions.properties"
+                }
             }
-        }
-    }
-    jvm("desktop")
-
-    @OptIn(ExperimentalWasmDsl::class)
-    wasmJs {
-        outputModuleName.set("composeApp")
-        browser {
-            val rootDirPath = project.rootDir.path
-            val projectDirPath = project.projectDir.path
-            commonWebpackConfig {
-                outputFileName = "composeApp.js"
-                devServer = (devServer ?: KotlinWebpackConfig.DevServer()).apply {
-                    static = (static ?: mutableListOf()).apply {
-                        add(rootDirPath)
-                        add(projectDirPath)
-                    }
-                    client = KotlinWebpackConfig.DevServer.Client(
-                        overlay = KotlinWebpackConfig.DevServer.Client.Overlay(
-                            errors = false,
-                            warnings = false
+        },
+        setupWasmTarget = {
+            outputModuleName.set("composeApp")
+            browser {
+                val rootDirPath = project.rootDir.path
+                val projectDirPath = project.projectDir.path
+                commonWebpackConfig {
+                    outputFileName = "composeApp.js"
+                    devServer = (devServer ?: KotlinWebpackConfig.DevServer()).apply {
+                        static = (static ?: mutableListOf()).apply {
+                            add(rootDirPath)
+                            add(projectDirPath)
+                        }
+                        client = KotlinWebpackConfig.DevServer.Client(
+                            overlay = KotlinWebpackConfig.DevServer.Client.Overlay(
+                                errors = false,
+                                warnings = false
+                            )
                         )
-                    )
+                    }
+                }
+            }
+            binaries.executable()
+        },
+        setupIosTarget = {
+            forEach {
+                it.binaries.framework {
+                    baseName = "ComposeApp"
+                    isStatic = true
                 }
             }
         }
-        binaries.executable()
-    }
+    )
+    setupKoin()
 
     sourceSets {
         commonMain.dependencies {
@@ -95,8 +89,7 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
-        val desktopMain by getting
-        desktopMain.dependencies {
+        jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.jna)
@@ -118,7 +111,6 @@ kotlin {
     kspDependenciesForAllTargets {
         ksp(libs.room3.compiler)
     }
-    setupKoin()
 }
 
 ksp {
