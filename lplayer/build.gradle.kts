@@ -1,8 +1,8 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
-import com.lalilu.gradle.XcodeDetector
-import com.lalilu.gradle.applyPublish
-import com.lalilu.gradle.commonMainKspDependencies
+import com.lalilu.gradle.setupKoin
+import com.lalilu.gradle.setupMultiplatform
+import com.lalilu.gradle.setupPublish
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCompilation
 
@@ -23,37 +23,19 @@ version = "1.0.0"
 extra.set("artifactId", "core")
 
 kotlin {
-    androidLibrary {
-        namespace = "${group}.core"
-        compileSdk = libs.versions.android.targetSdk.get().toInt()
-    }
-    jvm()
-
-    @OptIn(ExperimentalWasmDsl::class)
-    wasmJs {
-        browser {
-            testTask { enabled = false }
-        }
-        nodejs {
-            testTask { enabled = false }
-        }
-        binaries.executable()
-        binaries.library()
-    }
-
-    XcodeDetector.whenXcodeInstalled {
-        val iosArm64 = iosArm64()
-        val iosSimulatorArm64 = iosSimulatorArm64()
-
-        listOf(iosArm64, iosSimulatorArm64).forEach {
-            it.compilations.getByName<KotlinNativeCompilation>("main") {
-                val observer by cinterops.creating
-                observer.apply {
-                    definitionFile.set(file("src/nativeInterop/cinterop/observer.def"))
+    setupMultiplatform(
+        setupIosTarget = {
+            forEach {
+                it.compilations.getByName<KotlinNativeCompilation>("main") {
+                    val observer by cinterops.creating
+                    observer.apply {
+                        definitionFile.set(file("src/nativeInterop/cinterop/observer.def"))
+                    }
                 }
             }
         }
-    }
+    )
+    setupKoin()
 
     sourceSets {
         commonMain.dependencies {
@@ -92,10 +74,6 @@ kotlin {
             }
         }
     }
-
-    commonMainKspDependencies {
-        ksp(libs.koin.compiler)
-    }
 }
 
-applyPublish()
+setupPublish()

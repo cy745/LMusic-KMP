@@ -1,6 +1,7 @@
 import com.lalilu.gradle.XcodeDetector
-import com.lalilu.gradle.commonMainKspDependencies
 import com.lalilu.gradle.kspDependenciesForAllTargets
+import com.lalilu.gradle.setupKoin
+import com.lalilu.gradle.setupMultiplatform
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -118,9 +119,7 @@ kotlin {
     kspDependenciesForAllTargets {
         ksp(libs.room3.compiler)
     }
-    commonMainKspDependencies {
-        ksp(libs.koin.compiler)
-    }
+    setupKoin()
 }
 
 ksp {

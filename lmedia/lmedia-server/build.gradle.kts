@@ -1,8 +1,8 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
-import com.lalilu.gradle.applyPublish
-import com.lalilu.gradle.XcodeDetector
-import com.lalilu.gradle.commonMainKspDependencies
+import com.lalilu.gradle.setupMultiplatform
+import com.lalilu.gradle.setupKoin
+import com.lalilu.gradle.setupPublish
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -24,30 +24,8 @@ ktorfit {
 }
 
 kotlin {
-    androidLibrary {
-        namespace = "${group}.server"
-        compileSdk = libs.versions.android.targetSdk.get().toInt()
-    }
-    jvm()
-
-    @OptIn(ExperimentalWasmDsl::class)
-    wasmJs {
-        browser {
-            testTask { enabled = false }
-        }
-        nodejs {
-            testTask { enabled = false }
-        }
-        binaries.executable()
-        binaries.library()
-    }
-
-    XcodeDetector.whenXcodeInstalled {
-        listOf(
-            iosArm64(),
-            iosSimulatorArm64()
-        )
-    }
+    setupMultiplatform()
+    setupKoin()
 
     sourceSets {
         commonMain.dependencies {
@@ -67,10 +45,6 @@ kotlin {
             api(kotlincrypto.hash.md)
         }
     }
-
-    commonMainKspDependencies {
-        ksp(libs.koin.compiler)
-    }
 }
 
-applyPublish()
+setupPublish()

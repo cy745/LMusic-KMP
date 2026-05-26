@@ -1,7 +1,7 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
+import com.lalilu.gradle.setupMultiplatform
 import com.lalilu.gradle.setupPublish
-import com.lalilu.gradle.XcodeDetector
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -23,30 +23,7 @@ ktorfit {
 }
 
 kotlin {
-    androidLibrary {
-        namespace = "${group}.coil"
-        compileSdk = libs.versions.android.targetSdk.get().toInt()
-    }
-    jvm()
-
-    @OptIn(ExperimentalWasmDsl::class)
-    wasmJs {
-        browser {
-            testTask { enabled = false }
-        }
-        nodejs {
-            testTask { enabled = false }
-        }
-        binaries.executable()
-        binaries.library()
-    }
-
-    XcodeDetector.whenXcodeInstalled {
-        listOf(
-            iosArm64(),
-            iosSimulatorArm64()
-        )
-    }
+    setupMultiplatform()
 
     sourceSets {
         commonMain.dependencies {

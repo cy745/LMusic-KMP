@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
-import com.lalilu.gradle.XcodeDetector
+import com.lalilu.gradle.setupMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -14,30 +14,7 @@ group = "com.lalilu.llyric"
 version = "1.0.0"
 
 kotlin {
-    androidLibrary {
-        namespace = group.toString()
-        compileSdk = libs.versions.android.targetSdk.get().toInt()
-    }
-    jvm()
-
-    @OptIn(ExperimentalWasmDsl::class)
-    wasmJs {
-        browser {
-            testTask { enabled = false }
-        }
-        nodejs {
-            testTask { enabled = false }
-        }
-        binaries.executable()
-        binaries.library()
-    }
-
-    XcodeDetector.whenXcodeInstalled {
-        listOf(
-            iosArm64(),
-            iosSimulatorArm64()
-        )
-    }
+    setupMultiplatform()
 
     sourceSets {
         commonMain.dependencies {
@@ -59,4 +36,3 @@ kotlin {
         }
     }
 }
-

@@ -1,8 +1,8 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
-import com.lalilu.gradle.XcodeDetector
-import com.lalilu.gradle.applyPublish
-import com.lalilu.gradle.commonMainKspDependencies
+import com.lalilu.gradle.setupKoin
+import com.lalilu.gradle.setupMultiplatform
+import com.lalilu.gradle.setupPublish
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCompilation
 
@@ -28,43 +28,25 @@ ktorfit {
 }
 
 kotlin {
-    androidLibrary {
-        namespace = "${group}.core"
-        compileSdk = libs.versions.android.targetSdk.get().toInt()
-    }
-    jvm()
+    setupMultiplatform(
+        setupIosTarget = {
+            forEach {
+                it.compilations.getByName<KotlinNativeCompilation>("main") {
+                    val musicKitWrapper by cinterops.creating
+                    musicKitWrapper.apply {
+                        definitionFile.set(file("src/nativeInterop/MusicKitWrapper/MusicKitWrapper.def"))
+                    }
 
-    @OptIn(ExperimentalWasmDsl::class)
-    wasmJs {
-        browser {
-            testTask { enabled = false }
-        }
-        nodejs {
-            testTask { enabled = false }
-        }
-        binaries.executable()
-        binaries.library()
-    }
-
-    XcodeDetector.whenXcodeInstalled {
-        val iosArm64 = iosArm64()
-        val iosSimulatorArm64 = iosSimulatorArm64()
-
-        listOf(iosArm64, iosSimulatorArm64).forEach {
-            it.compilations.getByName<KotlinNativeCompilation>("main") {
-                val musicKitWrapper by cinterops.creating
-                musicKitWrapper.apply {
-                    definitionFile.set(file("src/nativeInterop/MusicKitWrapper/MusicKitWrapper.def"))
-                }
-
-                val taglib by cinterops.creating
-                taglib.apply {
-                    definitionFile.set(file("src/nativeInterop/taglib/Taglib.def"))
-                    headers(file("src/nativeInterop/taglib/include/taglib/tag_c.h"))
+                    val taglib by cinterops.creating
+                    taglib.apply {
+                        definitionFile.set(file("src/nativeInterop/taglib/Taglib.def"))
+                        headers(file("src/nativeInterop/taglib/include/taglib/tag_c.h"))
+                    }
                 }
             }
         }
-    }
+    )
+    setupKoin()
 
     sourceSets {
         commonMain.dependencies {
@@ -97,10 +79,6 @@ kotlin {
             implementation(npm("taglib-wasm", "0.5.4"))
         }
     }
-
-    commonMainKspDependencies {
-        ksp(libs.koin.compiler)
-    }
 }
 
 compose {
@@ -109,4 +87,4 @@ compose {
     }
 }
 
-applyPublish()
+setupPublish()
