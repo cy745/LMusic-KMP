@@ -1,29 +1,20 @@
 package com.lalilu.gradle
 
 import com.lalilu.Constants
-import org.gradle.api.Project
-import org.gradle.api.artifacts.VersionCatalogsExtension
-import org.gradle.kotlin.dsl.configure
+import com.lalilu.gradle.helper.library
+import com.lalilu.gradle.helper.libs
+import com.lalilu.gradle.helper.notation
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
-import kotlin.jvm.optionals.getOrNull
 
-fun Project.applyKoin() {
-    if (!plugins.hasPlugin(Constants.KSP_PLUGIN)) {
+fun KotlinMultiplatformExtension.setupKoin() {
+    if (!project.plugins.hasPlugin(Constants.KSP_PLUGIN)) {
         throw IllegalStateException("KSP plugin is required to use Koin")
     }
 
-    val versionCategory = extensions.getByType(VersionCatalogsExtension::class.java)
-    val libs = versionCategory.named("libs")
-
-    val koinCompiler = libs.findLibrary(Constants.KOIN_COMPILER_ALIAS).getOrNull()?.get()
-        ?.let { "${it.module}:${it.version}" }
+    val koinCompiler = project.libs.library(Constants.KOIN_COMPILER_ALIAS)?.notation()
         ?: throw IllegalStateException("Koin Compiler is not found for alias [${Constants.KOIN_COMPILER_ALIAS}]")
 
-    plugins.withId(Constants.KOTLIN_MULTIPLATFORM_PLUGIN) {
-        extensions.configure<KotlinMultiplatformExtension> {
-            commonMainKspDependencies {
-                ksp(koinCompiler)
-            }
-        }
+    commonMainKspDependencies {
+        ksp(koinCompiler)
     }
 }

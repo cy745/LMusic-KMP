@@ -1,5 +1,6 @@
 package com.lalilu.gradle
 
+@Deprecated("待移除")
 object XcodeDetector {
 
     /**

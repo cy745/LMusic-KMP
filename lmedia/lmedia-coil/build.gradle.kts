@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
-import com.lalilu.gradle.applyPublish
+import com.lalilu.gradle.setupPublish
 import com.lalilu.gradle.XcodeDetector
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
@@ -56,4 +56,4 @@ kotlin {
     }
 }
 
-applyPublish()
+setupPublish()

@@ -1,17 +1,9 @@
 package com.lalilu.gradle
 
-import org.gradle.api.Project
 import org.gradle.kotlin.dsl.dependencies
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinTarget
 
-/**
- * 确保SourcesJar在ksp之后运行
- */
-fun Project.makeSureAllSourcesJarAfterKsp() {
-    project.tasks.matching { it.name.endsWith("SourcesJar") && it.name != "kspCommonMainKotlinMetadata" }
-        .configureEach { dependsOn("kspCommonMainKotlinMetadata") }
-}
 
 /**
  * copy from https://github.com/eygraber/gradle-conventions/blob/master/conventions-plugin/src/main/kotlin/ksp.kt

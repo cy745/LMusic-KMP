@@ -8,7 +8,9 @@ import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.extra
 
-fun Project.applyPublish() {
+fun Project.setupPublish(
+    setup: MavenPublishBaseExtension.() -> Unit = {}
+) {
     if (!plugins.hasPlugin(Constants.VANNIKTECH_PUBLISH_PLUGIN)) {
         logger.warn("[${Constants.VANNIKTECH_PUBLISH_PLUGIN}] is not applied, skip publish.")
         return
@@ -36,14 +38,8 @@ fun Project.applyPublish() {
                 )
             )
 
-            pom {
-                name.set("LMedia")
-                description.set("LMedia with $artifactId")
-                inceptionYear.set("2025")
-            }
-
             publishToMavenCentral(true)
-            //    signAllPublications()
+            setup()
         }
     }
 }
