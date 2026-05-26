@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
 import com.lalilu.gradle.setupKoin
+import com.lalilu.gradle.setupSweetSpi
 import com.lalilu.gradle.setupMultiplatform
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
@@ -19,6 +20,7 @@ version = "1.0.0"
 kotlin {
     setupMultiplatform()
     setupKoin()
+    setupSweetSpi()
 
     sourceSets {
         val commonMain by getting {

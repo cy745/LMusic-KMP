@@ -1,5 +1,7 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
+import com.lalilu.gradle.setupKoin
+import com.lalilu.gradle.setupSweetSpi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -17,6 +19,8 @@ kotlin {
         namespace = "org.jetbrains.androidx.navigation3"
         compileSdk = libs.versions.android.targetSdk.get().toInt()
     }
+    setupKoin()
+    setupSweetSpi()
 
     jvm("desktop")
 
