@@ -74,6 +74,7 @@ fun SortPanelDialog(
     )
 }
 
+@OptIn(ExperimentalFlexBoxApi::class)
 @Composable
 private fun SortPanelDialogContent(
     modifier: Modifier = Modifier,

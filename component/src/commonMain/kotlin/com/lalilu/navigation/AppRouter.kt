@@ -196,7 +196,6 @@ object AppRouter {
                     Logger.e(
                         tag = "AppRouter",
                         messageString = "route request for [$baseUrl] Failed",
-                        throwable = it
                     )
                     null
                 }

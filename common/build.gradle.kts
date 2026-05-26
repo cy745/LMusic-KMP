@@ -2,7 +2,6 @@
 
 import com.lalilu.gradle.setupKoin
 import com.lalilu.gradle.setupMultiplatform
-import com.lalilu.gradle.setupSweetSpi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -20,7 +19,6 @@ version = "1.0.0"
 kotlin {
     setupMultiplatform()
     setupKoin()
-    setupSweetSpi()
 
     sourceSets {
         commonMain.dependencies {
@@ -42,7 +40,6 @@ kotlin {
             api(libs.ktor.client.logging)
             api(libs.ktorfit)
             api(kotlincrypto.hash.md)
-            api(libs.sweetspi.runtime)
             api(libs.diff.utils)
             api(libs.room3.common)
             api(libs.paging.common)

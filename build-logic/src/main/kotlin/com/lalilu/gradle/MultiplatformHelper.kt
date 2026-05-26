@@ -21,7 +21,7 @@ fun KotlinMultiplatformExtension.setupMultiplatform(
     setupWasmTarget: KotlinWasmJsTargetDsl.() -> Unit = {},
     setupIosTarget: List<KotlinNativeTarget>.() -> Unit = {}
 ) {
-    val artifactId = extra.properties["artifactId"] as? String?
+    val artifactId = project.extra.runCatching { get("artifactId") }.getOrNull() as? String?
     val targetNamespace = if (artifactId.isNullOrBlank()) "${project.group}" else "${project.group}.$artifactId"
     val targetCompileSdk = project.libs.version("android.targetSdk")?.displayName?.toIntOrNull()
 

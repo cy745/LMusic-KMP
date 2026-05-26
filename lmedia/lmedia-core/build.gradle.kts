@@ -1,7 +1,6 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
 import com.lalilu.gradle.setupKoin
-import com.lalilu.gradle.setupSweetSpi
 import com.lalilu.gradle.setupMultiplatform
 import com.lalilu.gradle.setupPublish
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -48,7 +47,6 @@ kotlin {
         }
     )
     setupKoin()
-    setupSweetSpi()
 
     sourceSets {
         commonMain.dependencies {

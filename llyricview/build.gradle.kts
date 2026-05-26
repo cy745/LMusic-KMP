@@ -2,7 +2,6 @@
 
 import com.lalilu.gradle.setupMultiplatform
 import com.lalilu.gradle.setupKoin
-import com.lalilu.gradle.setupSweetSpi
 import com.lalilu.gradle.setupPublish
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
@@ -26,7 +25,6 @@ extra.set("artifactId", "core")
 kotlin {
     setupMultiplatform()
     setupKoin()
-    setupSweetSpi()
 
     sourceSets {
         commonMain.dependencies {

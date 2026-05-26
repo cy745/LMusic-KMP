@@ -14,7 +14,6 @@ import com.russhwolf.settings.ObservableSettings
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.observable.makeObservable
 import com.skydoves.compose.stability.runtime.ComposeStabilityAnalyzer
-import dev.whyoleg.sweetspi.ServiceLoader
 import kotlinx.serialization.json.Json
 import org.koin.core.KoinApplication
 import org.koin.core.annotation.ComponentScan
@@ -32,10 +31,7 @@ fun KoinApplication.koinSetup() {
     modules(SharedModule)
     modules(AppModule.module)
     modules(LHomeModule.module)
-    modules(
-        ServiceLoader.load(KModule::class)
-            .map(KModule::get)
-    )
+    modules(KRouterInjectMap.services.filterIsInstance<KModule>().map(KModule::get))
 }
 
 private val SharedModule = module {
