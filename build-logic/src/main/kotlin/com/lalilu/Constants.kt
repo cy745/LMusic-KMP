@@ -2,8 +2,6 @@ package com.lalilu
 
 object Constants {
     const val KOTLIN_MULTIPLATFORM_PLUGIN = "org.jetbrains.kotlin.multiplatform"
-    const val ANDROID_LIBRARY_PLUGIN = "com.android.library"
-    const val ANDROID_APPLICATION_PLUGIN = "com.android.application"
     const val VANNIKTECH_PUBLISH_PLUGIN = "com.vanniktech.maven.publish.base"
     const val DOKKA_DOCS_PLUGIN = "org.jetbrains.dokka"
     const val KSP_PLUGIN = "com.google.devtools.ksp"
