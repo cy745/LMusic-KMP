@@ -9,7 +9,6 @@ import com.lalilu.lhome.LHomeModule
 import com.lalilu.lmusic.util.DebugRecomposeLogger
 import com.lalilu.lmusic.util.KermitKoinLogger
 import com.lalilu.lmusic.util.MemoryLogWriter
-import com.lalilu.lplayer.LPlayerModule
 import com.russhwolf.settings.ExperimentalSettingsApi
 import com.russhwolf.settings.ObservableSettings
 import com.russhwolf.settings.Settings
