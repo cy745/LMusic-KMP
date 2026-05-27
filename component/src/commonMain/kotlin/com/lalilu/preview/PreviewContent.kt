@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import coil3.annotation.ExperimentalCoilApi
 import coil3.compose.LocalAsyncImagePreviewHandler
 import com.lalilu.LMusicTheme
@@ -44,7 +45,8 @@ fun PreviewWithConfiguration(
     val previewScope = remember { PreviewScope().apply(configuration) }
 
     CompositionLocalProvider(
-        LocalAsyncImagePreviewHandler provides CoilImageHandler
+        LocalAsyncImagePreviewHandler provides CoilImageHandler,
+        LocalInspectionMode provides true
     ) {
         theme(isDarkMode) { background { previewScope.content() } }
     }

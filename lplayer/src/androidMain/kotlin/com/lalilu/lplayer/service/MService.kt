@@ -307,21 +307,9 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         startIndex: Int,
         startPositionMs: Long
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-        logger.i {
-            "onSetMediaItems: ids=${mediaItems.map { it.mediaId }}, " +
-                    "startIndex=$startIndex, startPositionMs=$startPositionMs, " +
-                    "packageName=${controller.packageName}"
-        }
-
         return CoroutineScope(Dispatchers.IO).future {
             val ids = mediaItems.map { it.mediaId }
             val items = MMedia.getItems(ids)
-
-            logger.i {
-                "onSetMediaItems: requested=${ids.size} ids, " +
-                        "resolved=${items.size} items, " +
-                        "items=${items.map { it.mediaId }}"
-            }
 
             MediaSession.MediaItemsWithStartPosition(
                 items,
