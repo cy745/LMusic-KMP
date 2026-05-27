@@ -13,6 +13,7 @@ internal object PreviewMediaSource : MediaSource {
         property<String>("url").provide("http://localhost:9999")
         property<String>("username").provide("admin")
         property<String>("password").provide("admin")
+        property<Int>(key = "Min duration", description = "Set the duration min threshold").provide(0)
         property<Boolean>(key = "Enable", description = "Enable Preview Source", priority = 10).provide(false)
 
         function<Unit>(key = "Reset", description = "Reset Preview Source").onCall {}

@@ -25,7 +25,8 @@ fun MediaSource.FunctionComponent(
     modifier: Modifier = Modifier,
     extraFunctions: () -> List<Declaration.Function<*>> = { EMPTY_LIST }
 ) {
-    if (config.functions.isEmpty()) return
+    val extras = remember { extraFunctions() }
+    if (config.functions.isEmpty() && extras.isEmpty()) return
     val functions = remember {
         config.functions
             .filter { it.parameters.isEmpty() } // 只处理没有参数的函数，有参数的函数需要自行实现
@@ -37,7 +38,7 @@ fun MediaSource.FunctionComponent(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        (extraFunctions().sortedByDescending { it.priority } + functions)
+        (extras.sortedByDescending { it.priority } + functions)
             .filter { it.isAvailable.invoke() } // 筛选出此时可用的函数
             .forEach { function ->
                 TextButton(

@@ -43,7 +43,7 @@ fun SnapshotPreviewCard(
             Card(
                 modifier = Modifier,
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.2f)
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
                 )
             ) {
                 Text(
@@ -57,7 +57,7 @@ fun SnapshotPreviewCard(
             Card(
                 modifier = Modifier,
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.2f)
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
                 )
             ) {
                 Text(
@@ -71,7 +71,7 @@ fun SnapshotPreviewCard(
             Card(
                 modifier = Modifier,
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.2f)
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
                 )
             ) {
                 Text(
@@ -85,7 +85,7 @@ fun SnapshotPreviewCard(
             Card(
                 modifier = Modifier,
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.2f)
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
                 )
             ) {
                 Text(

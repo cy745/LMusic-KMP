@@ -2,12 +2,11 @@ package com.lalilu.lmedia.component
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -84,7 +83,9 @@ fun MediaSource.SourceCard(
                     configForm()
                 }
 
-                is SnapshotState.Loading -> Column {
+                is SnapshotState.Loading -> Column(
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
                     LinearProgressIndicator(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -131,13 +132,23 @@ fun MediaSource.SourceCard(
                 )
 
                 is SnapshotState.Error -> {
-                    Text(
-                        modifier = Modifier.padding(top = 4.dp),
-                        text = snapshotState.message,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                modifier = Modifier,
+                                text = snapshotState.message,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 }
 
                 else -> {}
