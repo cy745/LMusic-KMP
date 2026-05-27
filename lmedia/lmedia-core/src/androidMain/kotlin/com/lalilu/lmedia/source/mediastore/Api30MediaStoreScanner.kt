@@ -2,14 +2,12 @@ package com.lalilu.lmedia.source.mediastore
 
 import android.content.Context
 import android.provider.MediaStore
-import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lmedia.source.MediaSource
 
 open class Api30MediaStoreScanner(
+    private val source: MediaSource,
     private val context: Context
-) : Api29MediaStoreScanner(context) {
-    private var trackIndex = -1
-    private var discIndex = -1
-    private var bitrateIndex = -1
+) : Api29MediaStoreScanner(source, context) {
 
     override val projection: Array<String> = super.projection + arrayOf(
         MediaStore.Audio.AudioColumns.CD_TRACK_NUMBER,
@@ -17,7 +15,17 @@ open class Api30MediaStoreScanner(
         MediaStore.Audio.AudioColumns.BITRATE,
     )
 
-    override fun scan(): Snapshot {
-        return super.scan()
+    override fun onExtras(cursor: android.database.Cursor, extras: MutableMap<String, String>) {
+        super.onExtras(cursor, extras)
+
+        // CD_TRACK_NUMBER is the non-deprecated replacement for TRACK on API 30+
+        val trackIdx = cursor.getColumnIndex(MediaStore.Audio.AudioColumns.CD_TRACK_NUMBER)
+        getStringOrNull(cursor, trackIdx)?.let { extras["track"] = it }
+
+        val discIdx = cursor.getColumnIndex(MediaStore.Audio.AudioColumns.DISC_NUMBER)
+        getStringOrNull(cursor, discIdx)?.let { extras["disc"] = it }
+
+        val bitrateIdx = cursor.getColumnIndex(MediaStore.Audio.AudioColumns.BITRATE)
+        getStringOrNull(cursor, bitrateIdx)?.let { extras["bitrate"] = it }
     }
 }
