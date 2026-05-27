@@ -16,6 +16,7 @@ sealed class Declaration(
     open val name: String,       // 声明的名称
     open val description: String, // 声明的描述
     open val priority: Int = 0,  // 优先级
+    open val extra: MutableMap<String, Any> = mutableMapOf()
 ) {
     /**
      * 属性声明，用于定义可读写的属性

@@ -1,5 +1,6 @@
 package com.lalilu.lmedia.source
 
+import androidx.compose.runtime.Stable
 import com.lalilu.lmedia.source.Declaration.Parameter
 import kotlin.reflect.KClass
 import kotlin.reflect.cast
@@ -214,4 +215,38 @@ fun MediaSource.buildConfig(
     ).apply(block)
         .callback(::onConfigChange)
         .build()
+}
+
+private const val RANGE_PREFIX = "range_"
+
+/**
+ * 为属性提供范围限制
+ *
+ * @param min
+ */
+context(_: MediaSourceConfigBuilder)
+fun Declaration.Property<Int>.range(min: Number, max: Number, step: Int = 0) = apply {
+    val minKey = "${RANGE_PREFIX}_min_$key"
+    val maxKey = "${RANGE_PREFIX}_max_$key"
+    val stepKey = "${RANGE_PREFIX}_step_$key"
+    extra[minKey] = min
+    extra[maxKey] = max
+    extra[stepKey] = step
+}
+
+@Stable
+fun Declaration.Property<Int>.min() = extra["${RANGE_PREFIX}_min_$key"]?.let { it as? Number }?.toFloat() ?: 0f
+
+@Stable
+fun Declaration.Property<Int>.max() = extra["${RANGE_PREFIX}_max_$key"]?.let { it as? Number }?.toFloat() ?: 0f
+
+@Stable
+fun Declaration.Property<Int>.step() = extra["${RANGE_PREFIX}_step_$key"] as? Int ?: 0
+
+@Stable
+fun Declaration.Property<Int>.range(): ClosedFloatingPointRange<Float> {
+    val min = min()
+    val max = max()
+    if (min > max) return min..min
+    return min..max
 }
