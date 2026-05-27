@@ -19,7 +19,8 @@ fun KotlinMultiplatformExtension.setupMultiplatform(
     setupAndroidTarget: KotlinMultiplatformAndroidLibraryTarget.() -> Unit = {},
     setupJvmTarget: KotlinJvmTarget.() -> Unit = {},
     setupWasmTarget: KotlinWasmJsTargetDsl.() -> Unit = {},
-    setupIosTarget: List<KotlinNativeTarget>.() -> Unit = {}
+    setupIosTarget: List<KotlinNativeTarget>.() -> Unit = {},
+    enableAndroidResources: Boolean = true
 ) {
     val artifactId = project.extra.runCatching { get("artifactId") }.getOrNull() as? String?
     val targetNamespace = if (artifactId.isNullOrBlank()) "${project.group}" else "${project.group}.$artifactId"
@@ -28,6 +29,13 @@ fun KotlinMultiplatformExtension.setupMultiplatform(
     androidLibrary {
         namespace = targetNamespace
         compileSdk = targetCompileSdk ?: Constants.FALLBACK_TARGET_SDK
+
+        if (enableAndroidResources) {
+            androidResources {
+                enable = true
+            }
+        }
+
         setupAndroidTarget()
     }
 
