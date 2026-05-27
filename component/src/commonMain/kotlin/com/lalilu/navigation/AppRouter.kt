@@ -7,6 +7,8 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 typealias NavParams = Map<String, Any?>
 typealias MutableNavParams = MutableMap<String, Any?>
@@ -80,6 +82,24 @@ val DefaultInterceptorForTabScreen = NavInterceptor { backstack, intent ->
     }
 }
 
+var lastTime = 0L
+
+/**
+ * 避免两个跳转事件过快发生，可能出现用户快速点击同一个按钮或不同的两个按钮的逻辑，一段时间内拦截掉后一个
+ */
+@OptIn(ExperimentalTime::class)
+val DefaultTooFastJumpingInterceptor = NavInterceptor { navigator, intent ->
+    val now = Clock.System.now().toEpochMilliseconds()
+    if (intent is NavIntent.Jump) {
+        if (now - lastTime < 200) {
+            return@NavInterceptor NavIntent.None
+        }
+    }
+
+    lastTime = now
+    return@NavInterceptor intent
+}
+
 /**
  * 当意图中有 [NavIntent.SINGLE_TOP] 时，当前显示页面如果和目标页面相同则不执行跳转操作
  */
@@ -142,6 +162,7 @@ object AppRouter {
     private val sharedFlow = MutableSharedFlow<NavIntent>()
     private var handler: NavHandler = DefaultHandler
     private val interceptors = mutableListOf(
+        DefaultTooFastJumpingInterceptor,
         DefaultSingleTopInterceptor,
         DefaultSingleInstanceInterceptor,
         DefaultInterceptorForTabScreen,
