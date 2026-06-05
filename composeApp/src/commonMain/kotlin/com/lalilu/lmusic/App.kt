@@ -69,6 +69,7 @@ fun App() = ScreenModeHandler {
                     AppRouter.route("/history").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
                     AppRouter.route("/log").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
                     AppRouter.route("/media_source").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
+                    AppRouter.route("/settings").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
                 )
             ),
             NavSidebarItem.Divider
@@ -78,7 +79,8 @@ fun App() = ScreenModeHandler {
         listOfNotNull(
             AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
             AppRouter.route("/pages/playlist").get(),
-            AppRouter.route("/log").get()
+            AppRouter.route("/log").get(),
+            AppRouter.route("/settings").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
         )
     }
 
