@@ -7,7 +7,7 @@ import com.lalilu.common.kv.KVSaver
 import kotlin.reflect.KClass
 
 class KVItemImpl<T : Any>(
-    val key: String,
+    override val key: String,
     val clazz: KClass<T>,
     val defaultValue: T? = null,
     val converter: KVConverter? = null,
