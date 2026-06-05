@@ -56,6 +56,7 @@ include(":lhistory")
 include(":lplaylist")
 include(":lalbum")
 include(":lartist")
+include(":lsettings")
 
 include("lmedia-server")
 include(":lmedia:lmedia-data")

@@ -39,6 +39,7 @@ vanniktech-publish = "0.35.0"
 jna = "5.18.1"
 startup-runtime = "1.2.0"
 reorderable = "3.0.0"
+turbine = "1.2.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin-test" }
@@ -68,6 +69,7 @@ compose-resources = { module = "org.jetbrains.compose.components:components-reso
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
 compose-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
+compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "composeMultiplatform" }
 
 # jb-androidx
 androidx-startup-runtime = { module = "androidx.startup:startup-runtime", version.ref = "startup-runtime" }
@@ -88,6 +90,7 @@ qrcode-kotlin = { module = "io.github.g0dkar:qrcode-kotlin", version = "4.5.0" }
 sonner = { module = "io.github.brdominguez:compose-sonner", version = "0.4.0" }
 materialKolor = { module = "com.materialkolor:material-kolor", version.ref = "materialKolor" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 diff-utils = { module = "io.github.petertrr:kotlin-multiplatform-diff", version = "1.3.0" }
 
 filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekit" }

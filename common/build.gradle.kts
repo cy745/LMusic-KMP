@@ -46,6 +46,8 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.turbine)
         }
         androidMain.dependencies {
             api("com.blankj:utilcodex:1.31.1")

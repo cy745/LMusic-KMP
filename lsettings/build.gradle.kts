@@ -1,0 +1,65 @@
+/*
+ * Copyright (c) 2026 lalilu. All rights reserved.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+@file:OptIn(ExperimentalWasmDsl::class)
+
+import com.lalilu.gradle.setupKoin
+import com.lalilu.gradle.setupMultiplatform
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+
+plugins {
+    alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.androidMultiplatformLibrary)
+    alias(libs.plugins.composeMultiplatform)
+    alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.ksp)
+}
+
+group = "com.lalilu.lsettings"
+version = "1.0.0"
+
+kotlin {
+    setupMultiplatform()
+    setupKoin()
+
+    sourceSets {
+        commonMain.dependencies {
+            // 平台基础设施
+            api(project(":common"))
+            api(project(":component"))
+
+            // Koin
+            api(libs.koin.core)
+            api(libs.koin.annotations)
+            api(libs.koin.compose)
+            api(libs.koin.compose.viewmodel)
+
+            // Compose
+            api(libs.compose.resources)
+
+            // 图标
+            api(libs.remixicon.kmp)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.turbine)
+            implementation(libs.compose.ui.test)
+        }
+    }
+}
