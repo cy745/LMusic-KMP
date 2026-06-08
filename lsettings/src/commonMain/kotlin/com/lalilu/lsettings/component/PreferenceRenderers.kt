@@ -19,6 +19,7 @@ package com.lalilu.lsettings.component
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
 import com.lalilu.common.settings.ClickPreference
 import com.lalilu.common.settings.CustomPreference
 import com.lalilu.common.settings.DropdownPreference
@@ -52,28 +53,29 @@ import com.lalilu.lsettings.component.preferences.TextPreferenceRow
  */
 interface PreferenceRenderers {
     @Composable
-    fun renderSwitch(pref: SwitchPreference)
+    fun renderSwitch(pref: SwitchPreference, modifier: Modifier)
 
     @Composable
-    fun renderSlider(pref: SliderPreference)
+    fun renderSlider(pref: SliderPreference, modifier: Modifier)
 
     @Composable
-    fun renderDropdown(pref: DropdownPreference<*>)
+    fun renderDropdown(pref: DropdownPreference<*>, modifier: Modifier)
 
     @Composable
-    fun renderMultiSelect(pref: MultiSelectPreference<*>)
+    fun renderMultiSelect(pref: MultiSelectPreference<*>, modifier: Modifier)
 
     @Composable
-    fun renderText(pref: TextPreference)
+    fun renderText(pref: TextPreference, modifier: Modifier)
 
     @Composable
-    fun renderClick(pref: ClickPreference)
+    fun renderClick(pref: ClickPreference, modifier: Modifier)
 
     /** 兜底渲染：未知子类或不支持的类型。 */
     @Composable
-    fun renderUnknown(pref: Preference<*>) {
+    fun renderUnknown(pref: Preference<*>, modifier: Modifier) {
         androidx.compose.material3.Text(
-            text = "Unsupported preference: ${pref::class.simpleName}"
+            text = "Unsupported preference: ${pref::class.simpleName}",
+            modifier = modifier
         )
     }
 }
@@ -88,19 +90,21 @@ interface PreferenceRenderers {
  * 该函数是 [com.lalilu.lsettings.SettingsScreenContent] 渲染偏好项的唯一入口。
  */
 @Composable
-fun PreferenceRenderers.render(pref: Preference<*>) {
+fun PreferenceRenderers.render(
+    pref: Preference<*>,
+    modifier: Modifier = Modifier,
+) {
     when (pref) {
         is CustomPreference<*>       -> pref.content(
             newPreferenceRowScope(pref),
             pref
         )
-        is SwitchPreference          -> renderSwitch(pref)
-        is SliderPreference          -> renderSlider(pref)
-        is DropdownPreference<*>     -> renderDropdown(pref)
-        is MultiSelectPreference<*>  -> renderMultiSelect(pref)
-        is TextPreference            -> renderText(pref)
-        is ClickPreference           -> renderClick(pref)
-        else                         -> renderUnknown(pref)
+        is SwitchPreference          -> renderSwitch(pref, modifier)
+        is SliderPreference          -> renderSlider(pref, modifier)
+        is DropdownPreference<*>     -> renderDropdown(pref, modifier)
+        is MultiSelectPreference<*>  -> renderMultiSelect(pref, modifier)
+        is TextPreference            -> renderText(pref, modifier)
+        is ClickPreference           -> renderClick(pref, modifier)
     }
 }
 
@@ -111,22 +115,22 @@ fun PreferenceRenderers.render(pref: Preference<*>) {
  */
 class DefaultPreferenceRenderers : PreferenceRenderers {
     @Composable
-    override fun renderSwitch(pref: SwitchPreference) = SwitchPreferenceRow(pref)
+    override fun renderSwitch(pref: SwitchPreference, modifier: Modifier) = SwitchPreferenceRow(pref, modifier)
 
     @Composable
-    override fun renderSlider(pref: SliderPreference) = SliderPreferenceRow(pref)
+    override fun renderSlider(pref: SliderPreference, modifier: Modifier) = SliderPreferenceRow(pref, modifier)
 
     @Composable
-    override fun renderDropdown(pref: DropdownPreference<*>) = DropdownPreferenceRow(pref)
+    override fun renderDropdown(pref: DropdownPreference<*>, modifier: Modifier) = DropdownPreferenceRow(pref, modifier)
 
     @Composable
-    override fun renderMultiSelect(pref: MultiSelectPreference<*>) = MultiSelectPreferenceRow(pref)
+    override fun renderMultiSelect(pref: MultiSelectPreference<*>, modifier: Modifier) = MultiSelectPreferenceRow(pref, modifier)
 
     @Composable
-    override fun renderText(pref: TextPreference) = TextPreferenceRow(pref)
+    override fun renderText(pref: TextPreference, modifier: Modifier) = TextPreferenceRow(pref, modifier)
 
     @Composable
-    override fun renderClick(pref: ClickPreference) = ClickPreferenceRow(pref)
+    override fun renderClick(pref: ClickPreference, modifier: Modifier) = ClickPreferenceRow(pref, modifier)
 }
 
 

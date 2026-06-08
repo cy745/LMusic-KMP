@@ -37,6 +37,15 @@ import com.lalilu.common.settings.SliderPreference
 /**
  * Slider 偏好项的 Material3 行实现。
  *
+ * ## 视觉约定（与项目内其他列表行统一）
+ *
+ * - 标题 `bodyLarge` + `onBackground`
+ * - 副标题 `bodySmall` 12sp + `onBackground.copy(0.6f)`
+ * - 当前值 `labelMedium` + `primary`（高亮当前值）
+ * - 整体 `padding(horizontal=16dp, vertical=12dp)`
+ *
+ * ## 行为
+ *
  * 拖动过程中仅更新本地 `localValue`（避免高频写盘 + 频繁重组），
  * `onValueChangeFinished` 时再正式通过 [SliderPreference.onValueChange] 提交，
  * 由 `writeBack` 写穿到 KV / 业务方。
@@ -57,17 +66,22 @@ fun SliderPreferenceRow(
             .testTag("preference_slider_${pref.key}")
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Text(text = pref.title(), style = MaterialTheme.typography.bodyLarge)
+        Text(
+            text = pref.title(),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onBackground
+        )
         pref.summary?.invoke()?.let {
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
             )
         }
         Text(
             text = pref.valueLabel(localValue),
-            style = MaterialTheme.typography.labelMedium
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary
         )
         Slider(
             value = localValue,

@@ -18,8 +18,8 @@
 package com.lalilu.lsettings.testutil
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import com.lalilu.common.settings.ClickPreference
-import com.lalilu.common.settings.CustomPreference
 import com.lalilu.common.settings.DropdownPreference
 import com.lalilu.common.settings.MultiSelectPreference
 import com.lalilu.common.settings.Preference
@@ -40,18 +40,18 @@ class FakePreferenceRenderers : PreferenceRenderers {
         private set
 
     @Composable
-    override fun renderSwitch(pref: SwitchPreference) { seenTypes += pref::class.java }
+    override fun renderSwitch(pref: SwitchPreference, modifier: Modifier) { seenTypes += pref::class.java }
     @Composable
-    override fun renderSlider(pref: SliderPreference) { seenTypes += pref::class.java }
+    override fun renderSlider(pref: SliderPreference, modifier: Modifier) { seenTypes += pref::class.java }
     @Composable
-    override fun renderDropdown(pref: DropdownPreference<*>) { seenTypes += pref::class.java }
+    override fun renderDropdown(pref: DropdownPreference<*>, modifier: Modifier) { seenTypes += pref::class.java }
     @Composable
-    override fun renderMultiSelect(pref: MultiSelectPreference<*>) { seenTypes += pref::class.java }
+    override fun renderMultiSelect(pref: MultiSelectPreference<*>, modifier: Modifier) { seenTypes += pref::class.java }
     @Composable
-    override fun renderText(pref: TextPreference) { seenTypes += pref::class.java }
+    override fun renderText(pref: TextPreference, modifier: Modifier) { seenTypes += pref::class.java }
     @Composable
-    override fun renderClick(pref: ClickPreference) { seenTypes += pref::class.java }
+    override fun renderClick(pref: ClickPreference, modifier: Modifier) { seenTypes += pref::class.java }
 
     @Composable
-    override fun renderUnknown(pref: Preference<*>) { seenTypes += pref::class.java }
+    override fun renderUnknown(pref: Preference<*>, modifier: Modifier) { seenTypes += pref::class.java }
 }

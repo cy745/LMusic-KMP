@@ -35,6 +35,14 @@ import com.lalilu.common.settings.PreferenceActionContext
 /**
  * Click 偏好项的 Material3 行实现。
  *
+ * ## 视觉约定（与项目内其他列表行统一）
+ *
+ * - `Column.padding(horizontal=16dp, vertical=12dp)`，无 Card 外壳
+ * - 标题 `bodyLarge` + `onBackground`
+ * - 副标题 `bodySmall` 12sp + `onBackground.copy(0.6f)`
+ *
+ * ## 行为
+ *
  * - 整行可点击，触发 [ClickPreference.onClick]
  * - disabled 时点击不响应
  * - 当前实现使用 [PreferenceActionContext.Empty]（无 toaster / 无 navigate），
@@ -61,13 +69,13 @@ fun ClickPreferenceRow(
         Text(
             text = pref.title(),
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.onBackground
         )
         pref.summary?.invoke()?.let {
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
             )
         }
     }

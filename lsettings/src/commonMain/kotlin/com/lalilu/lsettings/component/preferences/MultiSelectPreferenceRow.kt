@@ -18,6 +18,7 @@
 package com.lalilu.lsettings.component.preferences
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,7 +42,13 @@ import com.lalilu.lsettings.dialog.ListSelectDialog
  * 多选下拉偏好项的 Material3 行实现。
  *
  * 与 [DropdownPreferenceRow] 共用 [ListSelectDialog]，只是以多选模式打开。
- * 行尾显示 "已选 N / 总 M" 作为当前状态的紧凑表达。
+ *
+ * ## 视觉约定（与项目内其他列表行统一）
+ *
+ * - `Row.padding(horizontal=16dp, vertical=12dp)`，无 Card 外壳
+ * - 标题 / 副标题样式与 [DropdownPreferenceRow] 一致
+ * - 尾部显示 `"已选 N / 总 M"` 紧凑表达，样式 `bodyMedium` + `primary`
+ * - 行内 `Arrangement.spacedBy(12.dp)`
  *
  * 测试 tag：`preference_multiselect_<key>`
  */
@@ -59,15 +66,20 @@ fun <T : Any> MultiSelectPreferenceRow(
             .testTag("preference_multiselect_${pref.key}")
             .clickable(enabled = isEnabled) { showDialog = true }
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = pref.title(), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = pref.title(),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
             pref.summary?.invoke()?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
             }
         }

@@ -41,6 +41,15 @@ import com.lalilu.common.settings.SwitchPreference
 /**
  * Switch 偏好项的 Material3 行实现。
  *
+ * ## 视觉约定（与项目内其他列表行统一）
+ *
+ * - `Row.padding(horizontal=16dp, vertical=12dp)`，无 Card 外壳
+ * - 标题 `bodyLarge` + `onBackground`
+ * - 副标题 `bodySmall` 12sp + `onBackground.copy(0.6f)`
+ * - 行内 `Arrangement.spacedBy(12.dp)` 文本 + Switch 控件
+ *
+ * ## 交互
+ *
  * - 点击整行 = 切换 [SwitchPreference.value]（点击区域更大，移动端友好）
  * - 点击内部 Material3 [Switch] 同样会触发切换
  * - [SwitchPreference.enabled] 返回 `false` 时整行被 `disabled()` 语义标记
@@ -66,15 +75,19 @@ fun SwitchPreferenceRow(
             }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth(0.7f)) {
-            Text(text = pref.title(), style = MaterialTheme.typography.bodyLarge)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = pref.title(),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
             pref.summary?.invoke()?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
             }
         }

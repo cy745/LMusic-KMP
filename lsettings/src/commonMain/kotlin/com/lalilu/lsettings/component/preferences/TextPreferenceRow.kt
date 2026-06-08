@@ -8,7 +8,7 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
@@ -38,8 +38,16 @@ import com.lalilu.lsettings.dialog.TextInputDialog
 /**
  * 文本输入偏好项的 Material3 行实现。
  *
+ * ## 视觉约定（与项目内其他列表行统一）
+ *
+ * - `Column.padding(horizontal=16dp, vertical=12dp)`，无 Card 外壳
+ * - 标题 `bodyLarge` + `onBackground`
+ * - 副标题 `bodySmall` 12sp + `onBackground.copy(0.6f)`
+ * - 当前值 `bodyMedium` + `primary`，空值时显示"未设置"占位
+ *
+ * ## 行为
+ *
  * - 点击行弹 [TextInputDialog] 输入新值
- * - 空值时显示"未设置"占位（让用户知道这是个可填项）
  * - 行内仅显示当前值（短截），完整编辑走对话框
  *
  * 测试 tag：`preference_text_<key>`
@@ -59,12 +67,16 @@ fun TextPreferenceRow(
             .clickable(enabled = isEnabled) { showDialog = true }
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Text(text = pref.title(), style = MaterialTheme.typography.bodyLarge)
+        Text(
+            text = pref.title(),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onBackground
+        )
         pref.summary?.invoke()?.let {
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
             )
         }
         Text(
