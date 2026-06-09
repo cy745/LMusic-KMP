@@ -8,7 +8,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
@@ -27,7 +27,7 @@ object LatestPanel : LazyGridContent {
     override fun register(): LazyGridScope.() -> Unit {
         val context = LocalPlatformContext.current
         val vm = koinViewModel<HomeScreenModel>()
-        val items by vm.recentlyAdded
+        val items = vm.recentlyAdded.collectAsState().value
 
         return fun LazyGridScope.() {
             // 若列表为空，不显示

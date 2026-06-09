@@ -50,6 +50,7 @@ dependencies {
     implementation(libs.filekit.core)
     implementation(libs.filekit.dialogs)
     implementation(libs.coil.gif)
+    implementation(libs.coil.compose)
     implementation(libs.settings.no.arg)
     implementation(libs.compose.preview)
 }

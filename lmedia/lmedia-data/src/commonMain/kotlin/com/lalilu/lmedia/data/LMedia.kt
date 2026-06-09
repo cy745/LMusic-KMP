@@ -28,6 +28,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.launch
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
@@ -43,7 +44,9 @@ class LMedia(
 
     init {
         instance = this
-        startSourceBinding()
+        // 把 startSourceBinding 放到 IO 线程上执行：第一次 source.source() 同步 collect
+        // 会触发 MediaStore 全量扫描和 SAF 目录树读取，不应阻塞 KoinStartup 主线程。
+        launch { startSourceBinding() }
     }
 
     companion object {
@@ -51,7 +54,7 @@ class LMedia(
             private set
     }
 
-    fun startSourceBinding() {
+    suspend fun startSourceBinding() {
         platformSource.sources.forEach { source ->
             source.source().mapLatest {
                 database.mediaDao()
