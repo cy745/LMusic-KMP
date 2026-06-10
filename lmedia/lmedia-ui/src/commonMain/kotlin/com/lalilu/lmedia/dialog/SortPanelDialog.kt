@@ -205,6 +205,7 @@ private fun SortItem(
         enabled = enabled,
         shape = RoundedCornerShape(5.dp),
         selected = selected(),
+        border = null,
         onClick = onClick,
         label = {
             Column(
