@@ -1,6 +1,7 @@
 package com.lalilu.lhistory
 
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.animation.animateBounds
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,13 +10,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.LookaheadScope
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
 import com.lalilu.Slot
 import com.lalilu.adaptiveValue
 import com.lalilu.component.LazyGridContent
-import com.lalilu.component.divider
 import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lhistory.viewmodel.HistoryVM
 import com.lalilu.lmedia.component.AudioItemCard
@@ -30,18 +34,12 @@ import org.koin.core.annotation.Single
 @Named("history_panel")
 @Single
 class HistoryPanel : LazyGridContent {
+    @OptIn(ExperimentalGridApi::class)
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
         val scope = rememberCoroutineScope()
         val context = LocalPlatformContext.current
         val vm = koinViewModel<HistoryVM>()
-        val items by vm.historyState
-
-        val columnsValue = adaptiveValue(
-            compact = { 1 },
-            medium = { 2 },
-            expanded = { 3 }
-        )
 
         return fun LazyGridScope.() {
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -69,41 +67,70 @@ class HistoryPanel : LazyGridContent {
                 }
             }
 
-            gridItems(
-                items = { items },
-                key = { it.idValue() },
-                contentType = { "HISTORY_ITEM" },
-                span = { columnsValue.value }
-            ) {
-                AudioItemCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    title = it.titleValue(),
-                    subtitle = it.subtitleValue(),
-                    imageData = it,
-                    onPlay = {
-                        vm.getHistoryPlayedIds { list ->
-                            scope.launch {
-                                PlayerAction.UpdateList(
-                                    ids = list,
-                                    id = it.idValue(),
-                                    start = true
-                                ).action()
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                val items by vm.historyState
+
+                if (items.isEmpty()) {
+                    Text(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        text = "暂无数据",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    return@item
+                }
+
+                val columnsValue = adaptiveValue(
+                    compact = { 1 },
+                    medium = { 2 },
+                    expanded = { 3 }
+                )
+
+                LookaheadScope lookaheadScope@{
+                    Grid(
+                        modifier = Modifier.fillMaxWidth()
+                            .animateBounds(this@lookaheadScope),
+                        config = { repeat(columnsValue.value) { column(1.fr) } }
+                    ) {
+                        items.forEach { audio ->
+                            key(audio.idValue()) {
+                                AudioItemCard(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .animateBounds(this@lookaheadScope),
+                                    title = audio.titleValue(),
+                                    subtitle = audio.subtitleValue(),
+                                    imageData = audio,
+                                    onPlay = {
+                                        vm.getHistoryPlayedIds { list ->
+                                            scope.launch {
+                                                PlayerAction.UpdateList(
+                                                    ids = list,
+                                                    id = audio.idValue(),
+                                                    start = true
+                                                ).action()
+                                            }
+                                        }
+                                    },
+                                    onNavigateToDetail = {
+                                        val coverMemoryKey = context.retrieveCacheKey(audio)
+
+                                        AppRouter.route("/song/detail")
+                                            .with("mediaId", audio.idValue())
+                                            .with("song", audio)
+                                            .with("coverCacheKey", coverMemoryKey)
+                                            .jump()
+                                    }
+                                )
                             }
                         }
-                    },
-                    onNavigateToDetail = {
-                        val coverMemoryKey = context.retrieveCacheKey(it)
-
-                        AppRouter.route("/song/detail")
-                            .with("mediaId", it.idValue())
-                            .with("song", it)
-                            .with("coverCacheKey", coverMemoryKey)
-                            .jump()
                     }
-                )
+                }
             }
 
-            divider()
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
         }
     }
 }

@@ -1,6 +1,8 @@
 package com.lalilu.lhome.extensions
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -10,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.LocalPlatformContext
@@ -84,6 +87,17 @@ fun LazyGridScope.dailyRecommendForSideCompat(
         contentType = "daily_recommend",
         span = { GridItemSpan(maxLineSpan) }
     ) {
+        if (items.invoke().isEmpty()) {
+            Text(
+                modifier = Modifier.fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                text = "暂无数据",
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.labelMedium
+            )
+            return@item
+        }
+
         RecommendRow(
             modifier = Modifier,
             items = items,
