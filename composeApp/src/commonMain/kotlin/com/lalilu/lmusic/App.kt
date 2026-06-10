@@ -78,8 +78,7 @@ fun App() = ScreenModeHandler {
     val tabsScreen = remember {
         listOfNotNull(
             AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
-            AppRouter.route("/pages/playlist").get(),
-            AppRouter.route("/log").get(),
+            AppRouter.route("/pages/playlist").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
             AppRouter.route("/settings").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
         )
     }
