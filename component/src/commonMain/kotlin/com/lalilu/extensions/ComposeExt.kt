@@ -1,6 +1,8 @@
 package com.lalilu.extensions
 
-import androidx.compose.runtime.Composable
+import androidx.compose.animation.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.retain.retain
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -15,9 +17,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationEventHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * 创建一个修饰符，用于在组件边缘添加渐隐效果
@@ -154,3 +160,43 @@ fun StringResource.retrieve(): String = stringResource(this)
  * @return StringResource 对应的本地化字符串
  */
 suspend fun StringResource.get(): String = getString(this)
+
+
+/**
+ * 一个仅执行一次进入动画的可见性组件
+ *
+ * 该组件在首次组合时处于隐藏状态，并在指定的延迟后变为可见，从而触发 [enter] 动画。
+ * 一旦变为可见，它将保持可见状态，除非父级重组导致其被移除。退出动画 [exit] 仅在组件从组合中移除时触发。
+ *
+ * @param modifier 应用于 [AnimatedVisibility] 的修饰符
+ * @param delay 在显示内容之前等待的持续时间，默认为 0 毫秒
+ * @param enter 当组件变为可见时应用的进入过渡动画，默认为淡入效果
+ * @param exit 当组件变为不可见时应用的退出过渡动画，默认为淡出效果
+ * @param label 用于调试和性能分析的标签
+ * @param content 当组件可见时显示的内容
+ */
+@Composable
+fun AnimateVisibleForOnce(
+    modifier: Modifier = Modifier,
+    delay: Duration = 0.milliseconds,
+    enter: EnterTransition = fadeIn(),
+    exit: ExitTransition = fadeOut(),
+    label: String = "AnimateVisibleForOnce",
+    content: @Composable AnimatedVisibilityScope.() -> Unit,
+) {
+    var visible by retain { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(delay)
+        if (isActive) visible = true
+    }
+
+    AnimatedVisibility(
+        modifier = modifier,
+        visible = visible,
+        enter = enter,
+        exit = exit,
+        label = label,
+        content = content
+    )
+}

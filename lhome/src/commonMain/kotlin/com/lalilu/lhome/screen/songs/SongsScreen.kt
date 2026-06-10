@@ -5,9 +5,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -51,6 +53,7 @@ import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
+import kotlin.time.Duration.Companion.milliseconds
 
 @Destination("/pages/songs")
 data class SongsScreen(
@@ -242,6 +245,29 @@ fun SongsScreenContent(
         }
     }
 
+
+    if (songs.itemList.isEmpty()) {
+        AnimateVisibleForOnce(
+            modifier = Modifier.fillMaxSize(),
+            delay = 300.milliseconds
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.Start
+            ) {
+                Text(text = "暂无数据")
+
+                Button(
+                    modifier = Modifier,
+                    onClick = {}
+                ) {
+                    Text(text = "添加歌曲")
+                }
+            }
+        }
+        return
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
