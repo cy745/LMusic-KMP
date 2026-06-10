@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.LocalPlatformContext
 import com.lalilu.component.LazyGridContent
 import com.lalilu.extensions.SharedMap
@@ -33,6 +34,7 @@ object DailyRecommend : LazyGridContent {
     override fun register(): LazyGridScope.() -> Unit {
         val homeVM = koinViewModel<HomeScreenModel>()
         val context = LocalPlatformContext.current
+        val dailyRecommends = homeVM.dailyRecommends.collectAsStateWithLifecycle()
 
         return fun LazyGridScope.() {
             item(
@@ -56,7 +58,7 @@ object DailyRecommend : LazyGridContent {
             }
 
             dailyRecommendForSideCompat(
-                items = { homeVM.dailyRecommends.value },
+                items = { dailyRecommends.value },
                 onClick = { item, sharedMap ->
                     val coverMemoryKey = context.retrieveCacheKey(item)
 
@@ -85,7 +87,8 @@ fun LazyGridScope.dailyRecommendForSideCompat(
         RecommendRow(
             modifier = Modifier,
             items = items,
-            getId = { it.idValue() }
+            getId = { it.idValue() },
+            scrollToFirstWhenChange = true
         ) { item ->
             if (item is Linkable && item.ref<LAudio>().isNotEmpty()) {
                 RecommendGroupCard(

@@ -11,12 +11,7 @@ import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.russhwolf.settings.ExperimentalSettingsApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapLatest
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Single
 
@@ -60,6 +55,18 @@ class HomeScreenModel(
             started = SharingStarted.Lazily,
             initialValue = emptyList()
         )
+
+    init {
+        // 确保每日推荐列表不为空
+        lHomeKV.dailyRecommends.flow()
+            .combine(library.flow<LAudio>()) { keys, audios ->
+                val recommends = library.mapByByPrefix(keys)
+                (keys.isEmpty() || recommends.isEmpty()) && audios.isNotEmpty()
+            }
+            .distinctUntilChanged()
+            .onEach { needRefresh -> if (needRefresh) requireUpdateDailyRecommends() }
+            .launchIn(viewModelScope)
+    }
 
     fun requireUpdateDailyRecommends() = viewModelScope.launch {
         val buildItems = buildList {
