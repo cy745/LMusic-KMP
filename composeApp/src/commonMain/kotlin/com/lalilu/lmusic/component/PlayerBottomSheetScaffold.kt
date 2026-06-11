@@ -2,10 +2,6 @@ package com.lalilu.lmusic.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.BottomSheetScaffold
-import androidx.compose.material.BottomSheetState
-import androidx.compose.material.BottomSheetValue
-import androidx.compose.material.rememberBottomSheetScaffoldState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,6 +9,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import com.lalilu.component.BottomSheetScaffold
+import com.lalilu.component.BottomSheetState
+import com.lalilu.component.BottomSheetValue
+import com.lalilu.component.rememberBottomSheetScaffoldState
 import com.lalilu.extensions.ClassicBackHandler
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.lmusic.screen.PlayingInfoCard
@@ -37,6 +37,8 @@ fun PlayerBottomSheetScaffold(
         scaffoldState = bottomSheetScaffoldState,
         backgroundColor = Color.Transparent,
         sheetBackgroundColor = Color.Transparent,
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp,
         sheetPeekHeight = 72.dp + navigatorBar.calculateBottomPadding(),
         sheetContent = playerContent,
         content = { paddingValues ->
