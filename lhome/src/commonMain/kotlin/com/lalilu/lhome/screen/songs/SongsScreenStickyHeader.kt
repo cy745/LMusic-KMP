@@ -66,7 +66,8 @@ fun SongsScreenStickyHeader(
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
                 lineHeight = 14.sp,
-                text = group.text
+                text = group.text,
+                color = MaterialTheme.colorScheme.onBackground
             )
 
             Spacer(
@@ -77,7 +78,7 @@ fun SongsScreenStickyHeader(
                     .padding(start = 6.dp)
                     .width(2.dp)
                     .clip(RoundedCornerShape(50))
-                    .drawBehind { drawRect(color = Color(0xFF0088FF)) }
+                    .background(MaterialTheme.colorScheme.primary)
             )
         }
     }
