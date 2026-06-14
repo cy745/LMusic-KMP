@@ -34,6 +34,7 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import com.lalilu.RemixIcon
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhistory.component.HistoryItemCard
 import com.lalilu.lhistory.entity.LHistory
@@ -48,6 +49,7 @@ import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
 import com.lalilu.navigation.smartbar.NavigatorHeader
+import com.lalilu.remixicon.System
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -61,7 +63,8 @@ data object HistoryScreen : Screen, ScreenInfoFactory {
     override fun provideScreenInfo(): ScreenInfo {
         return remember {
             ScreenInfo(
-                title = { "历史记录" }
+                title = { "历史记录" },
+                icon = RemixIcon.System.historyLine
             )
         }
     }

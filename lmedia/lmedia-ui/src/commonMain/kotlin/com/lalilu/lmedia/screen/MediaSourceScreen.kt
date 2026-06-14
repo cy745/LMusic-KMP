@@ -9,22 +9,35 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.window.core.layout.WindowSizeClass
 import com.lalilu.extensions.PassThroughHelper
+import com.lalilu.RemixIcon
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmedia.Content
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.remote.RemoteServerPanel
 import com.lalilu.navigation.Screen
+import com.lalilu.navigation.ScreenInfo
+import com.lalilu.navigation.ScreenInfoFactory
+import com.lalilu.remixicon.Document
 import org.koin.compose.koinInject
 
 
 @Destination("/media_source")
-object MediaSourceScreen : Screen {
+object MediaSourceScreen : Screen, ScreenInfoFactory {
+
+    @Composable
+    override fun provideScreenInfo(): ScreenInfo = remember {
+        ScreenInfo(
+            title = { "媒体源" },
+            icon = RemixIcon.Document.folderOpenLine
+        )
+    }
 
     @OptIn(ExperimentalSharedTransitionApi::class)
     @Composable

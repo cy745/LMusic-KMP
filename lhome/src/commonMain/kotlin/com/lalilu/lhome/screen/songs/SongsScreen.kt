@@ -39,6 +39,7 @@ import com.lalilu.navigation.smartbar.CancellableInputerBarPanel
 import com.lalilu.navigation.smartbar.CancellableScreenBarPanel
 import com.lalilu.remixicon.Design
 import com.lalilu.remixicon.Editor
+import com.lalilu.remixicon.Media
 import com.lalilu.remixicon.System
 import com.lalilu.remixicon.design.editBoxLine
 import com.lalilu.remixicon.design.focus3Line
@@ -64,7 +65,8 @@ data class SongsScreen(
     @Composable
     override fun provideScreenInfo(): ScreenInfo = remember {
         ScreenInfo(
-            title = { title ?: "歌曲" }
+            title = { title ?: "歌曲" },
+            icon = RemixIcon.Media.musicLine
         )
     }
 

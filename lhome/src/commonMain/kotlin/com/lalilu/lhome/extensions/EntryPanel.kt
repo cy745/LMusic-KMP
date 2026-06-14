@@ -29,17 +29,9 @@ import com.lalilu.component.rememberGridItemPadding
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.NavIntent
 import com.lalilu.navigation.Screen
+import com.lalilu.navigation.ScreenInfoFactory
 import com.lalilu.navigation.actualScreen
-import com.lalilu.remixicon.Development
-import com.lalilu.remixicon.Document
-import com.lalilu.remixicon.Media
 import com.lalilu.remixicon.System
-import com.lalilu.remixicon.development.terminalLine
-import com.lalilu.remixicon.document.folderOpenLine
-import com.lalilu.remixicon.media.albumLine
-import com.lalilu.remixicon.media.micLine
-import com.lalilu.remixicon.media.musicLine
-import com.lalilu.remixicon.system.historyLine
 
 
 /**
@@ -58,25 +50,20 @@ object EntryPanel : LazyGridContent {
 
     val screenEntry = mutableStateOf<List<Screen>>(emptyList())
 
-    /**
-     * 把 Screen 类名映射为 (中文标题, RemixIcon)。
-     * 如果 Screen 实现了 ScreenInfoFactory，理论上可以从那边拿 title/icon；
-     * 但目前为简单起见用类名直接推断，避免 Composable 调用。
-     */
     private data class EntryMeta(val title: String, val icon: ImageVector)
 
+    @Composable
     private fun metaOf(screen: Screen): EntryMeta {
-        return when (screen.actualScreen()::class.simpleName.orEmpty()) {
-            "SongsScreen" -> EntryMeta("歌曲", RemixIcon.Media.musicLine)
-            "ArtistsScreen" -> EntryMeta("歌手", RemixIcon.Media.micLine)
-            "AlbumsScreen" -> EntryMeta("专辑", RemixIcon.Media.albumLine)
-            "HistoryScreen" -> EntryMeta("历史", RemixIcon.System.historyLine)
-            "MediaSourceScreen" -> EntryMeta("媒体源", RemixIcon.Document.folderOpenLine)
-            "LoggerScreen" -> EntryMeta("日志", RemixIcon.Development.terminalLine)
-            else -> {
-                val name = screen.actualScreen()::class.simpleName?.removeSuffix("Screen") ?: screen.key
-                EntryMeta(name, RemixIcon.System.historyLine)
-            }
+        val actual = screen.actualScreen()
+        return if (actual is ScreenInfoFactory) {
+            val info = actual.provideScreenInfo()
+            EntryMeta(
+                title = info.title(),
+                icon = info.icon ?: RemixIcon.System.historyLine
+            )
+        } else {
+            val name = actual::class.simpleName?.removeSuffix("Screen") ?: screen.key
+            EntryMeta(name, RemixIcon.System.historyLine)
         }
     }
 

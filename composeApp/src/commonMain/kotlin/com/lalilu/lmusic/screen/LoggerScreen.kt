@@ -16,10 +16,14 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.touchlab.kermit.Severity
+import com.lalilu.RemixIcon
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmusic.util.MemoryLogItem
 import com.lalilu.lmusic.util.MemoryLogWriter
 import com.lalilu.navigation.Screen
+import com.lalilu.navigation.ScreenInfo
+import com.lalilu.navigation.ScreenInfoFactory
+import com.lalilu.remixicon.Development
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import androidx.compose.ui.tooling.preview.Preview
@@ -27,7 +31,15 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @Destination("/log")
-object LoggerScreen : Screen {
+object LoggerScreen : Screen, ScreenInfoFactory {
+
+    @Composable
+    override fun provideScreenInfo(): ScreenInfo = remember {
+        ScreenInfo(
+            title = { "日志" },
+            icon = RemixIcon.Development.terminalLine
+        )
+    }
     @Composable
     override fun Content() {
         LoggerScreenContent()
