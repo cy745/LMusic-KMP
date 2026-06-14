@@ -32,6 +32,7 @@ import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfoFactory
 import com.lalilu.navigation.actualScreen
 import com.lalilu.remixicon.System
+import com.lalilu.remixicon.system.errorWarningLine
 
 
 /**
@@ -49,23 +50,6 @@ import com.lalilu.remixicon.System
 object EntryPanel : LazyGridContent {
 
     val screenEntry = mutableStateOf<List<Screen>>(emptyList())
-
-    private data class EntryMeta(val title: String, val icon: ImageVector)
-
-    @Composable
-    private fun metaOf(screen: Screen): EntryMeta {
-        val actual = screen.actualScreen()
-        return if (actual is ScreenInfoFactory) {
-            val info = actual.provideScreenInfo()
-            EntryMeta(
-                title = info.title(),
-                icon = info.icon ?: RemixIcon.System.historyLine
-            )
-        } else {
-            val name = actual::class.simpleName?.removeSuffix("Screen") ?: screen.key
-            EntryMeta(name, RemixIcon.System.historyLine)
-        }
-    }
 
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
@@ -97,11 +81,14 @@ object EntryPanel : LazyGridContent {
                 contentType = { index, item -> this@EntryPanel::class.qualifiedName },
                 span = { index, item -> GridItemSpan(maxLineSpan / 2) }
             ) { index, item ->
-                val meta = metaOf(item)
+                val info = (item.actualScreen() as? ScreenInfoFactory)?.provideScreenInfo()
+                val title = info?.title?.invoke() ?: item.key
+                val icon = info?.icon ?: RemixIcon.System.errorWarningLine
+
                 EntryItem(
                     modifier = Modifier.padding(gridItemPaddings(index)),
-                    title = meta.title,
-                    icon = meta.icon,
+                    title = title,
+                    icon = icon,
                     onClick = { AppRouter.intent(NavIntent.Jump(item)) }
                 )
             }

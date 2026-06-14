@@ -44,6 +44,7 @@ import com.lalilu.remixicon.System
 import com.lalilu.remixicon.design.editBoxLine
 import com.lalilu.remixicon.design.focus3Line
 import com.lalilu.remixicon.editor.sortDesc
+import com.lalilu.remixicon.media.musicLine
 import com.lalilu.remixicon.system.checkboxMultipleBlankLine
 import com.lalilu.remixicon.system.checkboxMultipleLine
 import com.lalilu.remixicon.system.menuSearchLine

@@ -26,7 +26,7 @@ import com.lalilu.navigation.ScreenInfoFactory
 import com.lalilu.remixicon.Development
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import androidx.compose.ui.tooling.preview.Preview
+import com.lalilu.remixicon.development.terminalLine
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -73,7 +73,6 @@ fun LoggerScreenContent() {
 }
 
 @OptIn(ExperimentalTime::class)
-@Preview
 @Composable
 fun LogItem(
     modifier: Modifier = Modifier,

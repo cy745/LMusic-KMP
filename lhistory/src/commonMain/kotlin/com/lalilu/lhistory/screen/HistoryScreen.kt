@@ -50,6 +50,7 @@ import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
 import com.lalilu.navigation.smartbar.NavigatorHeader
 import com.lalilu.remixicon.System
+import com.lalilu.remixicon.system.historyLine
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel

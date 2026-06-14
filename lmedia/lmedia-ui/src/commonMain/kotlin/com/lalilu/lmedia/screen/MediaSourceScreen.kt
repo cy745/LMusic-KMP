@@ -25,6 +25,7 @@ import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
 import com.lalilu.remixicon.Document
+import com.lalilu.remixicon.document.folderOpenLine
 import org.koin.compose.koinInject
 
 
