@@ -1,9 +1,16 @@
 package com.lalilu.lmusic.screen
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,10 +30,9 @@ import com.lalilu.lmusic.util.MemoryLogWriter
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
-import com.lalilu.remixicon.Development
+import com.lalilu.remixicon.development.terminalLine
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import com.lalilu.remixicon.development.terminalLine
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -40,6 +46,7 @@ object LoggerScreen : Screen, ScreenInfoFactory {
             icon = RemixIcon.Development.terminalLine
         )
     }
+
     @Composable
     override fun Content() {
         LoggerScreenContent()
@@ -55,7 +62,10 @@ fun LoggerScreenContent() {
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding(),
         state = state,
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -78,7 +88,10 @@ fun LogItem(
     modifier: Modifier = Modifier,
     logItem: MemoryLogItem
 ) {
-    val string = remember(logItem) {
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+    val string = remember(logItem, textColor, secondaryTextColor) {
         val time = Instant.fromEpochMilliseconds(logItem.timestamp)
             .toLocalDateTime(TimeZone.currentSystemDefault())
         val severityColor = when (logItem.severity) {
@@ -96,16 +109,16 @@ fun LogItem(
             withStyle(style = SpanStyle(color = severityColor)) {
                 append("[${logItem.severity.name}]")
             }
-            withStyle(style = SpanStyle(color = Color.DarkGray)) {
+            withStyle(style = SpanStyle(color = secondaryTextColor)) {
                 append("[${logItem.tag}]")
             }
             append('\n')
-            withStyle(style = SpanStyle(color = Color.Black)) {
+            withStyle(style = SpanStyle(color = textColor)) {
                 append(logItem.message)
             }
             if (logItem.throwable != null) {
                 append('\n')
-                withStyle(style = SpanStyle(color = Color.DarkGray)) {
+                withStyle(style = SpanStyle(color = secondaryTextColor)) {
                     append(logItem.throwable.stackTraceToString())
                 }
             }
@@ -117,6 +130,7 @@ fun LogItem(
     ) {
         Text(
             text = string,
+            color = textColor,
             fontSize = 12.sp,
             lineHeight = 16.sp
         )
