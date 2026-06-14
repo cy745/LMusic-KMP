@@ -3,10 +3,12 @@ package com.lalilu.lmusic.screen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -24,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.touchlab.kermit.Severity
 import com.lalilu.RemixIcon
+import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmusic.util.MemoryLogItem
 import com.lalilu.lmusic.util.MemoryLogWriter
@@ -57,17 +60,25 @@ object LoggerScreen : Screen, ScreenInfoFactory {
 fun LoggerScreenContent() {
     val state = rememberLazyListState()
 
+    val statusBar = WindowInsets.statusBars
+    val statusBarPadding = statusBar.asPaddingValues()
+    val navigationBar = WindowInsets.navigationBars.asPaddingValues()
+    val smartBarHeight = PassThroughHelper.getValue(
+        key = "SmartBarHeight",
+        default = { navigationBar.calculateBottomPadding() }
+    )
+
     LaunchedEffect(MemoryLogWriter.logs.size) {
         state.requestScrollToItem(MemoryLogWriter.logs.size - 1)
     }
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .navigationBarsPadding(),
+        modifier = Modifier.fillMaxSize(),
         state = state,
-        contentPadding = PaddingValues(20.dp),
+        contentPadding = PaddingValues(
+            top = statusBarPadding.calculateTopPadding() + 16.dp,
+            bottom = smartBarHeight() + 16.dp
+        ),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(

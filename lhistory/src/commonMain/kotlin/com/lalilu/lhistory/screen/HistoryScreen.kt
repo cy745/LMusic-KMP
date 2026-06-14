@@ -17,9 +17,14 @@
 
 package com.lalilu.lhistory.screen
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -35,6 +40,7 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.lalilu.RemixIcon
+import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhistory.component.HistoryItemCard
 import com.lalilu.lhistory.entity.LHistory
@@ -91,17 +97,26 @@ private fun HistoryScreenContent(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
+    val statusBar = WindowInsets.statusBars
+    val statusBarPadding = statusBar.asPaddingValues()
+    val navigationBar = WindowInsets.navigationBars.asPaddingValues()
+    val smartBarHeight = PassThroughHelper.getValue(
+        key = "SmartBarHeight",
+        default = { navigationBar.calculateBottomPadding() }
+    )
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize(),
-//            .fadeEdgeForStatusBar(),
-        state = listState
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        contentPadding = PaddingValues(
+            top = statusBarPadding.calculateTopPadding() + 16.dp,
+            bottom = smartBarHeight() + 16.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item(key = "历史记录") {
             NavigatorHeader(
-                modifier = Modifier
-                    .statusBarsPadding(),
+                modifier = Modifier.fillMaxWidth(),
                 title = stringResource(Res.string.history_screen_title),
                 subTitle = "播放过的歌曲记录"
             )
@@ -151,7 +166,5 @@ private fun HistoryScreenContent(
                 )
             }
         }
-
-//        smartBarPadding()
     }
 }
