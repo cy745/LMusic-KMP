@@ -23,22 +23,8 @@ abstract class AbstractPlayback(
     CoroutineScope by coroutineScope,
     PlaybackHistory by history {
 
-    init {
-        // 自动恢复历史队列
-        val snapshot = restoreFromHistory()
-        if (snapshot != null) {
-            launch {
-                val items = resolveMedia(snapshot.ids)
-                queue.update { replaceAll(items, snapshot.index) }
-                onQueueRestored(snapshot)
-            }
-        }
-
-        // 自动录制播放状态
-        startRecording(this)
-    }
-
-    // Protected mutable state flows
+    // Protected mutable state flows — 必须在 init 块之前声明
+    // 确保 init 中的 startRecording() / restoreFromHistory() 能安全访问所有属性
     protected val _isPlaying = MutableStateFlow(false)
     protected val _errors = MutableSharedFlow<Throwable>()
     protected val _currentDuration = MutableStateFlow(0L)
@@ -55,6 +41,21 @@ abstract class AbstractPlayback(
     override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
     override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
+
+    init {
+        // 自动恢复历史队列
+        val snapshot = restoreFromHistory()
+        if (snapshot != null) {
+            launch {
+                val items = resolveMedia(snapshot.ids)
+                queue.update { replaceAll(items, snapshot.index) }
+                onQueueRestored(snapshot)
+            }
+        }
+
+        // 自动录制播放状态 — 此时所有属性均已初始化
+        startRecording(this)
+    }
 
     /**
      * 将 id 列表解析为 [LAudio] 列表。
