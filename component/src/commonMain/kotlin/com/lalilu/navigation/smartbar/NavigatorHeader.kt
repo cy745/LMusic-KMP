@@ -18,13 +18,7 @@
 package com.lalilu.navigation.smartbar
 
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,8 +35,8 @@ fun NavigatorHeader(
     title: String,
     subTitle: String,
     paddingValues: PaddingValues = PaddingValues(
-        top = 24.dp,
-        bottom = 20.dp,
+        top = 16.dp,
+        bottom = 16.dp,
         start = 20.dp,
         end = 20.dp
     ),

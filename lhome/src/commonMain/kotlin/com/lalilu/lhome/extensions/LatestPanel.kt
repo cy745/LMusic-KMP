@@ -1,5 +1,7 @@
 package com.lalilu.lhome.extensions
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -10,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
 import com.lalilu.component.LazyGridContent
@@ -30,9 +33,6 @@ object LatestPanel : LazyGridContent {
         val items = vm.recentlyAdded.collectAsState().value
 
         return fun LazyGridScope.() {
-            // 若列表为空，不显示
-            if (items.isEmpty()) return
-
             item(
                 key = "latest_header",
                 contentType = "latest_header",
@@ -61,6 +61,18 @@ object LatestPanel : LazyGridContent {
                 contentType = "latest",
                 span = { GridItemSpan(maxLineSpan) }
             ) {
+                if (items.isEmpty()) {
+                    Text(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        text = "暂无数据",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(0.8f)
+                    )
+                    return@item
+                }
+
                 RecommendRow(
                     items = { items },
                     getId = { it.id }

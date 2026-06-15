@@ -33,7 +33,6 @@ internal fun ArtistsScreenContent(
             top = statusBarPadding.calculateTopPadding() + 16.dp,
             bottom = smartBarHeight() + 16.dp
         ),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
             NavigatorHeader(
@@ -51,7 +50,8 @@ internal fun ArtistsScreenContent(
                 artist = artist,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .animateItem(),
+                    .animateItem()
+                    .padding(vertical = 0.5.dp),
                 sharedMapPrefix = "list",
                 onClick = { onClickArtist.invoke(artist, it) },
             )

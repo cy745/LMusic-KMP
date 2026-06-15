@@ -5,7 +5,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -13,9 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.LocalPlatformContext
 import com.lalilu.RemixIcon
 import com.lalilu.common.ext.requestFor
@@ -37,6 +34,7 @@ import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.*
 import com.lalilu.navigation.smartbar.CancellableInputerBarPanel
 import com.lalilu.navigation.smartbar.CancellableScreenBarPanel
+import com.lalilu.navigation.smartbar.NavigatorHeader
 import com.lalilu.remixicon.Design
 import com.lalilu.remixicon.Editor
 import com.lalilu.remixicon.Media
@@ -259,14 +257,10 @@ fun SongsScreenContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.Start
             ) {
-                Text(text = "暂无数据")
-
-                Button(
-                    modifier = Modifier,
-                    onClick = {}
-                ) {
-                    Text(text = "添加歌曲")
-                }
+                Text(
+                    text = "暂无数据",
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
         return
@@ -281,29 +275,15 @@ fun SongsScreenContent(
     ) {
         startRecord(recorder()) {
             item(key = "header") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = "歌曲",
-                        fontSize = 20.sp,
-                        lineHeight = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = if (state.searchKeyWord.isBlank()) {
-                            "共 ${songs.itemList.size} 首歌曲"
-                        } else {
-                            "搜索: ${state.searchKeyWord} (${songs.itemList.size} 首)"
-                        },
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                        fontSize = 12.sp,
-                        lineHeight = 12.sp,
-                    )
-                }
+                NavigatorHeader(
+                    modifier = Modifier.fillMaxWidth(),
+                    title = "歌曲",
+                    subTitle = if (state.searchKeyWord.isBlank()) {
+                        "共 ${songs.itemList.size} 首歌曲"
+                    } else {
+                        "搜索: ${state.searchKeyWord} (${songs.itemList.size} 首)"
+                    }
+                )
             }
 
             songs.draw {

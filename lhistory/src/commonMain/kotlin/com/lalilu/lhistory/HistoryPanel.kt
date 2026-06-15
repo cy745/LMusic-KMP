@@ -76,7 +76,8 @@ class HistoryPanel : LazyGridContent {
                             .padding(vertical = 32.dp),
                         text = "暂无数据",
                         textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelMedium
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(0.8f)
                     )
                     return@item
                 }

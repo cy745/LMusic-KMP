@@ -1,22 +1,24 @@
 package com.lalilu.lartist.component
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.MarqueeSpacing
-import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -104,9 +106,32 @@ fun ArtistCard(
             modifier = Modifier.padding(vertical = 8.dp),
             contentAlignment = Alignment.Center
         ) {
-            Surface(
-                shape = RoundedCornerShape(2.dp),
-                shadowElevation = 2.dp
+            val interactionSource = remember { MutableInteractionSource() }
+            val isPressed by interactionSource.collectIsPressedAsState()
+            val borderColor = if (isPressed)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+            else
+                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f)
+
+            val containerColor = if (isPressed)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
+            else
+                MaterialTheme.colorScheme.surfaceContainerLow
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(containerColor)
+                    .border(
+                        width = 1.dp,
+                        color = borderColor,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .clickable(
+                        interactionSource = interactionSource,
+                        role = Role.Button,
+                        onClick = { onClick(sharedMap) }
+                    )
             ) {
                 val textColor = MaterialTheme.colorScheme.background
 
