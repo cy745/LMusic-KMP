@@ -1,6 +1,7 @@
 package com.lalilu.extensions
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.*
 import androidx.compose.runtime.retain.retain
 import androidx.compose.ui.Alignment
@@ -13,7 +14,9 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isUnspecified
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationEventHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
@@ -199,4 +202,24 @@ fun AnimateVisibleForOnce(
         label = label,
         content = content
     )
+}
+
+@Stable
+fun PaddingValues.copy(
+    top: Dp = Dp.Unspecified,
+    start: Dp = Dp.Unspecified,
+    end: Dp = Dp.Unspecified,
+    bottom: Dp = Dp.Unspecified
+): PaddingValues = object : PaddingValues {
+    override fun calculateTopPadding(): Dp = top.takeIf { !it.isUnspecified }
+        ?: this@copy.calculateTopPadding()
+
+    override fun calculateBottomPadding(): Dp = bottom.takeIf { !it.isUnspecified }
+        ?: this@copy.calculateBottomPadding()
+
+    override fun calculateLeftPadding(layoutDirection: LayoutDirection): Dp = start.takeIf { !it.isUnspecified }
+        ?: this@copy.calculateLeftPadding(layoutDirection)
+
+    override fun calculateRightPadding(layoutDirection: LayoutDirection): Dp = end.takeIf { !it.isUnspecified }
+        ?: this@copy.calculateRightPadding(layoutDirection)
 }
