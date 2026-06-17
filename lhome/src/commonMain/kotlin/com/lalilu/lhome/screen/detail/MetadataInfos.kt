@@ -17,14 +17,15 @@
 
 package com.lalilu.lhome.screen.detail
 
+import androidx.compose.animation.animateBounds
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -32,65 +33,55 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.lalilu.adaptiveValue
 import com.lalilu.animated
-import com.lalilu.component.ContentMapper
-import com.lalilu.component.LazyColumnContent
-import com.lalilu.component.get
-import com.lalilu.component.gridItems
 import com.lalilu.extensions.LocalToaster
 import com.lalilu.preview.preview
 
-object MetadataInfos : LazyColumnContent<MetadataInfos.Param> {
-    enum class Param {
-        METADATA_MAP
-    }
+@OptIn(ExperimentalGridApi::class)
+@Composable
+fun MetadataInfos(
+    modifier: Modifier,
+    metadata: Map<String, String>
+) {
+    val paddingHorizontal = adaptiveValue(
+        compact = { 16.dp },
+        medium = { 40.dp }
+    ).animated()
 
-    @Composable
-    override fun register(
-        mapper: ContentMapper<Param>
-    ): LazyListScope.() -> Unit {
-        val list = (mapper.get(Param.METADATA_MAP) as? Map<*, *>)
-            ?.toList()
-            ?: emptyList()
+    val column = adaptiveValue(
+        compact = { 1 },
+        medium = { 2 },
+        expanded = { 3 }
+    )
 
-        val paddingHorizontal = adaptiveValue(
-            compact = { 16.dp },
-            medium = { 40.dp }
-        ).animated()
+    val containerPadding = adaptiveValue(
+        compact = { PaddingValues(top = 16.dp) },
+        medium = {
+            PaddingValues(
+                top = 24.dp,
+                start = paddingHorizontal.value,
+                end = paddingHorizontal.value,
+            )
+        }
+    )
 
-        val column = adaptiveValue(
-            compact = { 1 },
-            medium = { 2 },
-            expanded = { 3 }
-        )
+    val itemContentPadding = adaptiveValue(
+        compact = { 20.dp },
+        medium = { 16.dp }
+    )
 
-        val containerPadding = adaptiveValue(
-            compact = { PaddingValues(top = 16.dp) },
-            medium = {
-                PaddingValues(
-                    top = 24.dp,
-                    start = paddingHorizontal.value,
-                    end = paddingHorizontal.value,
-                )
-            }
-        )
-
-        val itemContentPadding = adaptiveValue(
-            compact = { 20.dp },
-            medium = { 16.dp }
-        )
-
-        return fun LazyListScope.() {
-            gridItems(
-                items = list,
-                column = column.value,
-                key = { it.first as String },
-                contentType = { MetadataInfos::class },
-                contentPadding = containerPadding.value
-            ) { item ->
+    LookaheadScope lookaheadScope@{
+        Grid(
+            modifier = modifier.fillMaxWidth()
+                .padding(containerPadding.value)
+                .animateBounds(this@lookaheadScope),
+            config = { repeat(column.value) { column(1.fr) } }
+        ) {
+            metadata.forEach { entry ->
                 ColumnItem(
-                    modifier = Modifier.animateItem(),
-                    title = item.first as String,
-                    content = item.second as String,
+                    modifier = Modifier
+                        .animateBounds(this@lookaheadScope),
+                    title = entry.key,
+                    content = entry.value,
                     contentPadding = PaddingValues(
                         horizontal = itemContentPadding.value,
                         vertical = 8.dp

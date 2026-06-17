@@ -26,7 +26,7 @@ import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
-import com.lalilu.packed.CoverHeader
+import com.lalilu.packed.CoverTitleHeader
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
@@ -100,29 +100,6 @@ internal fun AlbumDetailScreenContent(
             .build()
     }
 
-    val coverHeader = CoverHeader.register { key ->
-        when (key) {
-            CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this@SharedContext
-            CoverHeader.Param.COVER -> coverData
-            CoverHeader.Param.TITLE -> album?.titleValue() ?: "Unknown Album"
-            CoverHeader.Param.SUBTITLE -> album?.subtitleValue()?.takeIf { it.isNotBlank() }
-                ?: "${songs.itemList.size} songs"
-
-            CoverHeader.Param.EXTRA_CONTENT -> composable { modifier: Modifier ->
-                Row(modifier = modifier) {
-                    TextButton(onClick = onClickAddToPlaylist) {
-                        Text(text = "添加专辑到播放列表")
-                    }
-                    TextButton(onClick = onClickPlayAll) {
-                        Text(text = "播放全部")
-                    }
-                }
-            }
-
-            else -> null
-        }
-    }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
@@ -131,7 +108,23 @@ internal fun AlbumDetailScreenContent(
         contentPadding = PaddingValues(bottom = smartBarHeight() + 16.dp),
     ) {
         startRecord(recorder()) {
-            coverHeader.invoke(this@LazyColumn)
+            item {
+                CoverTitleHeader(
+                    coverData = coverData,
+                    title = album?.titleValue() ?: "Unknown Album",
+                    subtitle = album?.subtitleValue()?.takeIf { it.isNotBlank() } ?: "${songs.itemList.size} songs",
+                    extraContent = { modifier ->
+                        Row(modifier = modifier) {
+                            TextButton(onClick = onClickAddToPlaylist) {
+                                Text(text = "添加专辑到播放列表")
+                            }
+                            TextButton(onClick = onClickPlayAll) {
+                                Text(text = "播放全部")
+                            }
+                        }
+                    }
+                )
+            }
 
             songs.draw {
                 groupId?.let { groupId ->

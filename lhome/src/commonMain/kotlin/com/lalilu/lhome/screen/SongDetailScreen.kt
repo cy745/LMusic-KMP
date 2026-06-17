@@ -1,18 +1,14 @@
 package com.lalilu.lhome.screen
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -24,18 +20,16 @@ import com.lalilu.adaptiveValue
 import com.lalilu.animated
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.extensions.SharedContext
-import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.SongAlbumInfoCard
 import com.lalilu.lhome.screen.detail.MetadataInfos
 import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.*
 import com.lalilu.lplayer.action.PlayerAction
-import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenActionFactory
-import com.lalilu.packed.CoverHeader
+import com.lalilu.packed.CoverTitleHeader
 import com.lalilu.preview.preview
 import kotlinx.serialization.Serializable
 
@@ -99,51 +93,6 @@ fun SongDetailScreenContent(
             .filter { it.value.isNotBlank() }
     }
 
-    val header = CoverHeader.register { key ->
-        when (key) {
-            CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this@SharedContext
-            CoverHeader.Param.COVER -> coverData
-            CoverHeader.Param.TITLE -> song?.titleValue()
-            CoverHeader.Param.SUBTITLE -> song?.subtitleValue()
-            CoverHeader.Param.SUBTITLE_OVERRIDE_CONTENT -> if (artists.isNotEmpty()) {
-                composable { modifier ->
-                    FlowRow(
-                        modifier = modifier.sharedBoundsV2("SUBTITLE"),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        artists.forEach { artist ->
-                            Text(
-                                modifier = Modifier.alpha(0.8f)
-                                    .clickable {
-                                        val coverCacheKey = context.retrieveCacheKey(artist)
-
-                                        AppRouter.route("/pages/artists/detail")
-                                            .with("artistId", artist.id)
-                                            .with("artist", artist)
-                                            .with("sharedMap", sharedMap)
-                                            .with("coverCacheKey", coverCacheKey)
-                                            .push()
-                                    },
-                                text = artist.titleValue(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
-                    }
-                }
-            } else null
-
-            else -> null
-        }
-    }
-
-    val metadata = MetadataInfos.register { key ->
-        when (key) {
-            MetadataInfos.Param.METADATA_MAP -> songsInfo
-        }
-    }
-
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()
     val smartBarHeight = PassThroughHelper.getValue(
         key = "SmartBarHeight",
@@ -154,7 +103,13 @@ fun SongDetailScreenContent(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = smartBarHeight() + 16.dp),
     ) {
-        header.invoke(this)
+        item {
+            CoverTitleHeader(
+                coverData = coverData,
+                title = song?.titleValue() ?: "Unknown",
+                subtitle = song?.subtitleValue()
+            )
+        }
 
         items(
             items = albums,
@@ -183,7 +138,12 @@ fun SongDetailScreenContent(
             )
         }
 
-        metadata.invoke(this)
+        item {
+            MetadataInfos(
+                modifier = Modifier.fillMaxWidth(),
+                metadata = songsInfo
+            )
+        }
     }
 }
 
@@ -194,31 +154,57 @@ private fun SongDetailScreenContentPreview() = preview {
     enableNetworkImage()
     setFallbackUrl("https://www.dmoe.cc/random.php")
 
-    SongDetailScreenContent(
-        song = LAudio(
+    val artists = listOf(
+        LArtist(
             id = "id",
-            title = "ライアーメイデン (feat. りぃふ)",
-            subtitle = "ヤバス/りぃふ",
+            title = "ヤバス",
+            subtitle = "Yabus",
             extra = mapOf(),
-            metadata = Metadata(
-                title = "ライアーメイデン (feat. りぃふ)",
-                album = "ヤバス/りぃふ",
-                artist = "artist",
-                albumArtist = "albumArtist",
-                composer = "composer",
-                lyricist = "",
-                comment = "",
-                genre = "",
-                track = "",
-                disc = "",
-                date = "",
-                duration = 0,
-                dateAdded = 0,
-                dateModified = 0
-            ),
-            mediaSourceName = ""
+        ),
+        LArtist(
+            id = "id",
+            title = "リィフ",
+            subtitle = "Ryu",
+            extra = mapOf(),
         )
     )
+
+    val album = LAlbum(
+        id = "id",
+        title = "ヤバス",
+        subtitle = "Yabus",
+        extra = mapOf(),
+    )
+
+    val song = LAudio(
+        id = "id",
+        title = "ライアーメイデン (feat. りぃふ)",
+        subtitle = "ヤバス/りぃふ",
+        extra = mapOf(),
+        metadata = Metadata(
+            title = "ライアーメイデン (feat. りぃふ)",
+            album = "ヤバス/りぃふ",
+            artist = "artist",
+            albumArtist = "albumArtist",
+            composer = "composer",
+            lyricist = "",
+            comment = "",
+            genre = "",
+            track = "",
+            disc = "",
+            date = "",
+            duration = 0,
+            dateAdded = 0,
+            dateModified = 0
+        ),
+        mediaSourceName = ""
+    )
+
+    song.link(artists[0])
+    song.link(artists[1])
+    song.link(album)
+
+    SongDetailScreenContent(song = song)
 }
 
 @Preview(device = Devices.TABLET)
