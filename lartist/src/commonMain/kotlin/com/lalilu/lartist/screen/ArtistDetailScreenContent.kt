@@ -12,7 +12,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.LocalPlatformContext
@@ -29,7 +32,7 @@ import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
-import com.lalilu.packed.CoverHeader
+import com.lalilu.packed.CoverTitleHeader
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
@@ -114,29 +117,6 @@ internal fun ArtistDetailScreenContent(
             .build()
     }
 
-    val coverHeader = CoverHeader.register { key ->
-        when (key) {
-            CoverHeader.Param.SHARED_CONTEXT_SCOPE -> this@SharedContext
-            CoverHeader.Param.COVER -> coverData
-            CoverHeader.Param.TITLE -> artist?.titleValue() ?: "Unknown Artist"
-            CoverHeader.Param.SUBTITLE -> artist?.subtitleValue()?.takeIf { it.isNotBlank() }
-                ?: "${songs.itemList.size} songs"
-
-            CoverHeader.Param.EXTRA_CONTENT -> composable { modifier: Modifier ->
-                Row(modifier = modifier) {
-                    TextButton(onClick = onClickAddToPlaylist) {
-                        Text(text = "添加歌手歌曲到播放列表")
-                    }
-                    TextButton(onClick = onClickPlayAll) {
-                        Text(text = "播放全部")
-                    }
-                }
-            }
-
-            else -> null
-        }
-    }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
@@ -145,7 +125,47 @@ internal fun ArtistDetailScreenContent(
         contentPadding = PaddingValues(bottom = smartBarHeight() + 16.dp),
     ) {
         startRecord(recorder()) {
-            coverHeader.invoke(this@LazyColumn)
+            item {
+                val primaryColor = MaterialTheme.colorScheme.primary
+                val annotatedSubtitle = remember {
+                    val title = artist?.titleValue() ?: "Unknown"
+                    val subtitle = artist?.subtitleValue()?.takeIf { it.isNotBlank() }
+                    buildAnnotatedString {
+                        if (subtitle == null){
+                            append("${songs.itemList.size} songs")
+                            return@buildAnnotatedString
+                        }
+
+                        append(subtitle.substringBefore(title))
+                        withStyle(SpanStyle(color = primaryColor)) { append(title) }
+                        append(subtitle.substringAfter(title))
+                    }
+                }
+
+                CoverTitleHeader(
+                    coverData = coverData,
+                    title = artist?.titleValue() ?: "Unknown Artist",
+                    subtitle = "",
+                    subtitleContent = {
+                        Text(
+                            modifier = it,
+                            text = annotatedSubtitle,
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onBackground),
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                    },
+                    extraContent = {
+                        Row(modifier = it) {
+                            TextButton(onClick = onClickAddToPlaylist) {
+                                Text(text = "添加歌手歌曲到播放列表")
+                            }
+                            TextButton(onClick = onClickPlayAll) {
+                                Text(text = "播放全部")
+                            }
+                        }
+                    }
+                )
+            }
 
             songs.draw {
                 groupId?.let { groupId ->

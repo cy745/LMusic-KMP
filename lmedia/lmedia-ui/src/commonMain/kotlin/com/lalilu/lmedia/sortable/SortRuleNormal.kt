@@ -229,7 +229,7 @@ class ItemsCount : SortAction {
         config: SortConfig
     ): SortResult<T> {
         val sorted = items
-            .sortedByDescending { it.getValueBy(Sortable.COMPARE_KEY_ITEMS_COUNT) ?: 0L }
+            .sortedByDescending { it.getValueBy(Sortable.COMPARE_KEY_ITEMS_COUNT) ?: 0 }
             .let { if (config.reverse) it.asReversed() else it }
 
         return SortResult.flat(sorted)

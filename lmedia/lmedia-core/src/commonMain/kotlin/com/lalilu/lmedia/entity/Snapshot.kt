@@ -133,7 +133,7 @@ fun List<LAudio>.buildSnapshot(): Snapshot {
                 LArtist(
                     id = "${LArtist.ID_PREFIX}$name",
                     title = name,
-                    subtitle = ""
+                    subtitle = artist ?: ""
                 ).also { artistEntity ->
                     songs.forEach { song ->
                         song.link(artistEntity)

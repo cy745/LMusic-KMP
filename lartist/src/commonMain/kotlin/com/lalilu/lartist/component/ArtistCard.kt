@@ -19,8 +19,11 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -50,6 +53,7 @@ fun ArtistCard(
     val title = artist.titleValue()
     val subTitle = artist.subtitleValue()
     val context = LocalPlatformContext.current
+    val primaryColor = MaterialTheme.colorScheme.primary
     val bgColor = animateColorAsState(
         targetValue = if (false) MaterialTheme.colorScheme.onBackground.copy(0.3f)
         else Color.Transparent, label = ""
@@ -89,11 +93,19 @@ fun ArtistCard(
                 overflow = TextOverflow.Ellipsis
             )
 
-            subTitle.takeIf { it.isNotBlank() }.let {
+            subTitle.takeIf { it.isNotBlank() }?.let { subtitle ->
+                val annotatedSubtitle = remember {
+                    buildAnnotatedString {
+                        append(subtitle.substringBefore(title))
+                        withStyle(SpanStyle(color = primaryColor)) { append(title) }
+                        append(subtitle.substringAfter(title))
+                    }
+                }
+
                 Text(
                     modifier = Modifier.sharedBoundsV2("SUBTITLE"),
                     maxLines = 1,
-                    text = subTitle,
+                    text = annotatedSubtitle,
                     fontSize = 10.sp,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onBackground.copy(0.5f),

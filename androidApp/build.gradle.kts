@@ -1,11 +1,33 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
 }
 
+val keystoreProps = rootProject.file("keystore.properties")
+    .takeIf { it.exists() }
+    ?.let { Properties().apply { load(it.inputStream()) } }
+
 android {
     namespace = "com.lalilu.lmusic"
     compileSdk = libs.versions.android.targetSdk.get().toInt()
+
+    if (keystoreProps != null) {
+        val storeFileValue = keystoreProps["storeFile"]?.toString() ?: ""
+        val storePasswordValue = keystoreProps["storePassword"]?.toString() ?: ""
+        val keyAliasValue = keystoreProps["keyAlias"]?.toString() ?: ""
+        val keyPasswordValue = keystoreProps["keyPassword"]?.toString() ?: ""
+
+        if (storeFileValue.isNotBlank() && file(storeFileValue).exists()) {
+            signingConfigs.create("release") {
+                storeFile = file(storeFileValue)
+                storePassword = storePasswordValue
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.lalilu.lmusic.kmp"
@@ -28,17 +50,16 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            isDebuggable = true
 
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-android.pro"
             )
-        }
-    }
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+            signingConfig = runCatching { signingConfigs["release"] }.getOrNull()
+                ?: signingConfigs.getByName("debug")
+        }
     }
 }
 
