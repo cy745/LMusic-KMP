@@ -1,8 +1,10 @@
 import org.jetbrains.kotlin.gradle.dsl.HasConfigurableKotlinCompilerOptions
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinBaseExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinJsCompile
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 import org.jetbrains.kotlin.gradle.plugin.KotlinMultiplatformPluginWrapper
+import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
@@ -46,5 +48,12 @@ subprojects {
                 }
             }
         }
+    }
+}
+
+// 全局配置 JVM target
+subprojects {
+    tasks.withType<KotlinJvmCompile>().configureEach {
+        compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
     }
 }
