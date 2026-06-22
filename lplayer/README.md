@@ -23,3 +23,4 @@
 - `lmedia-core` - 媒体数据
 - `llyricview` - 歌词显示
 - `component` - UI 组件
+- `lib-decoder-flac` - FLAC 软解码扩展（[维护说明](lib-decoder-flac/README.md)）
