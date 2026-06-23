@@ -21,14 +21,10 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.data.database.ILMediaDatabase
 import com.lalilu.lmedia.entity.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.mapLatest
-import kotlinx.coroutines.launch
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
@@ -89,6 +85,7 @@ class LMedia(
     override fun <T : LItem> getSourcesFlowByClass(clazz: KClass<T>, ids: List<String>): Flow<List<T>>? {
         return when (clazz) {
             LAudio::class -> database.audioDao().getAudios(ids)
+            LArtist::class -> database.artistDao().getArtists(ids)
             else -> null
         } as Flow<List<T>>?
     }

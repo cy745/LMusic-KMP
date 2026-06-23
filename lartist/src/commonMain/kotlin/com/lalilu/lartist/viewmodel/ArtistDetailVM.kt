@@ -55,6 +55,9 @@ data class ArtistDetailState(
 
     // control params
     val searchKeyWord: String = "",
+
+    // related artists
+    val relatedArtists: List<LArtist> = emptyList()
 ) {
     val distinctKey: Int = searchKeyWord.hashCode()
 
@@ -133,6 +136,12 @@ class ArtistDetailVM(
     val state = stateFlow()
         .toState(ArtistDetailState(artistId), viewModelScope)
 
+    init {
+        viewModelScope.launch {
+            loadRelatedArtists()
+        }
+    }
+
     override fun intent(intent: ArtistDetailAction) = viewModelScope.launch {
         when (intent) {
             ArtistDetailAction.ToggleJumperDialog -> reduce {
@@ -168,6 +177,26 @@ class ArtistDetailVM(
             else -> {
                 Logger.i(tag = TAG, messageString = "Not implemented action: $intent")
             }
+        }
+    }
+
+    /**
+     * 加载相关歌手
+     * 逻辑是：获取某歌曲的所有歌曲，然后把这些歌曲所关联的所有歌手记录然后去重即可
+     */
+    fun loadRelatedArtists() {
+        viewModelScope.launch {
+            val artist = LMedia.instance.get<LArtist>(artistId)
+                ?: return@launch
+
+            val songs = artist.ref<LAudio>()
+            val actualSongs = LMedia.instance.mapBy<LAudio>(songs.map { it.idValue() })
+            val artists = actualSongs.flatMap { it.ref<LArtist>() }
+                .distinctBy { it.idValue() }
+                .filter { it.idValue() != artist.idValue() }
+            
+            val actualArtists = LMedia.instance.mapBy<LArtist>(artists.map { it.idValue() })
+            reduce { it.copy(relatedArtists = actualArtists) }
         }
     }
 }

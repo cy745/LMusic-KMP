@@ -1,14 +1,20 @@
 package com.lalilu.lartist.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -24,10 +30,8 @@ import com.lalilu.extensions.*
 import com.lalilu.lartist.component.ArtistCard
 import com.lalilu.lartist.viewmodel.ArtistDetailEvent
 import com.lalilu.lmedia.component.AudioItemCard
-import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.ref
 import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
@@ -41,6 +45,7 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun ArtistDetailScreenContent(
     artist: LArtist? = null,
+    relatedArtists: List<LArtist> = emptyList(),
     songs: SortResult<LAudio> = SortResult.empty(),
     sharedMap: SharedMap = emptyMap(),
     coverCacheKey: String? = null,
@@ -68,19 +73,6 @@ internal fun ArtistDetailScreenContent(
         key = "SmartBarHeight",
         default = { navigationBar.calculateBottomPadding() }
     )
-
-
-    val relateArtist = remember { mutableStateListOf<LArtist>() }
-    LaunchedEffect(artist) {
-        val songs = artist?.ref<LAudio>() ?: emptyList()
-        val actualSongs = LMedia.instance.mapBy<LAudio>(songs.map { it.idValue() })
-        val artists = actualSongs.flatMap { it.ref<LArtist>() }
-            .distinctBy { it.idValue() }
-            .filter { it.idValue() != artist?.idValue() }
-
-        relateArtist.clear()
-        relateArtist.addAll(artists)
-    }
 
     LaunchedEffect(Unit) {
         eventFlow.collectLatest { event ->
@@ -131,7 +123,7 @@ internal fun ArtistDetailScreenContent(
                     val title = artist?.titleValue() ?: "Unknown"
                     val subtitle = artist?.subtitleValue()?.takeIf { it.isNotBlank() }
                     buildAnnotatedString {
-                        if (subtitle == null){
+                        if (subtitle == null) {
                             append("${songs.itemList.size} songs")
                             return@buildAnnotatedString
                         }
@@ -155,11 +147,25 @@ internal fun ArtistDetailScreenContent(
                         )
                     },
                     extraContent = {
-                        Row(modifier = it) {
-                            TextButton(onClick = onClickAddToPlaylist) {
-                                Text(text = "添加歌手歌曲到播放列表")
+                        FlowRow(
+                            modifier = it.padding(top = 16.dp, bottom = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TextButton(
+                                onClick = onClickAddToPlaylist,
+                                colors = ButtonDefaults.elevatedButtonColors(),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.08f)),
+                                shape = RoundedCornerShape(4.dp),
+                            ) {
+                                Text(text = "添加到播放列表")
                             }
-                            TextButton(onClick = onClickPlayAll) {
+                            TextButton(
+                                onClick = onClickPlayAll,
+                                colors = ButtonDefaults.elevatedButtonColors(),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.08f)),
+                                shape = RoundedCornerShape(4.dp),
+                            ) {
                                 Text(text = "播放全部")
                             }
                         }
@@ -218,7 +224,7 @@ internal fun ArtistDetailScreenContent(
                 }
             }
 
-            if (relateArtist.isNotEmpty()) {
+            if (relatedArtists.isNotEmpty()) {
                 item(key = "EXTRA_HEADER") {
                     Column(
                         modifier = Modifier
@@ -238,8 +244,8 @@ internal fun ArtistDetailScreenContent(
                 }
 
                 itemsIndexed(
-                    items = relateArtist,
-                    key = { _, item -> item.idValue() },
+                    items = relatedArtists,
+                    key = { _, item -> "related_${item.idValue()}" },
                     contentType = { _, _ -> LArtist::class }
                 ) { _, item ->
                     ArtistCard(

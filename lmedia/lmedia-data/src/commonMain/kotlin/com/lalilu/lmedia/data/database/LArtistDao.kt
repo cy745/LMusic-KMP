@@ -1,11 +1,11 @@
 package com.lalilu.lmedia.data.database
 
 import androidx.room3.*
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
+import com.lalilu.lmedia.data.database.relation.QueryLArtistWithAudios
 import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.link
-import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
-import com.lalilu.lmedia.data.database.relation.QueryLArtistWithAudios
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapLatest
@@ -48,6 +48,10 @@ interface LArtistDao {
     @Query("SELECT * FROM l_artist WHERE artist_id = :artistId")
     fun getArtistWithAudios(artistId: String): Flow<QueryLArtistWithAudios?>
 
+    @Transaction
+    @Query("SELECT * FROM l_artist WHERE artist_id IN (:artistIds)")
+    fun getArtistsWithAudios(artistIds: List<String>): Flow<List<QueryLArtistWithAudios>>
+
     fun getArtist(artistId: String): Flow<LArtist?> = getArtistWithAudios(artistId)
         .mapLatest { query ->
             if (query == null) return@mapLatest null
@@ -55,6 +59,18 @@ interface LArtistDao {
                 query.audios.forEach { audio ->
                     artist.link(audio)
                     audio.link(artist)
+                }
+            }
+        }
+
+    fun getArtists(artistIds: List<String>): Flow<List<LArtist>> = getArtistsWithAudios(artistIds)
+        .mapLatest { list ->
+            list.map { query ->
+                query.artist.also { artist ->
+                    query.audios.forEach { audio ->
+                        artist.link(audio)
+                        audio.link(artist)
+                    }
                 }
             }
         }

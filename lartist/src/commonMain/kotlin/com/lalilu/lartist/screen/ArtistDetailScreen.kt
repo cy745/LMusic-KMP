@@ -165,6 +165,7 @@ data class ArtistDetailScreen(
         ArtistDetailScreenContent(
             songs = songs,
             artist = currentArtist,
+            relatedArtists = state.relatedArtists,
             sharedMap = sharedMap,
             coverCacheKey = coverCacheKey,
             keys = { vm.recorder.list().filterNotNull() },
