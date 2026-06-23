@@ -36,7 +36,6 @@ kotlin {
                 api(libs.compose.ui.backhandler)
 
                 api(project(":thirdparty:navigation3-ui"))
-                api(project(":thirdparty:gridlayout-compose"))
                 api(libs.androidx.navigation3.runtime)
                 implementation("androidx.collection:collection:1.5.0")
 

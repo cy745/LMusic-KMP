@@ -35,8 +35,6 @@ import androidx.compose.ui.tooling.preview.AndroidUiModes.UI_MODE_TYPE_NORMAL
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cheonjaeung.compose.grid.SimpleGridCells
-import com.cheonjaeung.compose.grid.VerticalGrid
 import com.lalilu.extensions.DialogItem
 import com.lalilu.extensions.DialogWrapper
 import com.lalilu.lmedia.sortable.SortAction
@@ -74,7 +72,7 @@ fun SortPanelDialog(
     )
 }
 
-@OptIn(ExperimentalFlexBoxApi::class)
+@OptIn(ExperimentalFlexBoxApi::class, ExperimentalGridApi::class)
 @Composable
 private fun SortPanelDialogContent(
     modifier: Modifier = Modifier,
@@ -105,12 +103,13 @@ private fun SortPanelDialogContent(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.background,
     ) {
-        VerticalGrid(
-            modifier = Modifier
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            columns = SimpleGridCells.Fixed(6)
+        Grid(
+            modifier = Modifier.padding(16.dp),
+            config = {
+                repeat(6) { column(1.fr) }
+                columnGap(4.dp)
+                rowGap(4.dp)
+            }
         ) {
             val needSpanIndex = remember(supportSortActions) {
                 if (supportSortActions.size % 2 == 1) supportSortActions.indices.last else -1
@@ -122,7 +121,7 @@ private fun SortPanelDialogContent(
                 SortItem(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .span { if (needSpanIndex == index) 6 else 3 },
+                        .gridItem(columnSpan = if (needSpanIndex == index) 6 else 3),
                     title = info.title,
                     subTitle = info.subTitle ?: "",
                     colors = colors,
@@ -133,7 +132,7 @@ private fun SortPanelDialogContent(
 
             Spacer(
                 modifier = Modifier
-                    .span { 6 }
+                    .gridItem(columnSpan = 6)
                     .padding(vertical = 4.dp)
                     .height(1.dp)
                     .fillMaxWidth()
@@ -141,7 +140,8 @@ private fun SortPanelDialogContent(
             )
 
             SortItem(
-                modifier = Modifier.span { 2 },
+                modifier = Modifier
+                    .gridItem(columnSpan = 2),
                 title = "取消",
                 center = true,
                 selected = { true },
@@ -152,7 +152,8 @@ private fun SortPanelDialogContent(
                 ),
             )
             SortItem(
-                modifier = Modifier.span { 2 },
+                modifier = Modifier
+                    .gridItem(columnSpan = 2),
                 title = "隐藏分组",
                 center = true,
                 selected = { sortConfig().hideGroup },
@@ -167,7 +168,8 @@ private fun SortPanelDialogContent(
                 ),
             )
             SortItem(
-                modifier = Modifier.span { 2 },
+                modifier = Modifier
+                    .gridItem(columnSpan = 2),
                 title = "顺序倒转",
                 center = true,
                 selected = { sortConfig().reverse },
@@ -200,7 +202,7 @@ private fun SortItem(
     FilterChip(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp),
+            .height(56.dp),
         colors = colors,
         enabled = enabled,
         shape = RoundedCornerShape(5.dp),

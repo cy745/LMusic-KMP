@@ -23,14 +23,6 @@ thirdparty/navigation3-ui/ directory.
 For the full text of the Apache License 2.0,
 see <https://www.apache.org/licenses/LICENSE-2.0.txt>.
 
-3. GridLayout Compose
-   - Location: thirdparty/gridlayout-compose/
-   - Url: https://github.com/cheonjaeung/gridlayout-compose
-   - License: Apache License 2.0
-   - Notes: The code has no original copyright notice
-
-For the full text of the Apache License 2.0, see LICENSE-Apache-2.0 in the
-thirdparty/gridlayout-compose/ directory.
 
 
 This program is free software: you can redistribute it and/or modify
