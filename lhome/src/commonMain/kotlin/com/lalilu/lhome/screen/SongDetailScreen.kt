@@ -20,18 +20,22 @@ import com.lalilu.adaptiveValue
 import com.lalilu.animated
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.extensions.SharedContext
+import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.SongAlbumInfoCard
 import com.lalilu.lhome.screen.detail.MetadataInfos
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lhome.viewmodel.SongDetailVM
 import com.lalilu.lmedia.entity.*
 import com.lalilu.lplayer.action.PlayerAction
+import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenActionFactory
 import com.lalilu.packed.CoverTitleHeader
 import com.lalilu.preview.preview
 import kotlinx.serialization.Serializable
+import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Serializable
 @Destination("/song/detail")
@@ -45,6 +49,8 @@ data class SongDetailScreen(
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
+        val vm = koinViewModel<SongDetailVM>(parameters = { parametersOf(mediaId) })
+
         return remember {
             listOf(
                 ScreenAction.Static(
@@ -61,11 +67,15 @@ data class SongDetailScreen(
 
     @Composable
     override fun Content() {
-        val song by remember { LMedia.instance.flow<LAudio>(id = mediaId) }
-            .collectAsState(song)
+        val vm = koinViewModel<SongDetailVM>(parameters = { parametersOf(mediaId) })
+        val song by vm.flow.collectAsState(song)
+        val albums by vm.albums.collectAsState(emptyList())
+        val artists by vm.artists.collectAsState(emptyList())
 
         SongDetailScreenContent(
             song = song,
+            albums = albums ?: emptyList(),
+            artists = artists ?: emptyList(),
             coverCacheKey = coverCacheKey,
             sharedMap = sharedMap
         )
@@ -76,6 +86,8 @@ data class SongDetailScreen(
 @Composable
 fun SongDetailScreenContent(
     song: LAudio? = null,
+    albums: List<LAlbum> = emptyList(),
+    artists: List<LArtist> = emptyList(),
     coverCacheKey: String? = null,
     sharedMap: Map<String, String> = emptyMap(),
 ) = SharedContext(sharedMap = sharedMap) {
@@ -86,8 +98,6 @@ fun SongDetailScreenContent(
             .data(song)
             .build()
     }
-    val artists = remember(song) { song?.ref<LArtist>() ?: emptyList() }
-    val albums = remember(song) { song?.ref<LAlbum>() ?: emptyList() }
     val songsInfo = remember(song) {
         (song?.extraValue() ?: emptyMap()) + (song?.metadata?.toMap() ?: emptyMap())
             .filter { it.value.isNotBlank() }
@@ -107,14 +117,38 @@ fun SongDetailScreenContent(
             CoverTitleHeader(
                 coverData = coverData,
                 title = song?.titleValue() ?: "Unknown",
-                subtitle = song?.subtitleValue()
+                subtitle = song?.subtitleValue(),
+//                extraContent = {
+//                    FlowRow(
+//                        modifier = Modifier.padding(top = 8.dp),
+//                        verticalArrangement = Arrangement.spacedBy(4.dp),
+//                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+//                    ) {
+//                        TextButton(
+//                            onClick = {  },
+//                            colors = ButtonDefaults.elevatedButtonColors(),
+//                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.08f)),
+//                            shape = RoundedCornerShape(4.dp),
+//                        ) {
+//                            Text(text = "添加到播放列表")
+//                        }
+//                        TextButton(
+//                            onClick = {  },
+//                            colors = ButtonDefaults.elevatedButtonColors(),
+//                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.08f)),
+//                            shape = RoundedCornerShape(4.dp),
+//                        ) {
+//                            Text(text = "播放全部")
+//                        }
+//                    }
+//                }
             )
         }
 
         items(
             items = albums,
             key = { it.idValue() }
-        ) {
+        ) { album ->
             val paddingHorizontal = adaptiveValue(
                 compact = { 16.dp },
                 medium = { 40.dp }
@@ -134,7 +168,17 @@ fun SongDetailScreenContent(
                     )
                     .padding(top = 24.dp)
                     .padding(horizontal = paddingHorizontal.value),
-                album = it
+                album = album,
+                onClick = {
+                    val coverCacheKey = context.retrieveCacheKey(album)
+
+                    AppRouter.route("/pages/albums/detail")
+                        .with("albumId", album.id)
+                        .with("album", album)
+                        .with("sharedMap", sharedMap)
+                        .with("coverCacheKey", coverCacheKey)
+                        .push()
+                }
             )
         }
 
