@@ -11,7 +11,6 @@ import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -50,7 +49,7 @@ fun SharedContextScope.CoverTitleHeader(
             )
         }
     },
-    extraContent: (@Composable (Modifier) -> Unit)? = null
+    extraContent: (@Composable ColumnScope.(Modifier) -> Unit)? = null
 ) {
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
     val statusBar = WindowInsets.statusBars.asPaddingValues()
@@ -76,25 +75,20 @@ fun SharedContextScope.CoverTitleHeader(
 
     val titleContent = remember {
         movableContentOf { modifier: Modifier, atColumn: Boolean ->
-            Column(modifier = modifier) {
-                Row {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        titleContent(
-                            Modifier.padding(top = 8.dp)
-                                .sharedBoundsV2(key = "TITLE")
-                        )
+            Column(
+                modifier = modifier,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                titleContent(
+                    Modifier.padding(top = 8.dp)
+                        .sharedBoundsV2(key = "TITLE")
+                )
 
-                        subtitleContent(
-                            Modifier.sharedBoundsV2("SUBTITLE")
-                                .alpha(0.6f)
-                        )
-                    }
-                }
+                subtitleContent(
+                    Modifier.sharedBoundsV2("SUBTITLE")
+                )
 
-                extraContent?.invoke(Modifier)
+                extraContent?.invoke(this, Modifier)
             }
         }
     }
