@@ -1,10 +1,14 @@
 package com.lalilu.lalbum.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -13,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
@@ -31,6 +36,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import nl.jacobras.humanreadable.HumanReadable
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 @Composable
 internal fun AlbumDetailScreenContent(
@@ -112,15 +120,45 @@ internal fun AlbumDetailScreenContent(
                 CoverTitleHeader(
                     coverData = coverData,
                     title = album?.titleValue() ?: "Unknown Album",
-                    subtitle = album?.subtitleValue()?.takeIf { it.isNotBlank() } ?: "${songs.itemList.size} songs",
-                    extraContent = { modifier ->
-                        Row(modifier = modifier) {
-                            TextButton(onClick = onClickAddToPlaylist) {
-                                Text(text = "添加专辑到播放列表")
+                    subtitle = album?.subtitleValue()?.takeIf { it.isNotBlank() },
+                    extraContent = {
+                        FlowRow(
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TextButton(
+                                onClick = onClickAddToPlaylist,
+                                colors = ButtonDefaults.elevatedButtonColors(),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.08f)),
+                                shape = RoundedCornerShape(4.dp),
+                            ) {
+                                Text(text = "添加到播放列表")
                             }
-                            TextButton(onClick = onClickPlayAll) {
+                            TextButton(
+                                onClick = onClickPlayAll,
+                                colors = ButtonDefaults.elevatedButtonColors(),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.08f)),
+                                shape = RoundedCornerShape(4.dp),
+                            ) {
                                 Text(text = "播放全部")
                             }
+                        }
+
+                        if (songs.itemList.isNotEmpty()) {
+                            val tips = remember(songs) {
+                                val sumDuration = songs.itemList.sumOf { song -> song.metadata.duration }
+                                    .toDuration(DurationUnit.MILLISECONDS)
+                                val sumDurationStr = HumanReadable.duration(sumDuration)
+                                "共 ${songs.itemList.size} 首歌曲 · 总时长 $sumDurationStr"
+                            }
+                            Text(
+                                modifier = Modifier.padding(bottom = 16.dp)
+                                    .alpha(0.6f),
+                                text = tips,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onBackground.copy(0.6f),
+                            )
                         }
                     }
                 )

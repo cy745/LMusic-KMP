@@ -246,21 +246,17 @@ internal fun ArtistDetailScreenContent(
 
             if (relatedArtists.isNotEmpty()) {
                 item(key = "EXTRA_HEADER") {
-                    Column(
+                    Text(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
-                            .statusBarsPadding(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "相关艺术家",
-                            fontSize = 20.sp,
-                            lineHeight = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
+                            .padding(top = 32.dp, bottom = 12.dp)
+                            .padding(horizontal = 16.dp),
+                        text = "相关艺术家",
+                        fontSize = 18.sp,
+                        lineHeight = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
                 }
 
                 itemsIndexed(
