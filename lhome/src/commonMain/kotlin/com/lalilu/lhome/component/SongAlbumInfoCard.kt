@@ -17,6 +17,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.lalilu.component.WrapBox
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LAudio
@@ -63,9 +66,12 @@ fun SongAlbumInfoCard(
             background = {
                 AsyncImage(
                     modifier = Modifier.fillMaxSize()
-                        .alpha(0.1f)
+                        .alpha(0.3f)
                         .blur(25.dp),
-                    model = imageData,
+                    model = ImageRequest.Builder(LocalPlatformContext.current)
+                        .crossfade(true)
+                        .data(imageData)
+                        .build(),
                     contentScale = ContentScale.Crop,
                     contentDescription = "Recommend Card Cover Image"
                 )
