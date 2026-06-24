@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -41,6 +42,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import nl.jacobras.humanreadable.HumanReadable
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 @Composable
 internal fun ArtistDetailScreenContent(
@@ -142,13 +146,13 @@ internal fun ArtistDetailScreenContent(
                         Text(
                             modifier = it,
                             text = annotatedSubtitle,
-                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onBackground),
-                            color = MaterialTheme.colorScheme.onBackground,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onBackground.copy(0.5f),
                         )
                     },
                     extraContent = {
                         FlowRow(
-                            modifier = it.padding(top = 16.dp, bottom = 8.dp),
+                            modifier = Modifier.padding(top = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -168,6 +172,22 @@ internal fun ArtistDetailScreenContent(
                             ) {
                                 Text(text = "播放全部")
                             }
+                        }
+
+                        if (songs.itemList.isNotEmpty()) {
+                            val tips = remember(songs) {
+                                val sumDuration = songs.itemList.sumOf { song -> song.metadata.duration }
+                                    .toDuration(DurationUnit.MILLISECONDS)
+                                val sumDurationStr = HumanReadable.duration(sumDuration)
+                                "共 ${songs.itemList.size} 首歌曲 · 总时长 $sumDurationStr"
+                            }
+                            Text(
+                                modifier = Modifier.padding(bottom = 16.dp)
+                                    .alpha(0.6f),
+                                text = tips,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onBackground.copy(0.6f),
+                            )
                         }
                     }
                 )
