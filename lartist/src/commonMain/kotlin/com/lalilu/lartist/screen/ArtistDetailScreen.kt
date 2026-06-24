@@ -137,28 +137,30 @@ data class ArtistDetailScreen(
         CancellableScreenBarPanel(
             isVisible = { vm.selector.isSelecting.value },
             onDismiss = { vm.selector.isSelecting.value = false },
-            screenActions = listOfNotNull(
-                ScreenAction.Static(
-                    title = { "全选" },
-                    color = { Color(0xFF00ACF0) },
-                    icon = { RemixIcon.System.checkboxMultipleLine },
-                    onAction = { vm.selector.selectAll(songs.itemList) }
-                ),
-                ScreenAction.Static(
-                    title = { "取消全选" },
-                    icon = { RemixIcon.System.checkboxMultipleBlankLine },
-                    color = { Color(0xFFFF5100) },
-                    onAction = { vm.selector.clear() }
-                ),
-                requestFor<ScreenAction>(
-                    qualifier = named("add_to_favourite_action"),
-                    parameters = { parametersOf(vm.selector::selected) }
-                ),
-                requestFor<ScreenAction>(
-                    qualifier = named("add_to_playlist_action"),
-                    parameters = { parametersOf(vm.selector::selected) }
+            screenActions = remember(vm) {
+                listOfNotNull(
+                    ScreenAction.Static(
+                        title = { "全选" },
+                        color = { Color(0xFF00ACF0) },
+                        icon = { RemixIcon.System.checkboxMultipleLine },
+                        onAction = { vm.selector.selectAll(songs.itemList) }
+                    ),
+                    ScreenAction.Static(
+                        title = { "取消全选" },
+                        icon = { RemixIcon.System.checkboxMultipleBlankLine },
+                        color = { Color(0xFFFF5100) },
+                        onAction = { vm.selector.clear() }
+                    ),
+                    requestFor<ScreenAction>(
+                        qualifier = named("add_to_favourite_action"),
+                        parameters = { parametersOf(vm.selector::selected) }
+                    ),
+                    requestFor<ScreenAction>(
+                        qualifier = named("add_to_playlist_action"),
+                        parameters = { parametersOf(vm.selector::selected) }
+                    )
                 )
-            )
+            }
         )
 
         val scope = rememberCoroutineScope()
