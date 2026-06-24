@@ -86,6 +86,7 @@ class LMedia(
         return when (clazz) {
             LAudio::class -> database.audioDao().getAudios(ids)
             LArtist::class -> database.artistDao().getArtists(ids)
+            LAlbum::class -> database.albumDao().getAlbums(ids)
             else -> null
         } as Flow<List<T>>?
     }
