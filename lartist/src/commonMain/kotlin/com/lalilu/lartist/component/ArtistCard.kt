@@ -50,6 +50,7 @@ fun ArtistCard(
         prefix = sharedMapPrefix
     )
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     val title = artist.titleValue()
     val subTitle = artist.subtitleValue()
     val context = LocalPlatformContext.current
@@ -61,7 +62,10 @@ fun ArtistCard(
 
     Row(
         modifier = modifier
-            .clickable(onClick = { onClick(sharedMap) })
+            .clickable(
+                interactionSource = interactionSource,
+                onClick = { onClick(sharedMap) }
+            )
             .drawBehind { drawRect(bgColor.value) }
             .fillMaxWidth()
             .heightIn(min = 64.dp)
@@ -118,17 +122,12 @@ fun ArtistCard(
             modifier = Modifier.padding(vertical = 8.dp),
             contentAlignment = Alignment.Center
         ) {
-            val interactionSource = remember { MutableInteractionSource() }
             val isPressed by interactionSource.collectIsPressedAsState()
-            val borderColor = if (isPressed)
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-            else
-                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f)
+            val borderColor = if (isPressed) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+            else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f)
 
-            val containerColor = if (isPressed)
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
-            else
-                MaterialTheme.colorScheme.surfaceContainerLow
+            val containerColor = if (isPressed) MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
+            else MaterialTheme.colorScheme.surfaceContainerLow
 
             Box(
                 modifier = Modifier
