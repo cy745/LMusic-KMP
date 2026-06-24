@@ -79,6 +79,8 @@ fun MetadataInfos(
             metadata.forEach { entry ->
                 ColumnItem(
                     modifier = Modifier
+                        .fillMaxWidth()
+                        .gridItem(columnSpan = 1)
                         .animateBounds(this@lookaheadScope),
                     title = entry.key,
                     content = entry.value,
@@ -104,7 +106,6 @@ private fun ColumnItem(
 
     Column(
         modifier = modifier
-            .fillMaxWidth()
             .combinedClickable(
                 onLongClick = {
 //                    clipboard.setClipEntry(ClipEntry(""))
