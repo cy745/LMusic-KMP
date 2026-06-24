@@ -52,7 +52,7 @@ data class ArtistDetailScreen(
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
-        val vm = koinViewModel<ArtistDetailVM>()
+        val vm = koinViewModel<ArtistDetailVM>(parameters = { parametersOf(artistId) })
         val state by vm.state
 
         return remember {
