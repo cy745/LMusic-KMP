@@ -33,6 +33,7 @@ import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenActionFactory
 import com.lalilu.packed.CoverTitleHeader
 import com.lalilu.preview.preview
+import com.lalilu.slotContent
 import kotlinx.serialization.Serializable
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -118,30 +119,27 @@ fun SongDetailScreenContent(
                 coverData = coverData,
                 title = song?.titleValue() ?: "Unknown",
                 subtitle = song?.subtitleValue(),
-//                extraContent = {
-//                    FlowRow(
-//                        modifier = Modifier.padding(top = 8.dp),
-//                        verticalArrangement = Arrangement.spacedBy(4.dp),
-//                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-//                    ) {
-//                        TextButton(
-//                            onClick = {  },
-//                            colors = ButtonDefaults.elevatedButtonColors(),
-//                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.08f)),
-//                            shape = RoundedCornerShape(4.dp),
-//                        ) {
-//                            Text(text = "添加到播放列表")
-//                        }
-//                        TextButton(
-//                            onClick = {  },
-//                            colors = ButtonDefaults.elevatedButtonColors(),
-//                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.08f)),
-//                            shape = RoundedCornerShape(4.dp),
-//                        ) {
-//                            Text(text = "播放全部")
-//                        }
-//                    }
-//                }
+                extraContent = {
+                    val tagContents = listOf("music_tags", "lddc_tags")
+                        .mapNotNull { key -> slotContent(key)?.let { key to it } }
+                        .toMap()
+
+                    if (tagContents.isNotEmpty()) {
+                        FlowRow(
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            tagContents.forEach { (key, content) ->
+                                content.ApplyContent(modifier = Modifier) {
+                                    if (key == "music_tags") {
+                                        "uri" reg @Composable { "${song?.extra?.get("uri")}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             )
         }
 
