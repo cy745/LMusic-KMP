@@ -23,10 +23,10 @@ import org.koin.dsl.module
 import org.koin.ksp.generated.module
 
 @KInject
-expect fun kRouterInjectMapV2(): InjectMap
+expect fun kRouterInjectMap(): InjectMap
 
 fun KoinApplication.koinSetup() {
-    KRouter.init(kRouterInjectMapV2()::getMap)
+    KRouter.init(kRouterInjectMap()::getMap)
     Logger.addLogWriter(MemoryLogWriter.chunked())
     ComposeStabilityAnalyzer.setEnabled(true)
     ComposeStabilityAnalyzer.setLogger(DebugRecomposeLogger) // TODO 需要判断debug模式才开启
@@ -35,7 +35,7 @@ fun KoinApplication.koinSetup() {
     modules(SharedModule)
     modules(AppModule.module)
     modules(LHomeModule.module)
-    modules(kRouterInjectMapV2().services.filterIsInstance<KModule>().map(KModule::get))
+    modules(kRouterInjectMap().services.filterIsInstance<KModule>().map(KModule::get))
 }
 
 private val SharedModule = module {

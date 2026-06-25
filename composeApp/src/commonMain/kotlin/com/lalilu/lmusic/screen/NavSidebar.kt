@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.lalilu.WindowWrapper
 import com.lalilu.atLeastMedium
 import com.lalilu.krouter.KRouter
-import com.lalilu.lmusic.kRouterInjectMapV2
+import com.lalilu.lmusic.kRouterInjectMap
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
@@ -244,7 +244,7 @@ private fun getScreenTitle(screen: Screen): String {
 @Preview
 @Composable
 private fun NavSidebarPreview() = preview {
-    KRouter.init(kRouterInjectMapV2()::getMap)
+    KRouter.init(kRouterInjectMap()::getMap)
     NavSidebar()
 }
 

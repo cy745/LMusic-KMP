@@ -39,7 +39,7 @@ import com.lalilu.krouter.KRouter
 import com.lalilu.lmusic.component.PlayerBottomSheetContent
 import com.lalilu.lmusic.component.PlayerBottomSheetScaffold
 import com.lalilu.lmusic.component.ScaleBottomSheetLayout
-import com.lalilu.lmusic.kRouterInjectMapV2
+import com.lalilu.lmusic.kRouterInjectMap
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.smartbar.NavigationSmartBar
@@ -119,6 +119,6 @@ fun BottomBarApplier(
 @Preview(device = Devices.TABLET)
 @Composable
 private fun PlayBottomBarPreview() = preview {
-    KRouter.init(kRouterInjectMapV2()::getMap)
+    KRouter.init(kRouterInjectMap()::getMap)
     BottomBarApplier {}
 }
