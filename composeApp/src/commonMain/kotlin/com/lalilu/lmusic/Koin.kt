@@ -3,8 +3,9 @@ package com.lalilu.lmusic
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.chunked
 import com.lalilu.common.ext.KModule
+import com.lalilu.krouter.InjectMap
 import com.lalilu.krouter.KRouter
-import com.lalilu.krouter.generated.KRouterInjectMap
+import com.lalilu.krouter.annotation.KInject
 import com.lalilu.lhome.LHomeModule
 import com.lalilu.lmusic.util.DebugRecomposeLogger
 import com.lalilu.lmusic.util.KermitKoinLogger
@@ -21,8 +22,11 @@ import org.koin.core.annotation.Module
 import org.koin.dsl.module
 import org.koin.ksp.generated.module
 
+@KInject
+expect fun kRouterInjectMapV2(): InjectMap
+
 fun KoinApplication.koinSetup() {
-    KRouter.init(KRouterInjectMap::getMap)
+    KRouter.init(kRouterInjectMapV2()::getMap)
     Logger.addLogWriter(MemoryLogWriter.chunked())
     ComposeStabilityAnalyzer.setEnabled(true)
     ComposeStabilityAnalyzer.setLogger(DebugRecomposeLogger) // TODO 需要判断debug模式才开启
@@ -31,7 +35,7 @@ fun KoinApplication.koinSetup() {
     modules(SharedModule)
     modules(AppModule.module)
     modules(LHomeModule.module)
-    modules(KRouterInjectMap.services.filterIsInstance<KModule>().map(KModule::get))
+    modules(kRouterInjectMapV2().services.filterIsInstance<KModule>().map(KModule::get))
 }
 
 private val SharedModule = module {
