@@ -168,6 +168,16 @@ class AndroidFileSystemSource(
                         subtitle(metadata.artist)
                         source(source)
                         metadata(metadata)
+                        extra(
+                            mapOf(
+                                "uri" to when (source) {
+                                    is SourceItem.FileItem -> source.file.toUri().toString()
+                                    is SourceItem.UriItem -> source.uri.toString()
+                                    is SourceItem.FilePathItem -> source.path.toUri().toString()
+                                    else -> ""
+                                }
+                            )
+                        )
                     }
                 }
 

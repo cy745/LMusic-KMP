@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
@@ -15,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import co.touchlab.kermit.Logger
 import com.lalilu.SlotContent
 import com.lalilu.SlotParamContext
 import com.lalilu.extensions.LocalToaster
@@ -39,11 +41,14 @@ class MusicTagContent : SlotContent {
                     "com.xjcheng.musictageditor.SongDetailActivity"
                 )
                 action = "android.intent.action.VIEW"
+                data = Uri.parse(uri)
             }
         }
 
         TextButton(
             onClick = {
+                Logger.i(tag = "MusicTagContent", messageString = "启动音乐标签编辑: $uri")
+
                 if (context.checkActivityIsExist(intent)) {
                     context.startActivity(intent)
                 } else {
