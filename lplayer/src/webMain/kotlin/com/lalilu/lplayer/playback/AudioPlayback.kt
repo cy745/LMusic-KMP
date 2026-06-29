@@ -8,6 +8,7 @@ import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.notification.BrowserMediaSessionHelper
 import io.github.vinceglb.filekit.utils.toJsArray
 import kotlinx.coroutines.launch
+import org.koin.core.annotation.Single
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.w3c.dom.Audio
@@ -15,10 +16,13 @@ import org.w3c.dom.url.URL
 import org.w3c.files.Blob
 import org.w3c.files.BlobPropertyBag
 
+
+@Single
 @OptIn(ExperimentalWasmJsInterop::class)
 class AudioPlayback(
-    private val library: Library
-) : AbstractPlayback(), KoinComponent {
+    private val library: Library,
+    private val history: PlaybackHistory
+) : AbstractPlayback(history = history), KoinComponent {
     companion object {
         const val TAG = "AudioPlayback"
     }

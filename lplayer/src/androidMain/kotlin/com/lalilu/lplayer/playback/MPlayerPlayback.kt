@@ -29,8 +29,10 @@ import io.github.petertrr.diffutils.patch.DeltaType
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.guava.await
+import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
 
+@Single
 @OptIn(UnstableApi::class, ExperimentalCoroutinesApi::class)
 class MPlayerPlayback(
     private val context: Context,

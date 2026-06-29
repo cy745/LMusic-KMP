@@ -17,26 +17,14 @@
 
 package com.lalilu.lsettings
 
-import com.lalilu.common.ext.KModule
-import com.lalilu.common.ext.KoinModule
-import com.lalilu.krouter.annotation.KService
 import org.koin.core.annotation.ComponentScan
+import org.koin.core.annotation.Configuration
 import org.koin.core.annotation.Module
-import org.koin.ksp.generated.module
-
 
 /**
  * :lsettings 模块的 Koin 注册入口。
- *
- * - `@Module @ComponentScan` —— KSP 自动收集本模块下所有 `@Single` / `@Factory`
- * - `@KService` —— KRouter 在编译期通过生成的 `KRouterInjectMap.services` 拉取，
- *   `composeApp` 的 `koinSetup()` 自动 `modules(LSettingsModule.module)`
- * - `KModule.get()` —— 兼容老式 `KRouterInjectMap.services.filterIsInstance<KModule>`
- *   的 `KModule` 协议，方便渐进迁移
  */
 @Module
+@Configuration("default")
 @ComponentScan("com.lalilu.lsettings")
-@KService
-object LSettingsModule : KModule {
-    override fun get(): KoinModule = this.module
-}
+object LSettingsModule

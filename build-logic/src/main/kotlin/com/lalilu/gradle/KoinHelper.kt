@@ -14,7 +14,7 @@ fun KotlinMultiplatformExtension.setupKoin() {
     val koinCompiler = project.libs.library(Constants.KOIN_COMPILER_ALIAS)?.notation()
         ?: throw IllegalStateException("Koin Compiler is not found for alias [${Constants.KOIN_COMPILER_ALIAS}]")
 
-    commonMainKspDependencies {
+    kspDependenciesForAllTargets {
         ksp(koinCompiler)
     }
 }

@@ -24,7 +24,7 @@ import org.koin.core.annotation.Single
 
 @Named("music_tags")
 @Single
-object MusicTagContent : SlotContent {
+class MusicTagContent : SlotContent {
 
     @Composable
     override fun SlotParamContext.Content(modifier: Modifier) {

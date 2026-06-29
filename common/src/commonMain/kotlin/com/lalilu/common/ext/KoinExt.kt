@@ -1,17 +1,10 @@
 package com.lalilu.common.ext
 
-import org.koin.core.module.Module
 import org.koin.core.parameter.ParametersDefinition
 import org.koin.core.qualifier.Qualifier
 import org.koin.core.qualifier.named
 import org.koin.core.scope.Scope
 import org.koin.mp.KoinPlatform
-
-typealias KoinModule = Module
-
-interface KModule {
-    fun get(): KoinModule
-}
 
 /**
  * Koin 快速获取对象实例
