@@ -96,6 +96,106 @@ jobs:
           path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/deb/*.deb
 
   # ──────────────────────────────────────────────
+  # iOS → TestFlight（需要 App Store Connect API Key）
+  # ──────────────────────────────────────────────
+  build-ios:
+    name: iOS + TestFlight
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+      - run: chmod +x gradlew
+
+      # 设置 App Store Connect API Key
+      - name: Create API Key file
+        run: |
+          mkdir -p private_keys
+          echo "${{ secrets.ASC_PRIVATE_KEY }}" > "private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+
+      # 为 CI 创建共享 Scheme（从 pbxproj 提取 target UUID）
+      - name: Create shared scheme for CI
+        run: |
+          TARGET_ID=$(grep -B1 'productName = "LMusic-KMP"' iosApp/iosApp.xcodeproj/project.pbxproj | head -1 | tr -d '\t ' | cut -d' ' -f1)
+          if [ -z "$TARGET_ID" ]; then
+            TARGET_ID="B9DA97B02DC1472C00A4DA20"
+          fi
+          mkdir -p iosApp/iosApp.xcodeproj/xcshareddata/xcschemes
+          cat > iosApp/iosApp.xcodeproj/xcshareddata/xcschemes/iosApp.xcscheme << SCHEME
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion = "1500" version = "1.7">
+  <BuildAction parallelizeBuildables = "YES" buildImplicitDependencies = "YES">
+    <BuildActionEntries>
+      <BuildActionEntry buildForTesting = "YES" buildForRunning = "YES" buildForProfiling = "YES" buildForArchiving = "YES" buildForAnalyzing = "YES">
+        <BuildableReference
+          BuildableIdentifier = "primary"
+          BlueprintIdentifier = "$TARGET_ID"
+          BuildableName = "LMusic-KMP.app"
+          BlueprintName = "iosApp"
+          ReferencedContainer = "container:iosApp.xcodeproj">
+        </BuildableReference>
+      </BuildActionEntry>
+    </BuildActionEntries>
+  </BuildAction>
+  <ArchiveAction buildConfiguration = "Release" revealArchiveInOrganizer = "YES" />
+</Scheme>
+SCHEME
+
+      # 构建 + Archive
+      - name: Build and Archive
+        run: |
+          xcodebuild archive \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/LMusic.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            -authenticationKeyPath "private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+
+      # 生成 ExportOptions.plist
+      - name: Generate ExportOptions.plist
+        run: |
+          cat > ExportOptions.plist << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store</string>
+    <key>teamID</key>
+    <string>89HDPPJNKB</string>
+    <key>uploadSymbols</key>
+    <true/>
+</dict>
+</plist>
+EOF
+
+      # 导出 IPA
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/LMusic.xcarchive" \
+            -exportPath "$RUNNER_TEMP/ipa" \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            -authenticationKeyPath "private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+
+      # 上传到 TestFlight
+      - uses: apple-actions/upload-testflight-build@v3
+        with:
+          app-path: ${{ runner.temp }}/ipa/LMusic-KMP.ipa
+          issuer-id: ${{ secrets.ASC_ISSUER_ID }}
+          api-key-id: ${{ secrets.ASC_KEY_ID }}
+          api-private-key: ${{ secrets.ASC_PRIVATE_KEY }}
+
+  # ──────────────────────────────────────────────
   # 汇总产物 → 发布到 snapshot release
   # ──────────────────────────────────────────────
   publish-snapshot:
