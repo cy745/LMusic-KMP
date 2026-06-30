@@ -195,12 +195,18 @@ EOF
           api-key-id: ${{ secrets.ASC_KEY_ID }}
           api-private-key: ${{ secrets.ASC_PRIVATE_KEY }}
 
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: LMusic-snapshot-ios
+          path: ${{ runner.temp }}/ipa/*.ipa
+
   # ──────────────────────────────────────────────
   # 汇总产物 → 发布到 snapshot release
   # ──────────────────────────────────────────────
   publish-snapshot:
     name: Publish Snapshot Release
-    needs: [build-android, build-windows, build-macos, build-linux]
+    needs: [build-android, build-windows, build-macos, build-linux, build-ios]
     runs-on: ubuntu-latest
     permissions:
       contents: write
