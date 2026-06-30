@@ -116,42 +116,7 @@ jobs:
           mkdir -p private_keys
           echo "${{ secrets.ASC_PRIVATE_KEY }}" > "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
 
-      # 为 CI 创建共享 Scheme（从 pbxproj 提取 target UUID）
-      - name: Create shared scheme for CI
-        run: |
-          TARGET_ID=$(grep -B1 'productName = "LMusic-KMP"' iosApp/iosApp.xcodeproj/project.pbxproj | head -1 | tr -d '\t ' | cut -d' ' -f1)
-          if [ -z "$TARGET_ID" ]; then
-            TARGET_ID="B9DA97B02DC1472C00A4DA20"
-          fi
-          mkdir -p iosApp/iosApp.xcodeproj/xcshareddata/xcschemes
-          python3 << 'PYEOF'
-          import os
-          target_id = os.environ.get('TARGET_ID', '')
-          if not target_id:
-              target_id = "B9DA97B02DC1472C00A4DA20"
-          xml = '''<?xml version="1.0" encoding="UTF-8"?>
-          <Scheme LastUpgradeVersion = "1500" version = "1.7">
-            <BuildAction parallelizeBuildables = "YES" buildImplicitDependencies = "YES">
-              <BuildActionEntries>
-                <BuildActionEntry buildForTesting = "YES" buildForRunning = "YES" buildForProfiling = "YES" buildForArchiving = "YES" buildForAnalyzing = "YES">
-                  <BuildableReference
-                    BuildableIdentifier = "primary"
-                    BlueprintIdentifier = "''' + target_id + '''"
-                    BuildableName = "LMusic-KMP.app"
-                    BlueprintName = "iosApp"
-                    ReferencedContainer = "container:iosApp.xcodeproj">
-                  </BuildableReference>
-                </BuildActionEntry>
-              </BuildActionEntries>
-            </BuildAction>
-            <ArchiveAction buildConfiguration = "Release" revealArchiveInOrganizer = "YES" />
-          </Scheme>'''
-          with open('iosApp/iosApp.xcodeproj/xcshareddata/xcschemes/iosApp.xcscheme', 'w') as f:
-              f.write(xml)
-          print('Scheme created')
-          PYEOF
-
-      # 构建 + Archive
+      # 构建 + Archive（使用 xcshareddata 中的 scheme）
       - name: Build and Archive
         run: |
           xcodebuild archive \
