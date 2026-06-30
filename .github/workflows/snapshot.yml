@@ -19,7 +19,7 @@ jobs:
   # ──────────────────────────────────────────────
   build-android:
     name: Android
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Create the Keystore from Secrets
@@ -35,11 +35,11 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - run: chmod +x gradlew
-      - run: ./gradlew composeApp:assembleRelease
+      - run: ./gradlew androidApp:assembleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: LMusic-snapshot-android
-          path: ${{ github.workspace }}/composeApp/build/outputs/apk/release/*.apk
+          path: ${{ github.workspace }}/androidApp/build/outputs/apk/release/*.apk
 
   build-windows:
     name: Windows
