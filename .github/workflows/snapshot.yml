@@ -22,17 +22,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Create the Keystore from Secrets
+        env:
+          KEYSTORE_JKS_BASE64: ${{ secrets.KEYSTORE_JKS_BASE64 }}
+          KEYSTORE_PROPERTIES_BASE64: ${{ secrets.KEYSTORE_PROPERTIES_BASE64 }}
+        run: |
+          echo $KEYSTORE_JKS_BASE64 | base64 -di > ${{ github.workspace }}/keystore.jks
+          echo $KEYSTORE_PROPERTIES_BASE64 | base64 -di > ${{ github.workspace }}/keystore.properties
       - uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: gradle
       - run: chmod +x gradlew
-      - run: ./gradlew composeApp:assembleDebug
+      - run: ./gradlew composeApp:assembleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: LMusic-snapshot-android
-          path: ${{ github.workspace }}/composeApp/build/outputs/apk/debug/*.apk
+          path: ${{ github.workspace }}/composeApp/build/outputs/apk/release/*.apk
 
   build-windows:
     name: Windows
