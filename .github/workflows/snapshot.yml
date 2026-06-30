@@ -114,7 +114,7 @@ jobs:
       - name: Create API Key file
         run: |
           mkdir -p private_keys
-          echo "${{ secrets.ASC_PRIVATE_KEY }}" > "private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+          echo "${{ secrets.ASC_PRIVATE_KEY }}" > "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
 
       # 为 CI 创建共享 Scheme（从 pbxproj 提取 target UUID）
       - name: Create shared scheme for CI
@@ -162,7 +162,7 @@ jobs:
             -allowProvisioningUpdates \
             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
             -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
-            -authenticationKeyPath "private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+            -authenticationKeyPath "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
 
       # 生成 ExportOptions.plist
       - name: Generate ExportOptions.plist
@@ -182,7 +182,7 @@ jobs:
             -allowProvisioningUpdates \
             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
             -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
-            -authenticationKeyPath "private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+            -authenticationKeyPath "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
 
       # 上传到 TestFlight
       - uses: apple-actions/upload-testflight-build@v3
