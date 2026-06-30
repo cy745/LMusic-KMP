@@ -1,0 +1,197 @@
+name: Snapshot Build
+
+on:
+  push:
+    branches: [ "dev" ]
+
+concurrency:
+  group: snapshot-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SNAPSHOT_OWNER: cy745
+  SNAPSHOT_REPO: LMusic-KMP
+  SNAPSHOT_TAG: snapshot
+
+jobs:
+  # ──────────────────────────────────────────────
+  # 构建各平台产物
+  # ──────────────────────────────────────────────
+  build-android:
+    name: Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+      - run: chmod +x gradlew
+      - run: ./gradlew composeApp:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LMusic-snapshot-android
+          path: ${{ github.workspace }}/composeApp/build/outputs/apk/debug/*.apk
+
+  build-windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+      - run: chmod +x gradlew
+      - run: ./gradlew composeApp:packageReleaseMsi
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LMusic-snapshot-windows
+          path: ${{ github.workspace }}\composeApp\build\compose\binaries\main-release\msi\*.msi
+
+  build-macos:
+    name: macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+      - run: chmod +x gradlew
+      - run: ./gradlew composeApp:packageReleaseDmg
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LMusic-snapshot-macos
+          path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/dmg/*.dmg
+
+  build-linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+      - run: chmod +x gradlew
+      - run: ./gradlew composeApp:packageReleaseDeb
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LMusic-snapshot-linux
+          path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/deb/*.deb
+
+  # ──────────────────────────────────────────────
+  # 汇总产物 → 发布到 snapshot release
+  # ──────────────────────────────────────────────
+  publish-snapshot:
+    name: Publish Snapshot Release
+    needs: [build-android, build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: snapshot-artifacts
+          merge-multiple: true
+
+      - name: Show downloaded artifacts
+        run: ls -la snapshot-artifacts/
+
+      - name: Generate commit message
+        id: commit
+        run: |
+          echo "msg<<EOF" >> $GITHUB_OUTPUT
+          git log -1 --pretty=format:"%s" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Delete existing snapshot release
+        continue-on-error: true
+        run: |
+          gh release delete ${{ env.SNAPSHOT_TAG }} --yes --repo ${{ env.SNAPSHOT_OWNER }}/${{ env.SNAPSHOT_REPO }}
+          git push origin --delete ${{ env.SNAPSHOT_TAG }} 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create snapshot release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.SNAPSHOT_TAG }}
+          name: "Snapshot Build"
+          body: |
+            Auto-built from ${{ github.sha }}
+            ${{ steps.commit.outputs.msg }}
+          prerelease: true
+          files: snapshot-artifacts/*
+          fail_on_unmatched_files: false
+          generate_release_notes: false
+
+  # ──────────────────────────────────────────────
+  # 部署 Snapshot 发布页到 Vercel
+  # ──────────────────────────────────────────────
+  deploy-page:
+    name: Deploy Snapshot Page
+    needs: publish-snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./release-page
+
+      - name: Build Next.js
+        run: npm run build
+        working-directory: ./release-page
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-args: '--prod'
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_SNAPSHOT_PROJECT_ID }}
+          working-directory: ${{ github.workspace }}/release-page
+
+  # ──────────────────────────────────────────────
+  # 通知 QQ 群
+  # ──────────────────────────────────────────────
+  notify-qq:
+    name: Notify QQ Group
+    needs: publish-snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call AstrBot Webhook
+        continue-on-error: true
+        run: |
+          curl -X POST "${{ secrets.ASTRBOT_WEBHOOK_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.ASTRBOT_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version": "snapshot-${{ github.sha }}",
+              "tag": "snapshot",
+              "changelog": "自动构建: ${{ github.sha }}",
+              "published_at": "${{ github.event.head_commit.timestamp }}",
+              "download_links": {
+                "Snapshot 下载页": "https://lmusic-snapshot.vercel.app"
+              }
+            }'
