@@ -67,6 +67,8 @@ class SlotParamContext internal constructor(
 
         fun <T : Any> value(key: String, value: T) = run { stateMap[key] = value }
         infix fun String.reg(value: Any) = value(this, value)
+        infix fun <T> String.composableT(content: @Composable () -> T) = run { stateMap[this] = content }
+        infix fun String.composable(content: @Composable () -> Unit) = run { stateMap[this] = content }
     }
 }
 

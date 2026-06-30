@@ -133,7 +133,7 @@ fun SongDetailScreenContent(
                             tagContents.forEach { (key, content) ->
                                 content.ApplyContent(modifier = Modifier) {
                                     if (key == "music_tags") {
-                                        "uri" reg @Composable { "${song?.extra?.get("uri")}" }
+                                        "song" composableT { song }
                                     }
                                 }
                             }
