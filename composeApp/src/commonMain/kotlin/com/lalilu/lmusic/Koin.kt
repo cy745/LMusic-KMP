@@ -18,6 +18,7 @@ import org.koin.core.KoinApplication
 import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.Configuration
 import org.koin.core.annotation.Module
+import org.koin.core.annotation.ModuleProvider
 import org.koin.dsl.module
 
 fun KoinApplication.koinSetup() {
@@ -27,8 +28,12 @@ fun KoinApplication.koinSetup() {
     ComposeStabilityAnalyzer.setLogger(DebugRecomposeLogger) // TODO 需要判断debug模式才开启
 
     logger(KermitKoinLogger(Logger.withTag("Koin")))
-    KoinApp.configuration()
-        .invoke(this)
+
+    val collectedModules = kRouterInjectMap().services
+        .filterIsInstance<ModuleProvider>()
+        .map { it.provide() }
+
+    modules(collectedModules)
     modules(SharedModule)
 }
 
