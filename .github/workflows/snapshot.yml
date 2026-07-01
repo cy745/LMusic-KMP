@@ -67,9 +67,12 @@ jobs:
           cache: gradle
 
       # 构建 Release MSI（Windows 无 iOS 工具链，需禁用 iOS 目标）
-      - run: chmod +x gradlew
+      - name: Prepare Gradlew
+        shell: bash
+        run: chmod +x gradlew
 
       - name: Build Release MSI
+        shell: bash
         run: ./gradlew composeApp:packageReleaseMsi -Plalilu.disable.ios.targets=true
         continue-on-error: true
 
