@@ -25,3 +25,4 @@ keystore.properties
 /.planning
 /lmedia/lmedia-data/db/
 /composeApp/db/
+node_modules
