@@ -1,8 +1,4 @@
-import org.jetbrains.kotlin.gradle.dsl.HasConfigurableKotlinCompilerOptions
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.dsl.KotlinBaseExtension
-import org.jetbrains.kotlin.gradle.dsl.KotlinJsCompile
-import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+import org.jetbrains.kotlin.gradle.dsl.*
 import org.jetbrains.kotlin.gradle.plugin.KotlinMultiplatformPluginWrapper
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
@@ -26,7 +22,10 @@ plugins {
 }
 
 // 配置注入遍历的起点项目
-ext { set("targetInjectProjectName", "composeApp") }
+ext {
+    set("targetInjectProjectName", "composeApp")
+    set("krouter.collect.annotations", "org.koin.core.annotation.ModuleProvide")
+}
 
 // 子项目都开启 wasm-kclass-fqn
 // 让 wasm 支持直接访问 KClass 的 qualifiedName 参数
