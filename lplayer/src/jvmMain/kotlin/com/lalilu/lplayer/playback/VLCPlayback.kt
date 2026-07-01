@@ -11,6 +11,7 @@ import com.lalilu.lplayer.player.ByteArrayCallbackMedia
 import com.lalilu.lplayer.player.VLCPlayer
 import com.lalilu.lplayer.player.VLCPlayerLoader
 import kotlinx.coroutines.launch
+import org.koin.core.annotation.Single
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import uk.co.caprica.vlcj.player.base.MediaPlayer
@@ -18,6 +19,7 @@ import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
+@Single(binds = [Playback::class])
 @OptIn(ExperimentalTime::class)
 class VLCPlayback(
     private val library: Library,
