@@ -71,7 +71,7 @@ jobs:
 
   build-macos:
     name: build-macos
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout
