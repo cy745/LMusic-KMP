@@ -1,18 +1,32 @@
 import React from 'react';
 
-// ── SSR: 每次请求时从 Vercel API 获取最新 snapshot 数据 ──
+// ── SSR: 直接从 GitHub API 获取数据（避免 Vercel Protection 导致内部请求失败） ──
 export async function getServerSideProps() {
-  const base = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000';
-
   try {
-    const res = await fetch(`${base}/api/snapshot`, { timeout: 8000 });
-    if (!res.ok) throw new Error(`API ${res.status}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(
+      'https://api.github.com/repos/cy745/LMusic-KMP/releases/tags/snapshot',
+      {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'lmusic-snapshot-page',
+        },
+        signal: controller.signal,
+      }
+    );
+    clearTimeout(timeout);
+
+    if (res.status === 404) {
+      return { props: { snapshot: null, error: null, no_snapshot: true } };
+    }
+
+    if (!res.ok) throw new Error(`GitHub API: ${res.status}`);
     const data = await res.json();
-    return { props: { snapshot: data, error: null } };
+    return { props: { snapshot: data, error: null, no_snapshot: false } };
   } catch (err) {
-    return { props: { snapshot: null, error: err.message } };
+    return { props: { snapshot: null, error: err.message, no_snapshot: false } };
   }
 }
 
