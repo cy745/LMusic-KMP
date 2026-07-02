@@ -1,4 +1,5 @@
 import React from 'react';
+import Head from 'next/head';
 
 // ── SSR: 直接从 GitHub API 获取数据（避免 Vercel Protection 导致内部请求失败） ──
 export async function getServerSideProps() {
@@ -38,56 +39,38 @@ function fmtSize(bytes) {
     : (bytes / 1048576).toFixed(1) + ' MB';
 }
 
-function fmtDate(iso) {
-  if (!iso) return '--';
-  const d = new Date(iso);
-  return d.toLocaleString('zh-CN', {
-    month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
-
-function timeAgo(iso) {
-  if (!iso) return '';
-  const sec = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (sec < 60) return '刚刚';
-  if (sec < 3600) return `${Math.floor(sec / 60)} 分钟前`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)} 小时前`;
-  return `${Math.floor(sec / 86400)} 天前`;
-}
-
-// ── 平台标识 ──
 function platformIcon(name) {
   const n = name.toLowerCase();
-  if (n.includes('.apk')) return 'android';
-  if (n.includes('.aab')) return 'android';
+  if (n.includes('.apk') || n.includes('.aab')) return 'android';
   if (n.includes('.exe') || n.includes('.msi')) return 'windows';
   if (n.includes('.dmg')) return 'macos';
   if (n.includes('.deb') || n.includes('.appimage')) return 'linux';
+  if (n.includes('.ipa')) return 'ios';
   return 'other';
 }
 
 const PLATFORM_META = {
-  android: { label: 'Android', color: '#a4c639' },
-  windows: { label: 'Windows', color: '#00a4ef' },
-  macos:   { label: 'macOS',   color: '#a2aaad' },
-  linux:   { label: 'Linux',   color: '#f9a825' },
-  other:   { label: '其他',    color: '#888' },
+  android: { label: 'Android', icon: 'ri-android-fill',   color: '#2e7d32', iconColor: '#3ddc84' },
+  windows: { label: 'Windows', icon: 'ri-windows-fill',   color: '#00a4ef', iconColor: '#00a4ef' },
+  macos:   { label: 'macOS',   icon: 'ri-mac-line',       color: '#555',    iconColor: '#555'    },
+  linux:   { label: 'Linux',   icon: 'ri-ubuntu-line',    color: '#e95420', iconColor: '#e95420' },
+  ios:     { label: 'iOS',     icon: 'ri-apple-line',     color: '#000',    iconColor: '#555'    },
+  other:   { label: '其他',    icon: 'ri-file-2-fill',    color: '#888',    iconColor: '#888'    },
 };
 
 // ── 主组件 ──
 export default function SnapshotPage({ snapshot, error }) {
+  const [testflightMsg, setTestflightMsg] = React.useState('');
+
   // 没有 snapshot release 时的空白状态
   const empty = !snapshot || snapshot.no_snapshot;
 
-  // 从 API 获取的数据或占位
   const commitSha = snapshot?.tag_name || snapshot?.target_commitish || '';
   const commitShort = commitSha.slice(0, 7);
   const publishedAt = snapshot?.published_at || snapshot?.created_at;
   const assets = snapshot?.assets || [];
   const body = snapshot?.body || '';
 
-  // 提取 commit message
   const commitMsg = body
     ? body.split('\n')[0].replace(/^Auto-built from /, '')
     : '';
@@ -102,8 +85,16 @@ export default function SnapshotPage({ snapshot, error }) {
     groups[pf].push(asset);
   }
 
+  const handleTestFlight = () => {
+    setTestflightMsg('敬请期待～');
+  };
+
   return (
     <div className="page">
+      <Head>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" />
+      </Head>
+
       <header className="header">
         <div className="header-inner">
           <div className="brand">
@@ -144,7 +135,7 @@ export default function SnapshotPage({ snapshot, error }) {
                 </div>
                 <div className="info-card">
                   <span className="info-label">Built</span>
-                  <span className="info-value">{timeAgo(publishedAt) || fmtDate(publishedAt)}</span>
+                  <span className="info-value">{publishedAt ? new Date(publishedAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--'}</span>
                 </div>
                 <div className="info-card">
                   <span className="info-label">Artifacts</span>
@@ -163,6 +154,14 @@ export default function SnapshotPage({ snapshot, error }) {
               </section>
             )}
 
+            {/* ── 构建详情（移到下载上面） ── */}
+            <section className="section">
+              <details className="details">
+                <summary className="details-summary">构建详情</summary>
+                <pre className="details-pre">{JSON.stringify({ sha: commitSha, published: publishedAt, assets: assets.length }, null, 2)}</pre>
+              </details>
+            </section>
+
             {/* ── 下载列表 ── */}
             <section className="section">
               <h2 className="section-title">下载</h2>
@@ -170,12 +169,10 @@ export default function SnapshotPage({ snapshot, error }) {
                 <div className="downloads">
                   {Object.entries(groups).map(([pf, items]) => (
                     <div key={pf} className="platform-group">
-                      <div className="platform-label">
-                        <span
-                          className="platform-dot"
-                          style={{ background: PLATFORM_META[pf]?.color || '#888' }}
-                        />
-                        {PLATFORM_META[pf]?.label || pf}
+                      <div className="platform-label" data-platform={pf}>
+                        <i className={`${PLATFORM_META[pf]?.icon || 'ri-file-2-fill'} ri-fw`} style={{ color: PLATFORM_META[pf]?.iconColor }} />
+                        <span style={{ color: PLATFORM_META[pf]?.color }}>{PLATFORM_META[pf]?.label || pf}</span>
+                        {pf === 'ios' && <span className="badge-ios">需要自行签名</span>}
                       </div>
                       <div className="asset-list">
                         {items.map((asset) => (
@@ -188,24 +185,36 @@ export default function SnapshotPage({ snapshot, error }) {
                           >
                             <span className="asset-name">{asset.name}</span>
                             <span className="asset-size">{fmtSize(asset.size)}</span>
-                            <span className="asset-arrow">↓</span>
+                            <span className="asset-arrow">
+                              <i className="ri-download-2-line" />
+                            </span>
                           </a>
                         ))}
                       </div>
                     </div>
                   ))}
+
+                  {/* ── TestFlight 入口 ── */}
+                  <div className="platform-group">
+                    <div className="platform-label">
+                      <i className="ri-flight-takeoff-fill ri-fw" />
+                      TestFlight
+                    </div>
+                    <div className="asset-list">
+                      <button className="asset-link testflight-btn" onClick={handleTestFlight}>
+                        <span className="asset-name">
+                          {testflightMsg || '通过邮件邀请加入 TestFlight 内测'}
+                        </span>
+                        <span className="asset-arrow">
+                          <i className="ri-arrow-right-s-line" />
+                        </span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <p className="muted">当前版本无构建产物</p>
               )}
-            </section>
-
-            {/* ── 版本详情 ── */}
-            <section className="section">
-              <details className="details">
-                <summary className="details-summary">构建详情</summary>
-                <pre className="details-pre">{JSON.stringify({ sha: commitSha, published: publishedAt, assets: assets.length }, null, 2)}</pre>
-              </details>
             </section>
           </>
         )}
@@ -406,11 +415,19 @@ export default function SnapshotPage({ snapshot, error }) {
           border-bottom: 1px solid var(--border);
           background: var(--bg);
         }
-        .platform-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          display: inline-block;
+        .platform-label i {
+          font-size: 16px;
+        }
+        .badge-ios {
+          font-size: 10px;
+          font-weight: 400;
+          color: #fff;
+          background: #e74c3c;
+          padding: 1px 6px;
+          border-radius: 3px;
+          letter-spacing: 0;
+          text-transform: none;
+          margin-left: auto;
         }
         .asset-list {
           display: flex;
@@ -447,12 +464,25 @@ export default function SnapshotPage({ snapshot, error }) {
         }
         .asset-arrow {
           color: var(--text-muted);
-          font-size: 12px;
+          font-size: 14px;
           transition: transform 0.15s;
+          display: flex;
+          align-items: center;
         }
         .asset-link:hover .asset-arrow {
-          transform: translateY(1px);
+          transform: translateX(2px);
           color: var(--accent);
+        }
+        .testflight-btn {
+          cursor: pointer;
+          border: none;
+          background: none;
+          width: 100%;
+          text-align: left;
+          font-family: var(--font);
+        }
+        .testflight-btn:hover {
+          background: var(--bg);
         }
 
         /* ── Details ── */
@@ -500,7 +530,7 @@ export default function SnapshotPage({ snapshot, error }) {
           .info-card { padding: 12px; }
           .info-value { font-size: 14px; }
         }
-      }`}</style>
+      `}</style>
     </div>
   );
 }
