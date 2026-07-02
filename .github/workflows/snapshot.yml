@@ -157,6 +157,16 @@ jobs:
           mkdir -p private_keys
           echo "${{ secrets.ASC_PRIVATE_KEY }}" > "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
 
+      # 导入签名证书（避免每次 CI 自动创建新证书达到上限）
+      - name: Import signing certificate
+        run: |
+          echo "${{ secrets.BUILD_CERTIFICATE_BASE64 }}" | base64 --decode > /tmp/cert.p12
+          security create-keychain -p "temp" /tmp/build.keychain
+          security default-keychain -s /tmp/build.keychain
+          security unlock-keychain -p "temp" /tmp/build.keychain
+          security import /tmp/cert.p12 -k /tmp/build.keychain -P "${{ secrets.CERT_PASSWORD }}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" /tmp/build.keychain
+
       # 构建 + Archive（使用 xcshareddata 中的 scheme）
       - name: Build and Archive
         run: |
