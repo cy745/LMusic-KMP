@@ -16,7 +16,6 @@ import com.skydoves.compose.stability.runtime.ComposeStabilityAnalyzer
 import kotlinx.serialization.json.Json
 import org.koin.core.KoinApplication
 import org.koin.core.annotation.ComponentScan
-import org.koin.core.annotation.Configuration
 import org.koin.core.annotation.Module
 import org.koin.core.annotation.ModuleProvider
 import org.koin.dsl.module
@@ -45,7 +44,6 @@ private val SharedModule = module {
 }
 
 @Module
-@Configuration("default")
 @ComponentScan("com.lalilu.lmusic")
 object AppModule
 

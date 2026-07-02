@@ -18,13 +18,11 @@
 package com.lalilu.lsettings
 
 import org.koin.core.annotation.ComponentScan
-import org.koin.core.annotation.Configuration
 import org.koin.core.annotation.Module
 
 /**
  * :lsettings 模块的 Koin 注册入口。
  */
 @Module
-@Configuration("default")
 @ComponentScan("com.lalilu.lsettings")
 object LSettingsModule
