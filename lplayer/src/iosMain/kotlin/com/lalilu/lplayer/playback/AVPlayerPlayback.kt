@@ -13,6 +13,7 @@ import kotlinx.cinterop.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.core.annotation.Single
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import platform.AVFAudio.AVAudioPlayer
@@ -21,6 +22,8 @@ import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeMake
 import platform.Foundation.*
 
+
+@Single(binds = [Playback::class])
 @OptIn(ExperimentalForeignApi::class)
 class AVPlayerPlayback(
     private val library: Library,

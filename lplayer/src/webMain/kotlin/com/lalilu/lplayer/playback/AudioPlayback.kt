@@ -17,7 +17,7 @@ import org.w3c.files.Blob
 import org.w3c.files.BlobPropertyBag
 
 
-@Single
+@Single(binds = [Playback::class])
 @OptIn(ExperimentalWasmJsInterop::class)
 class AudioPlayback(
     private val library: Library,
