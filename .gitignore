@@ -26,3 +26,4 @@ keystore.properties
 /lmedia/lmedia-data/db/
 /composeApp/db/
 node_modules
+.next

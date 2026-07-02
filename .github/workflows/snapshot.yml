@@ -210,7 +210,7 @@ jobs:
   # ──────────────────────────────────────────────
   publish-snapshot:
     name: Publish Snapshot Release
-    needs: [build-android, build-windows, build-macos, build-linux, build-ios]
+    needs: [ build-android, build-windows, build-macos, build-linux, build-ios ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -295,19 +295,52 @@ jobs:
     name: Notify QQ Group
     needs: publish-snapshot
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - name: Call AstrBot Webhook
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Build webhook payload and notify
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_MSG: ${{ github.event.head_commit.message || 'auto build' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SNAPSHOT_SHA: ${{ github.sha }}
+          SNAPSHOT_TS: ${{ github.event.head_commit.timestamp }}
         run: |
-          curl -X POST "${{ secrets.ASTRBOT_WEBHOOK_URL }}" \
-            -H "Authorization: Bearer ${{ secrets.ASTRBOT_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "version": "snapshot-${{ github.sha }}",
-              "tag": "snapshot",
-              "changelog": "自动构建: ${{ github.sha }}",
-              "published_at": "${{ github.event.head_commit.timestamp }}",
-              "download_links": {
-                "Snapshot 下载页": "https://lmusic-snapshot.vercel.app"
-              }
-            }'
+          ASSETS=$(gh release view snapshot --repo ${{ github.repository }} --json assets -q '[.assets[] | {key: .name, value: .browser_download_url}] | from_entries' 2>/dev/null || echo "{}")
+          export ASSETS
+
+          python3 << 'PYEOF'
+          import json, os, urllib.request, urllib.error
+          
+          payload = {
+              'version': 'snapshot-' + os.environ.get('SNAPSHOT_SHA', '')[:7],
+              'tag': 'snapshot',
+              'branch': 'dev',
+              'sha': os.environ.get('SNAPSHOT_SHA', ''),
+              'changelog': os.environ.get('COMMIT_MSG', ''),
+              'published_at': os.environ.get('SNAPSHOT_TS', ''),
+              'run_url': os.environ.get('RUN_URL', ''),
+              'download_links': json.loads(os.environ.get('ASSETS', '{}'))
+          }
+          
+          data = json.dumps(payload, ensure_ascii=False).encode()
+          req = urllib.request.Request(
+              '${{ secrets.ASTRBOT_WEBHOOK_URL }}',
+              data=data,
+              headers={
+                  'Authorization': 'Bearer ${{ secrets.ASTRBOT_API_KEY }}',
+                  'Content-Type': 'application/json'
+              },
+              method='POST'
+          )
+          try:
+              resp = urllib.request.urlopen(req, timeout=15)
+              print('Webhook response:', resp.read().decode())
+          except Exception as e:
+              print(f'Webhook failed: {e}')
+          PYEOF
