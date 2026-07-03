@@ -137,7 +137,7 @@ jobs:
           path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/deb/*.deb
 
   # ──────────────────────────────────────────────
-  # iOS → TestFlight（需要 App Store Connect API Key）
+  # iOS → TestFlight（Apple-Actions 官方最佳实践）
   # ──────────────────────────────────────────────
   build-ios:
     name: iOS + TestFlight
@@ -151,23 +151,22 @@ jobs:
           cache: gradle
       - run: chmod +x gradlew
 
-      # 设置 App Store Connect API Key
-      - name: Create API Key file
-        run: |
-          mkdir -p private_keys
-          echo "${{ secrets.ASC_PRIVATE_KEY }}" > "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+      # 1. 导入 Distribution 签名证书到 keychain
+      - uses: Apple-Actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.CERT_PASSWORD }}
 
-      # 导入签名证书（避免每次 CI 自动创建新证书达到上限）
-      - name: Import signing certificate
-        run: |
-          echo "${{ secrets.BUILD_CERTIFICATE_BASE64 }}" | base64 --decode > /tmp/cert.p12
-          security create-keychain -p "temp" /tmp/build.keychain
-          security default-keychain -s /tmp/build.keychain
-          security unlock-keychain -p "temp" /tmp/build.keychain
-          security import /tmp/cert.p12 -k /tmp/build.keychain -P "${{ secrets.CERT_PASSWORD }}" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" /tmp/build.keychain
+      # 2. 下载 App Store 发布 Provisioning Profile
+      - uses: Apple-Actions/download-provisioning-profiles@v6
+        with:
+          bundle-id: com.lalilu.lmusic
+          profile-type: IOS_APP_STORE
+          issuer-id: ${{ secrets.ASC_ISSUER_ID }}
+          api-key-id: ${{ secrets.ASC_KEY_ID }}
+          api-private-key: ${{ secrets.ASC_PRIVATE_KEY }}
 
-      # 构建 + Archive（使用 xcshareddata 中的 scheme）
+      # 3. 构建 + Archive
       - name: Build and Archive
         run: |
           xcodebuild archive \
@@ -175,12 +174,9 @@ jobs:
             -scheme iosApp \
             -configuration Release \
             -destination "generic/platform=iOS" \
-            -archivePath "$RUNNER_TEMP/LMusic.xcarchive" \
-            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
-            -authenticationKeyPath "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+            -archivePath "$RUNNER_TEMP/LMusic.xcarchive"
 
-      # 生成 ExportOptions.plist
+      # 4. 生成 ExportOptions.plist
       - name: Generate ExportOptions.plist
         run: |
           /usr/libexec/PlistBuddy -c "Add method string app-store" \
@@ -188,25 +184,24 @@ jobs:
             -c "Add uploadSymbols bool true" \
             ExportOptions.plist
 
-      # 导出 IPA
+      # 5. 导出 IPA
       - name: Export IPA
         run: |
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/LMusic.xcarchive" \
             -exportPath "$RUNNER_TEMP/ipa" \
-            -exportOptionsPlist ExportOptions.plist \
-            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
-            -authenticationKeyPath "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+            -exportOptionsPlist ExportOptions.plist
 
-      # 上传到 TestFlight
-      - uses: apple-actions/upload-testflight-build@v3
+      # 6. 上传到 TestFlight
+      - uses: apple-actions/upload-testflight-build@v5
         with:
           app-path: ${{ runner.temp }}/ipa/LMusic-KMP.ipa
+          app-type: ios
           issuer-id: ${{ secrets.ASC_ISSUER_ID }}
           api-key-id: ${{ secrets.ASC_KEY_ID }}
           api-private-key: ${{ secrets.ASC_PRIVATE_KEY }}
 
+      # 7. 保留 IPA 作为构建产物
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
