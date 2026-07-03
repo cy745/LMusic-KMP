@@ -22,34 +22,17 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.lalilu.SlotContent
+import com.lalilu.extensions.SharedContext
+import com.lalilu.extensions.buildSharedMap
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
-import org.koin.core.annotation.Named
-import org.koin.core.annotation.Single
-
-
-@Named("audio_item_card")
-@Single
-fun slotAudioItemCard() = SlotContent { modifier ->
-    AudioItemCard(
-        modifier = modifier,
-        title = param("title", ""),
-        subtitle = param("subtitle", ""),
-        imageData = param("imageData") ?: Unit,
-        isSelecting = param("isSelecting") { false },
-        isSelected = param("isSelected") { false },
-        onEnterSelect = param("onEnterSelect") { },
-        onSelect = param("onSelect") { },
-        onPlay = param("onPlay") { },
-        onNavigateToDetail = param("onNavigateToDetail") { }
-    )
-}
 
 @Composable
 fun AudioItemCard(
     modifier: Modifier = Modifier,
     coverModifier: Modifier = Modifier,
+    sharedMapPrefix: String = "",
+    id: String,
     title: String,
     subtitle: String,
     imageData: Any = Unit,
@@ -58,7 +41,13 @@ fun AudioItemCard(
     onEnterSelect: () -> Unit = {},
     onSelect: () -> Unit = {},
     onPlay: () -> Unit = {},
-    onNavigateToDetail: () -> Unit = {}
+    onNavigateToDetail: (sharedMap: Map<String, String>) -> Unit = {}
+) = SharedContext(
+    sharedMap = buildSharedMap(
+        id = id,
+        keys = listOf("TITLE", "SUBTITLE"),
+        prefix = sharedMapPrefix
+    )
 ) {
     val selectionColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
     val bgColor by animateColorAsState(
@@ -72,7 +61,7 @@ fun AudioItemCard(
             .background(color = bgColor)
             .combinedClickable(
                 onClick = { if (isSelecting()) onSelect() else onPlay() },
-                onLongClick = { if (isSelecting()) onEnterSelect() else onNavigateToDetail() }
+                onLongClick = { if (isSelecting()) onEnterSelect() else onNavigateToDetail(sharedMap) }
             )
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -83,6 +72,8 @@ fun AudioItemCard(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
+                modifier = Modifier
+                    .sharedBoundsV2("TITLE"),
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -90,7 +81,8 @@ fun AudioItemCard(
                 fontSize = 14.sp,
             )
             Text(
-                modifier = Modifier.alpha(0.6f),
+                modifier = Modifier.alpha(0.6f)
+                    .sharedBoundsV2("SUBTITLE"),
                 text = subtitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -129,6 +121,7 @@ private fun AudioItemCardPreview() = preview {
             AudioItemCard(
                 modifier = Modifier.fillMaxWidth()
                     .padding(8.dp),
+                id = stringValue("title"),
                 title = stringValue("title"),
                 subtitle = stringValue("subtitle"),
                 imageData = intValue("imageData")
