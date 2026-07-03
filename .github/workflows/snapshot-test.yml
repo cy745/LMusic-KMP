@@ -173,11 +173,7 @@ jobs:
 
       # 3. 构建 + Archive（手动签名，使用导入的证书和已下载的 Profile）
       - name: Build and Archive
-        env:
-          PROFILE_NAME: ${{ steps.fetch-profiles.outputs.profiles }}
         run: |
-          SPECIFIER=$(echo "$PROFILE_NAME" | jq -r '[.[] | select(.name | test("LMusic"; "i"))] | .[0].name')
-          echo "Using provisioning profile: $SPECIFIER"
           xcodebuild archive \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \
@@ -186,20 +182,18 @@ jobs:
             -archivePath "$RUNNER_TEMP/LMusic.xcarchive" \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=${{ secrets.DEVELOPEMENT_TEAM }} \
-            PROVISIONING_PROFILE_SPECIFIER="$SPECIFIER" \
+            PROVISIONING_PROFILE_SPECIFIER="LMusic pub" \
             | xcbeautify --renderer github-actions
         shell: /bin/bash -o pipefail {0}
 
       # 4. 生成 ExportOptions.plist
       - name: Generate ExportOptions.plist
         run: |
-          PROFILE_NAME=$(echo '${{ steps.fetch-profiles.outputs.profiles }}' | jq -r '.[0].name')
-          echo "Using profile: $PROFILE_NAME"
           /usr/libexec/PlistBuddy -c "Add method string app-store-connect" \
             -c "Add teamID string 89HDPPJNKB" \
             -c "Add signingStyle string manual" \
             -c "Add provisioningProfiles dict" \
-            -c "Add provisioningProfiles:com.lalilu.lmusic string $PROFILE_NAME" \
+            -c "Add provisioningProfiles:com.lalilu.lmusic string LMusic pub" \
             -c "Add uploadSymbols bool true" \
             ExportOptions.plist
 
