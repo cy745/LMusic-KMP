@@ -151,6 +151,10 @@ jobs:
           cache: gradle
       - run: chmod +x gradlew
 
+      # 安装 xcbeautify（格式化 xcodebuild 输出，支持 GitHub Actions 注解）
+      - name: Install xcbeautify
+        run: brew install xcbeautify
+
       # 1. 导入 Distribution 签名证书到 keychain
       - uses: Apple-Actions/import-codesign-certs@v7
         with:
@@ -177,7 +181,9 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/LMusic.xcarchive" \
             CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=${{ secrets.DEVELOPEMENT_TEAM }}
+            DEVELOPMENT_TEAM=${{ secrets.DEVELOPEMENT_TEAM }} \
+            | xcbeautify --renderer github-actions
+        shell: /bin/bash -o pipefail {0}
 
       # 4. 生成 ExportOptions.plist
       - name: Generate ExportOptions.plist
@@ -198,7 +204,9 @@ jobs:
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/LMusic.xcarchive" \
             -exportPath "$RUNNER_TEMP/ipa" \
-            -exportOptionsPlist ExportOptions.plist
+            -exportOptionsPlist ExportOptions.plist \
+            | xcbeautify --renderer github-actions
+        shell: /bin/bash -o pipefail {0}
 
       # 6. 上传到 TestFlight
       - uses: apple-actions/upload-testflight-build@v5
