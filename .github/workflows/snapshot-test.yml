@@ -184,6 +184,7 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM=${{ secrets.DEVELOPEMENT_TEAM }} \
             PROVISIONING_PROFILE_SPECIFIER="LMusic pub" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             | xcbeautify --renderer github-actions
         shell: /bin/bash -o pipefail {0}
 
