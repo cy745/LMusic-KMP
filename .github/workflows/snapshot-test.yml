@@ -335,8 +335,9 @@ jobs:
           export ASSETS
 
           python3 << 'PYEOF'
-          import json, os, urllib.request, urllib.error
-          
+          import json, os, ssl, urllib.request, urllib.error
+          ctx = ssl._create_unverified_context()
+
           payload = {
               'version': 'snapshot-' + os.environ.get('SNAPSHOT_SHA', '')[:7],
               'tag': 'snapshot',
@@ -359,7 +360,7 @@ jobs:
               method='POST'
           )
           try:
-              resp = urllib.request.urlopen(req, timeout=15)
+              resp = urllib.request.urlopen(req, timeout=15, context=ctx)
               print('Webhook response:', resp.read().decode())
           except Exception as e:
               print(f'Webhook failed: {e}')
