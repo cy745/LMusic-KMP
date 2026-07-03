@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
+import com.lalilu.common.ext.md5
 import com.lalilu.extensions.*
 import com.lalilu.lartist.component.ArtistCard
 import com.lalilu.lartist.viewmodel.ArtistDetailEvent
@@ -61,6 +62,7 @@ internal fun ArtistDetailScreenContent(
     onClickAddToPlaylist: () -> Unit = {},
     onClickPlayAll: () -> Unit = {},
 ) = SharedContext(sharedMap) {
+    val sharedMapPrefix = remember { "${artist?.idValue()?.md5()}:" }
     val context = LocalPlatformContext.current
     val density = LocalDensity.current
     val listState: LazyListState = rememberLazyListState()
@@ -215,6 +217,8 @@ internal fun ArtistDetailScreenContent(
                         modifier = Modifier
                             .animateItem()
                             .fillMaxWidth(),
+                        sharedMapPrefix = sharedMapPrefix,
+                        id = item.idValue(),
                         title = item.titleValue(),
                         subtitle = item.subtitleValue(),
                         imageData = item,
@@ -231,13 +235,14 @@ internal fun ArtistDetailScreenContent(
                                 ).action()
                             }
                         },
-                        onNavigateToDetail = {
+                        onNavigateToDetail = { sharedMap ->
                             val coverMemoryKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/song/detail")
                                 .with("mediaId", item.idValue())
                                 .with("song", item)
                                 .with("coverCacheKey", coverMemoryKey)
+                                .with("sharedMap", sharedMap)
                                 .jump()
                         }
                     )

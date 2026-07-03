@@ -102,7 +102,8 @@ sealed interface AlbumDetailAction {
 @OptIn(ExperimentalCoroutinesApi::class)
 @KoinViewModel
 class AlbumDetailVM(
-    private val albumId: String
+    private val albumId: String,
+    private val album: LAlbum? = null
 ) : ViewModel(),
     MviWithIntent<AlbumDetailState, AlbumDetailEvent, AlbumDetailAction> by
     mviImplWithIntent(AlbumDetailState(albumId)) {
@@ -125,6 +126,9 @@ class AlbumDetailVM(
             "sort_rule_last_play_time"
         )
     )
+
+    val albumFlow = LMedia.instance.flow<LAlbum>(albumId)
+        .toState(viewModelScope)
 
     val songs = stateFlow()
         .distinctUntilChangedBy { it.distinctKey }

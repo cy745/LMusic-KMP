@@ -153,6 +153,7 @@ internal fun PlaylistDetailScreenContent(
                             modifier = Modifier.fillMaxWidth(),
                             coverModifier = Modifier
                                 .draggableHandle(onDragStopped = { onUpdatePlaylist(playlistState.map { it.idValue() }) }),
+                            id = item.idValue(),
                             title = item.titleValue(),
                             subtitle = item.subtitleValue(),
                             imageData = item,
@@ -170,13 +171,14 @@ internal fun PlaylistDetailScreenContent(
                                     ).action()
                                 }
                             },
-                            onNavigateToDetail = {
+                            onNavigateToDetail = { sharedMap ->
                                 val coverMemoryKey = context.retrieveCacheKey(item)
 
                                 AppRouter.route("/song/detail")
                                     .with("mediaId", item.idValue())
                                     .with("song", item)
                                     .with("coverCacheKey", coverMemoryKey)
+                                    .with("sharedMap", sharedMap)
                                     .jump()
                             }
                         )
@@ -214,6 +216,7 @@ internal fun PlaylistDetailScreenContent(
                             modifier = Modifier
                                 .animateItem()
                                 .fillMaxWidth(),
+                            id = item.idValue(),
                             title = item.titleValue(),
                             subtitle = item.subtitleValue(),
                             imageData = item,
@@ -231,13 +234,14 @@ internal fun PlaylistDetailScreenContent(
                                     ).action()
                                 }
                             },
-                            onNavigateToDetail = {
+                            onNavigateToDetail = { sharedMap ->
                                 val coverMemoryKey = context.retrieveCacheKey(item)
 
                                 AppRouter.route("/song/detail")
                                     .with("mediaId", item.idValue())
                                     .with("song", item)
                                     .with("coverCacheKey", coverMemoryKey)
+                                    .with("sharedMap", sharedMap)
                                     .jump()
                             }
                         )

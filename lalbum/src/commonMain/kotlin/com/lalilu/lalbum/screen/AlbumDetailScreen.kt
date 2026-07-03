@@ -10,7 +10,6 @@ import com.lalilu.lalbum.lalbum.generated.resources.Res
 import com.lalilu.lalbum.lalbum.generated.resources.album_detail_screen_title
 import com.lalilu.lalbum.viewmodel.AlbumDetailAction
 import com.lalilu.lalbum.viewmodel.AlbumDetailVM
-import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.dialog.GroupIdJumperDialog
 import com.lalilu.lmedia.dialog.SortPanelDialog
 import com.lalilu.lmedia.entity.LAlbum
@@ -52,7 +51,7 @@ data class AlbumDetailScreen(
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
-        val vm = koinViewModel<AlbumDetailVM>()
+        val vm = koinViewModel<AlbumDetailVM>(parameters = { parametersOf(albumId) })
         val state by vm.state
 
         return remember {
@@ -107,8 +106,7 @@ data class AlbumDetailScreen(
         val sortAction = vm.sorter.selectedAction.collectAsState()
         val sortConfig = vm.sorter.sortConfig.collectAsState()
 
-        val album by remember { LMedia.instance.flow<LAlbum>(id = albumId) }
-            .collectAsState(album)
+        val album = vm.albumFlow.value ?: album
 
         SortPanelDialog(
             isVisible = { state.showSortPanel },
