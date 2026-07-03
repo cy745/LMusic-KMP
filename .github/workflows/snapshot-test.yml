@@ -176,7 +176,6 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/LMusic.xcarchive" \
-            -allowProvisioningUpdates \
             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
             -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
             -authenticationKeyPath "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
@@ -196,7 +195,6 @@ jobs:
             -archivePath "$RUNNER_TEMP/LMusic.xcarchive" \
             -exportPath "$RUNNER_TEMP/ipa" \
             -exportOptionsPlist ExportOptions.plist \
-            -allowProvisioningUpdates \
             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
             -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
             -authenticationKeyPath "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
