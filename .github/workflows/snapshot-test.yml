@@ -152,14 +152,10 @@ jobs:
       - run: chmod +x gradlew
 
       # 1. 导入 Distribution 签名证书到 keychain
-      - name: Import signing certificate
-        run: |
-          echo "${{ secrets.BUILD_CERTIFICATE_BASE64 }}" | base64 --decode > /tmp/cert.p12
-          security create-keychain -p "temp" /tmp/build.keychain
-          security default-keychain -s /tmp/build.keychain
-          security unlock-keychain -p "temp" /tmp/build.keychain
-          security import /tmp/cert.p12 -k /tmp/build.keychain -P "${{ secrets.CERT_PASSWORD }}" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" /tmp/build.keychain
+      - uses: Apple-Actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.CERT_PASSWORD }}
 
       # 2. 下载 App Store 发布 Provisioning Profile
       - uses: Apple-Actions/download-provisioning-profiles@v6
