@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -22,9 +24,22 @@ fun <I> RecommendRow(
 ) {
     val listState = rememberLazyListState()
 
+    // 当列表发生改变的时候触发滚动到第一个元素
     if (scrollToFirstWhenChange) {
+        val currentItems = remember { mutableStateOf(items()) }
+
         LaunchedEffect(items()) {
-            listState.scrollToItem(0)
+            val items = items()
+            var changed = false
+            for (index in items.indices) {
+                if (getId(items[index]) != getId(currentItems.value[index])) {
+                    changed = true
+                }
+            }
+            currentItems.value = items
+            if (changed) {
+                listState.scrollToItem(0)
+            }
         }
     }
 
