@@ -99,6 +99,7 @@ class HistoryPanel : LazyGridContent {
                                 AudioItemCard(
                                     modifier = Modifier.fillMaxWidth()
                                         .animateBounds(this@lookaheadScope),
+                                    sharedMapPrefix = "history_panel",
                                     id = audio.idValue(),
                                     title = audio.titleValue(),
                                     subtitle = audio.subtitleValue(),
