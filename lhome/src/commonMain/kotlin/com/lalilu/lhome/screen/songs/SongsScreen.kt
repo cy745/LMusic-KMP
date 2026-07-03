@@ -309,6 +309,7 @@ fun SongsScreenContent(
                     val extra = extras.getOrNull(index)
 
                     AudioItemCard(
+                        id = item.idValue(),
                         title = item.titleValue(),
                         subtitle = item.subtitleValue(),
                         imageData = item,
@@ -325,12 +326,13 @@ fun SongsScreenContent(
                                 ).action()
                             }
                         },
-                        onNavigateToDetail = {
+                        onNavigateToDetail = { sharedMap ->
                             val coverMemoryKey = context.retrieveCacheKey(item)
                             AppRouter.route("/song/detail")
                                 .with("mediaId", item.idValue())
                                 .with("song", item)
                                 .with("coverCacheKey", coverMemoryKey)
+                                .with("sharedMap", sharedMap)
                                 .jump()
                         },
                         modifier = Modifier.animateItem()

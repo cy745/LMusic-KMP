@@ -2,6 +2,7 @@ package com.lalilu.lhome.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lalilu.extensions.toState
 import com.lalilu.lmedia.data.LMedia
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LArtist
@@ -18,6 +19,8 @@ class SongDetailVM(val mediaId: String) : ViewModel() {
 
     val flow = LMedia.instance.flow<LAudio>(mediaId)
         .stateIn(viewModelScope, started = SharingStarted.Lazily, null)
+
+    val songState = flow.toState(viewModelScope)
 
     val albums = flow.mapLatest {
         val list = it?.ref<LAlbum>() ?: emptyList()

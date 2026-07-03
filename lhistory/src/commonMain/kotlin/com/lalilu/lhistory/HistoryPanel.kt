@@ -99,6 +99,7 @@ class HistoryPanel : LazyGridContent {
                                 AudioItemCard(
                                     modifier = Modifier.fillMaxWidth()
                                         .animateBounds(this@lookaheadScope),
+                                    id = audio.idValue(),
                                     title = audio.titleValue(),
                                     subtitle = audio.subtitleValue(),
                                     imageData = audio,
@@ -113,13 +114,14 @@ class HistoryPanel : LazyGridContent {
                                             }
                                         }
                                     },
-                                    onNavigateToDetail = {
+                                    onNavigateToDetail = { sharedMap ->
                                         val coverMemoryKey = context.retrieveCacheKey(audio)
 
                                         AppRouter.route("/song/detail")
                                             .with("mediaId", audio.idValue())
                                             .with("song", audio)
                                             .with("coverCacheKey", coverMemoryKey)
+                                            .with("sharedMap", sharedMap)
                                             .jump()
                                     }
                                 )

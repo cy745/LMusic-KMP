@@ -69,9 +69,9 @@ data class SongDetailScreen(
     @Composable
     override fun Content() {
         val vm = koinViewModel<SongDetailVM>(parameters = { parametersOf(mediaId) })
-        val song by vm.flow.collectAsState(song)
         val albums by vm.albums.collectAsState(emptyList())
         val artists by vm.artists.collectAsState(emptyList())
+        val song = vm.songState.value ?: song
 
         SongDetailScreenContent(
             song = song,
