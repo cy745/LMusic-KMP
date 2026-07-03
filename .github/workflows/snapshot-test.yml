@@ -166,7 +166,13 @@ jobs:
           api-key-id: ${{ secrets.ASC_KEY_ID }}
           api-private-key: ${{ secrets.ASC_PRIVATE_KEY }}
 
-      # 3. 构建 + Archive
+      # 3. 创建 App Store Connect API Key 文件（供 -authenticationKeyPath 使用）
+      - name: Create API Key file
+        run: |
+          mkdir -p private_keys
+          echo "${{ secrets.ASC_PRIVATE_KEY }}" > "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+
+      # 4. 构建 + Archive
       - name: Build and Archive
         run: |
           xcodebuild archive \
@@ -174,9 +180,13 @@ jobs:
             -scheme iosApp \
             -configuration Release \
             -destination "generic/platform=iOS" \
-            -archivePath "$RUNNER_TEMP/LMusic.xcarchive"
+            -archivePath "$RUNNER_TEMP/LMusic.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            -authenticationKeyPath "${{ github.workspace }}/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
 
-      # 4. 生成 ExportOptions.plist
+      # 5. 生成 ExportOptions.plist
       - name: Generate ExportOptions.plist
         run: |
           /usr/libexec/PlistBuddy -c "Add method string app-store" \
@@ -184,7 +194,7 @@ jobs:
             -c "Add uploadSymbols bool true" \
             ExportOptions.plist
 
-      # 5. 导出 IPA
+      # 6. 导出 IPA
       - name: Export IPA
         run: |
           xcodebuild -exportArchive \
@@ -192,7 +202,7 @@ jobs:
             -exportPath "$RUNNER_TEMP/ipa" \
             -exportOptionsPlist ExportOptions.plist
 
-      # 6. 上传到 TestFlight
+      # 7. 上传到 TestFlight
       - uses: apple-actions/upload-testflight-build@v5
         with:
           app-path: ${{ runner.temp }}/ipa/LMusic-KMP.ipa
@@ -201,7 +211,7 @@ jobs:
           api-key-id: ${{ secrets.ASC_KEY_ID }}
           api-private-key: ${{ secrets.ASC_PRIVATE_KEY }}
 
-      # 7. 保留 IPA 作为构建产物
+      # 8. 保留 IPA 作为构建产物
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
