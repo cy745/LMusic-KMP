@@ -176,7 +176,7 @@ jobs:
         env:
           PROFILE_NAME: ${{ steps.fetch-profiles.outputs.profiles }}
         run: |
-          SPECIFIER=$(echo "$PROFILE_NAME" | jq -r '.[0].name')
+          SPECIFIER=$(echo "$PROFILE_NAME" | jq -r '[.[] | select(.name | test("LMusic"; "i"))] | .[0].name')
           echo "Using provisioning profile: $SPECIFIER"
           xcodebuild archive \
             -project iosApp/iosApp.xcodeproj \
