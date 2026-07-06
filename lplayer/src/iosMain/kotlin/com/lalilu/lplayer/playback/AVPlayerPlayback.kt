@@ -2,7 +2,7 @@ package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.extensions.VolumeFadeHelper
@@ -26,8 +26,9 @@ import platform.Foundation.*
 @Single(binds = [Playback::class])
 @OptIn(ExperimentalForeignApi::class)
 class AVPlayerPlayback(
-    private val history: PlaybackHistory
-) : AbstractPlayback(history = history), KoinComponent {
+    private val history: PlaybackHistory,
+    private val audioRepository: AudioRepository
+) : AbstractPlayback(history = history, audioRepository = audioRepository), KoinComponent {
     companion object Companion {
         const val TAG = "AVPlayerPlayback"
     }
@@ -41,8 +42,6 @@ class AVPlayerPlayback(
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
     private val avPlayer: AVPlayer by lazy { AVPlayer() }
     private var audioPlayer: AVAudioPlayer? = null
-
-    override suspend fun resolveMedia(ids: List<String>): List<LAudio> = LMedia.instance.mapBy<LAudio>(ids)
 
     private var volumeFadeHelper = VolumeFadeHelper(
         onSetVolume = {

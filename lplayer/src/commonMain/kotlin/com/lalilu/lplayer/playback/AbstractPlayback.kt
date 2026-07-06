@@ -1,12 +1,15 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.common.ext.io
+import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.entity.toLegacyAudio
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
@@ -18,7 +21,8 @@ import kotlin.random.Random
 @Suppress("PropertyName")
 abstract class AbstractPlayback(
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.io + SupervisorJob()),
-    private val history: PlaybackHistory
+    private val history: PlaybackHistory,
+    protected open val audioRepository: AudioRepository
 ) : Playback,
     CoroutineScope by coroutineScope,
     PlaybackHistory by history {
@@ -59,9 +63,11 @@ abstract class AbstractPlayback(
 
     /**
      * 将 id 列表解析为 [LAudio] 列表。
-     * 平台必须实现，通常依赖各自持有的 [com.lalilu.lmedia.data.Library] 实例。
+     * 默认使用 [audioRepository] 实现；平台可覆盖以提供自定义逻辑。
      */
-    protected abstract suspend fun resolveMedia(ids: List<String>): List<LAudio>
+    protected open suspend fun resolveMedia(ids: List<String>): List<LAudio> {
+        return audioRepository.getAudios(ids).first().map { it.toLegacyAudio() }
+    }
 
     /**
      * 当播放完成时调用

@@ -1,20 +1,3 @@
-/*
- * Copyright (c) 2026 lalilu. All rights reserved.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.lalilu.lartist.viewmodel
 
 import androidx.compose.runtime.Immutable
@@ -27,10 +10,14 @@ import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.ItemRecorder
 import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.toState
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.ArtistRepository
+import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.usecase.GetRelatedArtistsUseCase
+import com.lalilu.lmedia.domain.usecase.SearchAudiosUseCase
 import com.lalilu.lmedia.entity.LArtist
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.ref
+import com.lalilu.lmedia.entity.toLegacyArtist
+import com.lalilu.lmedia.entity.toLegacyAudio
 import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.mviImplWithIntent
@@ -38,6 +25,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
@@ -48,37 +36,24 @@ import org.koin.android.annotation.KoinViewModel
 data class ArtistDetailState(
     val artistId: String,
 
-    // control flags
     val showSortPanel: Boolean = false,
     val showJumperDialog: Boolean = false,
     val showSearcherPanel: Boolean = false,
 
-    // control params
     val searchKeyWord: String = "",
 
-    // related artists
     val relatedArtists: List<LArtist> = emptyList()
 ) {
     val distinctKey: Int = searchKeyWord.hashCode()
 
-    fun getArtistFlow(): Flow<LArtist?> {
-        return LMedia.instance.flow<LArtist>(artistId)
+    fun getArtistFlow(artistRepository: ArtistRepository): Flow<LArtist?> {
+        return artistRepository.getArtist(artistId)
+            .mapLatest { it?.toLegacyArtist() }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun getSongsFlow(): Flow<List<LAudio>> {
-        val source: Flow<List<LAudio>> = getArtistFlow()
-            .mapLatest { artist: LArtist? -> artist?.ref<LAudio>()?.toList() ?: emptyList() }
-
-        val keywords: List<String> = when {
-            searchKeyWord.isBlank() -> emptyList()
-            searchKeyWord.contains(' ') -> searchKeyWord.split(' ')
-            else -> listOf(searchKeyWord)
-        }
-
-        return source.mapLatest { flow: List<LAudio> ->
-            flow.filter { item: LAudio -> keywords.all { item.getMatchText().contains(it) } }
-        }
+    fun getSongsFlow(searchAudiosUseCase: SearchAudiosUseCase): Flow<List<LAudio>> {
+        return searchAudiosUseCase(ids = null, keywords = emptyList())
+            .map { list -> list.map { it.toLegacyAudio() } }
     }
 }
 
@@ -105,7 +80,11 @@ sealed interface ArtistDetailAction {
 @OptIn(ExperimentalCoroutinesApi::class)
 @KoinViewModel
 class ArtistDetailVM(
-    private val artistId: String
+    private val artistId: String,
+    private val artistRepository: ArtistRepository,
+    private val audioRepository: AudioRepository,
+    private val searchAudiosUseCase: SearchAudiosUseCase,
+    private val getRelatedArtistsUseCase: GetRelatedArtistsUseCase
 ) : ViewModel(),
     MviWithIntent<ArtistDetailState, ArtistDetailEvent, ArtistDetailAction> by
     mviImplWithIntent(ArtistDetailState(artistId)) {
@@ -131,7 +110,15 @@ class ArtistDetailVM(
 
     val songs = stateFlow()
         .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { it.getSongsFlow() }
+        .flatMapLatest { state ->
+            val keywords = when {
+                state.searchKeyWord.isBlank() -> emptyList()
+                state.searchKeyWord.contains(' ') -> state.searchKeyWord.split(' ')
+                else -> listOf(state.searchKeyWord)
+            }
+            searchAudiosUseCase(ids = null, keywords = keywords)
+        }
+        .map { list -> list.map { it.toLegacyAudio() } }
         .doSortState(sorter, viewModelScope)
     val state = stateFlow()
         .toState(ArtistDetailState(artistId), viewModelScope)
@@ -180,23 +167,11 @@ class ArtistDetailVM(
         }
     }
 
-    /**
-     * 加载相关歌手
-     * 逻辑是：获取某歌曲的所有歌曲，然后把这些歌曲所关联的所有歌手记录然后去重即可
-     */
     fun loadRelatedArtists() {
         viewModelScope.launch {
-            val artist = LMedia.instance.get<LArtist>(artistId)
-                ?: return@launch
-
-            val songs = artist.ref<LAudio>()
-            val actualSongs = LMedia.instance.mapBy<LAudio>(songs.map { it.idValue() })
-            val artists = actualSongs.flatMap { it.ref<LArtist>() }
-                .distinctBy { it.idValue() }
-                .filter { it.idValue() != artist.idValue() }
-            
-            val actualArtists = LMedia.instance.mapBy<LArtist>(artists.map { it.idValue() })
-            reduce { it.copy(relatedArtists = actualArtists) }
+            val related = getRelatedArtistsUseCase(artistId)
+            val legacyRelated = related.map { it.toLegacyArtist() }
+            reduce { it.copy(relatedArtists = legacyRelated) }
         }
     }
 }

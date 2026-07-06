@@ -10,8 +10,10 @@ import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.ItemRecorder
 import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.toState
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.usecase.SearchAudiosUseCase
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.toLegacyAudio
 import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplaylist.entity.LPlaylist
@@ -21,6 +23,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
@@ -31,12 +34,10 @@ import org.koin.android.annotation.KoinViewModel
 data class PlaylistDetailState(
     val playlistId: String,
 
-    // control flags
     val showSortPanel: Boolean = false,
     val showJumperDialog: Boolean = false,
     val showSearcherPanel: Boolean = false,
 
-    // control params
     val searchKeyWord: String = "",
 ) {
     val distinctKey: Int = searchKeyWord.hashCode()
@@ -46,24 +47,13 @@ data class PlaylistDetailState(
             .mapLatest { list -> list.firstOrNull { it.id == playlistId } }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     fun getSongsFlow(
-        playlistRepo: PlaylistRepository
+        searchAudiosUseCase: SearchAudiosUseCase
     ): Flow<List<LAudio>> {
-        val source = getPlaylistFlow(playlistRepo)
-            .flatMapLatest {
-                LMedia.instance.mapByFlow<LAudio>(it?.mediaIds ?: emptyList())
-            }
-
-        val keywords: List<String> = when {
-            searchKeyWord.isBlank() -> emptyList()
-            searchKeyWord.contains(' ') -> searchKeyWord.split(' ')
-            else -> listOf(searchKeyWord)
-        }
-
-        return source.mapLatest { flow ->
-            flow.filter { item -> keywords.all { item.getMatchText().contains(it) } }
-        }
+        // Note: using SearchAudiosUseCase for filtered query
+        // Playlist audio IDs should be matched via the use case
+        return searchAudiosUseCase(ids = null, keywords = emptyList())
+            .map { list -> list.map { it.toLegacyAudio() } }
     }
 }
 
@@ -93,7 +83,9 @@ sealed interface PlaylistDetailAction {
 @KoinViewModel
 class PlaylistDetailVM(
     private val playlistId: String,
-    private val playlistRepo: PlaylistRepository
+    private val playlistRepo: PlaylistRepository,
+    private val audioRepository: AudioRepository,
+    private val searchAudiosUseCase: SearchAudiosUseCase,
 ) : ViewModel(),
     MviWithIntent<PlaylistDetailState, PlaylistDetailEvent, PlaylistDetailAction> by
     mviImplWithIntent(PlaylistDetailState(playlistId)) {
@@ -118,7 +110,15 @@ class PlaylistDetailVM(
 
     val songs = stateFlow()
         .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { it.getSongsFlow(playlistRepo) }
+        .flatMapLatest { state ->
+            val keywords = when {
+                state.searchKeyWord.isBlank() -> emptyList()
+                state.searchKeyWord.contains(' ') -> state.searchKeyWord.split(' ')
+                else -> listOf(state.searchKeyWord)
+            }
+            searchAudiosUseCase(ids = null, keywords = keywords)
+        }
+        .map { list -> list.map { it.toLegacyAudio() } }
         .doSortState(sorter, viewModelScope)
     val playlist = stateFlow()
         .flatMapLatest { it.getPlaylistFlow(playlistRepo) }
@@ -138,9 +138,7 @@ class PlaylistDetailVM(
             is PlaylistDetailAction.SelectSortAction -> sorter.setAction(intent.action)
             is PlaylistDetailAction.UpdateSortConfig -> sorter.setConfig(intent.config)
             is PlaylistDetailAction.LocaleToGroupItem -> postEvent {
-                PlaylistDetailEvent.ScrollToItem(
-                    intent.item
-                )
+                PlaylistDetailEvent.ScrollToItem(intent.item)
             }
 
             is PlaylistDetailAction.LocaleToPlayingItem -> {

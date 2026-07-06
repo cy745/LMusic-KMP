@@ -1,20 +1,3 @@
-/*
- * Copyright (c) 2026 lalilu. All rights reserved.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.lalilu.lalbum.viewmodel
 
 import androidx.compose.runtime.Immutable
@@ -27,10 +10,13 @@ import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.ItemRecorder
 import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.toState
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.AlbumRepository
+import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.usecase.SearchAudiosUseCase
 import com.lalilu.lmedia.entity.LAlbum
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.ref
+import com.lalilu.lmedia.entity.toLegacyAlbum
+import com.lalilu.lmedia.entity.toLegacyAudio
 import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.mviImplWithIntent
@@ -38,6 +24,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
@@ -48,34 +35,22 @@ import org.koin.android.annotation.KoinViewModel
 data class AlbumDetailState(
     val albumId: String,
 
-    // control flags
     val showSortPanel: Boolean = false,
     val showJumperDialog: Boolean = false,
     val showSearcherPanel: Boolean = false,
 
-    // control params
     val searchKeyWord: String = "",
 ) {
     val distinctKey: Int = searchKeyWord.hashCode()
 
-    fun getAlbumFlow(): Flow<LAlbum?> {
-        return LMedia.instance.flow<LAlbum>(albumId)
+    fun getAlbumFlow(albumRepository: AlbumRepository): Flow<LAlbum?> {
+        return albumRepository.getAlbum(albumId)
+            .mapLatest { it?.toLegacyAlbum() }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun getSongsFlow(): Flow<List<LAudio>> {
-        val source: Flow<List<LAudio>> = getAlbumFlow()
-            .mapLatest { album: LAlbum? -> album?.ref<LAudio>()?.toList() ?: emptyList() }
-
-        val keywords: List<String> = when {
-            searchKeyWord.isBlank() -> emptyList()
-            searchKeyWord.contains(' ') -> searchKeyWord.split(' ')
-            else -> listOf(searchKeyWord)
-        }
-
-        return source.mapLatest { flow: List<LAudio> ->
-            flow.filter { item: LAudio -> keywords.all { item.getMatchText().contains(it) } }
-        }
+    fun getSongsFlow(searchAudiosUseCase: SearchAudiosUseCase): Flow<List<LAudio>> {
+        return searchAudiosUseCase(ids = null, keywords = emptyList())
+            .map { list -> list.map { it.toLegacyAudio() } }
     }
 }
 
@@ -103,7 +78,10 @@ sealed interface AlbumDetailAction {
 @KoinViewModel
 class AlbumDetailVM(
     private val albumId: String,
-    private val album: LAlbum? = null
+    private val album: LAlbum? = null,
+    private val albumRepository: AlbumRepository,
+    private val audioRepository: AudioRepository,
+    private val searchAudiosUseCase: SearchAudiosUseCase,
 ) : ViewModel(),
     MviWithIntent<AlbumDetailState, AlbumDetailEvent, AlbumDetailAction> by
     mviImplWithIntent(AlbumDetailState(albumId)) {
@@ -127,12 +105,21 @@ class AlbumDetailVM(
         )
     )
 
-    val albumFlow = LMedia.instance.flow<LAlbum>(albumId)
+    val albumFlow = stateFlow()
+        .flatMapLatest { it.getAlbumFlow(albumRepository) }
         .toState(viewModelScope)
 
     val songs = stateFlow()
         .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { it.getSongsFlow() }
+        .flatMapLatest { state ->
+            val keywords = when {
+                state.searchKeyWord.isBlank() -> emptyList()
+                state.searchKeyWord.contains(' ') -> state.searchKeyWord.split(' ')
+                else -> listOf(state.searchKeyWord)
+            }
+            searchAudiosUseCase(ids = null, keywords = keywords)
+        }
+        .map { list -> list.map { it.toLegacyAudio() } }
         .doSortState(sorter, viewModelScope)
     val state = stateFlow()
         .toState(AlbumDetailState(albumId), viewModelScope)

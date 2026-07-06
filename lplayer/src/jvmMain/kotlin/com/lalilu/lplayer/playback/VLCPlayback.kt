@@ -1,7 +1,10 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
-import com.lalilu.lmedia.data.Library
+import com.lalilu.lmedia.domain.model.LAudio as DomainAudio
+import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
+import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.SourceItem
 import com.lalilu.lmedia.source.MediaData
@@ -22,11 +25,12 @@ import kotlin.time.ExperimentalTime
 @Single(binds = [Playback::class])
 @OptIn(ExperimentalTime::class)
 class VLCPlayback(
-    private val library: Library,
+    override val audioRepository: AudioRepository,
     private val history: PlaybackHistory
-) : AbstractPlayback(history = history), KoinComponent {
+) : AbstractPlayback(history = history, audioRepository = audioRepository), KoinComponent {
     private var playerInstance: MediaPlayer? = null
     private val dataTracker: IPlaybackDataTracker by inject()
+    private val platformMediaSource: PlatformMediaSource by inject()
 
     val player: MediaPlayer
         get() = playerInstance ?: throw Exception("Player Not Initialized")
@@ -47,12 +51,12 @@ class VLCPlayback(
         }
     }
 
-    override suspend fun resolveMedia(ids: List<String>): List<LAudio> = library.mapBy<LAudio>(ids)
-
     private suspend fun playItem(item: LAudio, start: Boolean) {
-        val source = library.requireMediaSource(item.source())
+        val source = platformMediaSource.sources.firstOrNull { item.mediaSourceName == it.name }
+            ?: throw Exception("No source item found for ${item.mediaSourceName}")
 
-        when (val data = source.dataSource.getMedia(item)) {
+        val domainAudio = item.toDomainAudio()
+        when (val data = source.dataSource.getMedia(domainAudio)) {
             is MediaData.Url -> {
                 Logger.i(tag = "VLCPlayback", messageString = "prepared with url: ${data.url}")
                 player.media().prepare(data.url)
@@ -145,7 +149,6 @@ class VLCPlayback(
                     ?: throw Exception("Invalid index")
                 playItem(targetItem, start)
 
-                // TODO 启动时初始化播放数据为null，导致后续无法正常更新播放时长
                 dataTracker.onMediaItemTransition(
                     mediaId = targetItem.idValue(),
                     title = targetItem.titleValue(),
@@ -171,7 +174,6 @@ class VLCPlayback(
     }
 
     override fun currentPosition(): Long {
-        // VLC 返回的当前播放位置并不是线性连续的，获取到的有重复的时间，所以这里通过记录播放进度的时间和当前时间的差计算实际播放位置
         if (lastRecordTime <= 0) return player.status().time()
         val delta = Clock.System.now().toEpochMilliseconds() - lastRecordTime
         return lastTime + delta
@@ -209,3 +211,28 @@ class VLCPlayback(
         })
     }
 }
+
+private fun com.lalilu.lmedia.entity.LAudio.toDomainAudio(): DomainAudio = DomainAudio(
+    id = id,
+    title = title,
+    subtitle = subtitle,
+    mediaSourceName = mediaSourceName,
+    metadata = DomainMetadata(
+        title = metadata.title,
+        album = metadata.album,
+        artist = metadata.artist,
+        albumArtist = metadata.albumArtist,
+        composer = metadata.composer,
+        lyricist = metadata.lyricist,
+        comment = metadata.comment,
+        genre = metadata.genre,
+        track = metadata.track,
+        disc = metadata.disc,
+        date = metadata.date,
+        duration = metadata.duration,
+        dateAdded = metadata.dateAdded,
+        dateModified = metadata.dateModified
+    ),
+    extra = extra,
+    available = available
+)

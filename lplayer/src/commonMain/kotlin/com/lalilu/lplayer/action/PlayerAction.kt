@@ -1,8 +1,11 @@
 package com.lalilu.lplayer.action
 
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.toLegacyAudio
+import kotlinx.coroutines.flow.first
+import org.koin.core.context.GlobalContext
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.PlayMode
@@ -63,8 +66,11 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
             }
 
             is PlayerAction.UpdateList -> {
+                val audioRepo: AudioRepository = GlobalContext.get().get()
+                val audios = audioRepo.getAudios(action.ids).first()
+                    .map { it.toLegacyAudio() }
                 LPlayer.instance.updatePlaylist(
-                    playlist = LMedia.instance.mapBy<LAudio>(action.ids),
+                    playlist = audios,
                     startIndex = action.id?.let { action.ids.indexOf(it) }?.coerceAtLeast(0) ?: 0,
                     start = action.start
                 )

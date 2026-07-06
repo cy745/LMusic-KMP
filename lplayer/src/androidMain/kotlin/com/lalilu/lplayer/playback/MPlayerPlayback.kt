@@ -15,7 +15,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import co.touchlab.kermit.Logger
-import com.lalilu.lmedia.data.Library
+import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.entity.LItem
 import com.lalilu.lplayer.LPlayerKV
@@ -36,7 +36,7 @@ import kotlin.coroutines.CoroutineContext
 @OptIn(UnstableApi::class, ExperimentalCoroutinesApi::class)
 class MPlayerPlayback(
     private val context: Context,
-    private val library: Library,
+    private val audioRepository: AudioRepository,
     private val history: PlaybackHistory
 ) : CoroutineScope,
     Player.Listener,
@@ -90,7 +90,7 @@ class MPlayerPlayback(
         val snapshot = restoreFromHistory()
         if (snapshot != null) {
             launch {
-                val items = library.mapBy<LAudio>(snapshot.ids)
+                val items = audioRepository.getAudios(snapshot.ids).first()
                 queue.update { replaceAll(items, snapshot.index) }
                 onQueueRestored(snapshot)
             }
@@ -171,7 +171,7 @@ class MPlayerPlayback(
 
 
     override suspend fun onQueueRestored(snapshot: PlaybackHistory.HistorySnapshot) {
-        val items = library.mapBy<LAudio>(snapshot.ids)
+        val items = audioRepository.getAudios(snapshot.ids).first()
         val mediaIds = items.map { it.toMediaItem() }
         val browser = browserInstance ?: return
 
@@ -223,7 +223,7 @@ class MPlayerPlayback(
         // 同步播放列表变化到playableQueue
         launch {
             val ids = mediaItems.map { it.mediaId }
-            val items = library.mapBy<LAudio>(ids)
+            val items = audioRepository.getAudios(ids).first()
 
             queue.update(updateReason = QueueUpdateReason.Sync) {
                 replaceAll(items = items, index = currentIndex)

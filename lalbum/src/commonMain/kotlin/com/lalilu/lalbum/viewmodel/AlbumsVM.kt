@@ -1,20 +1,3 @@
-/*
- * Copyright (c) 2026 lalilu. All rights reserved.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.lalilu.lalbum.viewmodel
 
 import androidx.compose.runtime.Immutable
@@ -24,8 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.lalilu.MviWithIntent
 import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.toState
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.AlbumRepository
 import com.lalilu.lmedia.entity.LAlbum
+import com.lalilu.lmedia.entity.toLegacyAlbum
 import com.lalilu.lmedia.sortable.SortAction
 import com.lalilu.lmedia.sortable.SortConfig
 import com.lalilu.lmedia.sortable.SortManager
@@ -35,6 +19,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
@@ -42,19 +27,17 @@ import org.koin.android.annotation.KoinViewModel
 @Stable
 @Immutable
 data class AlbumsState(
-    // control flags
     val showSearcherPanel: Boolean = false,
     val showSortPanel: Boolean = false,
 
-    // control params
     val searchKeyWord: String = "",
     val showText: Boolean = true,
 ) {
     val distinctKey: Int = searchKeyWord.hashCode()
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun getAlbumsFlow(): Flow<List<LAlbum>> {
-        val source = LMedia.instance.flow<LAlbum>()
+    fun getAlbumsFlow(albumRepository: AlbumRepository): Flow<List<LAlbum>> {
+        val source = albumRepository.getAlbums()
+            .mapLatest { list -> list.map { it.toLegacyAlbum() } }
 
         val keywords: List<String> = when {
             searchKeyWord.isBlank() -> emptyList()
@@ -85,7 +68,9 @@ sealed interface AlbumsEvent
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @KoinViewModel
-class AlbumsVM : ViewModel(),
+class AlbumsVM(
+    private val albumRepository: AlbumRepository
+) : ViewModel(),
     MviWithIntent<AlbumsState, AlbumsEvent, AlbumsAction>
     by mviImplWithIntent(AlbumsState()) {
 
@@ -107,7 +92,7 @@ class AlbumsVM : ViewModel(),
 
     val albums = stateFlow()
         .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { it.getAlbumsFlow() }
+        .flatMapLatest { it.getAlbumsFlow(albumRepository) }
         .doSortState(sorter, viewModelScope)
     val state = stateFlow()
         .toState(AlbumsState(), viewModelScope)

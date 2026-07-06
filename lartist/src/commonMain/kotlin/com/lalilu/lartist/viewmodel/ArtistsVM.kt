@@ -1,20 +1,3 @@
-/*
- * Copyright (c) 2026 lalilu. All rights reserved.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.lalilu.lartist.viewmodel
 
 import androidx.compose.runtime.Immutable
@@ -24,8 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.lalilu.MviWithIntent
 import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.toState
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.ArtistRepository
 import com.lalilu.lmedia.entity.LArtist
+import com.lalilu.lmedia.entity.toLegacyArtist
 import com.lalilu.lmedia.sortable.SortAction
 import com.lalilu.lmedia.sortable.SortConfig
 import com.lalilu.lmedia.sortable.SortManager
@@ -42,18 +26,16 @@ import org.koin.android.annotation.KoinViewModel
 @Stable
 @Immutable
 data class ArtistsState(
-    // control flags
     val showSearcherPanel: Boolean = false,
     val showSortPanel: Boolean = false,
 
-    // control params
     val searchKeyWord: String = "",
 ) {
     val distinctKey: Int = searchKeyWord.hashCode()
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun getArtistsFlow(): Flow<List<LArtist>> {
-        val source = LMedia.instance.flow<LArtist>()
+    fun getArtistsFlow(artistRepository: ArtistRepository): Flow<List<LArtist>> {
+        val source = artistRepository.getArtists()
+            .mapLatest { list -> list.map { it.toLegacyArtist() } }
 
         val keywords: List<String> = when {
             searchKeyWord.isBlank() -> emptyList()
@@ -83,7 +65,9 @@ sealed interface ArtistsEvent
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @KoinViewModel
-class ArtistsVM : ViewModel(),
+class ArtistsVM(
+    private val artistRepository: ArtistRepository
+) : ViewModel(),
     MviWithIntent<ArtistsState, ArtistsEvent, ArtistsAction>
     by mviImplWithIntent(ArtistsState()) {
 
@@ -105,7 +89,7 @@ class ArtistsVM : ViewModel(),
 
     val artists = stateFlow()
         .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { it.getArtistsFlow() }
+        .flatMapLatest { it.getArtistsFlow(artistRepository) }
         .doSortState(sorter, viewModelScope)
     val state = stateFlow()
         .toState(ArtistsState(), viewModelScope)

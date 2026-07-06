@@ -10,8 +10,10 @@ import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.ItemRecorder
 import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.toState
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.usecase.SearchAudiosUseCase
 import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.entity.toLegacyAudio
 import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.mviImplWithIntent
@@ -19,6 +21,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Factory
@@ -27,37 +30,15 @@ import org.koin.core.annotation.Factory
 @Stable
 @Immutable
 data class SongsState(
-    // initialize values
     val mediaIds: List<String> = emptyList(),
 
-    // control flags
     val showSortPanel: Boolean = false,
     val showJumperDialog: Boolean = false,
     val showSearcherPanel: Boolean = false,
 
-    // control params
     val searchKeyWord: String = ""
 ) {
     val distinctKey: Int = mediaIds.hashCode() + searchKeyWord.hashCode()
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun getSongsFlow(): Flow<List<LAudio>> {
-        val source = if (mediaIds.isEmpty()) LMedia.instance.flow<LAudio>()
-        else LMedia.instance.mapByFlow<LAudio>(mediaIds)
-
-        val keywords: List<String> = when {
-            searchKeyWord.isBlank() -> emptyList()
-            searchKeyWord.contains(' ') -> searchKeyWord.split(' ')
-            else -> listOf(searchKeyWord)
-        }
-
-        return source.mapLatest { items ->
-            items.filter { item ->
-                val itemMatchText = item.getMatchText()
-                keywords.all { itemMatchText.contains(other = it, ignoreCase = true) }
-            }
-        }
-    }
 }
 
 sealed interface SongsEvent {
@@ -84,6 +65,8 @@ sealed interface SongsAction {
 @OptIn(ExperimentalCoroutinesApi::class)
 class SongsVM(
     private val mediaIds: List<String>,
+    private val audioRepository: AudioRepository,
+    private val searchAudiosUseCase: SearchAudiosUseCase,
 ) : ViewModel(), MviWithIntent<SongsState, SongsEvent, SongsAction> by mviImplWithIntent(SongsState(mediaIds)) {
     val recorder = ItemRecorder()
     val selector = ItemSelector<LAudio>()
@@ -94,17 +77,25 @@ class SongsVM(
             "sort_rule_title",
             "sort_rule_add_time",
             "sort_rule_duration",
-            "sort_rule_shuffle",
             "sort_rule_play_count",
             "sort_rule_last_play_time"
         )
     )
 
-
-    @OptIn(ExperimentalCoroutinesApi::class)
     val songs = stateFlow()
         .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { it.getSongsFlow() }
+        .flatMapLatest { state ->
+            val keywords = when {
+                state.searchKeyWord.isBlank() -> emptyList()
+                state.searchKeyWord.contains(' ') -> state.searchKeyWord.split(' ')
+                else -> listOf(state.searchKeyWord)
+            }
+            searchAudiosUseCase(
+                ids = state.mediaIds.ifEmpty { null },
+                keywords = keywords
+            )
+        }
+        .map { list -> list.map { it.toLegacyAudio() } }
         .doSortState(sorter, viewModelScope)
     val state = stateFlow().toState(SongsState(), viewModelScope)
 
