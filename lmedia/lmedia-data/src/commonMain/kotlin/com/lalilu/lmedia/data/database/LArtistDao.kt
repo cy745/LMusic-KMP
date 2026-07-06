@@ -59,4 +59,7 @@ interface LArtistDao {
     @Transaction
     @Query("SELECT * FROM l_audio WHERE song_id IN (SELECT song_id FROM cross_ref_audio_x_artist WHERE artist_id = :artistId)")
     fun getAudiosByArtist(artistId: String): Flow<List<LAudioEntity>>
+
+    @Query("SELECT artist_id FROM cross_ref_audio_x_artist WHERE song_id IN (:audioIds)")
+    fun getArtistIdsByAudioIds(audioIds: List<String>): Flow<List<String>>
 }
