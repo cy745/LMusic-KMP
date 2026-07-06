@@ -105,5 +105,14 @@ fun buildRelations(
         }
     }
 
+    relations.getOrPut("com.lalilu.lmedia.domain.model.LGenre") { mutableMapOf() }.apply {
+        audios.forEach { audio ->
+            val genreName = audio.metadata.genre ?: "Unknown"
+            if (genreName.isNotBlank()) {
+                this[audio.idValue()] = mutableListOf("${LGenre.ID_PREFIX}$genreName")
+            }
+        }
+    }
+
     return relations
 }

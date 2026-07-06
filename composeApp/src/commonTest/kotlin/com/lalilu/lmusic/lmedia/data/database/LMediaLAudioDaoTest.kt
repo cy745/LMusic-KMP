@@ -1,13 +1,12 @@
 package com.lalilu.lmusic.lmedia.data.database
 
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LGenre
-import com.lalilu.lmedia.entity.ref
-import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
+import com.lalilu.lmedia.data.entity.LAlbumEntity
+import com.lalilu.lmedia.data.entity.LArtistEntity
+import com.lalilu.lmedia.data.entity.LAudioEntity
+import com.lalilu.lmedia.data.entity.LGenreEntity
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
+import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
 import com.lalilu.lmusic.impl.LMusicDatabase
 import com.lalilu.lmusic.impl.requireDatabase
 import kotlinx.coroutines.flow.firstOrNull
@@ -19,7 +18,7 @@ import kotlin.test.assertTrue
 
 
 class LMediaLAudioDaoTest {
-    private val db = requireDatabase<LMusicDatabase>(forceMemory = false)
+    private val db = requireDatabase<LMusicDatabase>(forceMemory = true)
     private val audioDao = db.audioDao()
     private val artistDao = db.artistDao()
     private val albumDao = db.albumDao()
@@ -27,23 +26,20 @@ class LMediaLAudioDaoTest {
 
     @Test
     fun testInsertAndRetrieveAudio() = runTest {
-        val audio = LAudio(
+        val audio = LAudioEntity(
             id = "audio-1",
             title = "夜的第七章",
             subtitle = "专辑: 依然范特西",
             mediaSourceName = "local"
         )
 
-        // 插入
         audioDao.insert(audio)
 
-        // 查询所有
         val allAudios = audioDao.getAllAudio().firstOrNull()
         assertNotNull(allAudios)
         assertTrue(allAudios.isNotEmpty())
         assertTrue(allAudios.any { it.id == "audio-1" })
 
-        // 按 ID 查询
         val singleAudio = audioDao.getAudio("audio-1").firstOrNull()
         assertNotNull(singleAudio)
         assertEquals("夜的第七章", singleAudio.title)
@@ -51,7 +47,7 @@ class LMediaLAudioDaoTest {
 
     @Test
     fun testUpdateAudio() = runTest {
-        val audio = LAudio(
+        val audio = LAudioEntity(
             id = "audio-2",
             title = "原标题",
             subtitle = "原副标题",
@@ -60,11 +56,9 @@ class LMediaLAudioDaoTest {
 
         audioDao.insert(audio)
 
-        // 更新
         val updated = audio.copy(title = "新标题", subtitle = "新副标题")
         audioDao.update(updated)
 
-        // 验证
         val result = audioDao.getAudio("audio-2").firstOrNull()
         assertNotNull(result)
         assertEquals("新标题", result.title)
@@ -73,7 +67,7 @@ class LMediaLAudioDaoTest {
 
     @Test
     fun testDeleteAudio() = runTest {
-        val audio = LAudio(
+        val audio = LAudioEntity(
             id = "audio-3",
             title = "待删除",
             subtitle = "",
@@ -82,138 +76,112 @@ class LMediaLAudioDaoTest {
 
         audioDao.insert(audio)
 
-        // 验证存在
         var result = audioDao.getAudio("audio-3").firstOrNull()
         assertNotNull(result)
 
-        // 删除
         audioDao.delete(audio)
 
-        // 验证删除
         result = audioDao.getAudio("audio-3").firstOrNull()
         assertTrue(result == null)
     }
 
     @Test
     fun testAudioWithArtists() = runTest {
-        // 创建音频
-        val audio = LAudio(
+        val audio = LAudioEntity(
             id = "audio-artist-1",
             title = "告白气球",
             subtitle = "",
             mediaSourceName = "local"
         )
 
-        // 创建艺术家
-        val artist = LArtist(
+        val artist = LArtistEntity(
             id = "artist-1",
             title = "周杰伦",
             subtitle = "Jay Chou"
         )
 
-        // 插入数据
         audioDao.insert(audio)
         artistDao.insert(artist)
         artistDao.insertRelation(listOf(CrossRefLAudioXLArtist(artist.id, audio.id)))
 
-        // 验证关联查询
-        val result = audioDao.getAudio("audio-artist-1").firstOrNull()
+        // Verify via the relation query result
+        val result = audioDao.getAudioWithRelations("audio-artist-1").firstOrNull()
         assertNotNull(result)
-
-        // 通过 ref 获取关联的艺术家
-        val linkedArtists = result.ref<LArtist>()
-        assertEquals(1, linkedArtists.size)
-        assertEquals("artist-1", linkedArtists[0].id)
+        assertEquals(1, result.artists.size)
+        assertEquals("artist-1", result.artists[0].id)
     }
 
     @Test
     fun testAudioWithAlbums() = runTest {
-        // 创建音频
-        val audio = LAudio(
+        val audio = LAudioEntity(
             id = "audio-album-1",
             title = "稻香",
             subtitle = "",
             mediaSourceName = "local"
         )
 
-        // 创建专辑
-        val album = LAlbum(
+        val album = LAlbumEntity(
             id = "album-1",
             title = "依然范特西",
             subtitle = "2006"
         )
 
-        // 插入数据
         audioDao.insert(audio)
         albumDao.insert(album)
         albumDao.insertRelation(listOf(CrossRefLAudioXAlbum(album.id, audio.id)))
 
-        // 验证关联查询
-        val result = audioDao.getAudio("audio-album-1").firstOrNull()
+        val result = audioDao.getAudioWithRelations("audio-album-1").firstOrNull()
         assertNotNull(result)
-
-        // 通过 ref 获取关联的专辑
-        val linkedAlbums = result.ref<LAlbum>()
-        assertEquals(1, linkedAlbums.size)
-        assertEquals("album-1", linkedAlbums[0].id)
+        assertEquals(1, result.albums.size)
+        assertEquals("album-1", result.albums[0].id)
     }
 
     @Test
     fun testAudioWithGenres() = runTest {
-        // 创建音频
-        val audio = LAudio(
+        val audio = LAudioEntity(
             id = "audio-genre-1",
             title = "听妈妈的话",
             subtitle = "",
             mediaSourceName = "local"
         )
 
-        // 创建流派
-        val genre = LGenre(
+        val genre = LGenreEntity(
             id = "genre-1",
             title = "流行",
             subtitle = "Pop"
         )
 
-        // 插入数据
         audioDao.insert(audio)
         genreDao.insert(genre)
         genreDao.insertRelation(listOf(CrossRefLAudioXGenre(genre.id, audio.id)))
 
-        // 验证关联查询
-        val result = audioDao.getAudio("audio-genre-1").firstOrNull()
+        val result = audioDao.getAudioWithRelations("audio-genre-1").firstOrNull()
         assertNotNull(result)
-
-        // 通过 ref 获取关联的流派
-        val linkedGenres = result.ref<LGenre>()
-        assertEquals(1, linkedGenres.size)
-        assertEquals("genre-1", linkedGenres[0].id)
+        assertEquals(1, result.genres.size)
+        assertEquals("genre-1", result.genres[0].id)
     }
 
     @Test
     fun testGetAllAudiosWithRelations() = runTest {
-        // 创建音频
-        val audio1 = LAudio(
+        val audio1 = LAudioEntity(
             id = "audio-rel-1",
             title = "歌曲1",
             subtitle = "",
             mediaSourceName = "local"
         )
-        val audio2 = LAudio(
+        val audio2 = LAudioEntity(
             id = "audio-rel-2",
             title = "歌曲2",
             subtitle = "",
             mediaSourceName = "local"
         )
 
-        // 创建关联的艺术家
-        val artist = LArtist(
+        val artist = LArtistEntity(
             id = "artist-rel-1",
             title = "艺术家A",
             subtitle = ""
         )
 
-        // 插入
         audioDao.insert(audio1)
         audioDao.insert(audio2)
         artistDao.insert(artist)
@@ -224,16 +192,13 @@ class LMediaLAudioDaoTest {
             )
         )
 
-        // 验证获取所有音频时关联关系正确
-        val allAudios = audioDao.getAllAudio().firstOrNull()
-        assertNotNull(allAudios)
-        assertEquals(2, allAudios.size)
+        val allResults = audioDao.getAllAudioWithRelations().firstOrNull()
+        assertNotNull(allResults)
+        assertEquals(2, allResults.size)
 
-        // 验证每首歌曲都能通过 ref 获取到关联艺术家
-        for (audio in allAudios) {
-            val linkedArtists = audio.ref<LArtist>()
-            assertTrue(linkedArtists.isNotEmpty())
-            assertEquals("artist-rel-1", linkedArtists[0].id)
+        for (result in allResults) {
+            assertTrue(result.artists.isNotEmpty())
+            assertEquals("artist-rel-1", result.artists[0].id)
         }
     }
 }
