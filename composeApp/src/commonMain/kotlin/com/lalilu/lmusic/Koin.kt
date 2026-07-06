@@ -41,6 +41,11 @@ private val SharedModule = module {
     single<ObservableSettings> { Settings().makeObservable() }
     single<Settings> { get<ObservableSettings>() }
     single<Json> { Json { ignoreUnknownKeys = true } }
+
+    // UseCases — manually registered because kRouter KSP doesn't process lmedia-domain
+    single { com.lalilu.lmedia.domain.usecase.SearchAudiosUseCase(get()) }
+    single { com.lalilu.lmedia.domain.usecase.GetDailyRecommendsUseCase(get(), get(), get(), get()) }
+    single { com.lalilu.lmedia.domain.usecase.GetRelatedArtistsUseCase(get()) }
 }
 
 @Module

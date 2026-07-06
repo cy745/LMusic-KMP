@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.map
  * Manages daily recommended items (audios, albums, artists).
  * Extracted from HomeScreenModel.
  */
+@org.koin.core.annotation.Single
 class GetDailyRecommendsUseCase(
     private val audioRepository: AudioRepository,
     private val albumRepository: AlbumRepository,

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.firstOrNull
  * Logic: get all songs of the artist → get all artists of those songs → deduplicate → exclude self.
  * Extracted from ArtistDetailVM.loadRelatedArtists().
  */
+@org.koin.core.annotation.Single
 class GetRelatedArtistsUseCase(
     private val artistRepository: ArtistRepository
 ) {

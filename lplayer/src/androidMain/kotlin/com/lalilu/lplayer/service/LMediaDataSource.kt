@@ -10,11 +10,13 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.model.LAudio as DomainAudio
+import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.source.MediaData
 import io.ktor.http.decodeURLPart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
 @SuppressLint("UnsafeOptInUsageError")
@@ -50,15 +52,32 @@ class LMediaDataSource(
         val id = uri?.getQueryParameter("id")
             ?.decodeURLPart()
 
-        val item = id?.let { runBlocking(Dispatchers.IO) { LMedia.instance.get<LAudio>(id) } }
+        val audioRepo = org.koin.core.context.GlobalContext.get().get<AudioRepository>()
+        val domainItem = id?.let { runBlocking(Dispatchers.IO) { audioRepo.getAudio(id).first() } }
             ?: return defaultDataSource.open(dataSpec)
 
         val source = platformMediaSource.sources
-            .firstOrNull { item.mediaSourceName == it.name }
-            ?: throw Exception("No source item found for ${item.mediaSourceName}")
+            .firstOrNull { domainItem.mediaSourceName == it.name }
+            ?: throw Exception("No source item found for ${domainItem.mediaSourceName}")
 
+        // Convert to entity LAudio for old MediaDataSource interface
+        val entityItem = with(domainItem) {
+            LAudio(
+                id = id, title = title, subtitle = subtitle,
+                mediaSourceName = mediaSourceName,
+                metadata = com.lalilu.lmedia.entity.Metadata(
+                    title = metadata.title, album = metadata.album, artist = metadata.artist,
+                    albumArtist = metadata.albumArtist, composer = metadata.composer,
+                    lyricist = metadata.lyricist, comment = metadata.comment,
+                    genre = metadata.genre, track = metadata.track, disc = metadata.disc,
+                    date = metadata.date, duration = metadata.duration,
+                    dateAdded = metadata.dateAdded, dateModified = metadata.dateModified
+                ),
+                extra = extra, available = available
+            )
+        }
         val data = runBlocking(Dispatchers.io) {
-            source.dataSource.getMedia(item)
+            source.dataSource.getMedia(entityItem)
         }
 
         return when (data) {

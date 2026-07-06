@@ -1,6 +1,6 @@
 package com.lalilu.lmedia.data.repository
 
-import com.lalilu.lmedia.data.database.LFolderDao
+import com.lalilu.lmedia.data.database.ILMediaDatabase
 import com.lalilu.lmedia.data.mapper.toDomain
 import com.lalilu.lmedia.domain.model.LFolder
 import com.lalilu.lmedia.domain.repository.FolderRepository
@@ -12,8 +12,9 @@ import org.koin.core.annotation.Single
 @OptIn(ExperimentalCoroutinesApi::class)
 @Single(binds = [FolderRepository::class])
 class FolderRepositoryImpl(
-    private val folderDao: LFolderDao
+    private val database: ILMediaDatabase
 ) : FolderRepository {
+    private val folderDao by lazy { database.folderDao() }
 
     override fun getFolders(): Flow<List<LFolder>> =
         folderDao.getAllFolder().mapLatest { list -> list.map { it.toDomain() } }

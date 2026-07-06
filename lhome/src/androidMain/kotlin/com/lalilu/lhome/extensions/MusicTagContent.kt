@@ -21,7 +21,7 @@ import co.touchlab.kermit.Logger
 import com.lalilu.SlotContent
 import com.lalilu.SlotParamContext
 import com.lalilu.extensions.LocalToaster
-import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.entity.LAudio
 import org.koin.core.annotation.Named
 import org.koin.core.annotation.Single
 

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.mapLatest
  * Replaces duplicate filtering logic across SongsState, AlbumDetailState,
  * ArtistDetailState, and PlaylistDetailState.
  */
+@org.koin.core.annotation.Single
 class SearchAudiosUseCase(
     private val audioRepository: AudioRepository
 ) {
