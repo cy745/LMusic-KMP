@@ -65,6 +65,7 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":common"))
             implementation(project(":component"))
+            implementation(project(":lmedia:lmedia-domain"))
             implementation(project(":lmedia:lmedia-core"))
             implementation(project(":lmedia:lmedia-data"))
             implementation(project(":lmedia:lmedia-coil"))
