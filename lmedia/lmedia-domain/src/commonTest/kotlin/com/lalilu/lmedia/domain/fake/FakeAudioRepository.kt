@@ -1,7 +1,10 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.lalilu.lmedia.domain.fake
 
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.mapLatest
@@ -11,6 +14,11 @@ class FakeAudioRepository : AudioRepository {
 
     fun seed(vararg audios: LAudio) {
         store.value = audios.toList()
+    }
+
+    /** Reset store to empty. Call between tests in `@Before`. */
+    fun clear() {
+        store.value = emptyList()
     }
 
     override fun getAudios(): Flow<List<LAudio>> = store
