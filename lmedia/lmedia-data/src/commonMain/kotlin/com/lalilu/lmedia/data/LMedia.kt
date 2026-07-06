@@ -20,6 +20,8 @@ package com.lalilu.lmedia.data
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.data.database.ILMediaDatabase
+import com.lalilu.lmedia.domain.source.Snapshot as DomainSnapshot
+import com.lalilu.lmedia.domain.source.SnapshotState as DomainSnapshotState
 import com.lalilu.lmedia.entity.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
@@ -28,6 +30,15 @@ import kotlinx.coroutines.flow.mapLatest
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
+
+private fun convertState(s: com.lalilu.lmedia.entity.SnapshotState): DomainSnapshotState = when (s) {
+    com.lalilu.lmedia.entity.SnapshotState.Idle -> DomainSnapshotState.Idle
+    com.lalilu.lmedia.entity.SnapshotState.Empty -> DomainSnapshotState.Empty
+    com.lalilu.lmedia.entity.SnapshotState.Success -> DomainSnapshotState.Success
+    is com.lalilu.lmedia.entity.SnapshotState.Loading -> DomainSnapshotState.Loading(s.message, s.progress)
+    is com.lalilu.lmedia.entity.SnapshotState.LoadingDynamic -> DomainSnapshotState.Loading(s.message(), s.progress())
+    is com.lalilu.lmedia.entity.SnapshotState.Error -> DomainSnapshotState.Error(s.message)
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Suppress("UNCHECKED_CAST")
@@ -40,8 +51,6 @@ class LMedia(
 
     init {
         instance = this
-        // 把 startSourceBinding 放到 IO 线程上执行：第一次 source.source() 同步 collect
-        // 会触发 MediaStore 全量扫描和 SAF 目录树读取，不应阻塞 KoinStartup 主线程。
         launch { startSourceBinding() }
     }
 
@@ -52,53 +61,125 @@ class LMedia(
 
     suspend fun startSourceBinding() {
         platformSource.sources.forEach { source ->
-            source.source().mapLatest {
+            source.source().mapLatest { oldSnapshot ->
+                // Convert old entity Snapshot to domain Snapshot
+                val domainSnapshot = DomainSnapshot(
+                    audios = oldSnapshot.audios.map {
+                        com.lalilu.lmedia.domain.model.LAudio(
+                            id = it.id,
+                            title = it.title,
+                            subtitle = it.subtitle,
+                            mediaSourceName = it.mediaSourceName,
+                            metadata = with(it.metadata) {
+                                com.lalilu.lmedia.domain.model.Metadata(
+                                    title = title,
+                                    album = album,
+                                    artist = artist,
+                                    albumArtist = albumArtist,
+                                    composer = composer,
+                                    lyricist = lyricist,
+                                    comment = comment,
+                                    genre = genre,
+                                    track = track,
+                                    disc = disc,
+                                    date = date,
+                                    duration = duration,
+                                    dateAdded = dateAdded,
+                                    dateModified = dateModified
+                                )
+                            },
+                            extra = it.extra,
+                            available = it.available
+                        )
+                    },
+                    albums = oldSnapshot.albums.map {
+                        com.lalilu.lmedia.domain.model.LAlbum(
+                            id = it.id,
+                            title = it.title,
+                            subtitle = it.subtitle,
+                            extra = it.extra
+                        )
+                    },
+                    artists = oldSnapshot.artists.map {
+                        com.lalilu.lmedia.domain.model.LArtist(
+                            id = it.id,
+                            title = it.title,
+                            subtitle = it.subtitle,
+                            extra = it.extra
+                        )
+                    },
+                    genres = oldSnapshot.genres.map {
+                        com.lalilu.lmedia.domain.model.LGenre(
+                            id = it.id,
+                            title = it.title,
+                            subtitle = it.subtitle,
+                            extra = it.extra
+                        )
+                    },
+                    folders = oldSnapshot.folders.map {
+                        com.lalilu.lmedia.domain.model.LFolder(
+                            id = it.id,
+                            title = it.title,
+                            subtitle = it.subtitle,
+                            extra = it.extra
+                        )
+                    },
+                    state = convertState(oldSnapshot.state),
+                    relations = oldSnapshot.relations,
+                    updateTime = oldSnapshot.updateTime
+                )
                 database.mediaDao()
-                    .insert(snapshot = it, sourceName = source.name)
+                    .insert(snapshot = domainSnapshot, sourceName = source.name)
             }.launchIn(this)
         }
     }
 
     override fun platformMediaSource(): PlatformMediaSource = platformSource
 
+    @Suppress("UNCHECKED_CAST")
     override fun <T : LItem> getSourcesFlowByClass(clazz: KClass<T>): Flow<Map<String, T>>? {
-        return when (clazz) {
+        val flow: Any? = when (clazz) {
             LAudio::class -> database.audioDao().getAllAudio()
-                .mapLatest { list -> list.associateBy { it.idValue() } }
+                .mapLatest { list -> list.associateBy { it.id as String } }
 
             LArtist::class -> database.artistDao().getAllArtist()
-                .mapLatest { list -> list.associateBy { it.idValue() } }
+                .mapLatest { list -> list.associateBy { it.id as String } }
 
             LAlbum::class -> database.albumDao().getAllAlbum()
-                .mapLatest { list -> list.associateBy { it.idValue() } }
+                .mapLatest { list -> list.associateBy { it.id as String } }
 
             LGenre::class -> database.genreDao().getAllGenre()
-                .mapLatest { list -> list.associateBy { it.idValue() } }
+                .mapLatest { list -> list.associateBy { it.id as String } }
 
             LFolder::class -> database.folderDao().getAllFolder()
-                .mapLatest { list -> list.associateBy { it.idValue() } }
+                .mapLatest { list -> list.associateBy { it.id as String } }
 
             else -> null
-        } as Flow<Map<String, T>>?
+        }
+        return flow as? Flow<Map<String, T>>
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun <T : LItem> getSourcesFlowByClass(clazz: KClass<T>, ids: List<String>): Flow<List<T>>? {
-        return when (clazz) {
+        val flow: Any? = when (clazz) {
             LAudio::class -> database.audioDao().getAudios(ids)
             LArtist::class -> database.artistDao().getArtists(ids)
             LAlbum::class -> database.albumDao().getAlbums(ids)
             else -> null
-        } as Flow<List<T>>?
+        }
+        return flow as? Flow<List<T>>
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun <T : LItem> getSourceFlowByClass(clazz: KClass<T>, id: String): Flow<T?>? {
-        return when (clazz) {
+        val flow: Any? = when (clazz) {
             LAudio::class -> database.audioDao().getAudio(id)
             LArtist::class -> database.artistDao().getArtist(id)
             LAlbum::class -> database.albumDao().getAlbum(id)
             LGenre::class -> database.genreDao().getGenre(id)
             LFolder::class -> database.folderDao().getFolder(id)
             else -> null
-        } as Flow<T?>?
+        }
+        return flow as? Flow<T?>
     }
 }

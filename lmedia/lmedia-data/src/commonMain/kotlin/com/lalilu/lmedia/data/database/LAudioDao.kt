@@ -1,8 +1,12 @@
 package com.lalilu.lmedia.data.database
 
-import androidx.room3.*
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.link
+import androidx.room3.Dao
+import androidx.room3.Delete
+import androidx.room3.Insert
+import androidx.room3.Query
+import androidx.room3.Transaction
+import androidx.room3.Update
+import com.lalilu.lmedia.data.entity.LAudioEntity
 import com.lalilu.lmedia.data.database.relation.QueryLAudioWithRelations
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -12,55 +16,38 @@ import kotlinx.coroutines.flow.mapLatest
 @Dao
 interface LAudioDao {
     @Insert
-    suspend fun insert(audio: LAudio)
+    suspend fun insert(audio: LAudioEntity)
+
+    @Insert
+    suspend fun insertAll(audios: List<LAudioEntity>)
 
     @Update
-    suspend fun update(audio: LAudio)
+    suspend fun update(audio: LAudioEntity)
 
     @Delete
-    suspend fun delete(audio: LAudio)
+    suspend fun delete(audio: LAudioEntity)
 
     @Transaction
     @Query("SELECT * FROM l_audio")
     fun getAllAudioWithRelations(): Flow<List<QueryLAudioWithRelations>>
 
-    fun getAllAudio(): Flow<List<LAudio>> = getAllAudioWithRelations().mapLatest { list ->
-        list.map { query ->
-            query.audio.also { audio ->
-                query.artists.forEach { artist -> audio.link(artist) }
-                query.albums.forEach { album -> audio.link(album) }
-                query.genres.forEach { genre -> audio.link(genre) }
-            }
-        }
-    }
+    fun getAllAudio(): Flow<List<LAudioEntity>> =
+        getAllAudioWithRelations().mapLatest { list -> list.map { it.audio } }
 
     @Transaction
     @Query("SELECT * FROM l_audio WHERE song_id = :id")
     fun getAudioWithRelations(id: String): Flow<QueryLAudioWithRelations?>
 
-    fun getAudio(id: String): Flow<LAudio?> = getAudioWithRelations(id).mapLatest { query ->
-        if (query == null) return@mapLatest null
-        query.audio.also { audio ->
-            query.artists.forEach { artist -> audio.link(artist) }
-            query.albums.forEach { album -> audio.link(album) }
-            query.genres.forEach { genre -> audio.link(genre) }
-        }
-    }
+    fun getAudio(id: String): Flow<LAudioEntity?> =
+        getAudioWithRelations(id).mapLatest { it?.audio }
 
     @Transaction
     @Query("SELECT * FROM l_audio WHERE song_id IN (:ids)")
     fun getAudiosWithRelations(ids: List<String>): Flow<List<QueryLAudioWithRelations>>
 
-    fun getAudios(ids: List<String>): Flow<List<LAudio>> = getAudiosWithRelations(ids).mapLatest { list ->
-        val audios = list.map { query ->
-            query.audio.also { audio ->
-                query.artists.forEach { artist -> audio.link(artist) }
-                query.albums.forEach { album -> audio.link(album) }
-                query.genres.forEach { genre -> audio.link(genre) }
-            }
+    fun getAudios(ids: List<String>): Flow<List<LAudioEntity>> =
+        getAudiosWithRelations(ids).mapLatest { list ->
+            val map = list.associateBy { it.audio.id }
+            ids.mapNotNull { map[it]?.audio }
         }
-
-        audios.associateBy { it.idValue() }
-            .let { map -> ids.mapNotNull { map[it] } }
-    }
 }

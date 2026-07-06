@@ -12,7 +12,7 @@ import com.lalilu.lmedia.data.database.converter.StringMapConverter
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
-import com.lalilu.lmedia.entity.*
+import com.lalilu.lmedia.data.entity.*
 import com.lalilu.lplaylist.entity.LPlaylist
 import com.lalilu.lplaylist.repository.ILPlaylistDatabase
 import com.lalilu.lplaylist.repository.LPlaylistDao
@@ -22,11 +22,11 @@ import org.koin.core.annotation.Single
 @Database(
     version = 1,
     entities = [
-        LAudio::class,
-        LArtist::class,
-        LAlbum::class,
-        LGenre::class,
-        LFolder::class,
+        LAudioEntity::class,
+        LArtistEntity::class,
+        LAlbumEntity::class,
+        LGenreEntity::class,
+        LFolderEntity::class,
         LHistory::class,
         LPlaylist::class,
         CrossRefLAudioXLArtist::class,

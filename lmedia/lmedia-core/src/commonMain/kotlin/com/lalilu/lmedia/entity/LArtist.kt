@@ -1,17 +1,11 @@
 package com.lalilu.lmedia.entity
 
-import androidx.room3.ColumnInfo
-import androidx.room3.Entity
-import androidx.room3.PrimaryKey
 import com.lalilu.lmedia.sortable.Sortable
 import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
 
-@Entity(tableName = "l_artist", ignoredColumns = ["refs"])
 @Serializable
 data class LArtist(
-    @PrimaryKey
-    @ColumnInfo("artist_id")
     var id: String = "",
     var title: String = "",
     var subtitle: String = "",

@@ -20,24 +20,24 @@ package com.lalilu.lmedia.data.database.relation
 import androidx.room3.Embedded
 import androidx.room3.Junction
 import androidx.room3.Relation
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LGenre
+import com.lalilu.lmedia.data.entity.LAlbumEntity
+import com.lalilu.lmedia.data.entity.LArtistEntity
+import com.lalilu.lmedia.data.entity.LAudioEntity
+import com.lalilu.lmedia.data.entity.LGenreEntity
 
 /**
  * LArtist 的完整关联查询结果
  * 包含 LArtist 本身及其关联的 Audio
  */
 data class QueryLArtistWithAudios(
-    @Embedded val artist: LArtist,
+    @Embedded val artist: LArtistEntity,
 
     @Relation(
         parentColumn = "artist_id",
         entityColumn = "song_id",
         associateBy = Junction(CrossRefLAudioXLArtist::class)
     )
-    val audios: List<LAudio>
+    val audios: List<LAudioEntity>
 )
 
 /**
@@ -45,14 +45,14 @@ data class QueryLArtistWithAudios(
  * 包含 LAlbum 本身及其关联的 Audio
  */
 data class QueryLAlbumWithAudios(
-    @Embedded val album: LAlbum,
+    @Embedded val album: LAlbumEntity,
 
     @Relation(
         parentColumn = "album_id",
         entityColumn = "song_id",
         associateBy = Junction(CrossRefLAudioXAlbum::class)
     )
-    val audios: List<LAudio>
+    val audios: List<LAudioEntity>
 )
 
 /**
@@ -60,12 +60,12 @@ data class QueryLAlbumWithAudios(
  * 包含 LGenre 本身及其关联的 Audio
  */
 data class QueryLGenreWithAudios(
-    @Embedded val genre: LGenre,
+    @Embedded val genre: LGenreEntity,
 
     @Relation(
         parentColumn = "genre_id",
         entityColumn = "song_id",
         associateBy = Junction(CrossRefLAudioXGenre::class)
     )
-    val audios: List<LAudio>
+    val audios: List<LAudioEntity>
 )

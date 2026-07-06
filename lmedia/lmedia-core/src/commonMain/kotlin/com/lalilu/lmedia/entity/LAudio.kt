@@ -1,31 +1,21 @@
 package com.lalilu.lmedia.entity
 
-import androidx.room3.ColumnInfo
-import androidx.room3.Entity
-import androidx.room3.Ignore
-import androidx.room3.PrimaryKey
 import com.lalilu.lmedia.sortable.Sortable
 import com.lalilu.lmedia.source.MediaSource
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 import kotlin.reflect.KClass
 
-@Entity(tableName = "l_audio", ignoredColumns = ["refs"])
 @Serializable
 data class LAudio(
-    @PrimaryKey
-    @ColumnInfo("song_id")
     var id: String = "",
     var title: String = "",
     var subtitle: String = "",
-    @ColumnInfo("media_source_name")
     var mediaSourceName: String = "",
     var metadata: Metadata = Metadata.EMPTY,
     var extra: Map<String, String>? = null,
     override var available: Boolean = true,
 
-    @Ignore
-    @Transient
+    @kotlinx.serialization.Transient
     var sourceItem: SourceItem = SourceItemDefaults.Empty,
 ) : LItem, Sourceable, Available, Playable, TextMatchable, Sortable, Linkable,
     Extensible by extensibleImpl({ extra }) {

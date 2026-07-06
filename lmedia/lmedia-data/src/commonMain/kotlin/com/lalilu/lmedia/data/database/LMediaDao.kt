@@ -1,42 +1,33 @@
-/*
- * Copyright (c) 2026 lalilu. All rights reserved.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.lalilu.lmedia.data.database
 
-import androidx.room3.*
+import androidx.room3.Dao
+import androidx.room3.Insert
+import androidx.room3.OnConflictStrategy
+import androidx.room3.Query
+import androidx.room3.Transaction
+import com.lalilu.lmedia.data.entity.LAlbumEntity
+import com.lalilu.lmedia.data.entity.LArtistEntity
+import com.lalilu.lmedia.data.entity.LAudioEntity
+import com.lalilu.lmedia.data.entity.LGenreEntity
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
-import com.lalilu.lmedia.entity.*
+import com.lalilu.lmedia.domain.source.Snapshot
 
 @Dao
 interface LMediaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAudio(list: List<LAudio>)
+    suspend fun insertAudio(list: List<LAudioEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertArtist(list: List<LArtist>)
+    suspend fun insertArtist(list: List<LArtistEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAlbum(list: List<LAlbum>)
+    suspend fun insertAlbum(list: List<LAlbumEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertGenre(list: List<LGenre>)
+    suspend fun insertGenre(list: List<LGenreEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertArtistRelation(list: List<CrossRefLAudioXLArtist>)
@@ -48,56 +39,99 @@ interface LMediaDao {
     suspend fun insertGenreRelation(list: List<CrossRefLAudioXGenre>)
 
     @Query("SELECT * FROM l_audio WHERE media_source_name = :source")
-    suspend fun getAudioBySource(source: String): List<LAudio>
+    suspend fun getAudioBySource(source: String): List<LAudioEntity>
 
     @Transaction
     suspend fun insert(snapshot: Snapshot, sourceName: String) {
         val audioFromSource = getAudioBySource(sourceName)
-        val audioMap = snapshot.audios.associateBy { it.idValue() }
+        val audioMap = snapshot.audios.associateBy { it.id }
 
         val audioToUpdate = audioFromSource
-            .filter { audio -> audioMap[audio.idValue()] == null }
+            .filter { audio -> audioMap[audio.id] == null }
             .map { it.copy(available = false) }
 
-        // 插入所有实体
-        insertAudio(list = snapshot.audios + audioToUpdate)
-        insertArtist(list = snapshot.artists)
-        insertAlbum(list = snapshot.albums)
-        insertGenre(list = snapshot.genres)
+        // Convert domain entities to Room entities
+        val audioEntities = snapshot.audios.map { domain ->
+            LAudioEntity(
+                id = domain.id,
+                title = domain.title,
+                subtitle = domain.subtitle,
+                mediaSourceName = domain.mediaSourceName,
+                metadata = domain.metadata,
+                extra = domain.extra,
+                available = domain.available
+            )
+        }
 
-        // 构建并插入关联关系
+        val artistEntities = snapshot.artists.map { domain ->
+            LArtistEntity(
+                id = domain.id,
+                title = domain.title,
+                subtitle = domain.subtitle,
+                extra = domain.extra
+            )
+        }
+
+        val albumEntities = snapshot.albums.map { domain ->
+            LAlbumEntity(
+                id = domain.id,
+                title = domain.title,
+                subtitle = domain.subtitle,
+                extra = domain.extra
+            )
+        }
+
+        val genreEntities = snapshot.genres.map { domain ->
+            LGenreEntity(
+                id = domain.id,
+                title = domain.title,
+                subtitle = domain.subtitle,
+                extra = domain.extra
+            )
+        }
+
+        // Insert all entities
+        insertAudio(audioEntities + audioToUpdate)
+        insertArtist(artistEntities)
+        insertAlbum(albumEntities)
+        insertGenre(genreEntities)
+
+        // Build and insert relations from snapshot.relations map
         val artistRelations = snapshot.audios.flatMap { song ->
-            val artists = song.ref<LArtist>()
-            artists.map { artist ->
+            val artistIds = snapshot.relations["com.lalilu.lmedia.domain.model.LArtist"]
+                ?.get(song.id) ?: emptyList()
+            artistIds.map { artistId ->
                 CrossRefLAudioXLArtist(
-                    songId = song.idValue(),
-                    artistId = artist.idValue()
+                    songId = song.id,
+                    artistId = artistId
                 )
             }
         }
 
         val albumRelations = snapshot.audios.flatMap { song ->
-            val albums = song.ref<LAlbum>()
-            albums.map { album ->
+            val albumIds = snapshot.relations["com.lalilu.lmedia.domain.model.LAlbum"]
+                ?.get(song.id) ?: emptyList()
+            albumIds.map { albumId ->
                 CrossRefLAudioXAlbum(
-                    songId = song.idValue(),
-                    albumId = album.idValue()
+                    songId = song.id,
+                    albumId = albumId
                 )
             }
         }
 
         val genreRelations = snapshot.audios.flatMap { song ->
-            val genres = song.ref<LGenre>()
-            genres.map { genre ->
+            val genreIds = snapshot.relations["com.lalilu.lmedia.domain.model.LGenre"]
+                ?.get(song.id) ?: emptyList()
+            genreIds.map { genreId ->
                 CrossRefLAudioXGenre(
-                    songId = song.idValue(),
-                    genreId = genre.idValue()
+                    songId = song.id,
+                    genreId = genreId
                 )
             }
         }
 
-        insertArtistRelation(list = artistRelations)
-        insertAlbumRelation(list = albumRelations)
-        insertGenreRelation(list = genreRelations)
+        insertArtistRelation(artistRelations)
+        insertAlbumRelation(albumRelations)
+        insertGenreRelation(genreRelations)
     }
 }

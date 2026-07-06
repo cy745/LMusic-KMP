@@ -20,36 +20,36 @@ package com.lalilu.lmedia.data.database.relation
 import androidx.room3.Embedded
 import androidx.room3.Junction
 import androidx.room3.Relation
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LGenre
+import com.lalilu.lmedia.data.entity.LAlbumEntity
+import com.lalilu.lmedia.data.entity.LArtistEntity
+import com.lalilu.lmedia.data.entity.LAudioEntity
+import com.lalilu.lmedia.data.entity.LGenreEntity
 
 /**
  * LAudio 的完整关联查询结果
  * 包含 LAudio 本身及其关联的 Artist、Album、Genre
  */
 data class QueryLAudioWithRelations(
-    @Embedded val audio: LAudio,
+    @Embedded val audio: LAudioEntity,
 
     @Relation(
         parentColumn = "song_id",
         entityColumn = "artist_id",
         associateBy = Junction(CrossRefLAudioXLArtist::class)
     )
-    val artists: List<LArtist>,
+    val artists: List<LArtistEntity>,
 
     @Relation(
         parentColumn = "song_id",
         entityColumn = "album_id",
         associateBy = Junction(CrossRefLAudioXAlbum::class)
     )
-    val albums: List<LAlbum>,
+    val albums: List<LAlbumEntity>,
 
     @Relation(
         parentColumn = "song_id",
         entityColumn = "genre_id",
         associateBy = Junction(CrossRefLAudioXGenre::class)
     )
-    val genres: List<LGenre>
+    val genres: List<LGenreEntity>
 )

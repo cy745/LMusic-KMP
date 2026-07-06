@@ -18,7 +18,7 @@
 package com.lalilu.lmedia.data.database.converter
 
 import androidx.room3.TypeConverter
-import com.lalilu.lmedia.entity.Metadata
+import com.lalilu.lmedia.domain.model.Metadata
 
 
 class MetadataConverter : SerializableConverter<Metadata> {
