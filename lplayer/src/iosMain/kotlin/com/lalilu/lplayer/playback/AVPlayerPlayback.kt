@@ -40,7 +40,7 @@ class AVPlayerPlayback(
     private val observerContext: COpaquePointer = cOpaquePtr()
     private val platformMediaSource: PlatformMediaSource by inject()
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
-    private val avPlayer: AVPlayer = AVPlayer()
+    private val avPlayer: AVPlayer by lazy { AVPlayer() }
     private var audioPlayer: AVAudioPlayer? = null
 
     override suspend fun resolveMedia(ids: List<String>): List<LAudio> = library.mapBy<LAudio>(ids)
