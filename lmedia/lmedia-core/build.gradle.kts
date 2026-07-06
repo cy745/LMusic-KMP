@@ -50,6 +50,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            api(project(":lmedia:lmedia-domain"))
             api(project(":common"))
             api(libs.compose.ui)
             api(libs.compose.resources)
