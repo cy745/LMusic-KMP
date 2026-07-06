@@ -10,10 +10,12 @@ import com.lalilu.lartist.lartist.generated.resources.Res
 import com.lalilu.lartist.lartist.generated.resources.artist_detail_screen_title
 import com.lalilu.lartist.viewmodel.ArtistDetailAction
 import com.lalilu.lartist.viewmodel.ArtistDetailVM
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.ArtistRepository
 import com.lalilu.lmedia.dialog.GroupIdJumperDialog
 import com.lalilu.lmedia.dialog.SortPanelDialog
 import com.lalilu.lmedia.entity.LArtist
+import com.lalilu.lmedia.entity.toLegacyArtist
+import kotlinx.coroutines.flow.map
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.*
@@ -107,8 +109,11 @@ data class ArtistDetailScreen(
         val sortAction = vm.sorter.selectedAction.collectAsState()
         val sortConfig = vm.sorter.sortConfig.collectAsState()
 
-        val currentArtist by remember { LMedia.instance.flow<LArtist>(id = artistId) }
-            .collectAsState(artist)
+        val artistRepo = org.koin.compose.koinInject<ArtistRepository>()
+        val currentArtist by remember(artistId) {
+            artistRepo.getArtist(artistId).map { it?.toLegacyArtist() }
+        }
+            .collectAsState(null)
 
         SortPanelDialog(
             isVisible = { state.showSortPanel },

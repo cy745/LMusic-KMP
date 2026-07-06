@@ -23,7 +23,7 @@ import com.lalilu.lhome.viewmodel.SongsEvent
 import com.lalilu.lhome.viewmodel.SongsState
 import com.lalilu.lhome.viewmodel.SongsVM
 import com.lalilu.lmedia.component.AudioItemCard
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.dialog.GroupIdJumperDialog
 import com.lalilu.lmedia.dialog.SortPanelDialog
 import com.lalilu.lmedia.entity.LAudio
@@ -49,6 +49,7 @@ import com.lalilu.remixicon.system.menuSearchLine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -121,6 +122,7 @@ data class SongsScreen(
     @Composable
     override fun Content() {
         val vm = koinViewModel<SongsVM>()
+        val audioRepo = org.koin.compose.koinInject<AudioRepository>()
         val songs by vm.songs
         val state by vm.state
         val sortAction = vm.sorter.selectedAction.collectAsState()
@@ -178,6 +180,7 @@ data class SongsScreen(
         )
 
         SongsScreenContent(
+            audioRepo = audioRepo,
             recorder = { vm.recorder },
             selector = { vm.selector },
             state = { state },
@@ -190,6 +193,7 @@ data class SongsScreen(
 
 @Composable
 fun SongsScreenContent(
+    audioRepo: AudioRepository,
     state: () -> SongsState,
     songs: () -> SortResult<LAudio>,
     recorder: () -> ItemRecorder,
@@ -320,7 +324,7 @@ fun SongsScreenContent(
                         onPlay = {
                             scope.launch {
                                 PlayerAction.UpdateList(
-                                    ids = LMedia.instance.get<LAudio>().map(LItem::idValue),
+                                    ids = audioRepo.getAudios().first().map { it.idValue() },
                                     id = item.idValue(),
                                     start = true
                                 ).action()

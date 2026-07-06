@@ -48,7 +48,7 @@ import com.lalilu.lhistory.entity.LHistory
 import com.lalilu.lhistory.lhistory.generated.resources.Res
 import com.lalilu.lhistory.lhistory.generated.resources.history_screen_title
 import com.lalilu.lhistory.viewmodel.HistoryVM
-import com.lalilu.lmedia.data.LMedia
+import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
@@ -128,7 +128,8 @@ private fun HistoryScreenContent(
             key = items.itemKey { it.id }
         ) { index ->
             val item = items[index]
-            val audio = remember { item?.contentId?.let { LMedia.instance.flow<LAudio>(it) } }
+            val audioRepo = org.koin.compose.koinInject<AudioRepository>()
+            val audio = remember(item) { item?.contentId?.let { audioRepo.getAudio(it) } }
                 ?.collectAsStateWithLifecycle(null)
 
             HistoryItemCard(
