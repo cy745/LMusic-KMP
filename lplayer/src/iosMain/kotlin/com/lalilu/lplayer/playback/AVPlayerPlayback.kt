@@ -26,8 +26,8 @@ import platform.Foundation.*
 @Single(binds = [Playback::class])
 @OptIn(ExperimentalForeignApi::class)
 class AVPlayerPlayback(
-    private val history: PlaybackHistory,
-    private val audioRepository: AudioRepository
+    history: PlaybackHistory,
+    audioRepository: AudioRepository
 ) : AbstractPlayback(history = history, audioRepository = audioRepository), KoinComponent {
     companion object Companion {
         const val TAG = "AVPlayerPlayback"

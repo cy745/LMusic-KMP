@@ -20,7 +20,7 @@ import com.lalilu.lmedia.entity.toLegacyArtist
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.repository.AlbumRepository
 import com.lalilu.lmedia.domain.repository.ArtistRepository
-import org.koin.core.context.GlobalContext
+import org.koin.mp.KoinPlatform
 import io.ktor.http.encodeURLPathPart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -131,9 +131,9 @@ object MMedia {
     const val ALL_ARTISTS = "all_artists"
     const val ALL_ALBUMS = "all_albums"
 
-    private val audioRepo: AudioRepository get() = GlobalContext.get().get()
-    private val albumRepo: AlbumRepository get() = GlobalContext.get().get()
-    private val artistRepo: ArtistRepository get() = GlobalContext.get().get()
+    private val audioRepo: AudioRepository get() = KoinPlatform.getKoin().get()
+    private val albumRepo: AlbumRepository get() = KoinPlatform.getKoin().get()
+    private val artistRepo: ArtistRepository get() = KoinPlatform.getKoin().get()
 
     private fun resolveType(id: String): String = when {
         id.startsWith(com.lalilu.lmedia.entity.LAudio.ID_PREFIX) -> "audio"

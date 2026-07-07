@@ -12,6 +12,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.domain.model.LAudio as DomainAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import org.koin.mp.KoinPlatform
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.source.MediaData
 import io.ktor.http.decodeURLPart
@@ -52,7 +53,7 @@ class LMediaDataSource(
         val id = uri?.getQueryParameter("id")
             ?.decodeURLPart()
 
-        val audioRepo = org.koin.core.context.GlobalContext.get().get<AudioRepository>()
+        val audioRepo = KoinPlatform.getKoin().get<AudioRepository>()
         val domainItem = id?.let { runBlocking(Dispatchers.IO) { audioRepo.getAudio(id).first() } }
             ?: return defaultDataSource.open(dataSpec)
 

@@ -20,7 +20,7 @@ import kotlin.coroutines.CoroutineContext
 
 @Single(binds = [MediaSource::class, MediaDataSource::class])
 @OptIn(ExperimentalForeignApi::class)
-object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
+class SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
     override val coroutineContext: CoroutineContext = Dispatchers.io
     override val name: String = "SandboxFileSystemSource"
     private val musicFolder = FileKit.filesDir

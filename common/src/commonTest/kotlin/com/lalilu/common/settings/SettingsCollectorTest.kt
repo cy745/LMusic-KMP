@@ -21,6 +21,7 @@ import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import org.koin.mp.KoinPlatform
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -46,8 +47,11 @@ class SettingsCollectorTest {
 
     @AfterTest
     fun stopKoinContext() {
-        if (org.koin.core.context.GlobalContext.getOrNull() != null) {
+        try {
+            KoinPlatform.getKoin()
             stopKoin()
+        } catch (_: Exception) {
+            // Koin not started, nothing to stop
         }
     }
 
