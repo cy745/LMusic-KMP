@@ -105,6 +105,8 @@ koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", ver
 koin-annotations = { module = "io.github.cy745:koin-annotations", version.ref = "koin-ksp" }
 koin-compiler = { module = "io.github.cy745:koin-ksp-compiler", version.ref = "koin-ksp" }
 koin-androidx-startup = { module = "io.insert-koin:koin-androidx-startup", version.ref = "koin" }
+koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
+koin-test-junit4 = { module = "io.insert-koin:koin-test-junit4", version.ref = "koin" }
 native-lib-loader = { module = "org.scijava:native-lib-loader", version = "2.5.0" }
 
 # coil

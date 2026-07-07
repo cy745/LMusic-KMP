@@ -1,6 +1,6 @@
 package com.lalilu.lmusic.repository
 
-import com.lalilu.lmedia.data.database.LAudioDao
+import com.lalilu.lmedia.data.database.ILMediaDatabase
 import com.lalilu.lmedia.data.entity.LAudioEntity
 import com.lalilu.lmedia.data.mapper.toDomain
 import com.lalilu.lmedia.data.mapper.toEntity
@@ -24,12 +24,10 @@ import kotlin.test.assertTrue
 class AudioRepositoryImplTest {
     private val db = requireDatabase<LMusicDatabase>(forceMemory = true)
     private lateinit var repo: AudioRepository
-    private lateinit var dao: LAudioDao
 
     @BeforeTest
     fun setup() {
-        dao = db.audioDao()
-        repo = AudioRepositoryImpl(dao)
+        repo = AudioRepositoryImpl(db)
     }
 
     @AfterTest
@@ -62,7 +60,7 @@ class AudioRepositoryImplTest {
         )
 
         // Insert directly via DAO (Repository is read-only)
-        dao.insert(audio.toEntity())
+        db.audioDao().insert(audio.toEntity())
 
         // Verify via Repository
         val result = repo.getAudio("repo_test_audio_1").firstOrNull()
@@ -81,7 +79,7 @@ class AudioRepositoryImplTest {
             LAudio(id = "repo_list_2", title = "Song 2", subtitle = "A2", mediaSourceName = "test"),
             LAudio(id = "repo_list_3", title = "Song 3", subtitle = "A3", mediaSourceName = "test")
         )
-        dao.insertAll(audios.map { it.toEntity() })
+        db.audioDao().insertAll(audios.map { it.toEntity() })
 
         val result = repo.getAudios().first()
         assertTrue(result.size >= 3)
@@ -96,7 +94,7 @@ class AudioRepositoryImplTest {
             LAudio(id = "repo_filter_2", title = "Keep", subtitle = "", mediaSourceName = "test"),
             LAudio(id = "repo_filter_3", title = "Skip", subtitle = "", mediaSourceName = "test")
         )
-        dao.insertAll(audios.map { it.toEntity() })
+        db.audioDao().insertAll(audios.map { it.toEntity() })
 
         val result = repo.getAudios(listOf("repo_filter_1", "repo_filter_3")).first()
         assertEquals(2, result.size)
@@ -106,7 +104,7 @@ class AudioRepositoryImplTest {
 
     @Test
     fun `getAudios with empty ids returns empty list`() = runTest {
-        dao.insert(LAudio(id = "repo_empty_ids", title = "T", subtitle = "", mediaSourceName = "test").toEntity())
+        db.audioDao().insert(LAudio(id = "repo_empty_ids", title = "T", subtitle = "", mediaSourceName = "test").toEntity())
 
         val result = repo.getAudios(emptyList()).first()
         assertTrue(result.isEmpty())

@@ -1,8 +1,5 @@
 package com.lalilu.lmusic.repository
 
-import com.lalilu.lmedia.data.database.LAlbumDao
-import com.lalilu.lmedia.data.database.LArtistDao
-import com.lalilu.lmedia.data.database.LGenreDao
 import com.lalilu.lmedia.data.entity.LAlbumEntity
 import com.lalilu.lmedia.data.entity.LArtistEntity
 import com.lalilu.lmedia.data.entity.LGenreEntity
@@ -24,12 +21,12 @@ import kotlin.test.assertTrue
 
 class AlbumArtistGenreRepositoryTest {
     private val db = requireDatabase<LMusicDatabase>(forceMemory = true)
-    private val albumRepo = AlbumRepositoryImpl(db.albumDao())
-    private val artistRepo = ArtistRepositoryImpl(db.artistDao())
-    private val genreRepo = GenreRepositoryImpl(db.genreDao())
-    private val albumDao: LAlbumDao = db.albumDao()
-    private val artistDao: LArtistDao = db.artistDao()
-    private val genreDao: LGenreDao = db.genreDao()
+    private val albumRepo = AlbumRepositoryImpl(db)
+    private val artistRepo = ArtistRepositoryImpl(db)
+    private val genreRepo = GenreRepositoryImpl(db)
+    private val albumDao = db.albumDao()
+    private val artistDao = db.artistDao()
+    private val genreDao = db.genreDao()
 
     @Test
     fun `album repository insert and query`() = runTest {
