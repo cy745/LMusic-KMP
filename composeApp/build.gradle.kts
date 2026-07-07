@@ -92,7 +92,6 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
-            implementation(libs.koin.test)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
@@ -100,6 +99,7 @@ kotlin {
             implementation(libs.jna)
             implementation(libs.jna.platform)
             implementation(libs.sqlite.bundled)
+            implementation(libs.koin.test)
             implementation(libs.koin.test.junit4)
         }
         androidMain.dependencies {
