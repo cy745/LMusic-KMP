@@ -15,8 +15,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import kotlinx.io.buffered
 import kotlinx.io.files.FileNotFoundException
+import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
 
+@Single(binds = [MediaSource::class, MediaDataSource::class])
 @OptIn(ExperimentalForeignApi::class)
 object SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
     override val coroutineContext: CoroutineContext = Dispatchers.io

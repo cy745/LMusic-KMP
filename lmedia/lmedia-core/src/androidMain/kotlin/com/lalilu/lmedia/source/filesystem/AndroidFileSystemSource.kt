@@ -17,11 +17,13 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.io.buffered
+import org.koin.core.annotation.Single
 import java.io.FileNotFoundException
 
 
 @SuppressLint("NewApi")
 @OptIn(ExperimentalCoroutinesApi::class)
+@Single(binds = [MediaSource::class, MediaDataSource::class])
 class AndroidFileSystemSource(
     private val context: Application,
     private val saver: Saver

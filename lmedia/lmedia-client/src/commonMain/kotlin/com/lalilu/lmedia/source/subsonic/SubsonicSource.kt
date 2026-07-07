@@ -23,7 +23,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(createdAtStart = true)
+@Single(binds = [MediaSource::class, MediaDataSource::class])
 class SubsonicSource(
     private val json: Json,
     private val saver: Saver

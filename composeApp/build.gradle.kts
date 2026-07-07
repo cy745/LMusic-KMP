@@ -70,6 +70,7 @@ kotlin {
             implementation(project(":lmedia:lmedia-data"))
             implementation(project(":lmedia:lmedia-coil"))
             implementation(project(":lmedia:lmedia-ui"))
+            implementation(project(":lmedia:lmedia-client"))
             implementation(project(":lplayer"))
             implementation(project(":llyricview"))
             implementation(project(":lhome"))
@@ -92,7 +93,6 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.koin.test)
-            implementation(libs.koin.test.junit4)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
@@ -100,6 +100,7 @@ kotlin {
             implementation(libs.jna)
             implementation(libs.jna.platform)
             implementation(libs.sqlite.bundled)
+            implementation(libs.koin.test.junit4)
         }
         androidMain.dependencies {
             implementation(compose.preview)

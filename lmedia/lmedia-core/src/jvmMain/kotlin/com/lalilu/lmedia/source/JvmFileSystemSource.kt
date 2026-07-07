@@ -12,10 +12,12 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.io.buffered
+import org.koin.core.annotation.Single
 import java.io.FileNotFoundException
 
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Single(binds = [MediaSource::class, MediaDataSource::class])
 class JvmFileSystemSource(
     private val saver: Saver? = null
 ) : MediaSource, MediaDataSource {
