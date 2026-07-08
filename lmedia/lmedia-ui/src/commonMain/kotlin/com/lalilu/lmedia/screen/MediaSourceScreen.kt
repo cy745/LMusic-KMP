@@ -15,7 +15,7 @@ import com.lalilu.RemixIcon
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmedia.Content
-import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.remote.RemoteServerPanel
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo

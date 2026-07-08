@@ -20,7 +20,7 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.lalilu.common.kv.KVContext
-import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.*
 import com.lalilu.lplayer.playback.IPlaybackDataTracker

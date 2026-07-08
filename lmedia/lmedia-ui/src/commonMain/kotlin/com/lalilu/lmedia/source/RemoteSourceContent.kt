@@ -7,7 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.component.SourceCard
-import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lmedia.domain.source.Snapshot
 import kotlinx.coroutines.Dispatchers
 
 @Composable

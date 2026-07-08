@@ -17,8 +17,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.entity.SnapshotState
+import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.source.Declaration
 import com.lalilu.lmedia.source.MediaSource
 import com.lalilu.preview.preview
@@ -105,24 +105,8 @@ fun MediaSource.SourceCard(
                     )
                 }
 
-                is SnapshotState.LoadingDynamic -> Column {
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                        progress = snapshotState.progress
-                    )
-
-                    Text(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .alpha(0.3f),
-                        text = snapshotState.message.invoke(),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
+                is SnapshotState.Loading -> {
+                    // LoadingDynamic merged into Loading in domain model
                 }
 
                 is SnapshotState.Empty,

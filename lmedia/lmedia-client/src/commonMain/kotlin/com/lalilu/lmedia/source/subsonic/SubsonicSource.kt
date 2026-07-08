@@ -303,7 +303,7 @@ class SubsonicSource(
         return audios
     }
 
-    override val dataSource: MediaDataSource = this
+    override val dataSource: com.lalilu.lmedia.domain.source.MediaDataSource = this
     override fun source(): Flow<Snapshot> = snapshotFlow
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {

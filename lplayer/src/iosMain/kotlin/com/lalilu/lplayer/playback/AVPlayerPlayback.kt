@@ -4,7 +4,10 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.source.MediaData
+import com.lalilu.lmedia.entity.Metadata as EntityMetadata
+import com.lalilu.lmedia.domain.model.LAudio as DomainAudio
+import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
+import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lplayer.extensions.VolumeFadeHelper
 import com.lalilu.lplayer.helper.*
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
@@ -80,13 +83,25 @@ class AVPlayerPlayback(
         }
     }
 
+    private fun LAudio.toDomainAudio(): DomainAudio = DomainAudio(
+        id = id, title = title, subtitle = subtitle, mediaSourceName = mediaSourceName,
+        metadata = DomainMetadata(
+            title = metadata.title, album = metadata.album, artist = metadata.artist,
+            albumArtist = metadata.albumArtist, composer = metadata.composer,
+            lyricist = metadata.lyricist, comment = metadata.comment, genre = metadata.genre,
+            track = metadata.track, disc = metadata.disc, date = metadata.date,
+            duration = metadata.duration, dateAdded = metadata.dateAdded, dateModified = metadata.dateModified
+        ),
+        extra = extra, available = available
+    )
+
     private suspend fun playItem(item: LAudio, start: Boolean) = withContext(Dispatchers.Main) {
         AudioSessionHelper.ensureAudioSessionActive()
         val source = platformMediaSource.sources
             .firstOrNull { item.mediaSourceName == it.name }
             ?: throw Exception("No source item found for ${item.mediaSourceName}")
 
-        when (val data = source.dataSource.getMedia(item)) {
+        when (val data = source.dataSource.getMedia(item.toDomainAudio())) {
             is MediaData.Url -> {
                 // 移除旧的监听
                 avPlayer.currentItem?.removeObserver(

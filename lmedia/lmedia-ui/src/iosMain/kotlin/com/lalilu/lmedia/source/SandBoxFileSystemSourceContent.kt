@@ -12,7 +12,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.component.SourceCard
-import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.lmedia_ui.generated.resources.Res
 import com.lalilu.lmedia.server.SandBoxFileSystemServer
 import com.lalilu.lmedia.util.IfAddresses

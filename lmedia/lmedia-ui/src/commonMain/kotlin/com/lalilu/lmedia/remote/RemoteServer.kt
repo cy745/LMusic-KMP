@@ -4,7 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.LMediaKV
-import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.server.LMediaServer
 import com.lalilu.lmedia.server.entity.RemoteServerConfig
 import kotlinx.coroutines.*
