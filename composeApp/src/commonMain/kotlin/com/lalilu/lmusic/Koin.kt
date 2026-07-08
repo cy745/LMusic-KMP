@@ -16,6 +16,9 @@ import com.skydoves.compose.stability.runtime.ComposeStabilityAnalyzer
 import kotlinx.serialization.json.Json
 import org.koin.core.KoinApplication
 import org.koin.core.annotation.ComponentScan
+import org.koin.core.scope.Scope
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.MediaSource
 import org.koin.core.annotation.Module
 import org.koin.core.annotation.ModuleProvider
 import org.koin.dsl.module
@@ -41,6 +44,13 @@ private val SharedModule = module {
     single<ObservableSettings> { Settings().makeObservable() }
     single<Settings> { get<ObservableSettings>() }
     single<Json> { Json { ignoreUnknownKeys = true } }
+
+    // PlatformMediaSource — KSP doesn't process top-level @Single functions properly
+    // in the current koin-annotations version (cy745 fork).
+    single<PlatformMediaSource> {
+        val sources: List<MediaSource> = getKoin().getAll()
+        PlatformMediaSource(sources).apply { sources.forEach { it.init() } }
+    }
 }
 
 @Module

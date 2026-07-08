@@ -1,14 +1,10 @@
 package com.lalilu.lmedia
 
-import com.lalilu.lmedia.domain.source.MediaSource
-import com.lalilu.lmedia.domain.source.PlatformMediaSource
-import org.koin.core.annotation.Single
-import org.koin.core.scope.Scope
-
-@Single(createdAtStart = true, binds = [PlatformMediaSource::class])
-fun provideDomainMediaSource(scope: Scope): PlatformMediaSource {
-    val sources = scope.getKoin().getAll<MediaSource>()
-
-    return PlatformMediaSource(sources)
-        .apply { sources.forEach { it.init() } }
-}
+/**
+ * PlatformMediaSource is now registered in composeApp's SharedModule.
+ * See Koin.kt: single<PlatformMediaSource> { ... }
+ *
+ * This file intentionally left minimal. The old provideMediaSource
+ * top-level @Single function (which was here) was not properly picked up
+ * by the krouter KSP processor, so registration moved to SharedModule.
+ */
