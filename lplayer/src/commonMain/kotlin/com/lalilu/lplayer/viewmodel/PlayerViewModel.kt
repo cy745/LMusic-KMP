@@ -5,7 +5,7 @@ import androidx.lifecycle.*
 import com.lalilu.common.ext.io
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.LyricUtils
-import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lplayer.LPlayer
 import kotlinx.coroutines.Dispatchers

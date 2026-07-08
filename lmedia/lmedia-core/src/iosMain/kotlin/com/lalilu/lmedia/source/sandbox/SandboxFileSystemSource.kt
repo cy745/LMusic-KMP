@@ -10,8 +10,7 @@ import com.lalilu.lmedia.domain.source.MediaDataSource
 import com.lalilu.lmedia.source.MediaSource
 import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.source.buildConfig
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.refTo
+import kotlinx.cinterop.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -108,7 +107,8 @@ class SandboxFileSystemSource : MediaSource, MediaDataSource {
             ?: throw FileNotFoundException("File not found: $path")
         val length = nsData.length.toInt()
         val bytes = if (length > 0) {
-            val rawPtr = nsData.bytes ?: throw Exception("Null bytes for $path")
+            val rawPtr = nsData.bytes
+                ?: throw Exception("Null bytes pointer for $path")
             rawPtr.readBytes(length)
         } else ByteArray(0)
         MediaData.Bytes(bytes)

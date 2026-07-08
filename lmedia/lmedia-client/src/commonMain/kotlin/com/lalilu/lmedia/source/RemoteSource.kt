@@ -4,7 +4,10 @@ import androidx.compose.runtime.getValue
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.md5
-import com.lalilu.lmedia.entity.*
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.domain.source.MediaData
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.*
@@ -43,7 +46,6 @@ class RemoteSource(
 
     private var client: HttpClient? = null
     private val snapshotFlow = MutableStateFlow(Snapshot.Idle)
-    private val stateValue by snapshotFlow.toComposeState(this)
     private var loadingJob: Job? = null
 
     override val config: MediaSourceConfig = buildConfig(
@@ -59,7 +61,7 @@ class RemoteSource(
         function<Unit>(
             key = "Connect",
             description = "连接远程媒体源",
-            isAvailable = { stateValue is SnapshotState.Idle }
+            isAvailable = { snapshotFlow.value is SnapshotState.Idle }
         ).onCall {
             loadData()
         }
@@ -68,7 +70,7 @@ class RemoteSource(
             key = "Cancel",
             description = "取消当前执行任务",
             isAvailable = {
-                stateValue.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic }
+                snapshotFlow.value.state is SnapshotState.Loading
             }
         ).onCall {
             loadingJob?.cancel()
@@ -78,7 +80,7 @@ class RemoteSource(
         function<Unit>(
             key = "Reset",
             description = "重置远程媒体源",
-            isAvailable = { stateValue !is SnapshotState.Idle }
+            isAvailable = { snapshotFlow.value !is SnapshotState.Idle }
         ).onCall {
             reset()
         }
@@ -87,7 +89,7 @@ class RemoteSource(
             key = "Refresh",
             description = "刷新远程媒体源",
             isAvailable = {
-                stateValue.let { it is SnapshotState.Success || it is SnapshotState.Empty || it is SnapshotState.Error }
+                snapshotFlow.value.let { it is SnapshotState.Success || it is SnapshotState.Empty || it is SnapshotState.Error }
             }
         ).onCall {
             loadData()
@@ -181,7 +183,7 @@ class RemoteSource(
                         }
                     }
                     .body<Snapshot>()
-                    .also { it.redirectToNewSource(this@RemoteSource.name) }
+                    .also { /* redirectToNewSource removed in domain model */ }
 
                 ensureActive()
                 snapshotFlow.emit(result)
@@ -205,7 +207,7 @@ class RemoteSource(
     }
 
     override suspend fun getLyric(song: LAudio): String? {
-        val targetUrl = "lyric/${song.idValue().encodeURLPathPart()}"
+        val targetUrl = "lyric/${song.id.encodeURLPathPart()}"
         val salt = config.get<String>("salt").getOrNull()
         val token = config.get<String>("token").getOrNull()
         val lyric = requireClient()
@@ -221,7 +223,7 @@ class RemoteSource(
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? {
-        val targetUrl = "picture/${song.idValue().encodeURLPathPart()}"
+        val targetUrl = "picture/${song.id.encodeURLPathPart()}"
         val salt = config.get<String>("salt").getOrNull()
         val token = config.get<String>("token").getOrNull()
 
@@ -240,16 +242,14 @@ class RemoteSource(
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? {
-        val targetUrl = "media/${song.idValue().encodeURLPathPart()}"
+        val targetUrl = "media/${song.id.encodeURLPathPart()}"
         val url = config.get<String>("url").getOrThrow()
         val salt = config.get<String>("salt").getOrNull()
         val token = config.get<String>("token").getOrNull()
 
-        if (song.sourceItem is SourceItemDefaults.RequestUrl) {
-            val baseUrl = "http://${url}/media/${song.idValue().encodeURLPathPart()}"
-            val authParams = if (salt != null && token != null) "?s=$salt&t=$token" else ""
-            return MediaData.Url(baseUrl + authParams)
-        }
+        val baseUrl = "http://${url}/media/${song.id.encodeURLPathPart()}"
+        val authParams = if (salt != null && token != null) "?s=$salt&t=$token" else ""
+        return MediaData.Url(baseUrl + authParams)
 
         val media = requireClient()
             .get(targetUrl) {

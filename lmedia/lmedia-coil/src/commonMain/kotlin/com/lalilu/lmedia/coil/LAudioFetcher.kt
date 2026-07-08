@@ -6,12 +6,13 @@ import coil3.fetch.Fetcher
 import coil3.key.Keyer
 import coil3.request.Options
 import coil3.toUri
-import com.lalilu.lmedia.PlatformMediaSource
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.source.MediaData
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import kotlinx.coroutines.flow.first
 
 class LAudioFetcher(
     val audio: LAudio,

@@ -2,12 +2,12 @@ package com.lalilu.lmedia.server
 
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.md5
-import com.lalilu.lmedia.PlatformMediaSource
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.Snapshot
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.server.entity.RemoteServerConfig
-import com.lalilu.lmedia.source.MediaData
-import com.lalilu.lmedia.source.MediaSource
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -72,7 +72,7 @@ private fun provideServer(
         return mediaSource()
             ?.source()
             ?.firstOrNull()?.audios
-            ?.firstOrNull { it.idValue() == id }
+            ?.firstOrNull { it.id == id }
             ?: throw IllegalArgumentException("No audio found for id: $id")
     }
 

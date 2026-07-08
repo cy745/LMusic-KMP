@@ -1,7 +1,7 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
-import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.entity.LAudio
 import com.lalilu.lmedia.source.MediaData
