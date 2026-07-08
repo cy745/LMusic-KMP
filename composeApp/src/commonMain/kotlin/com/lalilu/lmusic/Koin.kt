@@ -48,7 +48,7 @@ private val SharedModule = module {
     // PlatformMediaSource — KSP doesn't process top-level @Single functions properly
     // in the current koin-annotations version (cy745 fork).
     single<PlatformMediaSource> {
-        val sources: List<MediaSource> = getKoin().getAll()
+        val sources: List<com.lalilu.lmedia.source.MediaSource> = getKoin().getAll()
         PlatformMediaSource(sources).apply { sources.forEach { it.init() } }
     }
 }
