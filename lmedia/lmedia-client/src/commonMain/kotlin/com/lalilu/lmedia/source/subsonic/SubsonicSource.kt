@@ -5,8 +5,15 @@ import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.md5
 import com.lalilu.common.ext.retrieveAllPage
-import com.lalilu.lmedia.entity.*
-import com.lalilu.lmedia.source.*
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.Metadata
+import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.domain.source.buildSnapshot
+import com.lalilu.lmedia.source.MediaSourceConfig
+import com.lalilu.lmedia.source.buildConfig
 import com.lalilu.lmedia.source.subsonic.entity.toLrcContent
 import de.jensklingenberg.ktorfit.ktorfit
 import io.ktor.client.*
@@ -23,11 +30,11 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(binds = [MediaSource::class, MediaDataSource::class])
+@Single(binds = [com.lalilu.lmedia.source.MediaSource::class, com.lalilu.lmedia.domain.source.MediaDataSource::class])
 class SubsonicSource(
     private val json: Json,
-    private val saver: Saver
-) : MediaSource, MediaDataSource, CoroutineScope {
+    private val saver: com.lalilu.lmedia.source.Saver
+) : MediaSource, com.lalilu.lmedia.domain.source.MediaDataSource, CoroutineScope {
 
     companion object {
         private const val TAG = "SubsonicSource"
@@ -44,7 +51,6 @@ class SubsonicSource(
     private var client: HttpClient? = null
     private var subsonicApi: SubsonicApi? = null
     private val snapshotFlow = MutableStateFlow(Snapshot.Idle)
-    private val stateValue by snapshotFlow.toComposeState(this)
 
     override val config: MediaSourceConfig = buildConfig(
         key = name,
@@ -76,7 +82,7 @@ class SubsonicSource(
         function<Unit>(
             key = "Connect",
             description = "连接 Subsonic 服务器",
-            isAvailable = { stateValue is SnapshotState.Idle }
+            isAvailable = { snapshotFlow.value.state is SnapshotState.Idle }
         ).onCall {
             connect()
         }
@@ -86,7 +92,7 @@ class SubsonicSource(
             key = "Cancel",
             description = "取消当前执行任务",
             isAvailable = {
-                stateValue.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic }
+                snapshotFlow.value.state.let { it is SnapshotState.Loading  }
             }
         ).onCall {
             // TODO: 实现取消逻辑
@@ -98,7 +104,7 @@ class SubsonicSource(
             key = "Reset",
             description = "重置 Subsonic 连接",
             isAvailable = {
-                stateValue.let { it is SnapshotState.Success || it is SnapshotState.Empty || it is SnapshotState.Error }
+                snapshotFlow.value.state.let { it is SnapshotState.Success || it is SnapshotState.Empty || it is SnapshotState.Error }
             }
         ).onCall {
             reset()
@@ -109,7 +115,7 @@ class SubsonicSource(
             key = "Refresh",
             description = "刷新媒体库",
             isAvailable = {
-                stateValue.let { it is SnapshotState.Success || it is SnapshotState.Empty || it is SnapshotState.Error }
+                snapshotFlow.value.state.let { it is SnapshotState.Success || it is SnapshotState.Empty || it is SnapshotState.Error }
             }
         ).onCall {
             loadData()
@@ -279,20 +285,20 @@ class SubsonicSource(
 
         // 歌曲转换LAudio统一格式
         val audios = songs.map { song ->
-            buildAudio(id = song.id) {
-                title(song.title)
-                subtitle(song.artist)
-                metadata(
-                    Metadata(
-                        title = song.title,
-                        album = song.album,
-                        artist = song.artist,
-                        duration = song.duration * 1000L,
-                        date = "${song.year}",
-                        track = "${song.track}"
-                    )
+            LAudio(
+                id = "${LAudio.ID_PREFIX}${song.id}",
+                title = song.title ?: "Unknown",
+                subtitle = song.artist ?: "Unknown Subs",
+                mediaSourceName = name,
+                metadata = Metadata(
+                    title = song.title,
+                    album = song.album,
+                    artist = song.artist,
+                    duration = song.duration * 1000L,
+                    date = "${song.year}",
+                    track = "${song.track}"
                 )
-            }
+            )
         }
         return audios
     }

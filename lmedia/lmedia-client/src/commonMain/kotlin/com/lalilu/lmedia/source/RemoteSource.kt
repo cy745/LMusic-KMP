@@ -29,8 +29,8 @@ import kotlin.random.Random
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSource(
     private val json: Json,
-    private val saver: Saver
-) : MediaSource, MediaDataSource, CoroutineScope {
+    private val saver: com.lalilu.lmedia.source.Saver
+) : com.lalilu.lmedia.source.MediaSource, com.lalilu.lmedia.domain.source.MediaDataSource, CoroutineScope {
 
     companion object {
         private const val TAG = "RemoteSource"
