@@ -45,7 +45,7 @@ fun AudioItemCard(
 ) = SharedContext(
     sharedMap = buildSharedMap(
         id = id,
-        keys = listOf("TITLE", "SUBTITLE"),
+        keys = listOf("COVER", "TITLE", "SUBTITLE"),
         prefix = sharedMapPrefix
     )
 ) {
@@ -93,6 +93,7 @@ fun AudioItemCard(
 
         AsyncImage(
             modifier = coverModifier
+                .sharedElementV2("COVER")
                 .size(64.dp)
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(8.dp))

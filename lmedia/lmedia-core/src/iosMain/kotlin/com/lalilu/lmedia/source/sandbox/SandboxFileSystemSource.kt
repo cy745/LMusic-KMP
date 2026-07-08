@@ -1,152 +1,152 @@
 package com.lalilu.lmedia.source.sandbox
 
-import com.lalilu.common.ext.io
-import com.lalilu.common.ext.md5
 import com.lalilu.common.flow.toUpdatableFlow
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
-import com.lalilu.lmedia.entity.*
-import com.lalilu.lmedia.source.*
-import io.github.vinceglb.filekit.*
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
+import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.MediaDataSource
+import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.source.MediaSourceConfig
+import com.lalilu.lmedia.source.buildConfig
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.cinterop.refTo
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.io.buffered
 import kotlinx.io.files.FileNotFoundException
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
+import kotlinx.io.readByteArray
 import org.koin.core.annotation.Single
-import kotlin.coroutines.CoroutineContext
+import platform.Foundation.*
+import com.lalilu.common.ext.io
+import com.lalilu.common.ext.md5
 
 @Single(binds = [MediaSource::class, MediaDataSource::class])
 @OptIn(ExperimentalForeignApi::class)
-class SandboxFileSystemSource : MediaSource, CoroutineScope, MediaDataSource {
-    override val coroutineContext: CoroutineContext = Dispatchers.io
+class SandboxFileSystemSource : MediaSource, MediaDataSource {
     override val name: String = "SandboxFileSystemSource"
-    private val musicFolder = FileKit.filesDir
-    private val fileFlow = flowOf(musicFolder.takeIf { it.exists() })
 
-    override val config: MediaSourceConfig = buildConfig(key = name) {
-        function<Unit>(
-            key = "Refresh",
-            description = "Refresh the sandbox folder"
-        ).onCall {
-            sourceFlow.requireUpdate()
-        }
-    }
+    /** iOS Documents directory (for iTunes file sharing). */
+    private val documentsPath: String? =
+        (NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true)
+            .firstOrNull() as? String)
 
-    private val sourceFlow = fileFlow.map { root ->
-        root?.filterChildren { file ->
-            if (file.isDirectory()) return@filterChildren false
-            if (file.size() < 10) return@filterChildren false
+    private val audioFileMap = mutableMapOf<String, String>() // audioId → filePath
 
-            MagicNumber.match(
-                ext = file.extension,
-                source = file.source().buffered()
-            ) != null
-        }
-    }.map { files ->
-        files?.mapNotNull { file ->
-            val metadata = runCatching { Taglib.readMetadata(path = file.absolutePath()) }
-                .getOrNull()
-                ?: return@mapNotNull null
-            file to metadata
-        } ?: emptyList()
-    }.map { pairs ->
-        val songs = pairs.map { (file, metadata) ->
-            buildAudio(id = buildMediaId(file, musicFolder)) {
-                title(metadata.title)
-                subtitle(metadata.artist)
-                source(SourceItem.FileItem(file))
-                metadata(metadata)
+    override val config: MediaSourceConfig =
+        buildConfig(key = name) {
+            function<Unit>(
+                key = "Refresh",
+                description = "Refresh the sandbox folder"
+            ).onCall {
+                sourceFlow.requireUpdate()
             }
         }
 
-        songs.buildSnapshot()
-    }.toUpdatableFlow()
+    private val sourceFlow = flowOf(documentsPath)
+        .map { dir ->
+            audioFileMap.clear()
+            dir?.let { scanDirectory(it) } ?: emptyList()
+        }
+        .map { paths ->
+            paths.mapNotNull { path ->
+                val metadata = runCatching {
+                    kotlinx.coroutines.runBlocking(Dispatchers.io) {
+                        Taglib.readMetadata(path = path)
+                    }
+                }.getOrNull() ?: return@mapNotNull null
 
-    private val sourceStateFlow = sourceFlow
-        .stateIn(this, SharingStarted.Lazily, Snapshot.Empty)
+                val audioId = "${LAudio.ID_PREFIX}${path.md5()}"
+                audioFileMap[audioId] = path
+                LAudio(
+                    id = audioId,
+                    title = metadata.title ?: "Unknown",
+                    subtitle = metadata.artist ?: "Unknown Subs",
+                    mediaSourceName = name,
+                    metadata = DomainMetadata(
+                        title = metadata.title, album = metadata.album,
+                        artist = metadata.artist, albumArtist = metadata.albumArtist,
+                        composer = metadata.composer, lyricist = metadata.lyricist,
+                        comment = metadata.comment, genre = metadata.genre,
+                        track = metadata.track, disc = metadata.disc, date = metadata.date,
+                        duration = metadata.duration,
+                        dateAdded = metadata.dateAdded, dateModified = metadata.dateModified
+                    )
+                )
+            }
+        }
+        .map { songs -> com.lalilu.lmedia.domain.source.buildSnapshot(songs) }
+        .toUpdatableFlow()
 
-    override fun source(): Flow<Snapshot> = sourceStateFlow
-    override val dataSource: MediaDataSource = this
-
+    override fun source(): Flow<com.lalilu.lmedia.domain.source.Snapshot> = sourceFlow
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.idValue() == song.id }
-
-        val fileItem = audio?.sourceItem as? SourceItem.FileItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
-
-        val path = fileItem.file.path
-        if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
-
+        val path = audioFileMap[song.id]
+            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
         Taglib.getLyric(path = path)
             ?: throw FileNotFoundException("Not found lyric for $path")
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.idValue() == song.id }
-
-        val fileItem = audio?.sourceItem as? SourceItem.FileItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
-
-        val path = fileItem.file.path
-        if (path.isBlank()) throw IllegalArgumentException("Invalid path: $path")
-
+        val path = audioFileMap[song.id]
+            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
         val bytes = Taglib.getPicture(path = path)
             ?: throw FileNotFoundException("Not found picture for $path")
-
         return MediaData.Bytes(bytes)
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? = withContext(Dispatchers.io) {
-        val audio = sourceStateFlow.value.audios.firstOrNull { it.idValue() == song.id }
+        val path = audioFileMap[song.id]
+            ?: throw IllegalArgumentException("Invalid id: ${song.id}")
+        val nsData = NSData.dataWithContentsOfFile(path)
+            ?: throw FileNotFoundException("File not found: $path")
+        val length = nsData.length.toInt()
+        val bytes = if (length > 0) {
+            val rawPtr = nsData.bytes ?: throw Exception("Null bytes for $path")
+            rawPtr.readBytes(length)
+        } else ByteArray(0)
+        MediaData.Bytes(bytes)
+    }
 
-        val fileItem = audio?.sourceItem as? SourceItem.FileItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
+    private fun scanDirectory(
+        dirPath: String,
+        result: MutableList<String> = mutableListOf()
+    ): List<String> {
+        val fm = NSFileManager.defaultManager
+        val contents = fm.contentsOfDirectoryAtPath(dirPath, null) as? List<String> ?: return result
 
-        val file = fileItem.file
-        if (!file.exists()) {
-            throw FileNotFoundException("File not found: ${file.nsUrl}")
+        for (file in contents) {
+            if (file == "." || file == "..") continue
+            val fullPath = "$dirPath/$file"
+            if (!fm.fileExistsAtPath(fullPath)) continue
+
+            val attrs = fm.attributesOfItemAtPath(fullPath, null)
+            val isDirectory = (attrs?.get(NSFileType) as? String) == NSFileTypeDirectory
+
+            if (isDirectory) {
+                scanDirectory(fullPath, result)
+            } else {
+                val ext = file.substringAfterLast('.')
+                // Check magic number by reading file header bytes
+                val isAudio = runCatching {
+                    val path = Path(fullPath)
+                    val source = SystemFileSystem.source(Path(fullPath))
+                    source.buffered().use { buffered ->
+                        MagicNumber.match(ext = ext, source = buffered) != null
+                    }
+                }.getOrDefault(false)
+
+                if (isAudio) {
+                    result.add(fullPath)
+                }
+            }
         }
-
-        MediaData.Bytes(file.readBytes())
+        return result
     }
-
-    /**
-     * 构建媒体ID
-     * @param file 媒体文件
-     * @param baseDirectory 沙盒根目录
-     */
-    private fun buildMediaId(file: PlatformFile, baseDirectory: PlatformFile): String {
-        // 应用的沙盒路径每次重新安装都会改变，替换成相对路径确保唯一性
-        return file.absolutePath()
-            .substringAfter(baseDirectory.absolutePath())
-            .md5()
-    }
-}
-
-private fun PlatformFile.filterChildren(block: (file: PlatformFile) -> Boolean): Collection<PlatformFile> {
-    // 若不是文件夹，则无法遍历
-    if (!this.isDirectory()) {
-        // 若根元素即满足要求，且其不是文件夹，则直接返回根元素，否则直接返回空数组
-        return if (block(this)) listOf(this) else emptyList()
-    }
-
-    val directory = mutableSetOf<PlatformFile>(this)
-    val result = mutableSetOf<PlatformFile>()
-
-    while (directory.isNotEmpty()) {
-        val children = directory.map { it.list() }
-            .flatten()
-
-        directory.clear()
-        children.forEach {
-            if (it.isDirectory()) directory.add(it)
-            if (block(it)) result.add(it)
-        }
-    }
-
-    return result
 }

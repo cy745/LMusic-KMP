@@ -1,21 +1,11 @@
 package com.lalilu.lmedia.source
 
-//import androidx.compose.foundation.layout.Arrangement
-//import androidx.compose.foundation.layout.Column
-//import androidx.compose.foundation.layout.padding
-//import androidx.compose.material3.Card
-//import androidx.compose.material3.Text
-//import androidx.compose.runtime.Composable
-//import androidx.compose.runtime.collectAsState
-//import androidx.compose.runtime.getValue
-//import androidx.compose.runtime.remember
-//import androidx.compose.ui.Modifier
-//import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.MusicKitWrapper
 import com.lalilu.lmedia.SongInfo
-import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.entity.SourceItem
-import com.lalilu.lmedia.entity.buildAudio
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.Metadata
+import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.domain.source.Snapshot
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -39,37 +29,15 @@ object MusicKitSource : MediaSource {
 
         return songsFlow.map { songs ->
             Snapshot(
-                audios = songs.map {
-                    buildAudio(id = "${it.title()}") {
-                        title(it.title())
-                        subtitle(it.artist())
-                        source(SourceItem.MusicKitItem(it))
-                    }
+                audios = songs.map { song ->
+                    LAudio(
+                        id = "${LAudio.ID_PREFIX}${song.title()}",
+                        title = song.title() ?: "Unknown",
+                        subtitle = song.artist() ?: "Unknown Subs",
+                        mediaSourceName = name
+                    )
                 }
             )
         }
     }
-
-//    @Composable
-//    override fun Content(modifier: Modifier) {
-//        val source by remember { source() }
-//            .collectAsState(Snapshot.Empty)
-//
-//        Card(modifier = modifier) {
-//            Column(
-//                modifier = Modifier.padding(16.dp),
-//                verticalArrangement = Arrangement.spacedBy(8.dp)
-//            ) {
-//                Column(
-//                    modifier = Modifier.padding(16.dp),
-//                ) {
-//                    source.audios.forEach {
-//                        Text(text = "${it.title} - ${it.subtitle}")
-//                    }
-//                }
-//
-//                Text(text = "$name ${MusicKitWrapper.helloWorld()}")
-//            }
-//        }
-//    }
 }
