@@ -34,7 +34,7 @@ import kotlin.random.Random
 class SubsonicSource(
     private val json: Json,
     private val saver: com.lalilu.lmedia.source.Saver
-) : MediaSource, com.lalilu.lmedia.domain.source.MediaDataSource, CoroutineScope {
+) : com.lalilu.lmedia.source.MediaSource, com.lalilu.lmedia.domain.source.MediaDataSource, CoroutineScope {
 
     companion object {
         private const val TAG = "SubsonicSource"
