@@ -19,7 +19,6 @@ package com.lalilu.lplaylist.entity
 
 import androidx.room3.Entity
 import androidx.room3.PrimaryKey
-import com.lalilu.lmedia.linkable.TextMatchable
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
@@ -35,9 +34,7 @@ data class LPlaylist(
     val mediaIds: List<String>,
     val createTime: Long = Clock.System.now().toEpochMilliseconds(),
     val modifyTime: Long = Clock.System.now().toEpochMilliseconds(),
-) : TextMatchable {
-    override fun getMatchText(): String = "$title$subTitle"
-
+) {
     companion object {
         const val TABLE_NAME = "l_playlist"
     }
