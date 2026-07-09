@@ -1,0 +1,25 @@
+{
+  "name": "lmusic-midscene",
+  "version": "1.0.0",
+  "description": "Midscene visual tests for LMusic-KMP",
+  "private": true,
+  "scripts": {
+    "playground": "export ANDROID_HOME=/Users/miku/Library/Android/sdk && export $(grep -v '^#' .env | xargs) && npx --yes @midscene/android-playground",
+    "build:apk": "cd .. && ./gradlew :androidApp:assembleDebug",
+    "verify": "ANDROID_HOME=/Users/miku/Library/Android/sdk npx tsx scripts/verify-connection.ts",
+    "test:smoke": "ANDROID_HOME=/Users/miku/Library/Android/sdk npx vitest run tests/smoke/ --reporter=verbose",
+    "test:flows": "ANDROID_HOME=/Users/miku/Library/Android/sdk npx vitest run tests/flows/ --reporter=verbose",
+    "test": "ANDROID_HOME=/Users/miku/Library/Android/sdk npx vitest run --reporter=verbose",
+    "preinstall": "echo 'Midscene test workspace for LMusic-KMP'"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@midscene/android": "^1.10.3",
+    "@types/node": "^26.1.1",
+    "dotenv": "^17.4.2",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
