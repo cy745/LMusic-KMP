@@ -80,12 +80,12 @@ class AddTime : SortAction {
         val now = Clock.System.now().toEpochMilliseconds()
 
         val sorted = items
-            .sortedByDescending { ((it as Sortable).getValueBy(Sortable.COMPARE_KEY_CREATE_TIME) ?: -1L) }
+            .sortedByDescending { ((it as? Sortable ?: it!!.toFallbackSortable()).getValueBy(Sortable.COMPARE_KEY_CREATE_TIME) ?: -1L) }
             .let { if (config.reverse) it.asReversed() else it }
 
         val grouped = sorted
             .groupBy { item ->
-                val time = ((item as Sortable).getValueBy(Sortable.COMPARE_KEY_CREATE_TIME) ?: -1L) * 1000
+                val time = ((item as? Sortable ?: item!!.toFallbackSortable()).getValueBy(Sortable.COMPARE_KEY_CREATE_TIME) ?: -1L) * 1000
                 when {
                     now - time < 300000 -> timeStrJustNow
                     now - time < 3600000 -> timeStrMinutesAgo?.replace("%d", "${(now - time) / 60000}")
@@ -123,8 +123,8 @@ class Title : SortAction {
         config: SortConfig
     ): SortResult<T> {
         val sorted = items.sortedWith { a, b ->
-            var aText = (a as Sortable).getValueBy<String>(Sortable.COMPARE_KEY_TITLE) ?: return@sortedWith 0
-            var bText = (b as Sortable).getValueBy<String>(Sortable.COMPARE_KEY_TITLE) ?: return@sortedWith 0
+            var aText = (a as? Sortable ?: a!!.toFallbackSortable()).getValueBy<String>(Sortable.COMPARE_KEY_TITLE) ?: return@sortedWith 0
+            var bText = (b as? Sortable ?: b!!.toFallbackSortable()).getValueBy<String>(Sortable.COMPARE_KEY_TITLE) ?: return@sortedWith 0
 
             if (aText.firstOrNull()?.category == CharCategory.OTHER_LETTER) {
 //                aText = pinyinTransformMap.getOrPut(aText) {
@@ -146,7 +146,7 @@ class Title : SortAction {
         }.let { if (config.reverse) it.asReversed() else it }
 
         val grouped = sorted.groupBy {
-            val text = (it as Sortable).getValueBy<String>(Sortable.COMPARE_KEY_TITLE)
+            val text = (it as? Sortable ?: it!!.toFallbackSortable()).getValueBy<String>(Sortable.COMPARE_KEY_TITLE)
             val firstLetter = text?.firstOrNull()
             if (firstLetter?.category == CharCategory.OTHER_LETTER) {
                 pinyinTransformMap[text] ?: ""
@@ -180,7 +180,7 @@ class Duration : SortAction {
         config: SortConfig
     ): SortResult<T> {
         val sorted = items
-            .sortedByDescending { (it as Sortable).getValueBy(Sortable.COMPARE_KEY_DURATION) ?: -1L }
+            .sortedByDescending { (it as? Sortable ?: it!!.toFallbackSortable()).getValueBy(Sortable.COMPARE_KEY_DURATION) ?: -1L }
             .let { if (config.reverse) it.asReversed() else it }
 
         return SortResult.flat(sorted)
@@ -229,7 +229,7 @@ class ItemsCount : SortAction {
         config: SortConfig
     ): SortResult<T> {
         val sorted = items
-            .sortedByDescending { (it as Sortable).getValueBy(Sortable.COMPARE_KEY_ITEMS_COUNT) ?: 0 }
+            .sortedByDescending { (it as? Sortable ?: it!!.toFallbackSortable()).getValueBy(Sortable.COMPARE_KEY_ITEMS_COUNT) ?: 0 }
             .let { if (config.reverse) it.asReversed() else it }
 
         return SortResult.flat(sorted)
@@ -253,14 +253,14 @@ class Album : SortAction {
         config: SortConfig
     ): SortResult<T> {
         val grouped = items.groupBy {
-            (it as Sortable).getValueBy<String>(Sortable.COMPARE_KEY_DISK_NUMBER)
+            (it as? Sortable ?: it!!.toFallbackSortable()).getValueBy<String>(Sortable.COMPARE_KEY_DISK_NUMBER)
                 ?.toIntOrNull()
                 ?: -1
         }
 
         return SortResult(grouped.map { map ->
             val list = map.value.sortedBy {
-                (it as Sortable).getValueBy<String>(Sortable.COMPARE_KEY_TRACK_NUMBER)
+                (it as? Sortable ?: it!!.toFallbackSortable()).getValueBy<String>(Sortable.COMPARE_KEY_TRACK_NUMBER)
                     ?.toIntOrNull()
                     ?: 0
             }.let { if (config.reverse) it.asReversed() else it }
@@ -268,7 +268,7 @@ class Album : SortAction {
             val extras: List<ItemExtraData> = list
                 .takeIf { !config.hideItemExtra }
                 ?.map {
-                    val trackNum = (it as Sortable).getValueBy<String>(Sortable.COMPARE_KEY_TRACK_NUMBER)
+                    val trackNum = (it as? Sortable ?: it!!.toFallbackSortable()).getValueBy<String>(Sortable.COMPARE_KEY_TRACK_NUMBER)
                         ?.toIntOrNull()
                         ?: 0
                     ItemExtraData.TrackNumber(trackNum)

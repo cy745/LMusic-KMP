@@ -51,7 +51,7 @@ class SortRulePlayCount(
             .getHistoriesIdsMapWithCount()
             .combine(items) { map, sources ->
                 val sorted = sources
-                    .sortedByDescending { song -> map[(song as Sortable).getValueBy(Sortable.COMPARE_KEY_ID)] }
+                    .sortedByDescending { song -> map[(song as? Sortable ?: song!!.toFallbackSortable()).getValueBy(Sortable.COMPARE_KEY_ID)] }
                     .let { if (config.reverse) it.reversed() else it }
 
                 if (config.hideItemExtra) {
@@ -59,7 +59,7 @@ class SortRulePlayCount(
                 } else {
                     val extras = sorted.map {
                         ItemExtraData.PlayedCount(
-                            count = map[(it as Sortable).getValueBy(Sortable.COMPARE_KEY_ID)] ?: 0
+                            count = map[(it as? Sortable ?: it!!.toFallbackSortable()).getValueBy(Sortable.COMPARE_KEY_ID)] ?: 0
                         )
                     }
 
@@ -98,7 +98,7 @@ class SortRuleLastPlayTime(
             .getHistoriesIdsMapWithLastTime()
             .combine(items) { map, sources ->
                 val sorted = sources
-                    .sortedByDescending { song -> map[(song as Sortable).getValueBy(Sortable.COMPARE_KEY_ID)] }
+                    .sortedByDescending { song -> map[(song as? Sortable ?: song!!.toFallbackSortable()).getValueBy(Sortable.COMPARE_KEY_ID)] }
                     .let { if (config.reverse) it.reversed() else it }
 
                 SortResult.flat(sorted)
