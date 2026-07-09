@@ -1,6 +1,6 @@
 package com.lalilu.lmedia
 
-import com.lalilu.lmedia.domain.model.Metadata
+import com.lalilu.lmedia.entity.Metadata
 
 object TaglibWrapper {
     init {
