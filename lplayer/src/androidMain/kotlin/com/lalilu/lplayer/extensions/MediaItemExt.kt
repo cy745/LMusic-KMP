@@ -30,7 +30,7 @@ fun LAudio.toMediaItem(): MediaItem {
         .build()
 
     return MediaItem.Builder()
-        .setMediaId(idValue())
+        .setMediaId(id)
         .setUri(uri)
         .setMediaMetadata(
             MediaMetadata.Builder()
@@ -52,11 +52,11 @@ fun LAudio.toMediaItem(): MediaItem {
 
 fun LArtist.toMediaItem(): MediaItem {
     return MediaItem.Builder()
-        .setMediaId(idValue())
+        .setMediaId(id)
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
-                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${refCount<LAudio>()}")
+                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs")
                 .setMediaType(MEDIA_TYPE_ARTIST)
                 .setIsPlayable(false)
                 .setIsBrowsable(true)
@@ -67,11 +67,11 @@ fun LArtist.toMediaItem(): MediaItem {
 
 fun LAlbum.toMediaItem(): MediaItem {
     return MediaItem.Builder()
-        .setMediaId(idValue())
+        .setMediaId(id)
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
-                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${refCount<LAudio>()}")
+                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs")
                 .setMediaType(MEDIA_TYPE_ALBUM)
                 .setIsPlayable(false)
                 .setIsBrowsable(true)
@@ -82,11 +82,11 @@ fun LAlbum.toMediaItem(): MediaItem {
 
 fun LFolder.toMediaItem(): MediaItem {
     return MediaItem.Builder()
-        .setMediaId(idValue())
+        .setMediaId(id)
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
-                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${refCount<LAudio>()}")
+                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs")
                 .setMediaType(MEDIA_TYPE_FOLDER_MIXED)
                 .setIsPlayable(false)
                 .setIsBrowsable(true)
@@ -97,11 +97,11 @@ fun LFolder.toMediaItem(): MediaItem {
 
 fun LGenre.toMediaItem(): MediaItem {
     return MediaItem.Builder()
-        .setMediaId(idValue())
+        .setMediaId(id)
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(title)
-                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs: ${refCount<LAudio>()}")
+                .setSubtitle(subtitle.takeIf { it.isNotBlank() } ?: "Songs")
                 .setMediaType(MEDIA_TYPE_FOLDER_MIXED)
                 .setIsPlayable(false)
                 .setIsBrowsable(true)
@@ -110,7 +110,7 @@ fun LGenre.toMediaItem(): MediaItem {
         .build()
 }
 
-fun LItem.toMediaItem(): MediaItem? {
+fun Any.toMediaItem(): MediaItem? {
     return when (this) {
         is LAudio -> toMediaItem()
         is LArtist -> toMediaItem()
@@ -132,45 +132,38 @@ object MMedia {
     private val artistRepo: ArtistRepository get() = KoinPlatform.getKoin().get()
 
     private fun resolveType(id: String): String = when {
-        id.startsWith(com.lalilu.lmedia.entity.LAudio.ID_PREFIX) -> "audio"
-        id.startsWith(com.lalilu.lmedia.entity.LAlbum.ID_PREFIX) -> "album"
-        id.startsWith(com.lalilu.lmedia.entity.LArtist.ID_PREFIX) -> "artist"
-        id.startsWith(com.lalilu.lmedia.entity.LFolder.ID_PREFIX) -> "folder"
-        id.startsWith(com.lalilu.lmedia.entity.LGenre.ID_PREFIX) -> "genre"
+        id.startsWith(com.lalilu.lmedia.domain.model.LAudio.ID_PREFIX) -> "audio"
+        id.startsWith(com.lalilu.lmedia.domain.model.LAlbum.ID_PREFIX) -> "album"
+        id.startsWith(com.lalilu.lmedia.domain.model.LArtist.ID_PREFIX) -> "artist"
+        id.startsWith(com.lalilu.lmedia.domain.model.LFolder.ID_PREFIX) -> "folder"
+        id.startsWith(com.lalilu.lmedia.domain.model.LGenre.ID_PREFIX) -> "genre"
         else -> "unknown"
     }
 
-    private fun com.lalilu.lmedia.domain.model.LAudio.toMediaItemFromDomain(): MediaItem =
-        toLegacyAudio().toMediaItem()
-    private fun com.lalilu.lmedia.domain.model.LAlbum.toMediaItemFromDomain(): MediaItem =
-        toLegacyAlbum().toMediaItem()
-    private fun com.lalilu.lmedia.domain.model.LArtist.toMediaItemFromDomain(): MediaItem =
-        toLegacyArtist().toMediaItem()
-
     suspend fun getItem(mediaId: String): MediaItem? = withContext(Dispatchers.IO) {
         when (resolveType(mediaId)) {
-            "audio" -> audioRepo.getAudio(mediaId).first()?.toMediaItemFromDomain()
-            "album" -> albumRepo.getAlbum(mediaId).first()?.toMediaItemFromDomain()
-            "artist" -> artistRepo.getArtist(mediaId).first()?.toMediaItemFromDomain()
+            "audio" -> audioRepo.getAudio(mediaId).first()?.toMediaItem()
+            "album" -> albumRepo.getAlbum(mediaId).first()?.toMediaItem()
+            "artist" -> artistRepo.getArtist(mediaId).first()?.toMediaItem()
             else -> null
         }
     }
 
     suspend fun getItems(mediaIds: List<String>): List<MediaItem> = withContext(Dispatchers.IO) {
-        val audioIds = mediaIds.filter { it.startsWith(com.lalilu.lmedia.entity.LAudio.ID_PREFIX) }
-        val albumIds = mediaIds.filter { it.startsWith(com.lalilu.lmedia.entity.LAlbum.ID_PREFIX) }
-        val artistIds = mediaIds.filter { it.startsWith(com.lalilu.lmedia.entity.LArtist.ID_PREFIX) }
+        val audioIds = mediaIds.filter { it.startsWith(com.lalilu.lmedia.domain.model.LAudio.ID_PREFIX) }
+        val albumIds = mediaIds.filter { it.startsWith(com.lalilu.lmedia.domain.model.LAlbum.ID_PREFIX) }
+        val artistIds = mediaIds.filter { it.startsWith(com.lalilu.lmedia.domain.model.LArtist.ID_PREFIX) }
 
         buildList {
-            if (audioIds.isNotEmpty()) addAll(audioRepo.getAudios(audioIds).first().mapNotNull { it.toMediaItemFromDomain() })
-            if (albumIds.isNotEmpty()) addAll(albumRepo.getAlbums(albumIds).first().mapNotNull { it.toMediaItemFromDomain() })
-            if (artistIds.isNotEmpty()) addAll(artistRepo.getArtists(artistIds).first().mapNotNull { it.toMediaItemFromDomain() })
+            if (audioIds.isNotEmpty()) addAll(audioRepo.getAudios(audioIds).first().mapNotNull { it.toMediaItem() })
+            if (albumIds.isNotEmpty()) addAll(albumRepo.getAlbums(albumIds).first().mapNotNull { it.toMediaItem() })
+            if (artistIds.isNotEmpty()) addAll(artistRepo.getArtists(artistIds).first().mapNotNull { it.toMediaItem() })
         }
     }
 
     suspend fun getChildren(parentId: String): List<MediaItem> = withContext(Dispatchers.IO) {
         if (parentId == ALL_SONGS) {
-            return@withContext audioRepo.getAudios().first().mapNotNull { it.toMediaItemFromDomain() }
+            return@withContext audioRepo.getAudios().first().mapNotNull { it.toMediaItem() }
         }
 
         when (resolveType(parentId)) {
@@ -181,7 +174,7 @@ object MMedia {
                             parentId == "${com.lalilu.lmedia.domain.model.LAlbum.ID_PREFIX}$albumName"
                         } ?: false
                     }
-                    .mapNotNull { it.toMediaItemFromDomain() }
+                    .mapNotNull { it.toMediaItem() }
             }
             "artist" -> {
                 audioRepo.getAudios().first()
@@ -190,7 +183,7 @@ object MMedia {
                             parentId == "${com.lalilu.lmedia.domain.model.LArtist.ID_PREFIX}$it"
                         } ?: false
                     }
-                    .mapNotNull { it.toMediaItemFromDomain() }
+                    .mapNotNull { it.toMediaItem() }
             }
             else -> emptyList()
         }

@@ -17,6 +17,7 @@ import com.lalilu.lmedia.source.MediaSource
 import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.source.Saver
 import com.lalilu.lmedia.source.buildConfig
+import com.lalilu.lmedia.source.range
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,7 +54,7 @@ class MediaStoreSource(
             name = "最小时长",
             description = "最小时长（秒），低于此值将忽略"
         ).provide(10)
-            .range(min = 0, max = 60)
+            .range(0, 60, 0)
 
         function<Unit>(
             key = "Reset",

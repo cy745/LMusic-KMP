@@ -142,12 +142,11 @@ class MPlayerPlayback(
     }
 
     override suspend fun updatePlaylist(
-        playlist: List<LItem>,
+        playlist: List<LAudio>,
         startIndex: Int,
         start: Boolean
     ) = runWithBrowser {
-        val items = playlist.flatMap { it.toPlayable() }
-        val mediaItems = items.map { it.toMediaItem() }
+        val mediaItems = playlist.map { it.toMediaItem() }
 
         setMediaItems(mediaItems, startIndex, 0)
         if (start) play()

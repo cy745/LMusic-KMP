@@ -18,6 +18,7 @@ import com.lalilu.lmedia.source.MediaSource
 import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.source.Saver
 import com.lalilu.lmedia.source.buildConfig
+import com.lalilu.lmedia.source.range
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
