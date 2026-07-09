@@ -95,21 +95,21 @@ class HistoryPanel : LazyGridContent {
                         config = { repeat(columnsValue.value) { column(1.fr) } }
                     ) {
                         items.forEach { audio ->
-                            key(audio.idValue()) {
+                            key(audio.id) {
                                 AudioItemCard(
                                     modifier = Modifier.fillMaxWidth()
                                         .animateBounds(this@lookaheadScope),
                                     sharedMapPrefix = "history_panel",
-                                    id = audio.idValue(),
-                                    title = audio.titleValue(),
-                                    subtitle = audio.subtitleValue(),
+                                    id = audio.id,
+                                    title = audio.title,
+                                    subtitle = audio.subtitle,
                                     imageData = audio,
                                     onPlay = {
                                         vm.getHistoryPlayedIds { list ->
                                             scope.launch {
                                                 PlayerAction.UpdateList(
                                                     ids = list,
-                                                    id = audio.idValue(),
+                                                    id = audio.id,
                                                     start = true
                                                 ).action()
                                             }
@@ -119,7 +119,7 @@ class HistoryPanel : LazyGridContent {
                                         val coverMemoryKey = context.retrieveCacheKey(audio)
 
                                         AppRouter.route("/song/detail")
-                                            .with("mediaId", audio.idValue())
+                                            .with("mediaId", audio.id)
                                             .with("song", audio)
                                             .with("coverCacheKey", coverMemoryKey)
                                             .with("sharedMap", sharedMap)

@@ -4,7 +4,6 @@ import com.lalilu.lmedia.MusicKitWrapper
 import com.lalilu.lmedia.SongInfo
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.Metadata
-import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.channels.awaitClose
@@ -12,9 +11,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import org.koin.core.annotation.Single
 
+@Single(binds = [MediaSource::class])
 @OptIn(ExperimentalForeignApi::class)
-object MusicKitSource : MediaSource {
+class MusicKitSource : MediaSource {
     override val name: String = "MusicKitSource"
 
     override fun source(): Flow<Snapshot> {

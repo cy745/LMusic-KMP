@@ -33,9 +33,9 @@ import coil3.request.crossfade
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.buildSharedMap
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.ref
+import com.lalilu.lmedia.domain.model.LArtist
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.linkable.ref
 
 @Composable
 fun ArtistCard(
@@ -45,14 +45,14 @@ fun ArtistCard(
     onClick: (SharedMap) -> Unit = {}
 ) = SharedContext(
     sharedMap = buildSharedMap(
-        id = artist.idValue(),
+        id = artist.id,
         keys = listOf("TITLE", "SUBTITLE"),
         prefix = sharedMapPrefix
     )
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val title = artist.titleValue()
-    val subTitle = artist.subtitleValue()
+    val title = artist.title
+    val subTitle = artist.subtitle
     val context = LocalPlatformContext.current
     val primaryColor = MaterialTheme.colorScheme.primary
     val bgColor = animateColorAsState(
@@ -170,7 +170,7 @@ fun ArtistCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    text = remember(artist) { "${artist.ref<LAudio>().size} 首歌曲" },
+                    text = remember(artist) { "歌曲" },
                     maxLines = 1,
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onBackground,

@@ -7,7 +7,7 @@ import coil3.fetch.Fetcher
 import coil3.fetch.SourceFetchResult
 import coil3.request.Options
 import com.lalilu.lmedia.Taglib
-import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.source.SourceItem
 import okio.buffer
 import okio.source
 import java.io.FileNotFoundException

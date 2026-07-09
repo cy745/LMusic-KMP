@@ -15,19 +15,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.LocalPlatformContext
 import com.lalilu.component.LazyGridContent
 import com.lalilu.extensions.SharedMap
-import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lhome.component.RecommendCard
-import com.lalilu.lhome.component.RecommendGroupCard
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LItem
-import com.lalilu.lmedia.entity.Linkable
-import com.lalilu.lmedia.entity.ref
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.usecase.RecommendItem
 import com.lalilu.navigation.AppRouter
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -36,7 +31,6 @@ object DailyRecommend : LazyGridContent {
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
         val homeVM = koinViewModel<HomeScreenModel>()
-        val context = LocalPlatformContext.current
         val dailyRecommends = homeVM.dailyRecommends.collectAsStateWithLifecycle()
 
         return fun LazyGridScope.() {
@@ -63,13 +57,17 @@ object DailyRecommend : LazyGridContent {
             dailyRecommendForSideCompat(
                 items = { dailyRecommends.value },
                 onClick = { item, sharedMap ->
-                    val coverMemoryKey = context.retrieveCacheKey(item)
+                    val id = when (item) {
+                        is RecommendItem.Audio -> item.audio.id
+                        is RecommendItem.Album -> item.album.id
+                        is RecommendItem.Artist -> item.artist.id
+                    }
 
                     AppRouter.route("/song/detail")
-                        .with("mediaId", item.idValue())
+                        .with("mediaId", id)
                         .with("sharedMap", sharedMap)
-                        .with("song", item as? LAudio)
-                        .with("coverCacheKey", coverMemoryKey)
+                        .with("song", (item as? RecommendItem.Audio)?.audio)
+                        .with("coverCacheKey", "")
                         .jump()
                 }
             )
@@ -79,15 +77,16 @@ object DailyRecommend : LazyGridContent {
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 fun LazyGridScope.dailyRecommendForSideCompat(
-    items: () -> List<LItem>,
-    onClick: (LItem, SharedMap) -> Unit = { _, _ -> }
+    items: () -> List<RecommendItem>,
+    onClick: (RecommendItem, SharedMap) -> Unit = { _, _ -> }
 ) {
     item(
         key = "daily_recommend",
         contentType = "daily_recommend",
         span = { GridItemSpan(maxLineSpan) }
     ) {
-        if (items.invoke().isEmpty()) {
+        val list = items()
+        if (list.isEmpty()) {
             Text(
                 modifier = Modifier.fillMaxWidth()
                     .padding(vertical = 32.dp),
@@ -101,26 +100,40 @@ fun LazyGridScope.dailyRecommendForSideCompat(
 
         RecommendRow(
             modifier = Modifier,
-            items = items,
-            getId = { it.idValue() },
+            items = { list },
+            getId = { item ->
+                when (item) {
+                    is RecommendItem.Audio -> item.audio.id
+                    is RecommendItem.Album -> item.album.id
+                    is RecommendItem.Artist -> item.artist.id
+                }
+            },
             scrollToFirstWhenChange = true
         ) { item ->
-            if (item is Linkable && item.ref<LAudio>().isNotEmpty()) {
-                RecommendGroupCard(
-                    modifier = Modifier.width(width = 250.dp),
-                    group = item,
-                    onClick = onClick
-                )
-            } else {
-                RecommendCard(
-                    modifier = Modifier.width(width = 250.dp),
-                    id = item.idValue(),
-                    title = item.titleValue(),
-                    subTitle = item.subtitleValue(),
-                    imageData = item,
-                    onClick = { onClick(item, it) }
-                )
+            val id = when (item) {
+                is RecommendItem.Audio -> item.audio.id
+                is RecommendItem.Album -> item.album.id
+                is RecommendItem.Artist -> item.artist.id
             }
+            val title = when (item) {
+                is RecommendItem.Audio -> item.audio.title
+                is RecommendItem.Album -> item.album.title
+                is RecommendItem.Artist -> item.artist.title
+            }
+            val subtitle = when (item) {
+                is RecommendItem.Audio -> item.audio.subtitle
+                is RecommendItem.Album -> item.album.subtitle
+                is RecommendItem.Artist -> item.artist.subtitle
+            }
+
+            RecommendCard(
+                modifier = Modifier.width(width = 250.dp),
+                id = id,
+                title = title,
+                subTitle = subtitle,
+                imageData = item,
+                onClick = { onClick(item, it) }
+            )
         }
     }
 }

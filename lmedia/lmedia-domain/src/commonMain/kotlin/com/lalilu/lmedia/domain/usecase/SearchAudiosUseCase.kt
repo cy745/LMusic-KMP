@@ -17,7 +17,7 @@ class SearchAudiosUseCase(
 ) {
     /**
      * @param ids Optional filter — only return audios matching these IDs.
-     * @param keywords Case-insensitive AND filter across [LAudio.getMatchText].
+     * @param keywords Case-insensitive AND filter across [LAudio.title] + [LAudio.subtitle].
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     operator fun invoke(
@@ -34,7 +34,7 @@ class SearchAudiosUseCase(
 
         return source.mapLatest { items ->
             items.filter { item ->
-                val matchText = item.getMatchText()
+                val matchText = "${item.title}_${item.subtitle}"
                 keywords.all { matchText.contains(it, ignoreCase = true) }
             }
         }

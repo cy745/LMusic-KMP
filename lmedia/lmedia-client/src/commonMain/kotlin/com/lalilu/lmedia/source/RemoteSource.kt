@@ -25,7 +25,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 
 
-@Single(createdAtStart = true)
+@Single(binds = [com.lalilu.lmedia.source.MediaSource::class, com.lalilu.lmedia.domain.source.MediaDataSource::class], createdAtStart = true)
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSource(
     private val json: Json,

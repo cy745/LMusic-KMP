@@ -2,7 +2,6 @@ package com.lalilu.lplayer.action
 
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.domain.repository.AudioRepository
-import com.lalilu.lmedia.entity.toLegacyAudio
 import kotlinx.coroutines.flow.first
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.LPlayerKV
@@ -59,7 +58,7 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
             is PlayerAction.PlayById -> {
                 // TODO 待重构播放列表逻辑
                 val index = LPlayer.instance.queue.stateSnapshot().list
-                    .indexOfFirst { item -> item.idValue() == action.id }
+                    .indexOfFirst { item -> item.id == action.id }
 
                 LPlayer.instance.skipTo(index, true)
             }
@@ -67,7 +66,6 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
             is PlayerAction.UpdateList -> {
                 val audioRepo: AudioRepository = KoinPlatform.getKoin().get()
                 val audios = audioRepo.getAudios(action.ids).first()
-                    .map { it.toLegacyAudio() }
                 LPlayer.instance.updatePlaylist(
                     playlist = audios,
                     startIndex = action.id?.let { action.ids.indexOf(it) }?.coerceAtLeast(0) ?: 0,

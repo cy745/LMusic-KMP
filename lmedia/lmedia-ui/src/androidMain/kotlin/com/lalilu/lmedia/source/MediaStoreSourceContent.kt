@@ -13,8 +13,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lalilu.lmedia.component.SourceCard
-import com.lalilu.lmedia.entity.Snapshot
-import com.lalilu.lmedia.entity.SnapshotState
+import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.SnapshotState
 
 
 @Composable

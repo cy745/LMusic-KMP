@@ -19,7 +19,7 @@ import coil3.compose.LocalPlatformContext
 import com.lalilu.extensions.Item
 import com.lalilu.extensions.diff
 import com.lalilu.extensions.retrieveCacheKey
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.SongCard
 import com.lalilu.lplayer.action.PlayerAction
@@ -48,10 +48,10 @@ fun PlaylistLayout(
         items.collect { list ->
             val newList = actualItems.diff(
                 items = list,
-                getId = { it.idValue() },
-                isSameItem = { a, b -> a.idValue() == b.idValue() },
+                getId = { it.id },
+                isSameItem = { a, b -> a.id == b.id },
                 isSameContent = { a, b ->
-                    a.idValue() == b.idValue()
+                    a.id == b.id
                             && a.title == b.title
                             && a.subtitle == b.subtitle
                             && a.mediaSourceName == b.mediaSourceName
@@ -107,16 +107,16 @@ fun PlaylistLayout(
                 modifier = Modifier
                     .animateItem()
                     .drawBehind { drawRect(color = bgColor.value) },
-                id = data.idValue(),
+                id = data.id,
                 imageData = data,
                 title = data.title,
                 subtitle = data.subtitle,
-                onClick = { PlayerAction.PlayById(data.idValue()).action() },
+                onClick = { PlayerAction.PlayById(data.id).action() },
                 onLongClick = { sharedMap ->
                     val coverMemoryKey = context.retrieveCacheKey(item)
 
                     AppRouter.route("/song/detail")
-                        .with("mediaId", data.idValue())
+                        .with("mediaId", data.id)
                         .with("song", data)
                         .with("sharedMap", sharedMap)
                         .with("coverCacheKey", coverMemoryKey)

@@ -55,13 +55,13 @@ interface ItemExtraData {
     data class PlayedCount(val count: Int) : ItemExtraData
 }
 
-data class SortedGroup<T : Sortable>(
+data class SortedGroup<T>(
     val groupId: GroupId?,
     val items: List<T>,
     val extras: List<ItemExtraData?> = emptyList()
 )
 
-data class SortResult<T : Sortable>(
+data class SortResult<T>(
     val groups: List<SortedGroup<T>>,
 ) {
     val itemList: List<T> by lazy { groups.flatMap { it.items } }
@@ -72,10 +72,10 @@ data class SortResult<T : Sortable>(
 
     companion object {
         @Stable
-        fun <T : Sortable> flat(items: List<T>): SortResult<T> =
+        fun <T> flat(items: List<T>): SortResult<T> =
             SortResult(listOf(SortedGroup(null, items)))
 
         @Stable
-        inline fun <reified T : Sortable> empty(): SortResult<T> = SortResult(emptyList())
+        inline fun <reified T> empty(): SortResult<T> = SortResult(emptyList())
     }
 }

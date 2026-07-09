@@ -3,7 +3,7 @@ package com.lalilu.lplayer.notification
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.playback.Playback
 import com.lalilu.lplayer.playback.toJsBlob

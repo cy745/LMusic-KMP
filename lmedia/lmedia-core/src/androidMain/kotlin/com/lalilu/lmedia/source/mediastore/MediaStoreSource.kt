@@ -7,10 +7,16 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
-import androidx.compose.runtime.getValue
 import co.touchlab.kermit.Logger
-import com.lalilu.lmedia.entity.*
-import com.lalilu.lmedia.source.*
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.MediaDataSource
+import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.source.MediaSourceConfig
+import com.lalilu.lmedia.source.Saver
+import com.lalilu.lmedia.source.buildConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,18 +30,17 @@ class MediaStoreSource(
     private val saver: Saver
 ) : MediaSource, MediaDataSource {
     override val name: String = "MediaStore"
-    private val scanner = when {
+    override val dataSource: MediaDataSource = this
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val stateFlow = MutableStateFlow(Snapshot.Idle)
+    override fun source(): Flow<Snapshot> = stateFlow
+
+    private val scanner: Scanner = when {
         Build.VERSION.SDK_INT >= 30 -> Api30MediaStoreScanner(this, context)
         Build.VERSION.SDK_INT >= 29 -> Api29MediaStoreScanner(this, context)
         Build.VERSION.SDK_INT >= 21 -> Api21MediaStoreScanner(this, context)
         else -> MediaStoreScanner(this, context)
     }
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    override val dataSource: MediaDataSource = this
-    private val stateFlow = MutableStateFlow(Snapshot.Idle)
-    private val stateValue by stateFlow.toComposeState(scope)
-    override fun source(): Flow<Snapshot> = stateFlow
-
 
     override val config: MediaSourceConfig = buildConfig(
         key = name,
@@ -53,16 +58,16 @@ class MediaStoreSource(
         function<Unit>(
             key = "Reset",
             description = "重置",
-            isAvailable = { stateValue.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
+            isAvailable = { stateFlow.value.state !is SnapshotState.Loading }
         ).onCall {
             Logger.i(tag = name, messageString = "On Reset")
-            stateFlow.value = stateFlow.value.copy(state = SnapshotState.Idle)
+            stateFlow.value = Snapshot.Idle
         }
 
         function<Unit>(
             key = "扫描",
             description = "执行扫描",
-            isAvailable = { stateValue.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
+            isAvailable = { stateFlow.value.state !is SnapshotState.Loading }
         ).onCall {
             scope.launch {
                 stateFlow.value = Snapshot.Loading
@@ -74,7 +79,6 @@ class MediaStoreSource(
     init {
         scope.launch { stateFlow.value = scanner.scan() }
 
-        // 注册 ContentObserver，监听 MediaStore 变化后重新扫描
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean, uri: Uri?) {
                 scope.launch { stateFlow.value = scanner.scan() }
@@ -86,27 +90,8 @@ class MediaStoreSource(
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? {
-        if (song.source() != name) return null
-        val audio = stateFlow.value.audios.firstOrNull { it.idValue() == song.idValue() }
-
-        val sourceItem = audio?.sourceItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
-
-        return when (sourceItem) {
-            is SourceItem.FileItem -> {
-                val file = sourceItem.file
-                MediaData.Bytes(file.readBytes())
-            }
-
-            is SourceItem.FilePathItem -> {
-                MediaData.Url(sourceItem.path)
-            }
-
-            is SourceItem.UriItem -> {
-                MediaData.Url(sourceItem.uri.toString())
-            }
-
-            else -> null
-        }
+        if (song.mediaSourceName != name) return null
+        val uri = song.extra?.get("uri") ?: return null
+        return MediaData.Url(uri)
     }
 }

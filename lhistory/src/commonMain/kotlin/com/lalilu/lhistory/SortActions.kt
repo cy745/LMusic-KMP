@@ -43,7 +43,7 @@ class SortRulePlayCount(
         subTitle = "历史记录中播放次数排序"
     )
 
-    override fun <T : Sortable> doSort(
+    override fun <T> doSort(
         items: Flow<List<T>>,
         config: SortConfig,
     ): Flow<SortResult<T>> {
@@ -51,7 +51,7 @@ class SortRulePlayCount(
             .getHistoriesIdsMapWithCount()
             .combine(items) { map, sources ->
                 val sorted = sources
-                    .sortedByDescending { song -> map[song.getValueBy(Sortable.COMPARE_KEY_ID)] }
+                    .sortedByDescending { song -> map[(song as Sortable).getValueBy(Sortable.COMPARE_KEY_ID)] }
                     .let { if (config.reverse) it.reversed() else it }
 
                 if (config.hideItemExtra) {
@@ -59,7 +59,7 @@ class SortRulePlayCount(
                 } else {
                     val extras = sorted.map {
                         ItemExtraData.PlayedCount(
-                            count = map[it.getValueBy(Sortable.COMPARE_KEY_ID)] ?: 0
+                            count = map[(it as Sortable).getValueBy(Sortable.COMPARE_KEY_ID)] ?: 0
                         )
                     }
 
@@ -90,7 +90,7 @@ class SortRuleLastPlayTime(
         subTitle = "历史记录播放排序"
     )
 
-    override fun <T : Sortable> doSort(
+    override fun <T> doSort(
         items: Flow<List<T>>,
         config: SortConfig,
     ): Flow<SortResult<T>> {
@@ -98,7 +98,7 @@ class SortRuleLastPlayTime(
             .getHistoriesIdsMapWithLastTime()
             .combine(items) { map, sources ->
                 val sorted = sources
-                    .sortedByDescending { song -> map[song.getValueBy(Sortable.COMPARE_KEY_ID)] }
+                    .sortedByDescending { song -> map[(song as Sortable).getValueBy(Sortable.COMPARE_KEY_ID)] }
                     .let { if (config.reverse) it.reversed() else it }
 
                 SortResult.flat(sorted)

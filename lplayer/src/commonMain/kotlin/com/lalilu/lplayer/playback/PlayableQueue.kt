@@ -1,8 +1,6 @@
 package com.lalilu.lplayer.playback
 
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LItem
-import com.lalilu.lmedia.entity.ref
+import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +15,7 @@ data class QueueState(
     fun rearrange(): List<LAudio> {
         if (index !in list.indices) return list
         return (list.drop(index) + list.take(index))
-            .distinctBy { it.idValue() }
+            .distinctBy { it.id }
     }
 
     /** 获取当前播放项 */
@@ -46,12 +44,4 @@ interface PlayableQueue {
 
     fun nextOf(target: LAudio): LAudio?
     fun previousOf(target: LAudio): LAudio?
-}
-
-/** 将 [LItem] 转换为可播放的 [LAudio] 列表。 */
-internal fun LItem.toPlayable(): List<LAudio> {
-    return when (this) {
-        is LAudio -> listOf(this)
-        else -> ref<LAudio>()
-    }
 }

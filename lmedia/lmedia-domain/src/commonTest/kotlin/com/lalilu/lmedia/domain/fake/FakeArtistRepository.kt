@@ -35,10 +35,10 @@ class FakeArtistRepository : ArtistRepository {
     override fun getArtists(): Flow<List<LArtist>> = store
 
     override fun getArtists(ids: List<String>): Flow<List<LArtist>> =
-        store.mapLatest { list -> list.filter { it.idValue() in ids } }
+        store.mapLatest { list -> list.filter { it.id in ids } }
 
     override fun getArtist(id: String): Flow<LArtist?> =
-        store.mapLatest { list -> list.firstOrNull { it.idValue() == id } }
+        store.mapLatest { list -> list.firstOrNull { it.id == id } }
 
     override fun getAudioIdsByArtist(artistId: String): Flow<List<String>> =
         flowOf(artistAudioMap[artistId] ?: emptyList())

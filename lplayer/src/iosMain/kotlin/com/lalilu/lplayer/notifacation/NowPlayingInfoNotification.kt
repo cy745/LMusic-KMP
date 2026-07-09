@@ -6,7 +6,7 @@ import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import coil3.toBitmap
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.playback.Playback
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.refTo

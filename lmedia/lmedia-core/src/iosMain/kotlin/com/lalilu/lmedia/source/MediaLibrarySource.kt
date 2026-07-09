@@ -2,18 +2,19 @@ package com.lalilu.lmedia.source
 
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.Metadata
-import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.mapLatest
+import org.koin.core.annotation.Single
 import platform.MediaPlayer.MPMediaItem
 import platform.MediaPlayer.MPMediaLibrary
 import platform.MediaPlayer.MPMediaLibraryAuthorizationStatusAuthorized
 import platform.MediaPlayer.MPMediaQuery
 
-object MediaLibrarySource : MediaSource {
+@Single(binds = [MediaSource::class])
+class MediaLibrarySource : MediaSource {
     override val name: String = "MediaLibrarySource"
     private val authorized by lazy {
         MutableStateFlow(MPMediaLibrary.authorizationStatus() == MPMediaLibraryAuthorizationStatusAuthorized)

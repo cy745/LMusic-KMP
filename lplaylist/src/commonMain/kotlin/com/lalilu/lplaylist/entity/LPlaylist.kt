@@ -19,7 +19,7 @@ package com.lalilu.lplaylist.entity
 
 import androidx.room3.Entity
 import androidx.room3.PrimaryKey
-import com.lalilu.lmedia.entity.TextMatchable
+import com.lalilu.lmedia.linkable.TextMatchable
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 

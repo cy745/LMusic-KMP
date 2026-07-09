@@ -3,8 +3,8 @@ package com.lalilu.lplayer.playback
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.repository.AudioRepository
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.Metadata as EntityMetadata
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.Metadata as EntityMetadata
 import com.lalilu.lmedia.domain.model.LAudio as DomainAudio
 import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
 import com.lalilu.lmedia.domain.source.MediaData
@@ -123,7 +123,7 @@ class AVPlayerPlayback(
                     context = observerContext
                 )
 
-                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
+                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.id == item.id }
                 queue.update { switchTo(index = targetIndex) }
                 avPlayer.replaceCurrentItemWithPlayerItem(playerItem)
                 if (start) {
@@ -187,7 +187,7 @@ class AVPlayerPlayback(
                     _isPlaying.value = true
                 }
 
-                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
+                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.id == item.id }
                 queue.update { switchTo(index = targetIndex) }
                 _currentDuration.value = (player.duration * 1000L).toLong()
 

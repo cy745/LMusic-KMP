@@ -49,7 +49,7 @@ import com.lalilu.lhistory.lhistory.generated.resources.Res
 import com.lalilu.lhistory.lhistory.generated.resources.history_screen_title
 import com.lalilu.lhistory.viewmodel.HistoryVM
 import com.lalilu.lmedia.domain.repository.AudioRepository
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.Screen

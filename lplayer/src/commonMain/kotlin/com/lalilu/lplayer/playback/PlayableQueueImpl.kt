@@ -1,7 +1,7 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,14 +32,14 @@ class PlayableQueueImpl(
 
     override fun previousOf(target: LAudio): LAudio? {
         return _rawQueue.value.list.run {
-            val index = indexOfFirst { it.idValue() == target.idValue() }
+            val index = indexOfFirst { it.id == target.id }
             getOrNull(index - 1)
         }
     }
 
     override fun nextOf(target: LAudio): LAudio? {
         return _rawQueue.value.list.run {
-            val index = indexOfFirst { it.idValue() == target.idValue() }
+            val index = indexOfFirst { it.id == target.id }
             getOrNull(index + 1)
         }
     }

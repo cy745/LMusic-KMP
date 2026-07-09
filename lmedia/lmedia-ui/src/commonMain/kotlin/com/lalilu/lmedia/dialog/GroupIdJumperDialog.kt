@@ -26,10 +26,8 @@ import com.lalilu.extensions.DialogItem
 import com.lalilu.extensions.DialogWrapper
 import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
-import com.lalilu.lmedia.sortable.Sortable
-
 @Composable
-fun <T : Sortable> GroupIdJumperDialog(
+fun <T> GroupIdJumperDialog(
     isVisible: () -> Boolean,
     onDismiss: () -> Unit,
     sortResult: SortResult<T>,

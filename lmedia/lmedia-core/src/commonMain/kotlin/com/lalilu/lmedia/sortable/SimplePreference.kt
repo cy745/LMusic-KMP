@@ -101,7 +101,7 @@ class SortManager(
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-fun <T : Sortable> Flow<List<T>>.doSort(
+fun <T> Flow<List<T>>.doSort(
     sortManager: SortManager,
 ): Flow<SortResult<T>> = sortManager.selectedAction.flatMapLatest { action ->
     sortManager.sortConfig.flatMapLatest { config ->
@@ -110,7 +110,7 @@ fun <T : Sortable> Flow<List<T>>.doSort(
     }
 }
 
-inline fun <reified T : Sortable> Flow<List<T>>.doSortState(
+inline fun <reified T> Flow<List<T>>.doSortState(
     sortManager: SortManager,
     coroutineScope: CoroutineScope,
 ): State<SortResult<T>> = mutableStateOf(SortResult.empty<T>())

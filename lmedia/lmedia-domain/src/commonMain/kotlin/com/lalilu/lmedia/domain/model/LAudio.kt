@@ -10,21 +10,8 @@ data class LAudio(
     val mediaSourceName: String = "",
     val metadata: Metadata = Metadata.EMPTY,
     val extra: Map<String, String>? = null,
-    override var available: Boolean = true,
-) : LItem, Available, TextMatchable,
-    Extensible by extensibleImpl({ extra }) {
-
-    // Identifiable
-    override fun idValue(): String = id
-    override fun idPrefix(): String = ID_PREFIX
-
-    // Describable
-    override fun titleValue(): String = title
-    override fun subtitleValue(): String = subtitle
-
-    // TextMatchable
-    override fun getMatchText(): String = "${title}_${subtitle}"
-
+    val available: Boolean = true,
+) {
     companion object {
         const val ID_PREFIX = "audio_"
     }

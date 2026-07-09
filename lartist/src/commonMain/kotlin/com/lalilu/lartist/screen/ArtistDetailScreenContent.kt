@@ -32,8 +32,8 @@ import com.lalilu.extensions.*
 import com.lalilu.lartist.component.ArtistCard
 import com.lalilu.lartist.viewmodel.ArtistDetailEvent
 import com.lalilu.lmedia.component.AudioItemCard
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LArtist
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
@@ -62,7 +62,7 @@ internal fun ArtistDetailScreenContent(
     onClickAddToPlaylist: () -> Unit = {},
     onClickPlayAll: () -> Unit = {},
 ) = SharedContext(sharedMap) {
-    val sharedMapPrefix = remember { "${artist?.idValue()?.md5()}:" }
+    val sharedMapPrefix = remember { "${artist?.id?.md5()}:" }
     val context = LocalPlatformContext.current
     val density = LocalDensity.current
     val listState: LazyListState = rememberLazyListState()
@@ -126,8 +126,8 @@ internal fun ArtistDetailScreenContent(
             item {
                 val primaryColor = MaterialTheme.colorScheme.primary
                 val annotatedSubtitle = remember {
-                    val title = artist?.titleValue() ?: "Unknown"
-                    val subtitle = artist?.subtitleValue()?.takeIf { it.isNotBlank() }
+                    val title = artist?.title ?: "Unknown"
+                    val subtitle = artist?.subtitle?.takeIf { it.isNotBlank() }
                     buildAnnotatedString {
                         if (subtitle == null) {
                             append("${songs.itemList.size} songs")
@@ -142,7 +142,7 @@ internal fun ArtistDetailScreenContent(
 
                 CoverTitleHeader(
                     coverData = coverData,
-                    title = artist?.titleValue() ?: "Unknown Artist",
+                    title = artist?.title ?: "Unknown Artist",
                     subtitle = "",
                     subtitleContent = {
                         Text(
@@ -210,7 +210,7 @@ internal fun ArtistDetailScreenContent(
 
                 itemsIndexed(
                     items = items,
-                    key = { index, item -> item.idValue() },
+                    key = { index, item -> item.id },
                     contentType = { index, item -> item::class }
                 ) { index, item ->
                     AudioItemCard(
@@ -218,9 +218,9 @@ internal fun ArtistDetailScreenContent(
                             .animateItem()
                             .fillMaxWidth(),
                         sharedMapPrefix = sharedMapPrefix,
-                        id = item.idValue(),
-                        title = item.titleValue(),
-                        subtitle = item.subtitleValue(),
+                        id = item.id,
+                        title = item.title,
+                        subtitle = item.subtitle,
                         imageData = item,
                         isSelecting = { selector().isSelecting.value },
                         isSelected = { selector().isSelected(item) },
@@ -229,8 +229,8 @@ internal fun ArtistDetailScreenContent(
                         onPlay = {
                             scope.launch {
                                 PlayerAction.UpdateList(
-                                    ids = songs.itemList.map { it.idValue() },
-                                    id = item.idValue(),
+                                    ids = songs.itemList.map { it.id },
+                                    id = item.id,
                                     start = true
                                 ).action()
                             }
@@ -239,7 +239,7 @@ internal fun ArtistDetailScreenContent(
                             val coverMemoryKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/song/detail")
-                                .with("mediaId", item.idValue())
+                                .with("mediaId", item.id)
                                 .with("song", item)
                                 .with("coverCacheKey", coverMemoryKey)
                                 .with("sharedMap", sharedMap)
@@ -266,7 +266,7 @@ internal fun ArtistDetailScreenContent(
 
                 itemsIndexed(
                     items = relatedArtists,
-                    key = { _, item -> "related_${item.idValue()}" },
+                    key = { _, item -> "related_${item.id}" },
                     contentType = { _, _ -> LArtist::class }
                 ) { _, item ->
                     ArtistCard(
@@ -277,7 +277,7 @@ internal fun ArtistDetailScreenContent(
                             val coverCacheKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/pages/artists/detail")
-                                .with("artistId", item.idValue())
+                                .with("artistId", item.id)
                                 .with("artist", item)
                                 .with("sharedMap", sharedMap)
                                 .with("coverCacheKey", coverCacheKey)

@@ -25,7 +25,6 @@ import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.SongAlbumInfoCard
 import com.lalilu.lhome.screen.detail.MetadataInfos
 import com.lalilu.lhome.viewmodel.SongDetailVM
-import com.lalilu.lmedia.entity.*
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.Screen
@@ -33,6 +32,10 @@ import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenActionFactory
 import com.lalilu.packed.CoverTitleHeader
 import com.lalilu.preview.preview
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.LAlbum
+import com.lalilu.lmedia.domain.model.LArtist
+import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
 import com.lalilu.slotContent
 import kotlinx.serialization.Serializable
 import org.koin.compose.viewmodel.koinViewModel
@@ -69,14 +72,14 @@ data class SongDetailScreen(
     @Composable
     override fun Content() {
         val vm = koinViewModel<SongDetailVM>(parameters = { parametersOf(mediaId) })
-        val albums by vm.albums.collectAsState(emptyList())
-        val artists by vm.artists.collectAsState(emptyList())
+        val albumsList by vm.albums.collectAsState(initial = null)
+        val artistsList by vm.artists.collectAsState(initial = null)
         val song = vm.songState.value ?: song
 
         SongDetailScreenContent(
             song = song,
-            albums = albums ?: emptyList(),
-            artists = artists ?: emptyList(),
+            albums = (albumsList ?: emptyList()).ifEmpty { emptyList() },
+            artists = (artistsList ?: emptyList()).ifEmpty { emptyList() },
             coverCacheKey = coverCacheKey,
             sharedMap = sharedMap
         )
@@ -100,7 +103,7 @@ fun SongDetailScreenContent(
             .build()
     }
     val songsInfo = remember(song) {
-        (song?.extraValue() ?: emptyMap()) + (song?.metadata?.toMap() ?: emptyMap())
+        (song?.extra ?: emptyMap()) + (song?.metadata?.toMap() ?: emptyMap())
             .filter { it.value.isNotBlank() }
     }
 
@@ -117,8 +120,8 @@ fun SongDetailScreenContent(
         item {
             CoverTitleHeader(
                 coverData = coverData,
-                title = song?.titleValue() ?: "Unknown",
-                subtitle = song?.subtitleValue(),
+                title = song?.title ?: "Unknown",
+                subtitle = song?.subtitle,
                 extraContent = {
                     val tagContents = listOf("music_tags", "lddc_tags")
                         .mapNotNull { key -> slotContent(key)?.let { key to it } }
@@ -145,7 +148,7 @@ fun SongDetailScreenContent(
 
         items(
             items = albums,
-            key = { it.idValue() }
+            key = { it.id }
         ) { album ->
             val paddingHorizontal = adaptiveValue(
                 compact = { 16.dp },
@@ -223,7 +226,7 @@ private fun SongDetailScreenContentPreview() = preview {
         title = "ライアーメイデン (feat. りぃふ)",
         subtitle = "ヤバス/りぃふ",
         extra = mapOf(),
-        metadata = Metadata(
+        metadata = DomainMetadata(
             title = "ライアーメイデン (feat. りぃふ)",
             album = "ヤバス/りぃふ",
             artist = "artist",
@@ -242,9 +245,9 @@ private fun SongDetailScreenContentPreview() = preview {
         mediaSourceName = ""
     )
 
-    song.link(artists[0])
-    song.link(artists[1])
-    song.link(album)
+    // song.link(artists[0]) - removed with entity Linkable
+    // song.link(artists[1]) - removed
+    // song.link(album) - removed
 
     SongDetailScreenContent(song = song)
 }

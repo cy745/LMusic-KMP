@@ -8,8 +8,7 @@ import com.lalilu.MviWithIntent
 import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.toState
 import com.lalilu.lmedia.domain.repository.ArtistRepository
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.toLegacyArtist
+import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.sortable.SortAction
 import com.lalilu.lmedia.sortable.SortConfig
 import com.lalilu.lmedia.sortable.SortManager
@@ -35,7 +34,7 @@ data class ArtistsState(
 
     fun getArtistsFlow(artistRepository: ArtistRepository): Flow<List<LArtist>> {
         val source = artistRepository.getArtists()
-            .mapLatest { list -> list.map { it.toLegacyArtist() } }
+            .mapLatest { list -> list.map { it } }
 
         val keywords: List<String> = when {
             searchKeyWord.isBlank() -> emptyList()
@@ -44,7 +43,7 @@ data class ArtistsState(
         }
 
         return source.mapLatest { flow ->
-            flow.filter { item -> keywords.all { item.getMatchText().contains(it) } }
+            flow.filter { item -> keywords.all { "${item.title} ${item.subtitle}".contains(it, ignoreCase = true) } }
         }
     }
 }

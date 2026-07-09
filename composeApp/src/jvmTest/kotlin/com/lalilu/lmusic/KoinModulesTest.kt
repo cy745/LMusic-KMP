@@ -24,6 +24,7 @@ class KoinModulesTest {
             override fun <T> readData(key: String, defaultValue: T?, clazz: kotlin.reflect.KClass<*>): T = defaultValue as T
             override fun <T> saveData(key: String, value: T?, clazz: kotlin.reflect.KClass<*>) {}
         } }
+        single<com.lalilu.lmedia.source.Saver> { com.lalilu.lmedia.source.Saver.Empty }
     }
 
     /** Providers needing Android Context / Koin Scope / platform APIs.

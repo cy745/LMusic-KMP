@@ -39,14 +39,14 @@ interface SortAction {
     fun getActionInfo(): ActionInfo = ActionInfo("")
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun <T : Sortable> doSort(
+    fun <T> doSort(
         items: Flow<List<T>>,
         config: SortConfig = SortConfig()
     ): Flow<SortResult<T>> = items
         .mapLatest { doSortInternal(it, config) }
         .mapLatest { if (config.hideGroup) SortResult.flat(it.itemList) else it }
 
-    suspend fun <T : Sortable> doSortInternal(
+    suspend fun <T> doSortInternal(
         items: List<T>,
         config: SortConfig = SortConfig()
     ): SortResult<T> = items.let {

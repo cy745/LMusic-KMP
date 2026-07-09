@@ -51,7 +51,7 @@ import com.lalilu.RemixIcon
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.GlobalToaster
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplaylist.repository.PlaylistRepository
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.ScreenAction

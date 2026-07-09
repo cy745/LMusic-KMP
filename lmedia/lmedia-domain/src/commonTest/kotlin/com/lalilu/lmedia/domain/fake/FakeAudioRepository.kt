@@ -24,8 +24,8 @@ class FakeAudioRepository : AudioRepository {
     override fun getAudios(): Flow<List<LAudio>> = store
 
     override fun getAudios(ids: List<String>): Flow<List<LAudio>> =
-        store.mapLatest { list -> list.filter { it.idValue() in ids } }
+        store.mapLatest { list -> list.filter { it.id in ids } }
 
     override fun getAudio(id: String): Flow<LAudio?> =
-        store.mapLatest { list -> list.firstOrNull { it.idValue() == id } }
+        store.mapLatest { list -> list.firstOrNull { it.id == id } }
 }

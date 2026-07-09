@@ -26,8 +26,7 @@ import com.lalilu.lmedia.component.AudioItemCard
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.dialog.GroupIdJumperDialog
 import com.lalilu.lmedia.dialog.SortPanelDialog
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
@@ -307,15 +306,15 @@ fun SongsScreenContent(
 
                 itemsIndexed(
                     items = items,
-                    key = { index, item -> item.idValue() },
+                    key = { index, item -> item.id },
                     contentType = { index, item -> item::class }
                 ) { index, item ->
                     val extra = extras.getOrNull(index)
 
                     AudioItemCard(
-                        id = item.idValue(),
-                        title = item.titleValue(),
-                        subtitle = item.subtitleValue(),
+                        id = item.id,
+                        title = item.title,
+                        subtitle = item.subtitle,
                         imageData = item,
                         isSelecting = { selector().isSelecting.value },
                         isSelected = { selector().isSelected(item) },
@@ -324,8 +323,8 @@ fun SongsScreenContent(
                         onPlay = {
                             scope.launch {
                                 PlayerAction.UpdateList(
-                                    ids = audioRepo.getAudios().first().map { it.idValue() },
-                                    id = item.idValue(),
+                                    ids = audioRepo.getAudios().first().map { it.id },
+                                    id = item.id,
                                     start = true
                                 ).action()
                             }
@@ -333,7 +332,7 @@ fun SongsScreenContent(
                         onNavigateToDetail = { sharedMap ->
                             val coverMemoryKey = context.retrieveCacheKey(item)
                             AppRouter.route("/song/detail")
-                                .with("mediaId", item.idValue())
+                                .with("mediaId", item.id)
                                 .with("song", item)
                                 .with("coverCacheKey", coverMemoryKey)
                                 .with("sharedMap", sharedMap)

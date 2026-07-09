@@ -3,7 +3,7 @@ package com.lalilu.lplayer.playback
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.data.Library
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.notification.BrowserMediaSessionHelper
 import io.github.vinceglb.filekit.utils.toJsArray
@@ -70,7 +70,7 @@ class AudioPlayback(
             player.play()
             _isPlaying.value = true
         }
-        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
+        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.id == item.id }
         queue.update { switchTo(index = targetIndex) }
     }
 

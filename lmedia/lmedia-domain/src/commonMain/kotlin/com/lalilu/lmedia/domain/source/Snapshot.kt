@@ -29,7 +29,7 @@ data class Snapshot(
  * from each audio's [Metadata] fields.
  */
 fun buildSnapshot(audios: List<LAudio>): Snapshot {
-    val list = audios.distinctBy { it.idValue() }
+    val list = audios.distinctBy { it.id }
 
     val albums = list
         .groupBy { song -> song.metadata.album }
@@ -94,14 +94,14 @@ fun buildRelations(
                 .split('/', ';', '、', ',', '，')
                 .distinctBy { it }
             val ids = artistNames.map { "${LArtist.ID_PREFIX}$it" }
-            this[audio.idValue()] = ids.toMutableList()
+            this[audio.id] = ids.toMutableList()
         }
     }
 
     relations.getOrPut("com.lalilu.lmedia.domain.model.LAlbum") { mutableMapOf() }.apply {
         audios.forEach { audio ->
             val albumName = audio.metadata.album ?: "Unknown"
-            this[audio.idValue()] = mutableListOf("${LAlbum.ID_PREFIX}$albumName")
+            this[audio.id] = mutableListOf("${LAlbum.ID_PREFIX}$albumName")
         }
     }
 
@@ -109,7 +109,7 @@ fun buildRelations(
         audios.forEach { audio ->
             val genreName = audio.metadata.genre ?: "Unknown"
             if (genreName.isNotBlank()) {
-                this[audio.idValue()] = mutableListOf("${LGenre.ID_PREFIX}$genreName")
+                this[audio.id] = mutableListOf("${LGenre.ID_PREFIX}$genreName")
             }
         }
     }

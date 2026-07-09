@@ -2,16 +2,22 @@ package com.lalilu.lmedia.source.filesystem
 
 import android.annotation.SuppressLint
 import android.app.Application
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
-import com.lalilu.lmedia.entity.*
-import com.lalilu.lmedia.source.*
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
+import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.MediaDataSource
+import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.domain.source.buildSnapshot
+import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.source.MediaSourceConfig
+import com.lalilu.lmedia.source.Saver
+import com.lalilu.lmedia.source.buildConfig
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
@@ -29,12 +35,11 @@ class AndroidFileSystemSource(
     private val saver: Saver
 ) : MediaSource, MediaDataSource {
     override val name: String = "AndroidFileSystemSource"
+    override val dataSource: MediaDataSource = this
     private val scope = CoroutineScope(Dispatchers.Default)
     private val stateFlow = MutableStateFlow(Snapshot.Idle)
 
     override fun source(): Flow<Snapshot> = stateFlow
-    override val dataSource: MediaDataSource = this
-    private val stateValue by stateFlow.toComposeState(scope)
 
     private var loadingJob: Job? = null
 
@@ -49,7 +54,7 @@ class AndroidFileSystemSource(
         function<Unit>(
             key = "Cancel",
             description = "取消当前任务",
-            isAvailable = { stateValue.let { it is SnapshotState.Loading || it is SnapshotState.LoadingDynamic } }
+            isAvailable = { stateFlow.value.state is SnapshotState.Loading }
         ).onCall {
             Logger.i(tag = name, messageString = "On Cancel")
             loadingJob?.cancel()
@@ -58,19 +63,18 @@ class AndroidFileSystemSource(
         function<Unit>(
             key = "Reset",
             description = "重置",
-            isAvailable = { stateValue.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
+            isAvailable = { stateFlow.value.state !is SnapshotState.Loading }
         ).onCall {
             Logger.i(tag = name, messageString = "On Reset")
-            stateFlow.value = stateFlow.value.copy(state = SnapshotState.Idle)
+            stateFlow.value = Snapshot.Idle
         }
 
         function<Unit>(
             key = "Rescan",
             description = "重新扫描",
-            isAvailable = { stateValue.let { it !is SnapshotState.Loading && it !is SnapshotState.LoadingDynamic } }
+            isAvailable = { stateFlow.value.state !is SnapshotState.Loading }
         ).onCall {
             Logger.i(tag = name, messageString = "On Rescan")
-
             loadingJob?.cancel()
             loadingJob = scope.launch {
                 stateFlow.value = load { stateFlow.value = it }
@@ -80,9 +84,7 @@ class AndroidFileSystemSource(
 
     private val filePath get() = config.get<String>("file_path").getOrThrow()
 
-    override fun onConfigChange() {
-
-    }
+    override fun onConfigChange() { }
 
     override fun init() {
         loadingJob?.cancel()
@@ -95,25 +97,20 @@ class AndroidFileSystemSource(
         update: suspend (Snapshot) -> Unit = {}
     ): Snapshot = withContext(scope.coroutineContext) {
         runCatching {
-            val messageState = mutableStateOf("Loading...")
-            val progressState = mutableFloatStateOf(0f)
+            var currentMessage = "Loading..."
+            var currentProgress = 0f
+
+            fun updateLoadingState(message: String, progress: Float = 0f) {
+                currentMessage = message
+                currentProgress = maxOf(progress, currentProgress)
+            }
 
             update(
-                Snapshot(
-                    state = SnapshotState.LoadingDynamic(
-                        message = { messageState.value },
-                        progress = { progressState.floatValue }
-                    )
-                )
+                Snapshot(state = SnapshotState.Loading(
+                    message = currentMessage,
+                    progress = currentProgress
+                ))
             )
-
-            fun updateLoadingState(
-                message: String,
-                progress: Float = 0f
-            ) {
-                messageState.value = message
-                progressState.floatValue = maxOf(progress, progressState.floatValue)
-            }
 
             val root = PlatformFile.fromBookmarkData(filePath.encodeToByteArray())
             val files = root.filterChildren { file ->
@@ -140,7 +137,30 @@ class AndroidFileSystemSource(
                                 message = metadata.title ?: "",
                                 progress = newProgress
                             )
-                            SourceItem.FileItem(file.file) to metadata
+                            val uri = file.file.toUri().toString()
+                            LAudio(
+                                id = "${LAudio.ID_PREFIX}${uri}",
+                                title = metadata.title ?: "Unknown",
+                                subtitle = metadata.artist ?: "Unknown Subs",
+                                mediaSourceName = name,
+                                metadata = DomainMetadata(
+                                    title = metadata.title,
+                                    album = metadata.album,
+                                    artist = metadata.artist,
+                                    albumArtist = metadata.albumArtist,
+                                    composer = metadata.composer,
+                                    lyricist = metadata.lyricist,
+                                    comment = metadata.comment,
+                                    genre = metadata.genre,
+                                    track = metadata.track,
+                                    disc = metadata.disc,
+                                    date = metadata.date,
+                                    duration = metadata.duration,
+                                    dateAdded = metadata.dateAdded,
+                                    dateModified = metadata.dateModified
+                                ),
+                                extra = mapOf("uri" to uri)
+                            )
                         }
 
                         is AndroidFile.UriWrapper -> {
@@ -155,155 +175,66 @@ class AndroidFileSystemSource(
                                 message = metadata.title ?: "",
                                 progress = newProgress
                             )
-                            SourceItem.UriItem(file.uri) to metadata
+                            val uri = file.uri.toString()
+                            LAudio(
+                                id = "${LAudio.ID_PREFIX}$uri",
+                                title = metadata.title ?: "Unknown",
+                                subtitle = metadata.artist ?: "Unknown Subs",
+                                mediaSourceName = name,
+                                metadata = DomainMetadata(
+                                    title = metadata.title,
+                                    album = metadata.album,
+                                    artist = metadata.artist,
+                                    albumArtist = metadata.albumArtist,
+                                    composer = metadata.composer,
+                                    lyricist = metadata.lyricist,
+                                    comment = metadata.comment,
+                                    genre = metadata.genre,
+                                    track = metadata.track,
+                                    disc = metadata.disc,
+                                    date = metadata.date,
+                                    duration = metadata.duration,
+                                    dateAdded = metadata.dateAdded,
+                                    dateModified = metadata.dateModified
+                                ),
+                                extra = mapOf("uri" to uri)
+                            )
                         }
                     }
                 }
             }
 
-            val songs = results
-                .awaitAll()
-                .filterNotNull()
-                .map { (source, metadata) ->
-                    buildAudio(id = source.key) {
-                        title(metadata.title)
-                        subtitle(metadata.artist)
-                        source(source)
-                        metadata(metadata)
-                        extra(
-                            mapOf(
-                                "uri" to when (source) {
-                                    is SourceItem.FileItem -> source.file.toUri().toString()
-                                    is SourceItem.UriItem -> source.uri.toString()
-                                    is SourceItem.FilePathItem -> source.path.toUri().toString()
-                                    else -> ""
-                                }
-                            )
-                        )
-                    }
-                }
-
-            songs.buildSnapshot()
+            val songs = results.awaitAll().filterNotNull()
+            buildSnapshot(songs)
         }.getOrElse {
             Snapshot(state = SnapshotState.Error(message = it.message ?: "Unknown error"))
         }
     }
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
-        val audio = stateFlow.value.audios.firstOrNull { it.idValue() == song.idValue() }
-
-        val sourceItem = audio?.sourceItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
-
-        when (sourceItem) {
-            is SourceItem.FileItem -> {
-                val file = sourceItem.file
-
-                val lyric = Taglib.getLyric(path = file.absolutePath)
-                    ?: throw FileNotFoundException("Not found lyric for $file")
-
-                lyric
-            }
-
-            is SourceItem.FilePathItem -> {
-                val uri = sourceItem.path.toUri()
-
-                val lyric = context.contentResolver
-                    .openFileDescriptor(uri, "r")
-                    ?.use { Taglib.getLyric(fd = it.detachFd()) }
-                    ?: throw FileNotFoundException("Not found lyric for $uri")
-
-                lyric
-            }
-
-            is SourceItem.UriItem -> {
-                val uri = sourceItem.uri
-
-                val lyric = context.contentResolver
-                    .openFileDescriptor(uri, "r")
-                    ?.use { Taglib.getLyric(fd = it.detachFd()) }
-                    ?: throw FileNotFoundException("Not found lyric for $uri")
-
-                lyric
-            }
-
-            else -> null
-        }
+        val uri = song.extra?.get("uri") ?: return@withContext null
+        val lyric = Taglib.getLyric(path = uri.toUri().path ?: uri)
+            ?: throw FileNotFoundException("Not found lyric for $uri")
+        lyric
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? = withContext(Dispatchers.io) {
-        val audio = stateFlow.value.audios.firstOrNull { it.idValue() == song.idValue() }
-
-        val sourceItem = audio?.sourceItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
-
-        when (sourceItem) {
-            is SourceItem.FileItem -> {
-                val file = sourceItem.file
-
-                val picture = Taglib.getPicture(path = file.absolutePath)
-                    ?: throw FileNotFoundException("Not found picture for $file")
-
-                MediaData.Bytes(picture)
-            }
-
-            is SourceItem.FilePathItem -> {
-                val uri = sourceItem.path.toUri()
-
-                val picture = context.contentResolver
-                    .openFileDescriptor(uri, "r")
-                    ?.use { Taglib.getPicture(fd = it.detachFd()) }
-                    ?: throw FileNotFoundException("Not found picture for $uri")
-
-                MediaData.Bytes(picture)
-            }
-
-            is SourceItem.UriItem -> {
-                val uri = sourceItem.uri
-
-                val picture = context.contentResolver
-                    .openFileDescriptor(uri, "r")
-                    ?.use { Taglib.getPicture(fd = it.detachFd()) }
-                    ?: throw FileNotFoundException("Not found picture for $uri")
-
-                MediaData.Bytes(picture)
-            }
-
-            else -> null
-        }
+        val uri = song.extra?.get("uri") ?: return@withContext null
+        val picture = Taglib.getPicture(path = uri.toUri().path ?: uri)
+            ?: throw FileNotFoundException("Not found picture for $uri")
+        MediaData.Bytes(picture)
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? = withContext(Dispatchers.io) {
-        val audio = stateFlow.value.audios.firstOrNull { it.idValue() == song.idValue() }
-
-        val sourceItem = audio?.sourceItem
-            ?: throw IllegalArgumentException("Invalid id: ${song.idValue()}")
-
-        when (sourceItem) {
-            is SourceItem.FileItem -> {
-                val file = sourceItem.file
-                MediaData.Bytes(file.readBytes())
-            }
-
-            is SourceItem.FilePathItem -> {
-                MediaData.Url(sourceItem.path)
-            }
-
-            is SourceItem.UriItem -> {
-                MediaData.Url(sourceItem.uri.toString())
-            }
-
-            else -> null
-        }
+        val uri = song.extra?.get("uri") ?: return@withContext null
+        MediaData.Url(uri)
     }
 }
 
 private suspend fun PlatformFile.filterChildren(
     block: suspend (file: PlatformFile) -> Boolean
 ): Collection<PlatformFile> = withContext(Dispatchers.io) {
-    // 若不是文件夹，则无法遍历
     if (!this@filterChildren.isDirectory()) {
-        // 若根元素即满足要求，且其不是文件夹，则直接返回根元素，否则直接返回空数组
         return@withContext if (block(this@filterChildren)) listOf(this@filterChildren) else emptyList()
     }
 
@@ -311,9 +242,7 @@ private suspend fun PlatformFile.filterChildren(
     val list = mutableSetOf<PlatformFile>()
 
     while (isActive && directory.isNotEmpty()) {
-        val files = directory.map { it.list() }
-            .flatten()
-
+        val files = directory.map { it.list() }.flatten()
         val results = files
             .map { async { Triple(it, it.isDirectory(), block(it)) } }
             .awaitAll()

@@ -7,7 +7,7 @@ import coil3.fetch.Fetcher
 import coil3.fetch.SourceFetchResult
 import coil3.request.Options
 import coil3.size.pxOrElse
-import com.lalilu.lmedia.entity.SourceItem
+import com.lalilu.lmedia.source.SourceItem
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readBytes
 import okio.Buffer

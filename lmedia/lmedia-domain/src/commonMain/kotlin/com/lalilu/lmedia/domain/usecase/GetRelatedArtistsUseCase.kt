@@ -30,7 +30,7 @@ class GetRelatedArtistsUseCase(
         // Deduplicate and exclude self
         val uniqueIds = relatedArtistIds
             .distinct()
-            .filter { it != artist.idValue() }
+            .filter { it != artist.id }
 
         if (uniqueIds.isEmpty()) return emptyList()
 

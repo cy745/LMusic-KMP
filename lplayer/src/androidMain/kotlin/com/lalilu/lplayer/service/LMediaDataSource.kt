@@ -13,7 +13,7 @@ import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.domain.model.LAudio as DomainAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import org.koin.mp.KoinPlatform
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.source.MediaData
 import io.ktor.http.decodeURLPart
 import kotlinx.coroutines.Dispatchers

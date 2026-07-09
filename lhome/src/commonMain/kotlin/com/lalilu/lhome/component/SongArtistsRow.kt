@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.lalilu.lmedia.entity.LArtist
+import com.lalilu.lmedia.domain.model.LArtist
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

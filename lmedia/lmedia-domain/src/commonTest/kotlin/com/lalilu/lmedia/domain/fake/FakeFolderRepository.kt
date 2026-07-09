@@ -23,5 +23,5 @@ class FakeFolderRepository : FolderRepository {
     override fun getFolders(): Flow<List<LFolder>> = store
 
     override fun getFolder(id: String): Flow<LFolder?> =
-        store.mapLatest { list -> list.firstOrNull { it.idValue() == id } }
+        store.mapLatest { list -> list.firstOrNull { it.id == id } }
 }

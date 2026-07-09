@@ -54,8 +54,8 @@ class GetRelatedArtistsUseCaseTest {
 
         val result = useCase("artist_main")
         assertEquals(2, result.size)
-        assertTrue(result.any { it.idValue() == "artist_related1" })
-        assertTrue(result.any { it.idValue() == "artist_related2" })
+        assertTrue(result.any { it.id == "artist_related1" })
+        assertTrue(result.any { it.id == "artist_related2" })
     }
 
     @Test
@@ -66,7 +66,7 @@ class GetRelatedArtistsUseCaseTest {
 
         val result = useCase("artist_main")
         assertEquals(1, result.size)
-        assertEquals("artist_related1", result.first().idValue())
+        assertEquals("artist_related1", result.first().id)
     }
 
     @Test
@@ -77,6 +77,6 @@ class GetRelatedArtistsUseCaseTest {
 
         val result = useCase("artist_main")
         assertEquals(1, result.size)
-        assertEquals("artist_related1", result.first().idValue())
+        assertEquals("artist_related1", result.first().id)
     }
 }

@@ -14,10 +14,8 @@ import com.lalilu.lmedia.domain.repository.ArtistRepository
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.usecase.GetRelatedArtistsUseCase
 import com.lalilu.lmedia.domain.usecase.SearchAudiosUseCase
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.toLegacyArtist
-import com.lalilu.lmedia.entity.toLegacyAudio
+import com.lalilu.lmedia.domain.model.LArtist
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.mviImplWithIntent
@@ -48,12 +46,12 @@ data class ArtistDetailState(
 
     fun getArtistFlow(artistRepository: ArtistRepository): Flow<LArtist?> {
         return artistRepository.getArtist(artistId)
-            .mapLatest { it?.toLegacyArtist() }
+            .mapLatest { it }
     }
 
     fun getSongsFlow(searchAudiosUseCase: SearchAudiosUseCase): Flow<List<LAudio>> {
         return searchAudiosUseCase(ids = null, keywords = emptyList())
-            .map { list -> list.map { it.toLegacyAudio() } }
+            .map { list -> list.map { it } }
     }
 }
 
@@ -118,7 +116,7 @@ class ArtistDetailVM(
             }
             searchAudiosUseCase(ids = null, keywords = keywords)
         }
-        .map { list -> list.map { it.toLegacyAudio() } }
+        .map { list -> list.map { it } }
         .doSortState(sorter, viewModelScope)
     val state = stateFlow()
         .toState(ArtistDetailState(artistId), viewModelScope)
@@ -154,7 +152,7 @@ class ArtistDetailVM(
             }
 
             is ArtistDetailAction.LocaleToPlayingItem -> {
-                val mediaId = LPlayer.instance.queue.currentItem()?.idValue() ?: run {
+                val mediaId = LPlayer.instance.queue.currentItem()?.id ?: run {
                     Logger.e(tag = TAG, messageString = "can not find playing item's mediaId")
                     return@launch
                 }
@@ -170,7 +168,7 @@ class ArtistDetailVM(
     fun loadRelatedArtists() {
         viewModelScope.launch {
             val related = getRelatedArtistsUseCase(artistId)
-            val legacyRelated = related.map { it.toLegacyArtist() }
+            val legacyRelated = related.map { it }
             reduce { it.copy(relatedArtists = legacyRelated) }
         }
     }

@@ -1,10 +1,8 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.common.ext.io
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.LItem
-import com.lalilu.lmedia.entity.toLegacyAudio
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -66,7 +64,7 @@ abstract class AbstractPlayback(
      * 默认使用 [audioRepository] 实现；平台可覆盖以提供自定义逻辑。
      */
     protected open suspend fun resolveMedia(ids: List<String>): List<LAudio> {
-        return audioRepository.getAudios(ids).first().map { it.toLegacyAudio() }
+        return audioRepository.getAudios(ids).first()
     }
 
     /**
@@ -141,9 +139,8 @@ abstract class AbstractPlayback(
         }
     }
 
-    override suspend fun updatePlaylist(playlist: List<LItem>, startIndex: Int, start: Boolean) {
-        val items = playlist.flatMap { it.toPlayable() }
-        queue.update { replaceAll(items = items, index = startIndex) }
+    override suspend fun updatePlaylist(playlist: List<LAudio>, startIndex: Int, start: Boolean) {
+        queue.update { replaceAll(items = playlist, index = startIndex) }
 
         if (_playbackMode.value == PlaybackMode.SHUFFLE) {
             updateShuffledIndices()

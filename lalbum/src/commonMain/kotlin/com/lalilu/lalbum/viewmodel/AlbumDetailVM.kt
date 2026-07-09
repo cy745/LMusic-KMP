@@ -13,10 +13,8 @@ import com.lalilu.extensions.toState
 import com.lalilu.lmedia.domain.repository.AlbumRepository
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.usecase.SearchAudiosUseCase
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.toLegacyAlbum
-import com.lalilu.lmedia.entity.toLegacyAudio
+import com.lalilu.lmedia.domain.model.LAlbum
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.mviImplWithIntent
@@ -45,12 +43,12 @@ data class AlbumDetailState(
 
     fun getAlbumFlow(albumRepository: AlbumRepository): Flow<LAlbum?> {
         return albumRepository.getAlbum(albumId)
-            .mapLatest { it?.toLegacyAlbum() }
+            .mapLatest { it }
     }
 
     fun getSongsFlow(searchAudiosUseCase: SearchAudiosUseCase): Flow<List<LAudio>> {
         return searchAudiosUseCase(ids = null, keywords = emptyList())
-            .map { list -> list.map { it.toLegacyAudio() } }
+            .map { list -> list.map { it } }
     }
 }
 
@@ -119,7 +117,7 @@ class AlbumDetailVM(
             }
             searchAudiosUseCase(ids = null, keywords = keywords)
         }
-        .map { list -> list.map { it.toLegacyAudio() } }
+        .map { list -> list.map { it } }
         .doSortState(sorter, viewModelScope)
     val state = stateFlow()
         .toState(AlbumDetailState(albumId), viewModelScope)
@@ -149,7 +147,7 @@ class AlbumDetailVM(
             }
 
             is AlbumDetailAction.LocaleToPlayingItem -> {
-                val mediaId = LPlayer.instance.queue.currentItem()?.idValue() ?: run {
+                val mediaId = LPlayer.instance.queue.currentItem()?.id ?: run {
                     Logger.e(tag = TAG, messageString = "can not find playing item's mediaId")
                     return@launch
                 }

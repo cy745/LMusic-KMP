@@ -57,7 +57,7 @@ data class PlaylistsState(
         }
 
         val searchResult = sources.mapLatest { flow ->
-            flow.filter { item -> keywords.all { item.getMatchText().contains(it) } }
+            flow.filter { item -> keywords.all { item.title.contains(it) } }
         }
 
         return searchResult

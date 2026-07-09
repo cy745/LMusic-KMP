@@ -31,7 +31,7 @@ import coil3.compose.AsyncImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.buildSharedMap
-import com.lalilu.lmedia.entity.LAlbum
+import com.lalilu.lmedia.domain.model.LAlbum
 
 @Composable
 fun AlbumCard(
@@ -44,9 +44,9 @@ fun AlbumCard(
 
     AlbumCard(
         modifier = modifier,
-        id = item.idValue(),
+        id = item.id,
         imageData = album,
-        title = { item.titleValue() },
+        title = { item.title },
         showTitle = showTitle,
         onClick = onClick
     )

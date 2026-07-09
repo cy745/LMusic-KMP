@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.extensions.SharedMap
 import com.lalilu.lalbum.component.AlbumCard
-import com.lalilu.lmedia.entity.LAlbum
+import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.navigation.smartbar.NavigatorHeader
 

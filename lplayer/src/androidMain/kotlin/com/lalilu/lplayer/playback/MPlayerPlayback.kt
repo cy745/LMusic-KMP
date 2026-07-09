@@ -16,9 +16,7 @@ import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.repository.AudioRepository
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.toLegacyAudio
-import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.PlayMode
 import com.lalilu.lplayer.extensions.playMode
@@ -91,7 +89,7 @@ class MPlayerPlayback(
         val snapshot = restoreFromHistory()
         if (snapshot != null) {
             launch {
-                val items = audioRepository.getAudios(snapshot.ids).first().map { it.toLegacyAudio() }
+                val items = audioRepository.getAudios(snapshot.ids).first().map { it }
                 queue.update { replaceAll(items, snapshot.index) }
                 onQueueRestored(snapshot)
             }
@@ -172,7 +170,7 @@ class MPlayerPlayback(
 
 
     override suspend fun onQueueRestored(snapshot: PlaybackHistory.HistorySnapshot) {
-        val items = audioRepository.getAudios(snapshot.ids).first().map { it.toLegacyAudio() }
+        val items = audioRepository.getAudios(snapshot.ids).first().map { it }
         val mediaIds = items.map { it.toMediaItem() }
         val browser = browserInstance ?: return
 
@@ -224,7 +222,7 @@ class MPlayerPlayback(
         // 同步播放列表变化到playableQueue
         launch {
             val ids = mediaItems.map { it.mediaId }
-            val items = audioRepository.getAudios(ids).first().map { it.toLegacyAudio() }
+            val items = audioRepository.getAudios(ids).first().map { it }
 
             queue.update(updateReason = QueueUpdateReason.Sync) {
                 replaceAll(items = items, index = currentIndex)

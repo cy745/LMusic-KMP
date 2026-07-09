@@ -12,8 +12,7 @@ import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.toState
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.usecase.SearchAudiosUseCase
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.toLegacyAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplaylist.entity.LPlaylist
@@ -53,7 +52,7 @@ data class PlaylistDetailState(
         // Note: using SearchAudiosUseCase for filtered query
         // Playlist audio IDs should be matched via the use case
         return searchAudiosUseCase(ids = null, keywords = emptyList())
-            .map { list -> list.map { it.toLegacyAudio() } }
+            .map { list -> list.map { it } }
     }
 }
 
@@ -118,7 +117,7 @@ class PlaylistDetailVM(
             }
             searchAudiosUseCase(ids = null, keywords = keywords)
         }
-        .map { list -> list.map { it.toLegacyAudio() } }
+        .map { list -> list.map { it } }
         .doSortState(sorter, viewModelScope)
     val playlist = stateFlow()
         .flatMapLatest { it.getPlaylistFlow(playlistRepo) }
@@ -142,7 +141,7 @@ class PlaylistDetailVM(
             }
 
             is PlaylistDetailAction.LocaleToPlayingItem -> {
-                val mediaId = LPlayer.instance.queue.currentItem()?.idValue() ?: run {
+                val mediaId = LPlayer.instance.queue.currentItem()?.id ?: run {
                     Logger.e(tag = TAG, messageString = "can not find playing item's mediaId")
                     return@launch
                 }

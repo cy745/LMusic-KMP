@@ -23,5 +23,5 @@ class FakeGenreRepository : GenreRepository {
     override fun getGenres(): Flow<List<LGenre>> = store
 
     override fun getGenre(id: String): Flow<LGenre?> =
-        store.mapLatest { list -> list.firstOrNull { it.idValue() == id } }
+        store.mapLatest { list -> list.firstOrNull { it.id == id } }
 }

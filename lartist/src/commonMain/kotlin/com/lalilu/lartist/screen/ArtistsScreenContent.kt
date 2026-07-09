@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.dp
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.extensions.SharedMap
 import com.lalilu.lartist.component.ArtistCard
-import com.lalilu.lmedia.entity.LArtist
+import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.navigation.smartbar.NavigatorHeader
 

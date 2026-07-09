@@ -21,9 +21,9 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.lalilu.component.WrapBox
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.ref
+import com.lalilu.lmedia.domain.model.LAlbum
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.linkable.ref
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 
@@ -33,13 +33,13 @@ fun SongAlbumInfoCard(
     album: LAlbum,
     onClick: () -> Unit = {}
 ) {
-    val imageData = remember(album) { album.ref<LAudio>().firstOrNull() ?: album }
+    val imageData = remember(album) { album }
 
     SongAlbumInfoCard(
         modifier = modifier,
         imageData = imageData,
-        title = album.titleValue(),
-        subTitle = album.subtitleValue(),
+        title = album.title,
+        subTitle = album.subtitle,
         onClick = onClick
     )
 }

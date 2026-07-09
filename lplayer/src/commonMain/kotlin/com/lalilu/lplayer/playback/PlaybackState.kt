@@ -1,6 +1,6 @@
 package com.lalilu.lplayer.playback
 
-import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.domain.model.LAudio
 
 /**
  * Playback实际状态
@@ -14,23 +14,23 @@ sealed class PlaybackState {
     /**
      * 加载中状态
      *
-     * @property item 当前正在加载的元素
+     * @property item 当前正在加载的音频
      */
-    data class Loading(val item: LItem) : PlaybackState()
+    data class Loading(val item: LAudio) : PlaybackState()
 
     /**
      * 播放中状态
      *
-     * @property item 当前正在播放的元素
+     * @property item 当前正在播放的音频
      */
-    data class Playing(val item: LItem) : PlaybackState()
+    data class Playing(val item: LAudio) : PlaybackState()
 
     /**
      * 暂停状态
      *
-     * @property item 当前正在暂停的元素
+     * @property item 当前正在暂停的音频
      */
-    data class Paused(val item: LItem) : PlaybackState()
+    data class Paused(val item: LAudio) : PlaybackState()
 
     /**
      * 错误状态

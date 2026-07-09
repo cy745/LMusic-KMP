@@ -12,7 +12,7 @@ import com.lalilu.lalbum.viewmodel.AlbumDetailAction
 import com.lalilu.lalbum.viewmodel.AlbumDetailVM
 import com.lalilu.lmedia.dialog.GroupIdJumperDialog
 import com.lalilu.lmedia.dialog.SortPanelDialog
-import com.lalilu.lmedia.entity.LAlbum
+import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.*
@@ -171,18 +171,19 @@ data class AlbumDetailScreen(
             selector = { vm.selector },
             onClickGroup = { vm.intent(AlbumDetailAction.ToggleJumperDialog) },
             onClickAddToPlaylist = {
-                album?.let {
+                album?.let { a ->
                     scope.launch {
-                        LPlayer.instance.queue.update {
-                            addToNext(it)
-                        }
+                        PlayerAction.UpdateList(
+                            ids = songs.itemList.map { it.id },
+                            start = false
+                        ).action()
                     }
                 }
             },
             onClickPlayAll = {
                 scope.launch {
                     PlayerAction.UpdateList(
-                        ids = songs.itemList.map { it.idValue() },
+                        ids = songs.itemList.map { it.id },
                         start = true
                     ).action()
                 }

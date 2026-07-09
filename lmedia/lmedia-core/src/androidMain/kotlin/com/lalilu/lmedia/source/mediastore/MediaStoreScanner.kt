@@ -4,7 +4,10 @@ import android.content.ContentUris
 import android.content.Context
 import android.provider.MediaStore
 import com.lalilu.lmedia.Taglib
-import com.lalilu.lmedia.entity.*
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
+import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.buildSnapshot
 import com.lalilu.lmedia.source.MediaSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -66,51 +69,65 @@ open class MediaStoreScanner(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                 )
 
-                // 使用 Taglib FD 模式读取准确的元数据信息
                 val metadata = runCatching {
                     cr.openFileDescriptor(uri, "r")
                         ?.use { fd -> Taglib.readMetadata(fd = fd.detachFd()) }
                 }.getOrNull()
 
-                // 从 MediaStore 游标构建 extra 信息
-                val extras = mutableMapOf<String, String>()
-                getStringOrNull(c, sizeIdx)?.let { extras["file_size"] = it }
-                getStringOrNull(c, dateAddedIdx)?.let { extras["date_added"] = it }
-                getStringOrNull(c, dateModifiedIdx)?.let { extras["date_modified"] = it }
-                getStringOrNull(c, mimeTypeIdx)?.let { extras["content_type"] = it }
-                getStringOrNull(c, durationIdx)?.let { extras["duration"] = it }
-                getStringOrNull(c, yearIdx)?.let { extras["year"] = it }
+                val extras = mutableMapOf<String, String>().apply {
+                    put("uri", uri.toString())
+                    getStringOrNull(c, sizeIdx)?.let { put("file_size", it) }
+                    getStringOrNull(c, dateAddedIdx)?.let { put("date_added", it) }
+                    getStringOrNull(c, dateModifiedIdx)?.let { put("date_modified", it) }
+                    getStringOrNull(c, mimeTypeIdx)?.let { put("content_type", it) }
+                    getStringOrNull(c, durationIdx)?.let { put("duration", it) }
+                    getStringOrNull(c, yearIdx)?.let { put("year", it) }
+                }
 
-                // 子类钩子：添加 API 级别特定的 extra
+                // Hook for API-level specific extras
                 onExtras(c, extras)
 
-                val audio = with(source) {
-                    buildAudio(id = uri.toString()) {
-                        title(
-                            metadata?.title?.takeIf { it.isNotBlank() }
-                                ?: getStringOrNull(c, titleIdx)?.takeIf { it.isNotBlank() }
-                                ?: "Unknown"
-                        )
-                        subtitle(
-                            metadata?.title?.takeIf { it.isNotBlank() }
-                                ?: getStringOrNull(c, titleIdx)?.takeIf { it.isNotBlank() }
-                                ?: "Unknown"
-                        )
-                        metadata(metadata ?: Metadata.EMPTY)
-                        extra(extras)
-                        source(SourceItem.UriItem(uri))
-                    }
-                }
+                val audio = LAudio(
+                    id = "${LAudio.ID_PREFIX}$uri",
+                    title = (
+                        metadata?.title?.takeIf { it.isNotBlank() }
+                            ?: getStringOrNull(c, titleIdx)?.takeIf { it.isNotBlank() }
+                            ?: "Unknown"
+                        ),
+                    subtitle = (
+                        metadata?.title?.takeIf { it.isNotBlank() }
+                            ?: getStringOrNull(c, titleIdx)?.takeIf { it.isNotBlank() }
+                            ?: "Unknown"
+                        ),
+                    mediaSourceName = source.name,
+                    metadata = DomainMetadata(
+                        title = metadata?.title,
+                        album = metadata?.album,
+                        artist = metadata?.artist,
+                        albumArtist = metadata?.albumArtist ?: "",
+                        composer = metadata?.composer ?: "",
+                        lyricist = metadata?.lyricist ?: "",
+                        comment = metadata?.comment ?: "",
+                        genre = metadata?.genre ?: "",
+                        track = extras["track"] ?: "",
+                        disc = extras["disc"] ?: "",
+                        date = metadata?.date ?: "",
+                        duration = metadata?.duration ?: 0L,
+                        dateAdded = metadata?.dateAdded ?: 0L,
+                        dateModified = metadata?.dateModified ?: 0L
+                    ),
+                    extra = extras
+                )
                 list.add(audio)
             }
             list
         }
 
-        audios.buildSnapshot()
+        buildSnapshot(audios)
     }
 
     /**
-     * 子类可覆写此方法以添加 API 级别特定的 extra 列。
+     * Subclasses can override to add API-level specific extra columns.
      */
     protected open fun onExtras(cursor: android.database.Cursor, extras: MutableMap<String, String>) {
     }

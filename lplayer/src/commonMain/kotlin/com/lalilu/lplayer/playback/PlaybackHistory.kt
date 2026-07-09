@@ -68,8 +68,8 @@ class PlaybackHistoryImpl(
         // 监听队列变化 → 持久化 playlist 信息
         playback.queue.expandedItems
             .onEach { state ->
-                historyStorage.savePlayId(state.currentItem()?.idValue() ?: "")
-                historyStorage.savePlaylistIds(state.list.map { it.idValue() })
+                historyStorage.savePlayId(state.currentItem()?.id ?: "")
+                historyStorage.savePlaylistIds(state.list.map { it.id })
             }
             .launchIn(this)
 

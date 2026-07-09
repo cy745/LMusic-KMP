@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.domain.model
+package com.lalilu.lmedia.linkable
 
 interface TextMatchable {
     fun getMatchText(): String

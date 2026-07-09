@@ -24,7 +24,9 @@ import coil3.compose.AsyncImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.rememberSharedMap
-import com.lalilu.lmedia.entity.*
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.LAlbum
+import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 
@@ -32,30 +34,30 @@ import com.lalilu.preview.preview
 @Composable
 fun RecommendGroupCard(
     modifier: Modifier = Modifier,
-    group: LItem,
-    onClick: (LItem, SharedMap) -> Unit = { _, _ -> },
+    group: Any,
+    onClick: (Any, SharedMap) -> Unit = { _, _ -> },
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val linkable = group as? Linkable
-    val items = linkable?.ref<LAudio>() ?: emptyList()
-    val rowCount = remember(group) {
-        when {
-            items.size == 1 -> 1
-            items.size <= 4 -> 2
-            items.size >= 9 -> 3
-            else -> 3
+    val title = remember(group) {
+        when (group) {
+            is LAudio -> group.title.ifBlank { "元素" }
+            is LAlbum -> group.title.ifBlank { "元素" }
+            is LArtist -> group.title.ifBlank { "元素" }
+            else -> "元素"
         }
     }
-    val title = remember(group) {
-        group.titleValue().ifBlank { "元素" }
-    }
     val subtitle = remember(group) {
-        group.subtitleValue().ifBlank { "共 ${items.size} 首歌曲" }
+        when (group) {
+            is LAudio -> group.subtitle
+            is LAlbum -> group.subtitle
+            is LArtist -> group.subtitle
+            else -> ""
+        }
     }
 
     SharedContext(
         sharedMap = rememberSharedMap(
-            id = group.idValue(),
+            id = title,
             keys = listOf("TITLE", "SUBTITLE")
         )
     ) {
@@ -69,147 +71,75 @@ fun RecommendGroupCard(
         ) {
             Column(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.onBackground.copy(0.05f))
-                    .clickable(
-                        interactionSource = interactionSource,
-                        onClick = { onClick(group, sharedMap) }
+                    .clip(RoundedCornerShape(4.dp))
+                    .then(
+                        if (subtitle.isNotBlank()) Modifier.border(
+                            width = 0.5.dp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(0.4f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) else Modifier
                     )
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                repeat(rowCount) { row ->
-                    Row(
-                        modifier = Modifier,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        repeat(rowCount) { column ->
-                            val item = items.getOrNull(row * rowCount + column)
-
-                            if (item != null) {
-                                RecommendGroupItemCard(
-                                    modifier = modifier.weight(1f),
-                                    item = item,
-                                    onClick = onClick
-                                )
-                            } else {
-                                Spacer(
-                                    modifier = Modifier.weight(1f)
-                                        .aspectRatio(1f)
-                                )
-                            }
-                        }
-                    }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.45f)
+                        .background(MaterialTheme.colorScheme.onBackground.copy(0.05f))
+                ) {
+                    Text(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp),
+                        text = title.firstOrNull()?.toString() ?: title,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
+
+                AsyncImage(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.55f),
+                    model = group,
+                    contentScale = ContentScale.Crop,
+                    contentDescription = null
+                )
             }
 
             Text(
-                modifier = Modifier.padding(top = 8.dp)
-                    .sharedBoundsV2("TITLE"),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, start = 4.dp)
+                    .alpha(0.8f),
                 text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.W600,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
-                color = MaterialTheme.colorScheme.onBackground,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                modifier = Modifier.sharedBoundsV2("SUBTITLE")
-                    .alpha(0.6f),
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                color = MaterialTheme.colorScheme.onBackground,
                 overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall
             )
-        }
-    }
-}
 
-@OptIn(ExperimentalSharedTransitionApi::class)
-@Composable
-private fun RecommendGroupItemCard(
-    modifier: Modifier = Modifier,
-    item: LItem,
-    onClick: (LItem, SharedMap) -> Unit = { _, _ -> }
-) {
-    SharedContext(
-        sharedMap = rememberSharedMap(
-            id = item.idValue(),
-            keys = listOf("COVER")
-        )
-    ) {
-        AsyncImage(
-            modifier = modifier
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(8.dp))
-                .border(
-                    width = 1f.dp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(0.2f),
-                    shape = RoundedCornerShape(8.dp)
+            if (subtitle.isNotBlank() && subtitle != title) {
+                Text(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 4.dp)
+                        .alpha(0.6f),
+                    text = subtitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelSmall
                 )
-                .clickable(onClick = { onClick(item, sharedMap) })
-                .background(MaterialTheme.colorScheme.onBackground.copy(0.15f))
-                .sharedElementV2("COVER"),
-            contentScale = ContentScale.Crop,
-            model = item,
-            contentDescription = item.titleValue()
-        )
+            }
+        }
     }
 }
 
 @Preview
 @Composable
-private fun RecommendGroupCardPreview() = preview {
-    val audios = remember {
-        dataContext.filterIsInstance<PreviewPresets>()
-            .mapIndexed { index, preset ->
-                LAudio(
-                    id = index.toString(),
-                    title = preset.stringValue("title"),
-                    subtitle = preset.stringValue("subtitle"),
-                    mediaSourceName = ""
-                )
-            }
-    }
-    val group1 = remember {
-        val firstItem = audios.randomOrNull()
-        LArtist(
-            id = "1",
-            title = firstItem?.titleValue() ?: "",
-            subtitle = firstItem?.titleValue() ?: ""
-        ).also { linkable ->
-            audios.take(4).forEach { linkable.link(it) }
-        }
-    }
-    val group2 = remember {
-        val firstItem = audios.randomOrNull()
-        LArtist(
-            id = "1",
-            title = firstItem?.titleValue() ?: "",
-            subtitle = firstItem?.titleValue() ?: ""
-        ).also { linkable ->
-            audios.take(5).forEach { linkable.link(it) }
-        }
-    }
-
-    LazyRow(
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            RecommendGroupCard(
-                modifier = Modifier.width(250.dp),
-                group = group1
-            )
-        }
-
-        item {
-            RecommendGroupCard(
-                modifier = Modifier.width(250.dp),
-                group = group2
-            )
-        }
-    }
+private fun PreviewRecommendGroupCardDefault() = preview {
+    RecommendGroupCard(
+        modifier = Modifier.width(150.dp),
+        group = LAudio(id = "test", title = "Test", subtitle = "Test Artist"),
+    )
 }

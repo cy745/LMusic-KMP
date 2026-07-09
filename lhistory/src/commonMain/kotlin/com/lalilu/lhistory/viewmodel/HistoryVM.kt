@@ -8,8 +8,7 @@ import androidx.paging.cachedIn
 import com.lalilu.extensions.toState
 import com.lalilu.lhistory.repository.HistoryRepository
 import com.lalilu.lmedia.domain.repository.AudioRepository
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.toLegacyAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -30,7 +29,7 @@ class HistoryVM(
                 .sortedByDescending { it.second }
                 .map { it.first }
             audioRepository.getAudios(ids)
-        }.map { list -> list.map { it.toLegacyAudio() }.take(6) }
+        }.map { list -> list.map { it }.take(6) }
         .toState(emptyList(), viewModelScope)
 
     val pager = Pager(

@@ -1,7 +1,7 @@
 package com.lalilu.lmedia
 
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.entity.Metadata
+import com.lalilu.lmedia.domain.model.Metadata
 import com.lalilu.taglib.*
 import io.ktor.http.*
 import kotlinx.cinterop.*

@@ -13,8 +13,7 @@ import com.lalilu.lartist.viewmodel.ArtistDetailVM
 import com.lalilu.lmedia.domain.repository.ArtistRepository
 import com.lalilu.lmedia.dialog.GroupIdJumperDialog
 import com.lalilu.lmedia.dialog.SortPanelDialog
-import com.lalilu.lmedia.entity.LArtist
-import com.lalilu.lmedia.entity.toLegacyArtist
+import com.lalilu.lmedia.domain.model.LArtist
 import kotlinx.coroutines.flow.map
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
@@ -111,7 +110,7 @@ data class ArtistDetailScreen(
 
         val artistRepo = org.koin.compose.koinInject<ArtistRepository>()
         val currentArtist by remember(artistId) {
-            artistRepo.getArtist(artistId).map { it?.toLegacyArtist() }
+            artistRepo.getArtist(artistId).map { it }
         }
             .collectAsState(null)
 
@@ -183,16 +182,17 @@ data class ArtistDetailScreen(
             onClickAddToPlaylist = {
                 currentArtist?.let {
                     scope.launch {
-                        LPlayer.instance.queue.update {
-                            addToNext(it)
-                        }
+                        PlayerAction.UpdateList(
+                            ids = songs.itemList.map { it.id },
+                            start = false
+                        ).action()
                     }
                 }
             },
             onClickPlayAll = {
                 scope.launch {
                     PlayerAction.UpdateList(
-                        ids = songs.itemList.map { it.idValue() },
+                        ids = songs.itemList.map { it.id },
                         start = true
                     ).action()
                 }

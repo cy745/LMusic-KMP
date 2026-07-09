@@ -1,6 +1,6 @@
 package com.lalilu.lplayer.playback
 
-import com.lalilu.lmedia.entity.LItem
+import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.flow.*
 
 
@@ -38,7 +38,7 @@ interface Playback {
     suspend fun skipToPrevious()
     suspend fun seekTo(positionMs: Long)
 
-    suspend fun updatePlaylist(playlist: List<LItem>, startIndex: Int, start: Boolean)
+    suspend fun updatePlaylist(playlist: List<LAudio>, startIndex: Int, start: Boolean)
     suspend fun clearPlaylist() = queue.update { clear() }
 
     // Playback Mode

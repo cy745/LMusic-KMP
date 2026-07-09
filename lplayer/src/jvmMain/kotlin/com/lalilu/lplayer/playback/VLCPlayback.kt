@@ -1,13 +1,10 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
-import com.lalilu.lmedia.domain.model.LAudio as DomainAudio
-import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
-import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
-import com.lalilu.lmedia.entity.LAudio
-import com.lalilu.lmedia.entity.SourceItem
-import com.lalilu.lmedia.source.MediaData
+import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.notification.MacOSNotification
 import com.lalilu.lplayer.player.ByteArrayCallbackMedia
@@ -55,8 +52,7 @@ class VLCPlayback(
         val source = platformMediaSource.sources.firstOrNull { item.mediaSourceName == it.name }
             ?: throw Exception("No source item found for ${item.mediaSourceName}")
 
-        val domainAudio = item.toDomainAudio()
-        when (val data = source.dataSource.getMedia(domainAudio)) {
+        when (val data = source.dataSource.getMedia(item)) {
             is MediaData.Url -> {
                 Logger.i(tag = "VLCPlayback", messageString = "prepared with url: ${data.url}")
                 player.media().prepare(data.url)
@@ -67,12 +63,9 @@ class VLCPlayback(
                 player.media().prepare(ByteArrayCallbackMedia.obtain(data.bytes))
             }
 
-            else -> {
-                val path = item.sourceItem
-                    .let { it as? SourceItem.FileItem }
-                    ?.file?.absolutePath
-                    ?: throw Exception("Invalid source item: ${item.sourceItem}")
-
+            null -> {
+                val path = item.extra?.get("uri")
+                    ?: throw Exception("No media data or uri for ${item.id}")
                 Logger.i(tag = "VLCPlayback", messageString = "prepared with path: $path")
                 player.media().prepare(path)
             }
@@ -81,7 +74,7 @@ class VLCPlayback(
         if (start) {
             player.controls().play()
         }
-        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.idValue() == item.idValue() }
+        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.id == item.id }
         queue.update { switchTo(index = targetIndex) }
     }
 
@@ -150,10 +143,10 @@ class VLCPlayback(
                 playItem(targetItem, start)
 
                 dataTracker.onMediaItemTransition(
-                    mediaId = targetItem.idValue(),
-                    title = targetItem.titleValue(),
-                    isRepeating = oldItem?.idValue() == targetItem.idValue(),
-                    isNormalTransition = oldItem?.idValue() != targetItem.idValue()
+                    mediaId = targetItem.id,
+                    title = targetItem.title,
+                    isRepeating = oldItem?.id == targetItem.id,
+                    isNormalTransition = oldItem?.id != targetItem.id
                 )
             }
         } catch (e: Exception) {
@@ -211,28 +204,3 @@ class VLCPlayback(
         })
     }
 }
-
-private fun com.lalilu.lmedia.entity.LAudio.toDomainAudio(): DomainAudio = DomainAudio(
-    id = id,
-    title = title,
-    subtitle = subtitle,
-    mediaSourceName = mediaSourceName,
-    metadata = DomainMetadata(
-        title = metadata.title,
-        album = metadata.album,
-        artist = metadata.artist,
-        albumArtist = metadata.albumArtist,
-        composer = metadata.composer,
-        lyricist = metadata.lyricist,
-        comment = metadata.comment,
-        genre = metadata.genre,
-        track = metadata.track,
-        disc = metadata.disc,
-        date = metadata.date,
-        duration = metadata.duration,
-        dateAdded = metadata.dateAdded,
-        dateModified = metadata.dateModified
-    ),
-    extra = extra,
-    available = available
-)

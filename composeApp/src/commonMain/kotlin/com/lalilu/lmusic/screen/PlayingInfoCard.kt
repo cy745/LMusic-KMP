@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.lalilu.RemixIcon
 import com.lalilu.animated
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.remixicon.Media
 import com.lalilu.remixicon.media.skipForwardLine
 

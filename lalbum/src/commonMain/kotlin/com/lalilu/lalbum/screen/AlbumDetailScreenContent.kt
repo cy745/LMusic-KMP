@@ -26,8 +26,8 @@ import com.lalilu.common.ext.md5
 import com.lalilu.extensions.*
 import com.lalilu.lalbum.viewmodel.AlbumDetailEvent
 import com.lalilu.lmedia.component.AudioItemCard
-import com.lalilu.lmedia.entity.LAlbum
-import com.lalilu.lmedia.entity.LAudio
+import com.lalilu.lmedia.domain.model.LAlbum
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
@@ -55,7 +55,7 @@ internal fun AlbumDetailScreenContent(
     onClickAddToPlaylist: () -> Unit = {},
     onClickPlayAll: () -> Unit = {},
 ) = SharedContext(sharedMap) {
-    val sharedMapPrefix = remember { "${album?.idValue()?.md5()}:" }
+    val sharedMapPrefix = remember { "${album?.id?.md5()}:" }
     val context = LocalPlatformContext.current
     val density = LocalDensity.current
     val listState: LazyListState = rememberLazyListState()
@@ -121,8 +121,8 @@ internal fun AlbumDetailScreenContent(
             item {
                 CoverTitleHeader(
                     coverData = coverData,
-                    title = album?.titleValue() ?: "Unknown Album",
-                    subtitle = album?.subtitleValue()?.takeIf { it.isNotBlank() },
+                    title = album?.title ?: "Unknown Album",
+                    subtitle = album?.subtitle?.takeIf { it.isNotBlank() },
                     extraContent = {
                         FlowRow(
                             modifier = Modifier.padding(top = 8.dp),
@@ -189,9 +189,9 @@ internal fun AlbumDetailScreenContent(
                             .animateItem()
                             .fillMaxWidth(),
                         sharedMapPrefix = sharedMapPrefix,
-                        id = item.idValue(),
-                        title = item.titleValue(),
-                        subtitle = item.subtitleValue(),
+                        id = item.id,
+                        title = item.title,
+                        subtitle = item.subtitle,
                         imageData = item,
                         isSelecting = { selector().isSelecting.value },
                         isSelected = { selector().isSelected(item) },
@@ -200,8 +200,8 @@ internal fun AlbumDetailScreenContent(
                         onPlay = {
                             scope.launch {
                                 PlayerAction.UpdateList(
-                                    ids = songs.itemList.map { it.idValue() },
-                                    id = item.idValue(),
+                                    ids = songs.itemList.map { it.id },
+                                    id = item.id,
                                     start = true
                                 ).action()
                             }
@@ -210,7 +210,7 @@ internal fun AlbumDetailScreenContent(
                             val coverMemoryKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/song/detail")
-                                .with("mediaId", item.idValue())
+                                .with("mediaId", item.id)
                                 .with("song", item)
                                 .with("coverCacheKey", coverMemoryKey)
                                 .with("sharedMap", sharedMap)
