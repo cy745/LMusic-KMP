@@ -1,5 +1,6 @@
 package com.lalilu.lmedia.source.mediastore
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.database.ContentObserver
 import android.net.Uri
@@ -7,7 +8,9 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
+import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
@@ -19,8 +22,10 @@ import com.lalilu.lmedia.source.Saver
 import com.lalilu.lmedia.source.buildConfig
 import com.lalilu.lmedia.source.range
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 
 
@@ -94,5 +99,23 @@ class MediaStoreSource(
         if (song.mediaSourceName != name) return null
         val uri = song.extra?.get("uri") ?: return null
         return MediaData.Url(uri)
+    }
+
+    override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.IO) {
+        if (song.mediaSourceName != name) return@withContext null
+        val uriStr = song.extra?.get("uri") ?: return@withContext null
+        context.contentResolver
+            .openFileDescriptor(uriStr.toUri(), "r")
+            ?.use { Taglib.getLyric(fd = it.detachFd()) }
+    }
+
+    override suspend fun getPicture(song: LAudio): MediaData? = withContext(Dispatchers.IO) {
+        if (song.mediaSourceName != name) return@withContext null
+        val uriStr = song.extra?.get("uri") ?: return@withContext null
+        val picture = context.contentResolver
+            .openFileDescriptor(uriStr.toUri(), "r")
+            ?.use { Taglib.getPicture(fd = it.detachFd()) }
+            ?: throw IllegalArgumentException("Picture not found for $uriStr")
+        MediaData.Bytes(picture)
     }
 }

@@ -126,12 +126,17 @@ fun LazyGridScope.dailyRecommendForSideCompat(
                 is RecommendItem.Artist -> item.artist.subtitle
             }
 
+            val imageData = when (item) {
+                is RecommendItem.Audio -> item.audio
+                is RecommendItem.Album -> item.album
+                is RecommendItem.Artist -> item.artist
+            }
             RecommendCard(
                 modifier = Modifier.width(width = 250.dp),
                 id = id,
                 title = title,
                 subTitle = subtitle,
-                imageData = item,
+                imageData = imageData,
                 onClick = { onClick(item, it) }
             )
         }

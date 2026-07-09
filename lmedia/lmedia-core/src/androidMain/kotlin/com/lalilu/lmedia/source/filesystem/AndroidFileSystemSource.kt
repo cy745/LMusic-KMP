@@ -213,16 +213,26 @@ class AndroidFileSystemSource(
     }
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {
-        val uri = song.extra?.get("uri") ?: return@withContext null
-        val lyric = Taglib.getLyric(path = uri.toUri().path ?: uri)
-            ?: throw FileNotFoundException("Not found lyric for $uri")
+        val uriStr = song.extra?.get("uri") ?: return@withContext null
+        val androidUri = uriStr.toUri()
+        val lyric = when (androidUri.scheme) {
+            "content" -> context.contentResolver
+                .openFileDescriptor(androidUri, "r")
+                ?.use { Taglib.getLyric(fd = it.detachFd()) }
+            else -> Taglib.getLyric(path = androidUri.path ?: uriStr)
+        } ?: throw FileNotFoundException("Not found lyric for $uriStr")
         lyric
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? = withContext(Dispatchers.io) {
-        val uri = song.extra?.get("uri") ?: return@withContext null
-        val picture = Taglib.getPicture(path = uri.toUri().path ?: uri)
-            ?: throw FileNotFoundException("Not found picture for $uri")
+        val uriStr = song.extra?.get("uri") ?: return@withContext null
+        val androidUri = uriStr.toUri()
+        val picture = when (androidUri.scheme) {
+            "content" -> context.contentResolver
+                .openFileDescriptor(androidUri, "r")
+                ?.use { Taglib.getPicture(fd = it.detachFd()) }
+            else -> Taglib.getPicture(path = androidUri.path ?: uriStr)
+        } ?: throw FileNotFoundException("Not found picture for $uriStr")
         MediaData.Bytes(picture)
     }
 
