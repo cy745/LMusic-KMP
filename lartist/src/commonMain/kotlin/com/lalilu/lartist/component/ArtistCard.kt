@@ -35,7 +35,6 @@ import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.buildSharedMap
 import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.linkable.ref
 
 @Composable
 fun ArtistCard(
