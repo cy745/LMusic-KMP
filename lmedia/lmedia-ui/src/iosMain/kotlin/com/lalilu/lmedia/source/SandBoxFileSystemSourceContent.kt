@@ -11,7 +11,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.lalilu.common.ext.io
+import com.lalilu.lmedia.component.PreviewMediaSource.config
 import com.lalilu.lmedia.component.SourceCard
+import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.lmedia_ui.generated.resources.Res
 import com.lalilu.lmedia.server.SandBoxFileSystemServer
