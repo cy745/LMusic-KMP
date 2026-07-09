@@ -3,6 +3,7 @@
 package com.lalilu.lmedia.domain.fake
 
 import com.lalilu.lmedia.domain.model.LArtist
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.ArtistRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +15,7 @@ class FakeArtistRepository : ArtistRepository {
     private val store = MutableStateFlow<List<LArtist>>(emptyList())
     private val artistAudioMap = mutableMapOf<String, List<String>>()
     private val audioArtistMap = mutableMapOf<String, List<String>>()
+    private val artistAudiosMap = mutableMapOf<String, List<LAudio>>()
 
     fun seed(vararg artists: LArtist) {
         store.value = artists.toList()
@@ -26,10 +28,15 @@ class FakeArtistRepository : ArtistRepository {
         }
     }
 
+    fun seedWithAudios(artistId: String, audios: List<LAudio>) {
+        artistAudiosMap[artistId] = audios
+    }
+
     fun clear() {
         store.value = emptyList()
         artistAudioMap.clear()
         audioArtistMap.clear()
+        artistAudiosMap.clear()
     }
 
     override fun getArtists(): Flow<List<LArtist>> = store
@@ -39,6 +46,9 @@ class FakeArtistRepository : ArtistRepository {
 
     override fun getArtist(id: String): Flow<LArtist?> =
         store.mapLatest { list -> list.firstOrNull { it.id == id } }
+
+    override fun getAudiosByArtist(artistId: String): Flow<List<LAudio>> =
+        flowOf(artistAudiosMap[artistId] ?: emptyList())
 
     override fun getAudioIdsByArtist(artistId: String): Flow<List<String>> =
         flowOf(artistAudioMap[artistId] ?: emptyList())

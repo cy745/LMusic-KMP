@@ -3,6 +3,7 @@ package com.lalilu.lmedia.data.repository
 import com.lalilu.lmedia.data.database.ILMediaDatabase
 import com.lalilu.lmedia.data.mapper.toDomain
 import com.lalilu.lmedia.domain.model.LArtist
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.ArtistRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +25,9 @@ class ArtistRepositoryImpl(
 
     override fun getArtist(id: String): Flow<LArtist?> =
         artistDao.getArtist(id).mapLatest { it?.toDomain() }
+
+    override fun getAudiosByArtist(artistId: String): Flow<List<LAudio>> =
+        artistDao.getAudiosByArtist(artistId).mapLatest { list -> list.map { it.toDomain() } }
 
     override fun getAudioIdsByArtist(artistId: String): Flow<List<String>> =
         artistDao.getAudiosByArtist(artistId).mapLatest { list -> list.map { it.id } }
