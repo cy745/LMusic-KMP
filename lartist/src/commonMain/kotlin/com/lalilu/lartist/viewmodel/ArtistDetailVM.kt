@@ -49,9 +49,8 @@ data class ArtistDetailState(
             .mapLatest { it }
     }
 
-    fun getSongsFlow(searchAudiosUseCase: SearchAudiosUseCase): Flow<List<LAudio>> {
-        return searchAudiosUseCase(ids = null, keywords = emptyList())
-            .map { list -> list.map { it } }
+    fun getSongsFlow(artistRepository: ArtistRepository): Flow<List<LAudio>> {
+        return artistRepository.getAudiosByArtist(artistId)
     }
 }
 
@@ -106,17 +105,18 @@ class ArtistDetailVM(
         )
     )
 
-    val songs = stateFlow()
-        .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { state ->
-            val keywords = when {
-                state.searchKeyWord.isBlank() -> emptyList()
-                state.searchKeyWord.contains(' ') -> state.searchKeyWord.split(' ')
-                else -> listOf(state.searchKeyWord)
-            }
-            searchAudiosUseCase(ids = null, keywords = keywords)
+    val songs = artistRepository.getAudiosByArtist(artistId)
+        .flatMapLatest { audios ->
+            stateFlow().distinctUntilChangedBy { it.distinctKey }
+                .map { state ->
+                    if (state.searchKeyWord.isBlank()) return@map audios
+                    val keywords = if (state.searchKeyWord.contains(' '))
+                        state.searchKeyWord.split(' ') else listOf(state.searchKeyWord)
+                    audios.filter { audio ->
+                        keywords.all { "${audio.title}_${audio.subtitle}".contains(it, ignoreCase = true) }
+                    }
+                }
         }
-        .map { list -> list.map { it } }
         .doSortState(sorter, viewModelScope)
     val state = stateFlow()
         .toState(ArtistDetailState(artistId), viewModelScope)
