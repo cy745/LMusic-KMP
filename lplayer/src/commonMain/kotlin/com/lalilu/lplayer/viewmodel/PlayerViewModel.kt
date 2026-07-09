@@ -17,7 +17,7 @@ import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single
+@Single(binds = [ViewModel::class])
 class PlayerViewModel(
     private val platformSource: PlatformMediaSource
 ) : ViewModel(), LifecycleEventObserver {

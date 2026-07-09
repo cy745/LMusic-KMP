@@ -12,6 +12,3 @@ interface MediaSource : DomainMediaSource {
         get() = MediaSourceConfig(key = name, name = name)
 }
 
-/** Helper: get config if the source supports it, or null otherwise. */
-val DomainMediaSource.configOrNull: MediaSourceConfig?
-    get() = (this as? MediaSource)?.config
