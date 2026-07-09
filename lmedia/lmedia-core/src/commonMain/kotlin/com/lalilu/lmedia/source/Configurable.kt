@@ -1,5 +1,7 @@
 package com.lalilu.lmedia.source
 
+import com.lalilu.lmedia.domain.source.MediaSource
+
 /**
  * Interface for objects that expose a [MediaSourceConfig].
  *
@@ -13,5 +15,5 @@ interface Configurable {
 }
 
 /** Safely access [config] from any object. */
-val Any.configOrNullCompat: MediaSourceConfig?
+val MediaSource.configOrNullCompat: MediaSourceConfig?
     get() = (this as? Configurable)?.config

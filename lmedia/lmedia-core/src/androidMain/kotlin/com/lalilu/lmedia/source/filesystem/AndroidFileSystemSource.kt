@@ -8,18 +8,11 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
-import com.lalilu.lmedia.domain.source.MediaData
-import com.lalilu.lmedia.domain.source.MediaDataSource
-import com.lalilu.lmedia.domain.source.Snapshot
-import com.lalilu.lmedia.domain.source.SnapshotState
-import com.lalilu.lmedia.domain.source.buildSnapshot
-import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
+import com.lalilu.lmedia.domain.source.*
 import com.lalilu.lmedia.source.Configurable
 import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.source.Saver
 import com.lalilu.lmedia.source.buildConfig
-import com.lalilu.lmedia.source.range
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
@@ -27,15 +20,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.io.buffered
 import org.koin.core.annotation.Single
 import java.io.FileNotFoundException
+import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
 
 
 @SuppressLint("NewApi")
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, MediaDataSource::class])
+@Single(binds = [MediaSource::class, MediaDataSource::class])
 class AndroidFileSystemSource(
     private val context: Application,
     private val saver: Saver
-) : DomainMediaSource, MediaDataSource, Configurable {
+) : MediaSource, MediaDataSource, Configurable {
     override val name: String = "AndroidFileSystemSource"
     override val dataSource: MediaDataSource = this
     private val scope = CoroutineScope(Dispatchers.Default)
@@ -87,7 +81,7 @@ class AndroidFileSystemSource(
 
     private val filePath get() = config.get<String>("file_path").getOrThrow()
 
-    override fun onConfigChange() { }
+    override fun onConfigChange() {}
 
     override fun init() {
         loadingJob?.cancel()
@@ -109,10 +103,12 @@ class AndroidFileSystemSource(
             }
 
             update(
-                Snapshot(state = SnapshotState.Loading(
-                    message = currentMessage,
-                    progress = currentProgress
-                ))
+                Snapshot(
+                    state = SnapshotState.Loading(
+                        message = currentMessage,
+                        progress = currentProgress
+                    )
+                )
             )
 
             val root = PlatformFile.fromBookmarkData(filePath.encodeToByteArray())
@@ -221,6 +217,7 @@ class AndroidFileSystemSource(
             "content" -> context.contentResolver
                 .openFileDescriptor(androidUri, "r")
                 ?.use { Taglib.getLyric(fd = it.detachFd()) }
+
             else -> Taglib.getLyric(path = androidUri.path ?: uriStr)
         } ?: throw FileNotFoundException("Not found lyric for $uriStr")
         lyric
@@ -233,6 +230,7 @@ class AndroidFileSystemSource(
             "content" -> context.contentResolver
                 .openFileDescriptor(androidUri, "r")
                 ?.use { Taglib.getPicture(fd = it.detachFd()) }
+
             else -> Taglib.getPicture(path = androidUri.path ?: uriStr)
         } ?: throw FileNotFoundException("Not found picture for $uriStr")
         MediaData.Bytes(picture)

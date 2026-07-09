@@ -146,7 +146,8 @@ fun DomainMediaSource.SourceCard(
             Modifier.padding(top = 8.dp)
                 .fillMaxWidth()
         ) {
-            (this as? Configurable)?.configActions(Modifier, extraFunctions)
+            (this@SourceCard as? Configurable)
+                ?.configActions(Modifier, extraFunctions)
         }
 
         extraContent?.invoke()
