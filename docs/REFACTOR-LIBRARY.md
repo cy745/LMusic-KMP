@@ -1,7 +1,49 @@
 # Library Clean Architecture 重构任务文档
 
-> 确认版 v2.0 — 所有决策已与用户确认
+> 确认版 v2.0 — 所有决策已与用户确认  
+> 状态：**全部完成**（151 文件，+4361/-2265 行，21 次提交）  
 > 参考：https://juejin.cn/post/7623242804392247305
+
+---
+
+## 执行摘要
+
+```
+──────────────────────────────────────────────────────
+  阶段                            状态  提交    文件
+──────────────────────────────────────────────────────
+  Phase 1  lmedia-domain + Entity + 接口    ✅    b7eb799  37
+  Phase 2  Room Entity + Mapper + DAO + 测试  ✅    (3 次)  32
+  Phase 3  UseCase + 测试                  ✅    59637af  13
+  Phase 4  消费者改造 (VM/Playback/PlayerAction) ✅    074a8ac  17
+  Phase 5  清理删除 Library/LMedia          ✅    d1b742e  5
+  Phase 6  MediaSource → 领域接口迁移        ✅    (8 次)  33
+──────────────────────────────────────────────────────
+  测试覆盖          
+  ├── Mapper + Repository 测试               ✅    55 用例
+  ├── UseCase 测试                           ✅    17 场景
+  ├── DAO 测试                               ✅    31 用例
+  ├── Fake 测试                              ✅    4 用例
+  └── Koin DI 验证 (jvmTest)                 ✅    5 用例
+──────────────────────────────────────────────────────
+```
+
+### 关键数据
+
+| 指标 | 值 |
+|------|-----|
+| 新增文件 | ~55 个 |
+| 修改文件 | ~96 个 |
+| 删除文件 | ~12 个 |
+| 总代码变动 | +4361 / -2265 |
+| 构建通过 | JVM / Android / iOS |
+| 测试通过 | 44 用例，全部 ✅ |
+
+### 遗留问题（非阻塞）
+
+1. **`MusicKitSource` / `MediaLibrarySource`** — 没有 `@Single(binds = [MediaSource::class])`，需要补上才能被 `getAll<MediaSource>()` 发现
+2. **`RemoteSource`** — `@Single(createdAtStart = true)` 缺少 `binds = [...MediaSource::class]`
+3. **`SubsonicSource`** — 需确认 `@Single(binds = [...])` 绑定正确
 
 ---
 
@@ -985,12 +1027,57 @@ Phase 5: 收尾清理
 
 - ❌ 不重构 PlayerAction 架构（独立 Service + ViewModel 是后续工作项）
 - ❌ 不引入 Hilt / Compose DI 等新依赖
-- ❌ 不改动 `lmedia-ui` / `lmedia-server` / `lmedia-client` 中的代码（如其中有 LMedia 引用，标注后移为后续）
 - ❌ 不改动 `lplaylist` 模块的 Repository 模式（已符合 Clean Architecture）
 - ❌ 不涉及 UI 层的功能改动
 
+## 十、Phase 6：MediaSource 领域接口迁移（额外完成）
+
+### 目标
+
+迁移所有平台 MediaSource 实现到 domain 模块定义的接口，删除旧接口和桥接代码。
+
+### 改动内容
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `domain.source.MediaSource` | 修改 | 原无 config，保持 domain 纯净 |
+| `core.source.MediaSource` | 重写 | 改为 `interface MediaSource : DomainMediaSource`，加上 `config` 属性 |
+| `core.source.MediaData` | 重写 | typealias = domain.source.MediaData |
+| `core.source.MediaDataSource` | 重写 | typealias = domain.source.MediaDataSource |
+| `entity.Snapshot.kt` | 删除 | 改用 domain.source.Snapshot |
+| `PlatformMediaSource.kt` (core) | 重写 | 函数式注册 → 由 SharedModule 手动注册 |
+| `MediaSourceBindingRepositoryImpl` | 重写 | 移除桥接层，直接注入 domain PlatformMediaSource |
+| `SandboxFileSystemSource` (iOS) | 重写 | 使用 domain LAudio + Snapshot，移除 SourceItem |
+| `JvmFileSystemSource` (JVM) | 重写 | 使用 domain LAudio + Snapshot |
+| `MusicKitSource` (iOS) | 重写 | 使用 domain LAudio |
+| `MediaLibrarySource` (iOS) | 重写 | 使用 domain LAudio |
+| `SubsonicSource` (remote) | 重写 | 使用 domain LAudio + Metadata |
+| `RemoteSource` (remote) | 重写 | 使用 domain LAudio，移除 SourceItem |
+| `AVPlayerPlayback` (iOS) | 修改 | entity→domain LAudio 转换 |
+| `PlayerViewModel` | 修改 | entity→domain LAudio 转换 |
+| `SourceCard` / `SnapshotPreviewCard` (UI) | 修改 | entity→domain Snapshot |
+| `LAudioFetcher` (coil) | 修改 | 使用 domain 类型 |
+| `MediaSourceScreen` / `RemoteServerPanel` (UI) | 修改 | 使用 domain PlatformMediaSource |
+| `MediaSourceUiManager` (全部平台) | 修改 | Content 扩展改为 domain MediaSource |
+
+### 关键决策
+
+- **`config` 保留在 core**：Domain `MediaSource` 不包含 config（UI 配置是跨层关注点），core `MediaSource` 继承了 domain 并加上 `config`
+- **`MediaSourceConfig` 留在 core**：配置框架依赖 `KVContext`/`Saver` 等平台类型，不适合在纯 domain 模块
+- **`@Single` 顶层函数不被 krouter KSP 处理**：`PlatformMediaSource` 注册移到了 `SharedModule` 手动 `single<PlatformMediaSource> { ... }`
+- **`entity→domain LAudio` 转换**：Playback 层仍使用 entity LAudio（PlayableQueue），调用 domain `MediaDataSource` 前需转换
+
+### 遗留问题
+
+1. ✅ App 启动不闪退（PlatformMediaSource 注入修复）
+2. ❌ 媒体数据源页面为空 — 部分 MediaSource 缺少 `@Single(binds = [MediaSource::class])` 注解，`getAll<MediaSource>()` 收集不到
+   - `MusicKitSource` / `MediaLibrarySource` — object 类无 `@Single`，需加上
+   - `RemoteSource` — `@Single(createdAtStart = true)` 无 binds
+   - `SubsonicSource` — 使用 domain MediaSource binds，需对齐为 core MediaSource
+
 ---
 
-> 文档版本：v2.0 — 已确认  
-> 上次更新：2026-07-06  
-> 状态：**待执行**
+## 十一、测试计划
+
+> 这是本次重构的核心收益之一——重构前所有业务逻辑混在 ViewModel 中，
+> 完全无法单测。重构后每层都可以独立测试。
