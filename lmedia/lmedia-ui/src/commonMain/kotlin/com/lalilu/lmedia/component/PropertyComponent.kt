@@ -10,13 +10,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lalilu.lmedia.source.Declaration
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.source.Configurable
 import com.lalilu.lmedia.source.range
 import com.lalilu.lmedia.source.step
 
 @Suppress("UNCHECKED_CAST")
 @Composable
-fun MediaSource.PropertyComponent(
+fun Configurable.PropertyComponent(
     modifier: Modifier = Modifier,
 ) {
     // 只显示 visibleInUI = true 的属性，隐藏对用户不可见的配置参数

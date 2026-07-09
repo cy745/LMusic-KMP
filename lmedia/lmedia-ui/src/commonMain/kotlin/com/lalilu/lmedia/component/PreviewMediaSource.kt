@@ -1,10 +1,11 @@
 package com.lalilu.lmedia.component
 
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
+import com.lalilu.lmedia.source.Configurable
 import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.source.buildConfig
 
-internal object PreviewMediaSource : MediaSource {
+internal object PreviewMediaSource : DomainMediaSource, Configurable {
     override val name: String = "Preview Source"
     override val config: MediaSourceConfig = buildConfig(
         key = name,

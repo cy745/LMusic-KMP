@@ -20,18 +20,20 @@ import androidx.compose.ui.unit.sp
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.source.Declaration
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
+import com.lalilu.lmedia.source.Configurable
+import com.lalilu.lmedia.source.configOrNullCompat
 import com.lalilu.preview.preview
 import kotlin.time.ExperimentalTime
 
 
 @OptIn(ExperimentalTime::class)
 @Composable
-fun MediaSource.SourceCard(
+fun DomainMediaSource.SourceCard(
     modifier: Modifier = Modifier,
     state: () -> Snapshot = { Snapshot.Idle },
-    configForm: @Composable MediaSource.() -> Unit = { PropertyComponent() },
-    configActions: @Composable MediaSource.(Modifier, () -> List<Declaration.Function<*>>) -> Unit = { modifier, extraFunctions ->
+    configForm: @Composable Configurable.() -> Unit = { PropertyComponent() },
+    configActions: @Composable Configurable.(Modifier, () -> List<Declaration.Function<*>>) -> Unit = { modifier, extraFunctions ->
         FunctionComponent(
             modifier,
             extraFunctions
@@ -41,8 +43,9 @@ fun MediaSource.SourceCard(
     extraFunctions: () -> List<Declaration.Function<*>> = { EMPTY_LIST },
     extraContent: (@Composable () -> Unit)? = null
 ) {
-    val title = remember { config.name }
-    val subtitle = remember { config.description }
+    val cfg = configOrNullCompat
+    val title = remember { cfg?.name ?: name }
+    val subtitle = remember { cfg?.description ?: "" }
 
     BaseSourceCard(
         modifier = modifier,
@@ -80,7 +83,7 @@ fun MediaSource.SourceCard(
                     modifier = Modifier.fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
-                    configForm()
+                    (this as? Configurable)?.configForm()
                 }
 
                 is SnapshotState.Loading -> Column(
@@ -143,7 +146,7 @@ fun MediaSource.SourceCard(
             Modifier.padding(top = 8.dp)
                 .fillMaxWidth()
         ) {
-            configActions(Modifier, extraFunctions)
+            (this as? Configurable)?.configActions(Modifier, extraFunctions)
         }
 
         extraContent?.invoke()

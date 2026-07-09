@@ -14,7 +14,8 @@ import com.lalilu.lmedia.domain.source.MediaDataSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.domain.source.buildSnapshot
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
+import com.lalilu.lmedia.source.Configurable
 import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.source.Saver
 import com.lalilu.lmedia.source.buildConfig
@@ -30,11 +31,11 @@ import java.io.FileNotFoundException
 
 @SuppressLint("NewApi")
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(binds = [MediaSource::class, MediaDataSource::class])
+@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, MediaDataSource::class])
 class AndroidFileSystemSource(
     private val context: Application,
     private val saver: Saver
-) : MediaSource, MediaDataSource {
+) : DomainMediaSource, MediaDataSource, Configurable {
     override val name: String = "AndroidFileSystemSource"
     override val dataSource: MediaDataSource = this
     private val scope = CoroutineScope(Dispatchers.Default)
@@ -45,6 +46,7 @@ class AndroidFileSystemSource(
     private var loadingJob: Job? = null
 
     override val config: MediaSourceConfig = buildConfig(
+        onConfigChange = ::onConfigChange,
         key = name,
         name = "Android文件系统源",
         description = "选择文件夹后，通过文件系统扫描音频文件",

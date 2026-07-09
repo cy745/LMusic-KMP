@@ -16,12 +16,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import com.lalilu.lmedia.source.Declaration
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.source.Configurable
 
 internal val EMPTY_LIST = emptyList<Declaration.Function<*>>()
 
 @Composable
-fun MediaSource.FunctionComponent(
+fun Configurable.FunctionComponent(
     modifier: Modifier = Modifier,
     extraFunctions: () -> List<Declaration.Function<*>> = { EMPTY_LIST }
 ) {

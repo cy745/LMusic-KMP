@@ -16,7 +16,8 @@ import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
+import com.lalilu.lmedia.source.Configurable
 import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.source.Saver
 import com.lalilu.lmedia.source.buildConfig
@@ -30,11 +31,11 @@ import org.koin.core.annotation.Single
 
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(binds = [MediaSource::class, MediaDataSource::class])
+@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, MediaDataSource::class])
 class MediaStoreSource(
     private val context: Application,
     private val saver: Saver
-) : MediaSource, MediaDataSource {
+) : DomainMediaSource, MediaDataSource, Configurable {
     override val name: String = "MediaStore"
     override val dataSource: MediaDataSource = this
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -49,6 +50,7 @@ class MediaStoreSource(
     }
 
     override val config: MediaSourceConfig = buildConfig(
+        onConfigChange = ::onConfigChange,
         key = name,
         name = "MediaStore",
         description = "通过 MediaStore 扫描音频文件",

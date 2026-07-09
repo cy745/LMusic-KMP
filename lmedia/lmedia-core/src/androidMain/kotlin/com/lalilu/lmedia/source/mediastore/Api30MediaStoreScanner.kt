@@ -2,7 +2,7 @@ package com.lalilu.lmedia.source.mediastore
 
 import android.content.Context
 import android.provider.MediaStore
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSource
 
 open class Api30MediaStoreScanner(
     private val source: MediaSource,

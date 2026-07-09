@@ -14,6 +14,7 @@ import com.lalilu.lmedia.domain.source.MediaDataSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.domain.source.buildSnapshot
+import com.lalilu.lmedia.source.Configurable
 import com.lalilu.lmedia.source.buildConfig
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.CoroutineScope
@@ -26,17 +27,18 @@ import org.koin.core.annotation.Single
 import java.io.FileNotFoundException
 
 
-@Single(binds = [MediaSource::class, MediaDataSource::class])
+@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, MediaDataSource::class])
 class JvmFileSystemSource(
     private val saver: com.lalilu.lmedia.source.Saver? = null
-) : MediaSource, MediaDataSource {
+) : com.lalilu.lmedia.domain.source.MediaSource, MediaDataSource, Configurable {
     override val name: String = "JvmFileSystemSource"
     private val scope = CoroutineScope(Dispatchers.Default)
     private val _snapshot = MutableStateFlow(Snapshot.Loading)
 
     override fun source(): Flow<Snapshot> = _snapshot
 
-    override val config: MediaSourceConfig = buildConfig(key = name) {
+    override val config: MediaSourceConfig = buildConfig(
+        onConfigChange = ::onConfigChange, key = name) {
         function<Unit>(
             key = "Refresh",
             description = "Refresh the local file system"

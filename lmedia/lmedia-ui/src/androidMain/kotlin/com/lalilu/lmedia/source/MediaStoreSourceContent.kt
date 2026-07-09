@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import com.lalilu.lmedia.source.configOrNullCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -14,11 +15,12 @@ import androidx.core.app.ActivityCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lalilu.lmedia.component.SourceCard
 import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
 import com.lalilu.lmedia.domain.source.SnapshotState
 
 
 @Composable
-fun MediaSource.MediaStoreSourceContent(modifier: Modifier) {
+fun DomainMediaSource.MediaStoreSourceContent(modifier: Modifier) {
     val context = LocalContext.current
     val state = source().collectAsStateWithLifecycle(initialValue = Snapshot.Loading)
     val permission = remember {

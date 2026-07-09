@@ -8,7 +8,7 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.buildSnapshot
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext

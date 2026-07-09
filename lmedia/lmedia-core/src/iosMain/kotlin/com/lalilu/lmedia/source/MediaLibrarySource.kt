@@ -1,5 +1,5 @@
 package com.lalilu.lmedia.source
-
+import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.Metadata
 import com.lalilu.lmedia.domain.source.Snapshot
@@ -13,8 +13,8 @@ import platform.MediaPlayer.MPMediaLibrary
 import platform.MediaPlayer.MPMediaLibraryAuthorizationStatusAuthorized
 import platform.MediaPlayer.MPMediaQuery
 
-@Single(binds = [MediaSource::class])
-class MediaLibrarySource : MediaSource {
+@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class])
+class MediaLibrarySource : DomainMediaSource {
     override val name: String = "MediaLibrarySource"
     private val authorized by lazy {
         MutableStateFlow(MPMediaLibrary.authorizationStatus() == MPMediaLibraryAuthorizationStatusAuthorized)

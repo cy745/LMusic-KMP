@@ -7,10 +7,12 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
 import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.source.buildConfig
+import com.lalilu.lmedia.source.Configurable
 import kotlinx.cinterop.*
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -26,9 +28,9 @@ import platform.Foundation.*
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.md5
 
-@Single(binds = [MediaSource::class, MediaDataSource::class])
+@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, MediaDataSource::class])
 @OptIn(ExperimentalForeignApi::class)
-class SandboxFileSystemSource : MediaSource, MediaDataSource {
+class SandboxFileSystemSource : DomainMediaSource, MediaDataSource, Configurable {
     override val name: String = "SandboxFileSystemSource"
 
     /** iOS Documents directory (for iTunes file sharing). */

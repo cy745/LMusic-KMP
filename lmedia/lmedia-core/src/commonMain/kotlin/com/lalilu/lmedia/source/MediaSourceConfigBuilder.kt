@@ -197,14 +197,16 @@ class MediaSourceConfigBuilder(
  * @param key 配置的唯一标识符
  * @param name 配置的显示名称
  * @param description 配置的描述信息
+ * @param onConfigChange 配置变更时的回调（通常是 source::onConfigChange）
  * @param block 配置构建的DSL块
  * @return 构建完成的MediaSourceConfig实例
  */
-fun MediaSource.buildConfig(
+fun buildConfig(
     key: String,
     name: String = key,
     description: String = "",
     saver: Saver? = null,
+    onConfigChange: () -> Unit = {},
     block: MediaSourceConfigBuilder.() -> Unit
 ): MediaSourceConfig {
     return MediaSourceConfigBuilder(
@@ -213,7 +215,7 @@ fun MediaSource.buildConfig(
         description = description,
         saver = saver
     ).apply(block)
-        .callback(::onConfigChange)
+        .callback(onConfigChange)
         .build()
 }
 

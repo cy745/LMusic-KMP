@@ -20,17 +20,19 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
+import com.lalilu.lmedia.source.Configurable
+import com.lalilu.lmedia.source.MediaSourceConfig
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 
 
-@Single(binds = [com.lalilu.lmedia.source.MediaSource::class, com.lalilu.lmedia.domain.source.MediaDataSource::class], createdAtStart = true)
+@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, com.lalilu.lmedia.domain.source.MediaDataSource::class], createdAtStart = true)
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSource(
     private val json: Json,
     private val saver: com.lalilu.lmedia.source.Saver
-) : com.lalilu.lmedia.source.MediaSource, com.lalilu.lmedia.domain.source.MediaDataSource, CoroutineScope {
+) : com.lalilu.lmedia.domain.source.MediaSource, com.lalilu.lmedia.domain.source.MediaDataSource, com.lalilu.lmedia.source.Configurable, CoroutineScope {
 
     companion object {
         private const val TAG = "RemoteSource"
@@ -49,6 +51,7 @@ class RemoteSource(
     private var loadingJob: Job? = null
 
     override val config: MediaSourceConfig = buildConfig(
+        onConfigChange = ::onConfigChange,
         key = name,
         description = "连接其他开放的Remote Server实例",
         saver = saver

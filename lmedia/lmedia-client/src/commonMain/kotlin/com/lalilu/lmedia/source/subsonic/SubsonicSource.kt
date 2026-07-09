@@ -8,11 +8,11 @@ import com.lalilu.common.ext.retrieveAllPage
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.Metadata
 import com.lalilu.lmedia.domain.source.MediaData
-import com.lalilu.lmedia.source.MediaSource
+import com.lalilu.lmedia.source.Configurable
+import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.domain.source.buildSnapshot
-import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.source.buildConfig
 import com.lalilu.lmedia.source.subsonic.entity.toLrcContent
 import de.jensklingenberg.ktorfit.ktorfit
@@ -30,11 +30,11 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(binds = [com.lalilu.lmedia.source.MediaSource::class, com.lalilu.lmedia.domain.source.MediaDataSource::class])
+@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, com.lalilu.lmedia.domain.source.MediaDataSource::class])
 class SubsonicSource(
     private val json: Json,
     private val saver: com.lalilu.lmedia.source.Saver
-) : com.lalilu.lmedia.source.MediaSource, com.lalilu.lmedia.domain.source.MediaDataSource, CoroutineScope {
+) : com.lalilu.lmedia.domain.source.MediaSource, com.lalilu.lmedia.domain.source.MediaDataSource, Configurable, CoroutineScope {
 
     companion object {
         private const val TAG = "SubsonicSource"
@@ -53,6 +53,7 @@ class SubsonicSource(
     private val snapshotFlow = MutableStateFlow(Snapshot.Idle)
 
     override val config: MediaSourceConfig = buildConfig(
+        onConfigChange = ::onConfigChange,
         key = name,
         name = "Subsonic/Navidrome",
         description = "连接 Subsonic API 或 Navidrome 服务器",

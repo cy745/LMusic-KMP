@@ -1,5 +1,5 @@
 package com.lalilu.lmedia.source
-
+import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
 import com.lalilu.lmedia.MusicKitWrapper
 import com.lalilu.lmedia.SongInfo
 import com.lalilu.lmedia.domain.model.LAudio
@@ -13,9 +13,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Single
 
-@Single(binds = [MediaSource::class])
+@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class])
 @OptIn(ExperimentalForeignApi::class)
-class MusicKitSource : MediaSource {
+class MusicKitSource : DomainMediaSource {
     override val name: String = "MusicKitSource"
 
     override fun source(): Flow<Snapshot> {
