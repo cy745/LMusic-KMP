@@ -323,7 +323,7 @@ fun SongsScreenContent(
                         onPlay = {
                             scope.launch {
                                 PlayerAction.UpdateList(
-                                    ids = audioRepo.getAudios().first().map { it.id },
+                                    ids = songs.itemList.map { it.id },
                                     id = item.id,
                                     start = true
                                 ).action()

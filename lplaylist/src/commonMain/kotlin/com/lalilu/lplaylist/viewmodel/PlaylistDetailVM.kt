@@ -20,6 +20,7 @@ import com.lalilu.lplaylist.repository.PlaylistRepository
 import com.lalilu.mviImplWithIntent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -47,11 +48,10 @@ data class PlaylistDetailState(
     }
 
     fun getSongsFlow(
-        searchAudiosUseCase: SearchAudiosUseCase
+        searchAudiosUseCase: SearchAudiosUseCase,
+        mediaIds: List<String>? = null
     ): Flow<List<LAudio>> {
-        // Note: using SearchAudiosUseCase for filtered query
-        // Playlist audio IDs should be matched via the use case
-        return searchAudiosUseCase(ids = null, keywords = emptyList())
+        return searchAudiosUseCase(ids = mediaIds, keywords = emptyList())
             .map { list -> list.map { it } }
     }
 }
@@ -107,15 +107,19 @@ class PlaylistDetailVM(
         )
     )
 
-    val songs = stateFlow()
-        .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { state ->
+    val songs = combine(
+        stateFlow().distinctUntilChangedBy { it.distinctKey },
+        playlistRepo.getPlaylistsFlow().mapLatest { list ->
+            list.firstOrNull { it.id == playlistId }?.mediaIds
+        }
+    ) { state, mediaIds -> state to mediaIds }
+        .flatMapLatest { (state, mediaIds) ->
             val keywords = when {
                 state.searchKeyWord.isBlank() -> emptyList()
                 state.searchKeyWord.contains(' ') -> state.searchKeyWord.split(' ')
                 else -> listOf(state.searchKeyWord)
             }
-            searchAudiosUseCase(ids = null, keywords = keywords)
+            searchAudiosUseCase(ids = mediaIds, keywords = keywords)
         }
         .map { list -> list.map { it } }
         .doSortState(sorter, viewModelScope)
