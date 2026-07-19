@@ -2,6 +2,7 @@ package com.lalilu.lmusic
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ComposeFoundationFlags
@@ -25,9 +26,16 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntryDecorator
+import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.ui.LocalOnBackPressEnableState
+import androidx.navigation3.scene.SceneInfo
+import androidx.navigation3.scene.SceneStrategy
+import androidx.navigation3.scene.SinglePaneSceneStrategy
+import androidx.navigation3.scene.rememberSceneState
 import androidx.navigation3.ui.NavDisplay
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.NavigationEventState
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.lalilu.LMusicTheme
 import com.lalilu.ScreenModeHandler
 import com.lalilu.component.rememberCupertinoOverscrollEffectFactory
@@ -108,65 +116,19 @@ fun App() = ScreenModeHandler {
                                 bottomBarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 20f),
                                 tabsScreen = { tabsScreen }
                             ) { isBottomSheetVisible ->
-                                CompositionLocalProvider(
-                                    LocalOnBackPressEnableState provides isBottomSheetVisible
+                                NavSideApplier(
+                                    modifier = Modifier.fillMaxSize(),
+                                    sidebarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 10f),
+                                    items = sidebarItems,
+                                    isSelected = { it.key == backStack.lastOrNull()?.key },
+                                    onSelectScreen = { it?.let { element -> backStack.add(element) } }
                                 ) {
-                                    NavSideApplier(
-                                        modifier = Modifier.fillMaxSize(),
-                                        sidebarModifier = Modifier.renderInSharedTransitionScopeOverlay(zIndexInOverlay = 10f),
-                                        items = sidebarItems,
-                                        isSelected = { it.key == backStack.lastOrNull()?.key },
-                                        onSelectScreen = { it?.let { element -> backStack.add(element) } }
-                                    ) {
-                                        NavDisplay(
-                                            modifier = Modifier.fillMaxSize()
-                                                .preferredFrameRate(FrameRateCategory.High),
-                                            backStack = backStack,
-                                            sharedTransitionScope = this@shareScope,
-                                            entryDecorators = listOf(
-                                                rememberSaveableStateHolderNavEntryDecorator(),
-                                                rememberViewModelStoreNavEntryDecorator(),
-                                                rememberDefaultBackgroundColorNavEntryDecorator()
-                                            ) as List<NavEntryDecorator<Screen>>,
-                                            transitionSpec = {
-                                                slideInVertically(animationSpec) { 100 } + fadeIn(
-                                                    animationSpec = spring(
-                                                        stiffness = Spring.StiffnessMedium
-                                                    )
-                                                ) togetherWith
-                                                        slideOutVertically(animationSpec) { 100 } + fadeOut(
-                                                    spring(
-                                                        stiffness = Spring.StiffnessMedium
-                                                    )
-                                                )
-                                            },
-                                            popTransitionSpec = {
-                                                slideInVertically(animationSpec) { -100 } + fadeIn(
-                                                    animationSpec = spring(
-                                                        stiffness = Spring.StiffnessMedium
-                                                    )
-                                                ) togetherWith
-                                                        slideOutVertically(animationSpec) { -100 } + fadeOut(
-                                                    spring(
-                                                        stiffness = Spring.StiffnessMedium
-                                                    )
-                                                )
-                                            },
-                                            predictivePopTransitionSpec = {
-                                                slideInVertically(animationSpec) { -100 } + fadeIn(
-                                                    animationSpec = spring(
-                                                        stiffness = Spring.StiffnessMedium
-                                                    )
-                                                ) togetherWith
-                                                        slideOutVertically(animationSpec) { -100 } + fadeOut(
-                                                    spring(
-                                                        stiffness = Spring.StiffnessMedium
-                                                    )
-                                                )
-                                            },
-                                            entryProvider = { it.toNavEntry() }
-                                        )
-                                    }
+                                    AppNavHost(
+                                        backStack = backStack,
+                                        sharedTransitionScope = this@shareScope,
+                                        animationSpec = animationSpec,
+                                        isBackPressEnabled = isBottomSheetVisible,
+                                    )
                                 }
                             }
 
@@ -177,6 +139,106 @@ fun App() = ScreenModeHandler {
             }
         }
     }
+}
+
+/**
+ * 自定义 NavHost：
+ * - 使用上游最底层的 NavDisplay(sceneState, navigationEventState, ...) 重载
+ * - 自己注册 NavigationBackHandler，让 [isBackPressEnabled]（BottomSheet 状态）能控制 NavDisplay 的返回事件是否启用
+ * - 当 BottomSheet 展开时，BottomSheet 的 BackHandler 优先消费返回事件；NavDisplay 在 BottomSheet 收起时才响应返回
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun AppNavHost(
+    backStack: NavBackStack<Screen>,
+    sharedTransitionScope: SharedTransitionScope,
+    animationSpec: SpringSpec<IntOffset>,
+    isBackPressEnabled: () -> Boolean,
+) {
+    val onBack: () -> Unit = remember(backStack) {
+        { backStack.removeLastOrNull() }
+    }
+
+    val entryDecorators: List<NavEntryDecorator<Screen>> = listOf(
+        rememberSaveableStateHolderNavEntryDecorator(),
+        rememberViewModelStoreNavEntryDecorator(),
+        rememberDefaultBackgroundColorNavEntryDecorator(),
+    ) as List<NavEntryDecorator<Screen>>
+
+    val entries = rememberDecoratedNavEntries(
+        backStack = backStack,
+        entryDecorators = entryDecorators,
+        entryProvider = { it.toNavEntry() },
+    )
+
+    val sceneState = rememberSceneState(
+        entries = entries,
+        sceneStrategies = listOf<SceneStrategy<Screen>>(SinglePaneSceneStrategy()),
+        sharedTransitionScope = sharedTransitionScope,
+        onBack = onBack,
+    )
+
+    val navigationEventState: NavigationEventState<SceneInfo<Screen>> =
+        rememberNavigationEventState(
+            currentInfo = SceneInfo(sceneState.currentScene),
+            backInfo = sceneState.previousScenes.map { SceneInfo(it) },
+        )
+
+    NavigationBackHandler(
+        state = navigationEventState,
+        isBackEnabled = sceneState.currentScene.previousEntries.isNotEmpty()
+                && isBackPressEnabled(),
+        onBackCompleted = {
+            // 与上游 NavDisplay(entries, ..., onBack) 内部 onBackCompleted 行为完全对齐：
+            // 若 enabled 在同一帧失效（gesture 已 dispatch），可能少 pop 几个，但避免 IndexOutOfBounds
+            repeat(entries.size - sceneState.currentScene.previousEntries.size) {
+                onBack()
+            }
+        },
+    )
+
+    NavDisplay(
+        sceneState = sceneState,
+        navigationEventState = navigationEventState,
+        modifier = Modifier.fillMaxSize()
+            .preferredFrameRate(FrameRateCategory.High),
+        transitionSpec = {
+            slideInVertically(animationSpec) { 100 } + fadeIn(
+                animationSpec = spring(
+                    stiffness = Spring.StiffnessMedium
+                )
+            ) togetherWith
+                    slideOutVertically(animationSpec) { 100 } + fadeOut(
+                spring(
+                    stiffness = Spring.StiffnessMedium
+                )
+            )
+        },
+        popTransitionSpec = {
+            slideInVertically(animationSpec) { -100 } + fadeIn(
+                animationSpec = spring(
+                    stiffness = Spring.StiffnessMedium
+                )
+            ) togetherWith
+                    slideOutVertically(animationSpec) { -100 } + fadeOut(
+                spring(
+                    stiffness = Spring.StiffnessMedium
+                )
+            )
+        },
+        predictivePopTransitionSpec = {
+            slideInVertically(animationSpec) { -100 } + fadeIn(
+                animationSpec = spring(
+                    stiffness = Spring.StiffnessMedium
+                )
+            ) togetherWith
+                    slideOutVertically(animationSpec) { -100 } + fadeOut(
+                spring(
+                    stiffness = Spring.StiffnessMedium
+                )
+            )
+        },
+    )
 }
 
 @Composable
