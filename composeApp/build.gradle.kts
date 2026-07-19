@@ -137,6 +137,15 @@ compose.desktop {
             packageVersion = "1.0.0"
             linux {
                 modules("jdk.security.auth")
+                iconFile.set(project.layout.projectDirectory.file("src/main/resources/icons/icon-linux-512.png"))
+            }
+            macOS {
+                iconFile.set(project.layout.projectDirectory.file("src/main/resources/icons/icon-mac.icns"))
+                bundleID = "com.lalilu.lmusic"
+                appCategory = "public.app-category.music"
+            }
+            windows {
+                iconFile.set(project.layout.projectDirectory.file("src/main/resources/icons/icon-windows.ico"))
             }
         }
     }

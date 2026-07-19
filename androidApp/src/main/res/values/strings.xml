@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">LMusic-KMP</string>
+    <string name="app_name">LMusic</string>
+    <color name="ic_launcher_background">#FE4141</color>
 </resources>
