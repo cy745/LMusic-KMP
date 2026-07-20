@@ -8,14 +8,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lalilu.lmedia.component.SourceCard
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
-import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
-import com.lalilu.lmedia.source.configOrNullCompat
 import io.github.vinceglb.filekit.bookmarkData
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import kotlinx.coroutines.launch
 
 @Composable
-fun DomainMediaSource.JvmFileSystemSourceContent(modifier: Modifier) {
+fun JvmFileSystemSource.JvmFileSystemSourceContent(modifier: Modifier) {
     val scope = rememberCoroutineScope()
     val state = source().collectAsStateWithLifecycle(initialValue = Snapshot.Loading)
     val launcher = rememberDirectoryPickerLauncher {

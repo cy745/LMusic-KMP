@@ -5,6 +5,7 @@ import android.app.Application
 import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
+import com.lalilu.common.ext.md5
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.SnapshotStateLoading
 import com.lalilu.lmedia.Taglib
@@ -180,7 +181,7 @@ class AndroidFileSystemSource(
                                 )
                                 val uri = file.uri.toString()
                                 LAudio(
-                                    id = "${LAudio.ID_PREFIX}$uri",
+                                    id = "${LAudio.ID_PREFIX}${uri.md5()}",
                                     title = metadata.title ?: "Unknown",
                                     subtitle = metadata.artist ?: "Unknown Subs",
                                     mediaSourceName = name,
