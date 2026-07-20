@@ -24,4 +24,8 @@ class AudioRepositoryImpl(
 
     override fun getAudio(id: String): Flow<LAudio?> =
         audioDao.getAudio(id).mapLatest { it?.toDomain() }
+
+    override suspend fun clearUnavailableAudio() {
+        audioDao.clearUnavailableAudio()
+    }
 }

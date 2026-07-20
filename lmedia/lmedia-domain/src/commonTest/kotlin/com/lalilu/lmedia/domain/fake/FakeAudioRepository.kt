@@ -28,4 +28,8 @@ class FakeAudioRepository : AudioRepository {
 
     override fun getAudio(id: String): Flow<LAudio?> =
         store.mapLatest { list -> list.firstOrNull { it.id == id } }
+
+    override suspend fun clearUnavailableAudio() {
+        store.value = store.value.filter { it.available }
+    }
 }

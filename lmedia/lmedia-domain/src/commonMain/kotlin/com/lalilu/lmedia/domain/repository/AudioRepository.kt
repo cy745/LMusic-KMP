@@ -7,4 +7,6 @@ interface AudioRepository {
     fun getAudios(): Flow<List<LAudio>>
     fun getAudios(ids: List<String>): Flow<List<LAudio>>
     fun getAudio(id: String): Flow<LAudio?>
+
+    suspend fun clearUnavailableAudio()
 }

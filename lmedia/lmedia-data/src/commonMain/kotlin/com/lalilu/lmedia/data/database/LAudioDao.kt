@@ -1,13 +1,8 @@
 package com.lalilu.lmedia.data.database
 
-import androidx.room3.Dao
-import androidx.room3.Delete
-import androidx.room3.Insert
-import androidx.room3.Query
-import androidx.room3.Transaction
-import androidx.room3.Update
-import com.lalilu.lmedia.data.entity.LAudioEntity
+import androidx.room3.*
 import com.lalilu.lmedia.data.database.relation.QueryLAudioWithRelations
+import com.lalilu.lmedia.data.entity.LAudioEntity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapLatest
@@ -50,4 +45,8 @@ interface LAudioDao {
             val map = list.associateBy { it.audio.id }
             ids.mapNotNull { map[it]?.audio }
         }
+
+    @Transaction
+    @Query("DELETE FROM l_audio WHERE available = false;")
+    suspend fun clearUnavailableAudio()
 }
