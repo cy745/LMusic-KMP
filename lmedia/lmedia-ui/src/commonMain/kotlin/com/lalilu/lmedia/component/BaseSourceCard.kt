@@ -1,7 +1,9 @@
 package com.lalilu.lmedia.component
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +23,11 @@ fun BaseSourceCard(
 ) {
     Card(
         modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f),
+        )
     ) {
         Column(
             modifier = Modifier

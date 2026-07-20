@@ -17,11 +17,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
-import com.lalilu.lmedia.source.Declaration
-import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
 import com.lalilu.lmedia.source.Configurable
+import com.lalilu.lmedia.source.Declaration
 import com.lalilu.lmedia.source.configOrNullCompat
 import com.lalilu.preview.preview
 import kotlin.time.ExperimentalTime
@@ -29,7 +29,7 @@ import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalTime::class)
 @Composable
-fun DomainMediaSource.SourceCard(
+fun MediaSource.SourceCard(
     modifier: Modifier = Modifier,
     state: () -> Snapshot = { Snapshot.Idle },
     configForm: @Composable Configurable.() -> Unit = { PropertyComponent() },
