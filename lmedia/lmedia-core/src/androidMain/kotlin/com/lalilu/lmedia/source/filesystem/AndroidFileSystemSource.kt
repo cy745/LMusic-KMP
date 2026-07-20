@@ -6,6 +6,7 @@ import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.MagicNumber
+import com.lalilu.lmedia.SnapshotStateLoading
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.*
@@ -13,10 +14,13 @@ import com.lalilu.lmedia.source.Configurable
 import com.lalilu.lmedia.source.MediaSourceConfig
 import com.lalilu.lmedia.source.Saver
 import com.lalilu.lmedia.source.buildConfig
+import com.lalilu.lmedia.task.FileScannerTask
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.io.buffered
 import org.koin.core.annotation.Single
 import java.io.FileNotFoundException
@@ -92,112 +96,113 @@ class AndroidFileSystemSource(
 
     private suspend fun load(
         update: suspend (Snapshot) -> Unit = {}
-    ): Snapshot = withContext(scope.coroutineContext) {
+    ): Snapshot = withContext(Dispatchers.Unconfined) {
         runCatching {
-            var currentMessage = "Loading..."
-            var currentProgress = 0f
-
-            fun updateLoadingState(message: String, progress: Float = 0f) {
-                currentMessage = message
-                currentProgress = maxOf(progress, currentProgress)
-            }
-
-            update(
-                Snapshot(
-                    state = SnapshotState.Loading(
-                        message = currentMessage,
-                        progress = currentProgress
-                    )
-                )
+            val loadingState = SnapshotStateLoading(
+                message = "Loading...",
+                progress = 0f
             )
 
-            val root = PlatformFile.fromBookmarkData(filePath.encodeToByteArray())
-            val files = root.filterChildren { file ->
-                if (file.isDirectory()) return@filterChildren false
-                if (file.size() < 10) return@filterChildren false
-
-                updateLoadingState(message = file.name)
-                MagicNumber.match(
-                    ext = file.extension,
-                    source = file.source().buffered()
-                ) != null
+            fun updateLoadingState(message: String, progress: Float = 0f) {
+                val currentProgress = maxOf(progress, loadingState.progressState.value)
+                loadingState.messageState.value = message
+                loadingState.progressState.value = currentProgress
             }
 
+            update(Snapshot(state = loadingState))
+
+            val root = PlatformFile.fromBookmarkData(filePath.encodeToByteArray())
+            val files = FileScannerTask(
+                predicate = predicate@{ file ->
+                    if (file.isDirectory()) return@predicate false
+                    if (file.size() < 10) return@predicate false
+
+                    updateLoadingState(message = file.name)
+                    MagicNumber.match(
+                        ext = file.extension,
+                        source = file.source().buffered()
+                    ) != null
+                }
+            ).scan(root)
+
+            val semaphore = Semaphore(8)
             val results = files.map { it.androidFile }.mapIndexed { index, file ->
                 async(Dispatchers.io) {
-                    when (file) {
-                        is AndroidFile.FileWrapper -> {
-                            val metadata = Taglib.readMetadata(path = file.file.absolutePath)
-                                ?: return@async null
-                            ensureActive()
+                    semaphore.withPermit {
+                        when (file) {
+                            is AndroidFile.FileWrapper -> {
+                                val metadata = Taglib.readMetadata(path = file.file.absolutePath)
+                                    ?: return@async null
+                                ensureActive()
 
-                            val newProgress = (index + 1).toFloat() / files.size.toFloat()
-                            updateLoadingState(
-                                message = metadata.title ?: "",
-                                progress = newProgress
-                            )
-                            val uri = file.file.toUri().toString()
-                            LAudio(
-                                id = "${LAudio.ID_PREFIX}${uri}",
-                                title = metadata.title ?: "Unknown",
-                                subtitle = metadata.artist ?: "Unknown Subs",
-                                mediaSourceName = name,
-                                metadata = DomainMetadata(
-                                    title = metadata.title,
-                                    album = metadata.album,
-                                    artist = metadata.artist,
-                                    albumArtist = metadata.albumArtist,
-                                    composer = metadata.composer,
-                                    lyricist = metadata.lyricist,
-                                    comment = metadata.comment,
-                                    genre = metadata.genre,
-                                    track = metadata.track,
-                                    disc = metadata.disc,
-                                    date = metadata.date,
-                                    duration = metadata.duration,
-                                    dateAdded = metadata.dateAdded,
-                                    dateModified = metadata.dateModified
-                                ),
-                                extra = mapOf("uri" to uri)
-                            )
-                        }
+                                val newProgress = (index + 1).toFloat() / files.size.toFloat()
+                                updateLoadingState(
+                                    message = metadata.title ?: "",
+                                    progress = newProgress
+                                )
+                                val uri = file.file.toUri().toString()
+                                LAudio(
+                                    id = "${LAudio.ID_PREFIX}${uri}",
+                                    title = metadata.title ?: "Unknown",
+                                    subtitle = metadata.artist ?: "Unknown Subs",
+                                    mediaSourceName = name,
+                                    metadata = DomainMetadata(
+                                        title = metadata.title,
+                                        album = metadata.album,
+                                        artist = metadata.artist,
+                                        albumArtist = metadata.albumArtist,
+                                        composer = metadata.composer,
+                                        lyricist = metadata.lyricist,
+                                        comment = metadata.comment,
+                                        genre = metadata.genre,
+                                        track = metadata.track,
+                                        disc = metadata.disc,
+                                        date = metadata.date,
+                                        duration = metadata.duration,
+                                        dateAdded = metadata.dateAdded,
+                                        dateModified = metadata.dateModified
+                                    ),
+                                    extra = mapOf("uri" to uri)
+                                )
+                            }
 
-                        is AndroidFile.UriWrapper -> {
-                            val metadata = context.contentResolver
-                                .openFileDescriptor(file.uri, "r")
-                                ?.use { Taglib.readMetadata(fd = it.detachFd()) }
-                                ?: return@async null
-                            ensureActive()
+                            is AndroidFile.UriWrapper -> {
+                                val metadata = context.contentResolver
+                                    .openFileDescriptor(file.uri, "r")
+                                    ?.use { Taglib.readMetadata(fd = it.detachFd()) }
+                                    ?: return@async null
+                                ensureActive()
 
-                            val newProgress = (index + 1).toFloat() / files.size.toFloat()
-                            updateLoadingState(
-                                message = metadata.title ?: "",
-                                progress = newProgress
-                            )
-                            val uri = file.uri.toString()
-                            LAudio(
-                                id = "${LAudio.ID_PREFIX}$uri",
-                                title = metadata.title ?: "Unknown",
-                                subtitle = metadata.artist ?: "Unknown Subs",
-                                mediaSourceName = name,
-                                metadata = DomainMetadata(
-                                    title = metadata.title,
-                                    album = metadata.album,
-                                    artist = metadata.artist,
-                                    albumArtist = metadata.albumArtist,
-                                    composer = metadata.composer,
-                                    lyricist = metadata.lyricist,
-                                    comment = metadata.comment,
-                                    genre = metadata.genre,
-                                    track = metadata.track,
-                                    disc = metadata.disc,
-                                    date = metadata.date,
-                                    duration = metadata.duration,
-                                    dateAdded = metadata.dateAdded,
-                                    dateModified = metadata.dateModified
-                                ),
-                                extra = mapOf("uri" to uri)
-                            )
+                                val newProgress = (index + 1).toFloat() / files.size.toFloat()
+                                updateLoadingState(
+                                    message = metadata.title ?: "",
+                                    progress = newProgress
+                                )
+                                val uri = file.uri.toString()
+                                LAudio(
+                                    id = "${LAudio.ID_PREFIX}$uri",
+                                    title = metadata.title ?: "Unknown",
+                                    subtitle = metadata.artist ?: "Unknown Subs",
+                                    mediaSourceName = name,
+                                    metadata = DomainMetadata(
+                                        title = metadata.title,
+                                        album = metadata.album,
+                                        artist = metadata.artist,
+                                        albumArtist = metadata.albumArtist,
+                                        composer = metadata.composer,
+                                        lyricist = metadata.lyricist,
+                                        comment = metadata.comment,
+                                        genre = metadata.genre,
+                                        track = metadata.track,
+                                        disc = metadata.disc,
+                                        date = metadata.date,
+                                        duration = metadata.duration,
+                                        dateAdded = metadata.dateAdded,
+                                        dateModified = metadata.dateModified
+                                    ),
+                                    extra = mapOf("uri" to uri)
+                                )
+                            }
                         }
                     }
                 }
@@ -240,29 +245,4 @@ class AndroidFileSystemSource(
         val uri = song.extra?.get("uri") ?: return@withContext null
         MediaData.Url(uri)
     }
-}
-
-private suspend fun PlatformFile.filterChildren(
-    block: suspend (file: PlatformFile) -> Boolean
-): Collection<PlatformFile> = withContext(Dispatchers.io) {
-    if (!this@filterChildren.isDirectory()) {
-        return@withContext if (block(this@filterChildren)) listOf(this@filterChildren) else emptyList()
-    }
-
-    val directory = mutableSetOf(this@filterChildren)
-    val list = mutableSetOf<PlatformFile>()
-
-    while (isActive && directory.isNotEmpty()) {
-        val files = directory.map { it.list() }.flatten()
-        val results = files
-            .map { async { Triple(it, it.isDirectory(), block(it)) } }
-            .awaitAll()
-
-        directory.clear()
-        for ((item, isDirectory, satisfy) in results) {
-            if (isDirectory) directory.add(item)
-            if (satisfy) list.add(item)
-        }
-    }
-    list
 }

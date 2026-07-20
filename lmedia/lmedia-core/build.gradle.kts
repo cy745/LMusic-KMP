@@ -49,6 +49,10 @@ kotlin {
     setupKoin()
 
     sourceSets {
+        val androidAndDesktop by creating {
+            dependsOn(commonMain.get())
+        }
+
         commonMain.dependencies {
             api(project(":lmedia:lmedia-domain"))
             api(project(":common"))
@@ -67,14 +71,20 @@ kotlin {
             api(libs.ktorfit)
             api(kotlincrypto.hash.md)
         }
-        androidMain.dependencies {
-            api(libs.androidx.core.ktx)
-        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
-        jvmMain.dependencies {
-            api(libs.native.lib.loader)
+        androidMain {
+            dependsOn(androidAndDesktop)
+            dependencies {
+                api(libs.androidx.core.ktx)
+            }
+        }
+        jvmMain {
+            dependsOn(androidAndDesktop)
+            dependencies {
+                api(libs.native.lib.loader)
+            }
         }
         wasmJsMain.dependencies {
             implementation(npm("taglib-wasm", "0.5.4"))

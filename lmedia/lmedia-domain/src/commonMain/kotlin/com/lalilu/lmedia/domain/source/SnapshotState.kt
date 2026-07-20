@@ -14,9 +14,9 @@ sealed interface SnapshotState {
     data object Success : SnapshotState
 
     @Serializable
-    data class Loading(
-        val message: String = "Loading...",
-        val progress: Float = 0f
+    open class Loading(
+        open val message: String = "Loading...",
+        open val progress: Float = 0f
     ) : SnapshotState
 
     @Serializable

@@ -1,21 +1,13 @@
 package com.lalilu.lmedia.source
 
 import co.touchlab.kermit.Logger
-import com.lalilu.common.ext.io
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.LAlbum
-import com.lalilu.lmedia.domain.model.LArtist
-import com.lalilu.lmedia.domain.model.LFolder
 import com.lalilu.lmedia.domain.model.Metadata
+import com.lalilu.lmedia.domain.source.*
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
-import com.lalilu.lmedia.domain.source.Snapshot
-import com.lalilu.lmedia.domain.source.SnapshotState
-import com.lalilu.lmedia.domain.source.buildSnapshot
-import com.lalilu.lmedia.source.Configurable
-import com.lalilu.lmedia.source.buildConfig
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,10 +19,10 @@ import org.koin.core.annotation.Single
 import java.io.FileNotFoundException
 
 
-@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, MediaDataSource::class])
+@Single(binds = [MediaSource::class, MediaDataSource::class])
 class JvmFileSystemSource(
-    private val saver: com.lalilu.lmedia.source.Saver? = null
-) : com.lalilu.lmedia.domain.source.MediaSource, MediaDataSource, Configurable {
+    private val saver: Saver? = null
+) : MediaSource, MediaDataSource, Configurable {
     override val name: String = "JvmFileSystemSource"
     private val scope = CoroutineScope(Dispatchers.Default)
     private val _snapshot = MutableStateFlow(Snapshot.Loading)
@@ -38,7 +30,12 @@ class JvmFileSystemSource(
     override fun source(): Flow<Snapshot> = _snapshot
 
     override val config: MediaSourceConfig = buildConfig(
-        onConfigChange = ::onConfigChange, key = name) {
+        onConfigChange = ::onConfigChange,
+        key = name,
+        saver = saver,
+        name = "文件系统源",
+        description = "选择文件夹后，通过文件系统扫描音频文件",
+    ) {
         function<Unit>(
             key = "Refresh",
             description = "Refresh the local file system"
