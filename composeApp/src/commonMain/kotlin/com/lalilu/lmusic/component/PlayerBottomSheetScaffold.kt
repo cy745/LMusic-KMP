@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.lalilu.component.BottomSheetScaffold
@@ -41,6 +42,7 @@ fun PlayerBottomSheetScaffold(
         tonalElevation = 0.dp,
         sheetPeekHeight = 72.dp + navigatorBar.calculateBottomPadding(),
         sheetContent = playerContent,
+        sheetShape = RectangleShape,
         content = { paddingValues ->
             PassThroughHelper.Passthrough(
                 "SmartBarHeight" to {
