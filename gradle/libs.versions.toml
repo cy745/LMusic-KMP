@@ -27,6 +27,7 @@ kotlinx-io = "0.8.0"
 kotlinx-datetime = "0.7.1"
 kotlinx-browser = "0.5.0"
 vlcj = "4.11.0"
+vlcSetup = "bfd7a50732"
 media3 = "1.10.1"
 room3 = "3.0.0-alpha02"
 sqlite = "2.7.0-alpha01"
@@ -177,6 +178,7 @@ vanniktech-pulish = { id = "com.vanniktech.maven.publish.base", version.ref = "v
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
 osdetector = { id = "com.google.osdetector", version = "1.7.3" }
+vlcSetup = { id = "ir.mahozad.vlc-setup", version.ref = "vlcSetup" }
 ktorfit = { id = "de.jensklingenberg.ktorfit", version.ref = "ktorfit" }
 stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.6.0" }
 shadowJar = { id = "com.gradleup.shadow", version = "9.3.0" }

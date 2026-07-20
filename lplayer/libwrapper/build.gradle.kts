@@ -73,7 +73,14 @@ tasks.named("clean") {
     dependsOn("cleanNative")
 }
 
-// Configure the build to depend on the native library build
+// 构建后将 libwrapper.dylib 复制到 appResourcesRootDir 的 macOS 资产目录
+tasks.register<Copy>("copyToAssets") {
+    dependsOn("buildNative")
+    from(File(projectDir, "build/Release/libwrapper.dylib"))
+    into(rootDir.resolve("lplayer/src/jvmMain/assets/macos/"))
+}
+
 tasks.named("build") {
     dependsOn("buildNative")
+    dependsOn("copyToAssets")
 }

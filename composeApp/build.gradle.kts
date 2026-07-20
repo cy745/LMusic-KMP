@@ -12,6 +12,18 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.stability.analyzer)
+    alias(libs.plugins.vlcSetup)
+}
+
+val appResourcesPath: java.io.File = rootDir.resolve("lplayer/src/jvmMain/assets")
+
+vlcSetup {
+    vlcVersion = "3.0.21"
+    shouldCompressVlcFiles = true
+    shouldIncludeAllVlcFiles = false
+    pathToCopyVlcLinuxFilesTo = appResourcesPath.resolve("linux/vlc")
+    pathToCopyVlcMacosFilesTo = appResourcesPath.resolve("macos/vlc")
+    pathToCopyVlcWindowsFilesTo = appResourcesPath.resolve("windows/vlc")
 }
 
 kotlin {
@@ -59,6 +71,7 @@ kotlin {
             }
         }
     )
+    jvmToolchain(21)
     setupKoin()
 
     sourceSets {
@@ -132,6 +145,7 @@ compose.desktop {
         }
 
         nativeDistributions {
+            appResourcesRootDir.set(appResourcesPath)
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.lalilu.lmusic"
             packageVersion = "1.0.0"

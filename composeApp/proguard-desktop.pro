@@ -29,3 +29,14 @@
 -keep class * extends coil3.util.DecoderServiceLoaderTarget { *; }
 -keep class io.netty.util.internal.logging.** { *; }
 -keep class okio.** { *; }
+
+# Ktor CIO engine (ServiceLoader-based HTTP client)
+-keep class io.ktor.client.engine.cio.** { *; }
+-keep class * implements io.ktor.client.engine.HttpClientEngineContainer { *; }
+-keep class io.ktor.client.engine.HttpClientEngineContainer { *; }
+
+# Room3 KSP generated implementations (accessed reflectively via @ConstructedBy)
+-keep class * extends androidx.room3.RoomDatabase { *; }
+-keep class **.*DatabaseConstructor { *; }
+-keep class **.*_Impl { *; }
+-keep @androidx.room3.Database class * { *; }

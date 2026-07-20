@@ -27,3 +27,6 @@ keystore.properties
 /composeApp/db/
 node_modules
 .next
+
+# VLC native libraries downloaded by vlc-setup plugin
+lplayer/src/jvmMain/assets/*/vlc/

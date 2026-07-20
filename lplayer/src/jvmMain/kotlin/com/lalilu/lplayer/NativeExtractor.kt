@@ -1,100 +1,34 @@
 package com.lalilu.lplayer
 
-import co.touchlab.kermit.Logger
-import co.touchlab.kermit.StaticConfig
-import com.lalilu.common.ext.io
-import io.github.vinceglb.filekit.FileKit
-import io.github.vinceglb.filekit.filesDir
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
-import java.io.InputStreamReader
 import java.util.*
 
+/**
+ * 管理 native 库在 Desktop 平台上的加载路径。
+ *
+ * 构建时 vlc-setup 插件将 VLC 库下载到 src/asset/{os}/vlc/，
+ * rococoa/wrapper 等自定义库手动放置在 src/asset/{os}/ 下。
+ * CMP 的 appResourcesRootDir 在打包时按 OS 过滤，
+ * 并将文件放到安装目录的 resources/ 子目录中。
+ *
+ * 运行时，[compose.application.resources.dir] 系统属性指向该路径，
+ * 此处设置 [jna.library.path]，使得 JNA 能直接加载所有 native 库
+ * （VLC 由 vlcj 的 NativeDiscovery 负责，rococoa/wrapper 通过 JNA 自动发现）。
+ */
 object NativeExtractor {
     const val TAG = "NativeExtractor"
-
-    private val classLoader by lazy { Thread.currentThread().contextClassLoader }
-    private val osName: String by lazy { System.getProperty("os.name").lowercase(Locale.getDefault()) }
-    val extractDir by lazy { File(FileKit.filesDir.file, "native_libs") }
+    const val VLC_DIR_NAME = "vlc"
 
     init {
-        val nativeLibPath = extractDir.absolutePath
-        System.setProperty("jna.library.path", nativeLibPath)
-    }
-
-    private val platformDir by lazy {
-        when {
-            isMac() -> "osx"
-            isWin() -> "win"
-            else -> "linux"
+        val resourcesDir = System.getProperty("compose.application.resources.dir")
+        if (resourcesDir != null) {
+            System.setProperty("jna.library.path", resourcesDir)
         }
     }
 
-    suspend fun readExtractList(): List<String> = withContext(Dispatchers.io) {
-        val ins = classLoader.getResourceAsStream("${platformDir}/AUTOEXTRACT.LIST")
-            ?: return@withContext emptyList()
-        val reader = InputStreamReader(ins)
-        reader.readLines()
+    private val osName: String by lazy {
+        System.getProperty("os.name").lowercase(Locale.getDefault())
     }
 
-    suspend fun doExtract(forceOverride: Boolean = false) = withContext(Dispatchers.io) {
-        Logger.i(tag = TAG, messageString = "Start doExtract, targetExtractDir: ${extractDir.absolutePath}")
-        val extractList = readExtractList()
-        if (extractList.isEmpty()) {
-            throw IllegalStateException("extractList is empty")
-        }
-
-        extractList.forEachIndexed { index, str ->
-            debugLog { "[${index + 1}/${extractList.size}]: $str" }
-        }
-
-        val jobs = extractList.mapIndexedNotNull { index, str ->
-            val targetFile = File(extractDir, str.removePrefix(platformDir))
-            if (targetFile.exists() && !forceOverride) {
-                debugLog { "[${index + 1}/${extractList.size}] File exists: ${targetFile.absolutePath}" }
-                return@mapIndexedNotNull null
-            }
-
-            if (targetFile.parentFile?.exists() != true) {
-                targetFile.parentFile?.mkdirs()
-            }
-
-            if (!targetFile.exists()) {
-                targetFile.createNewFile()
-            }
-
-            val ins = classLoader.getResourceAsStream(str)
-
-            if (ins == null) {
-                debugLog { "[${index + 1}/${extractList.size}] Not found $str" }
-                return@mapIndexedNotNull null
-            }
-
-            async {
-                val out = FileOutputStream(targetFile)
-                ins.use { out.use { ins.copyTo(out) } }
-                debugLog { "[${index + 1}/${extractList.size}] Extracted ${targetFile.absolutePath}" }
-            }
-        }
-
-        jobs.awaitAll()
-        Logger.i("Extract completed")
-    }
-
-    fun isNix() = listOf("nux", "nix", "freebsd").any { osName.contains(it) }
     fun isMac() = listOf("mac", "darwin").any { osName.contains(it) }
     fun isWin() = listOf("win").any { osName.contains(it) }
-
-
-    var showDebugLog: Boolean = false
-    private val logger = Logger(tag = TAG, config = StaticConfig())
-    private inline fun debugLog(crossinline msg: () -> String) {
-        if (showDebugLog) {
-            logger.d(tag = TAG, message = msg)
-        }
-    }
 }

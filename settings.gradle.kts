@@ -3,6 +3,7 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
     repositories {
+        maven("https://jitpack.io")
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")
@@ -13,6 +14,13 @@ pluginManagement {
         mavenLocal()
         mavenCentral()
         gradlePluginPortal()
+    }
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == "ir.mahozad.vlc-setup") {
+                useModule("com.github.cy745:vlc-setup:${requested.version}")
+            }
+        }
     }
 }
 

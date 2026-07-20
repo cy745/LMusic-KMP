@@ -15,7 +15,6 @@ plugins {
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.osdetector)
 }
 
 group = "com.lalilu.lplayer"
