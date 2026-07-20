@@ -1,5 +1,6 @@
 package com.lalilu.lplayer.playback
 
+import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
@@ -7,7 +8,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
@@ -35,6 +35,7 @@ abstract class AbstractPlayback(
     protected var _pauseWhenCompletion: Boolean = false
     protected var _shuffledIndices: List<Int> = emptyList()
     protected var _currentIndexInShuffled: Int = 0
+    private val logger = Logger.withTag("AbstractPlayback")
 
     // Public state flows
     override val queue: PlayableQueue = PlayableQueueImpl()
@@ -71,15 +72,18 @@ abstract class AbstractPlayback(
      * 当播放完成时调用
      */
     protected suspend fun onCompletion() {
+        logger.i { "onCompletion, _pauseWhenCompletion: $_pauseWhenCompletion" }
         if (_pauseWhenCompletion) pause() else skipToNext()
     }
 
     // Default implementations
     override suspend fun togglePlayPause() {
+        logger.i { "togglePlayPause, _isPlaying: ${_isPlaying.value}" }
         if (_isPlaying.value) pause() else play()
     }
 
     override suspend fun skipToNext() {
+        logger.i { "skipToNext()" }
         val currentState = queue.stateSnapshot()
         val flattened = currentState.list
         if (flattened.isEmpty()) return
@@ -110,6 +114,7 @@ abstract class AbstractPlayback(
     }
 
     override suspend fun skipToPrevious() {
+        logger.i { "skipToPrevious()" }
         val currentState = queue.stateSnapshot()
         val flattened = currentState.list
         if (flattened.isEmpty()) return
@@ -140,6 +145,10 @@ abstract class AbstractPlayback(
     }
 
     override suspend fun updatePlaylist(playlist: List<LAudio>, startIndex: Int, start: Boolean) {
+        logger.i {
+            "Updating playlist size: ${playlist.size}, startIndex: $startIndex, start: $start\n" +
+                    playlist.joinToString(separator = "\n") { "(${it.id}) ${it.title}" }
+        }
         queue.update { replaceAll(items = playlist, index = startIndex) }
 
         if (_playbackMode.value == PlaybackMode.SHUFFLE) {
@@ -149,12 +158,14 @@ abstract class AbstractPlayback(
     }
 
     override suspend fun clearPlaylist() {
+        logger.i { "Clearing playlist $this" }
         queue.update { clear() }
         _shuffledIndices = emptyList()
         _currentIndexInShuffled = 0
     }
 
     override suspend fun setPlaybackMode(mode: PlaybackMode) {
+        logger.i { "Setting playback mode: $mode" }
         if (_playbackMode.value == mode) return
 
         val oldMode = _playbackMode.value
