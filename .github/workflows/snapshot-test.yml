@@ -105,8 +105,8 @@ jobs:
           p12-file-base64: ${{ secrets.MACOS_CERT_BASE64 }}
           p12-password: ${{ secrets.MACOS_CERT_PASSWORD }}
 
-      - name: Build Release DMG
-        run: ./gradlew composeApp:packageReleaseDmg
+      - name: Build, Sign and Notarize DMG
+        run: ./gradlew composeApp:notarizeReleaseDmg
         continue-on-error: true
         env:
           APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
