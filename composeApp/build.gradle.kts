@@ -160,10 +160,10 @@ compose.desktop {
 
                 // 条件签名 + 公证：仅在 CI 环境变量存在时启用
                 // fork 用户不设这些变量则走无签名打包，不受影响
-                val signIdentity = providers.environmentVariable("APPLE_SIGN_IDENTITY").orNull
-                val appleIdEnv = providers.environmentVariable("APPLE_ID").orNull
-                val applePwdEnv = providers.environmentVariable("APPLE_ID_PASSWORD").orNull
-                val teamIdEnv = providers.environmentVariable("APPLE_TEAM_ID").orNull
+                val signIdentity = providers.environmentVariable("APPLE_SIGN_IDENTITY").orNull?.takeIf { it.isNotEmpty() }
+                val appleIdEnv = providers.environmentVariable("APPLE_ID").orNull?.takeIf { it.isNotEmpty() }
+                val applePwdEnv = providers.environmentVariable("APPLE_ID_PASSWORD").orNull?.takeIf { it.isNotEmpty() }
+                val teamIdEnv = providers.environmentVariable("APPLE_TEAM_ID").orNull?.takeIf { it.isNotEmpty() }
 
                 if (signIdentity != null && appleIdEnv != null && applePwdEnv != null && teamIdEnv != null) {
                     signing {

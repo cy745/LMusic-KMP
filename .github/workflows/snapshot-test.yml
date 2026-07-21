@@ -98,9 +98,8 @@ jobs:
 
       - run: chmod +x gradlew
 
-      # 导入 macOS Developer ID 签名证书（仅在有密钥时执行）
+      # 导入 macOS Developer ID 签名证书（secrets 为空时跳过）
       - name: Import macOS Signing Certificate
-        if: ${{ secrets.MACOS_CERT_BASE64 != '' }}
         uses: Apple-Actions/import-codesign-certs@v7
         with:
           p12-file-base64: ${{ secrets.MACOS_CERT_BASE64 }}
