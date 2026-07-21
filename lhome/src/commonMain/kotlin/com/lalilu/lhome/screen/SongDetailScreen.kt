@@ -49,7 +49,7 @@ data class SongDetailScreen(
     val coverCacheKey: String? = null,
     val sharedMap: Map<String, String> = emptyMap(),
 ) : Screen, ScreenActionFactory {
-    override val key: String = "${super.key}_$mediaId"
+    override val key: String = "${super.key}:$mediaId"
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
