@@ -78,10 +78,8 @@ kotlin {
             api(libs.sqlite.bundled)
         }
 
-        val webMain by creating {
-            dependencies {
-                api(libs.sqlite.web)
-            }
+        webMain.dependencies {
+            api(libs.sqlite.web)
         }
     }
 }

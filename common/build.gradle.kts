@@ -60,11 +60,9 @@ kotlin {
         iosMain.dependencies {
             api(libs.ktor.client.darwin)
         }
-        val webMain by creating {
-            dependencies {
-                api(libs.ktor.client.js)
-                api(libs.kotlinx.browser)
-            }
+        webMain.dependencies {
+            api(libs.ktor.client.js)
+            api(libs.kotlinx.browser)
         }
     }
 }

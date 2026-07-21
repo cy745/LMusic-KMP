@@ -22,6 +22,8 @@ fun KotlinMultiplatformExtension.setupMultiplatform(
     setupIosTarget: List<KotlinNativeTarget>.() -> Unit = {},
     enableAndroidResources: Boolean = true
 ) {
+    applyDefaultHierarchyTemplate()
+
     val artifactId = project.extra.runCatching { get("artifactId") }.getOrNull() as? String?
     val targetNamespace = if (artifactId.isNullOrBlank()) "${project.group}" else "${project.group}.$artifactId"
     val targetCompileSdk = project.libs.version("android.targetSdk")?.displayName?.toIntOrNull()
