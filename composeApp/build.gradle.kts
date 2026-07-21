@@ -157,6 +157,25 @@ compose.desktop {
                 iconFile.set(project.layout.projectDirectory.file("src/main/resources/icons/icon-mac.icns"))
                 bundleID = "com.lalilu.lmusic"
                 appCategory = "public.app-category.music"
+
+                // 条件签名 + 公证：仅在 CI 环境变量存在时启用
+                // fork 用户不设这些变量则走无签名打包，不受影响
+                val signIdentity = providers.environmentVariable("APPLE_SIGN_IDENTITY").orNull
+                val appleIdEnv = providers.environmentVariable("APPLE_ID").orNull
+                val applePwdEnv = providers.environmentVariable("APPLE_ID_PASSWORD").orNull
+                val teamIdEnv = providers.environmentVariable("APPLE_TEAM_ID").orNull
+
+                if (signIdentity != null && appleIdEnv != null && applePwdEnv != null && teamIdEnv != null) {
+                    signing {
+                        sign.set(true)
+                        identity.set(signIdentity)
+                    }
+                    notarization {
+                        appleID.set(appleIdEnv)
+                        password.set(applePwdEnv)
+                        teamID.set(teamIdEnv)
+                    }
+                }
             }
             windows {
                 iconFile.set(project.layout.projectDirectory.file("src/main/resources/icons/icon-windows.ico"))
