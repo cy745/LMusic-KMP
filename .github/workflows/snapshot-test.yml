@@ -96,12 +96,24 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 构建 Release DMG
       - run: chmod +x gradlew
+
+      # 导入 macOS Developer ID 签名证书（仅在有密钥时执行）
+      - name: Import macOS Signing Certificate
+        if: ${{ secrets.MACOS_CERT_BASE64 != '' }}
+        uses: Apple-Actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERT_BASE64 }}
+          p12-password: ${{ secrets.MACOS_CERT_PASSWORD }}
 
       - name: Build Release DMG
         run: ./gradlew composeApp:packageReleaseDmg
         continue-on-error: true
+        env:
+          APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       # 上传 DMG 产物
       - uses: actions/upload-artifact@v4
