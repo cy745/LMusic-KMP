@@ -103,8 +103,11 @@ fun SongDetailScreenContent(
             .build()
     }
     val songsInfo = remember(song) {
-        (song?.extra ?: emptyMap()) + (song?.metadata?.toMap() ?: emptyMap())
-            .filter { it.value.isNotBlank() }
+        val baseInfo = (song?.extra ?: emptyMap()) + (song?.metadata?.toMap() ?: emptyMap())
+        val withSource = song?.mediaSourceName?.takeIf { it.isNotBlank() }
+            ?.let { baseInfo + ("数据源" to it) }
+            ?: baseInfo
+        withSource.filter { it.value.isNotBlank() }
     }
 
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()

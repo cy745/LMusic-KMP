@@ -32,6 +32,7 @@ import com.lalilu.common.ext.md5
 @OptIn(ExperimentalForeignApi::class)
 class SandboxFileSystemSource : DomainMediaSource, MediaDataSource, Configurable {
     override val name: String = "SandboxFileSystemSource"
+    override val dataSource: MediaDataSource = this
 
     /** iOS Documents directory (for iTunes file sharing). */
     private val documentsPath: String? =
@@ -63,7 +64,8 @@ class SandboxFileSystemSource : DomainMediaSource, MediaDataSource, Configurable
                     }
                 }.getOrNull() ?: return@mapNotNull null
 
-                val audioId = "${LAudio.ID_PREFIX}${path.md5()}"
+                val relativePath = path.substringAfter(documentsPath!!)
+                val audioId = "${LAudio.ID_PREFIX}${relativePath.md5()}"
                 audioFileMap[audioId] = path
                 LAudio(
                     id = audioId,
@@ -102,18 +104,10 @@ class SandboxFileSystemSource : DomainMediaSource, MediaDataSource, Configurable
         return MediaData.Bytes(bytes)
     }
 
-    override suspend fun getMedia(song: LAudio): MediaData? = withContext(Dispatchers.io) {
+    override suspend fun getMedia(song: LAudio): MediaData? {
         val path = audioFileMap[song.id]
             ?: throw IllegalArgumentException("Invalid id: ${song.id}")
-        val nsData = NSData.dataWithContentsOfFile(path)
-            ?: throw FileNotFoundException("File not found: $path")
-        val length = nsData.length.toInt()
-        val bytes = if (length > 0) {
-            val rawPtr = nsData.bytes
-                ?: throw Exception("Null bytes pointer for $path")
-            rawPtr.readBytes(length)
-        } else ByteArray(0)
-        MediaData.Bytes(bytes)
+        return MediaData.Url(NSURL.fileURLWithPath(path).absoluteString!!)
     }
 
     private fun scanDirectory(
