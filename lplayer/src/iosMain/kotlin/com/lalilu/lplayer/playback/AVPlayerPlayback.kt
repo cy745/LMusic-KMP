@@ -6,7 +6,6 @@ import com.lalilu.lplayer.extensions.VolumeFadeHelper
 import com.lalilu.lplayer.helper.AudioSessionHelper
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
 import com.lalilu.lplayer.notifacation.RemoteCommandHandler
-import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
@@ -54,9 +53,10 @@ class AVPlayerPlayback(
             engine.onEvent = { event ->
                 when (event) {
                     is PlaybackEngineEvent.Completion -> {
-                        logger.i(messageString = "Engine completion: ${engine::class.simpleName}")
+                        logger.i { "Engine completion: ${engine::class.simpleName}" }
                         original?.invoke(event)
                     }
+
                     is PlaybackEngineEvent.Error -> {
                         logger.e(
                             tag = TAG,
@@ -85,7 +85,6 @@ class AVPlayerPlayback(
     override suspend fun play() = withContext(Dispatchers.Main) {
         volumeFadeHelper.play()
         try {
-            AudioSessionHelper.ensureAudioSessionActive()
             if (activeEngine != null) {
                 activeEngine?.play()
             } else {
@@ -101,12 +100,8 @@ class AVPlayerPlayback(
         Unit
     }
 
-    override suspend fun pause() = withContext(Dispatchers.Main) {
-        volumeFadeHelper.pause {
-            // activeEngine.pause() is suspend; launch via ApplicationCoroutineScope
-        }
-        activeEngine?.pause()
-        Unit
+    override suspend fun pause() {
+        volumeFadeHelper.pause { activeEngine?.pause() }
     }
 
     override suspend fun togglePlayPause() {
@@ -137,18 +132,14 @@ class AVPlayerPlayback(
             val engine = engineRouter.selectEngine(mediaData, item)
                 ?: throw NoEngineFoundException(mediaData, item)
 
-            logger.i(messageString = "skipTo[$index] item=${item.title} source=${item.mediaSourceName} engine=${engine::class.simpleName} mediaData=${mediaData::class.simpleName}")
+            logger.i { "skipTo[$index] item=${item.title} source=${item.mediaSourceName} engine=${engine::class.simpleName} mediaData=${mediaData::class.simpleName}" }
 
             if (engine !== activeEngine) {
-                logger.i(messageString = "switch engine: ${activeEngine?.let { it::class.simpleName }} → ${engine::class.simpleName}")
+                logger.i { "switch engine: ${activeEngine?.let { it::class.simpleName }} → ${engine::class.simpleName}" }
                 activeEngine?.release()
                 activeEngine = engine
             }
 
-            // MusicKitEngine 自行管理 AudioSession，不需要外部激活
-            if (engine !is MusicKitEngine) {
-                AudioSessionHelper.ensureAudioSessionActive()
-            }
             engine.load(mediaData, item)
             queue.update { switchTo(index = index) }
             if (start) engine.play()

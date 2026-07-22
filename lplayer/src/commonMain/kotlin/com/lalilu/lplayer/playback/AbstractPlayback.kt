@@ -6,14 +6,10 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import kotlin.random.Random
 import org.koin.mp.KoinPlatform
+import kotlin.random.Random
 
 /**
  * Abstract base implementation of Playback interface.
@@ -47,6 +43,7 @@ abstract class AbstractPlayback(
     private val _platformMediaSource: PlatformMediaSource by lazy {
         KoinPlatform.getKoin().get<PlatformMediaSource>()
     }
+
     /** 平台媒体源聚合体，子类可通过 override（如 by inject()）提供特定实现。 */
     protected open val platformMediaSource: PlatformMediaSource
         get() = _platformMediaSource
@@ -64,7 +61,9 @@ abstract class AbstractPlayback(
     /** 当前活跃的 Engine。切换时自动 release 旧的并 load 新的。 */
     protected var activeEngine: PlaybackEngine?
         get() = _activeEngine.value
-        set(value) { _activeEngine.value = value }
+        set(value) {
+            _activeEngine.value = value
+        }
 
     /** activeEngine 连续状态投影，供子类或对 Engine 状态做额外处理 */
     protected val activeEngineState: StateFlow<PlaybackEngineState> = _activeEngine
@@ -101,6 +100,7 @@ abstract class AbstractPlayback(
                     is PlaybackEngineEvent.Completion -> {
                         launch { onCompletion() }
                     }
+
                     is PlaybackEngineEvent.Error -> {
                         emitError(event.throwable)
                     }
@@ -186,6 +186,8 @@ abstract class AbstractPlayback(
 
         if (nextIndex != -1) {
             skipTo(index = nextIndex, start = true)
+        } else {
+            logger.i { "Already at the end of the playlist" }
         }
     }
 
