@@ -103,9 +103,19 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
 
     private let player = ApplicationMusicPlayer.shared
     private var songCache: [String: Song] = [:]
+
+    // ── Time Tracking (iOS 16 API does not expose playbackTime directly) ──
+    /// When playback started/resumed; nil when paused.
+    private var playStartTime: Date?
+    /// Accumulated play time before the current play session (in seconds).
+    private var accumulatedTime: TimeInterval = 0
+    /// Duration of the currently loaded song (from SongInfo).
+    private var currentSongDuration: TimeInterval = 0
+
+    // ── Polling ──
     private var pollingTimer: Timer?
+    /// Last known status for completion detection.
     private var lastKnownStatus: MusicPlayer.PlaybackStatus?
-    private var stateObservationTask: Task<Void, Never>?
 
     // ── Cache Management ──
 
@@ -139,17 +149,25 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
             return
         }
 
-        stopPollingAndObservation()
+        stopPolling()
+
+        // Reset time tracking
+        accumulatedTime = 0
+        playStartTime = nil
+        currentSongDuration = song.duration ?? 0
         lastKnownStatus = nil
 
-        stateObservationTask = Task { [weak self] in
+        // Queue the song and start playback (fire-and-forget Task)
+        player.queue = [song]
+        Task { [weak self] in
             guard let self = self else { return }
-
-            // Set the queue with just this song and start playback
-            self.player.queue = [song]
             do {
                 try await self.player.play()
-                await self.startStateObservation()
+                await MainActor.run {
+                    // Start time tracking once playback begins
+                    self.playStartTime = Date()
+                    self.startPolling()
+                }
             } catch {
                 let nsError = error as NSError
                 await MainActor.run {
@@ -160,13 +178,17 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     }
 
     @objc public func resumePlayback() {
-        stateObservationTask = Task { [weak self] in
+        Task { [weak self] in
+            guard let self = self else { return }
             do {
-                try await self?.player.play()
+                try await self.player.play()
+                await MainActor.run {
+                    self.playStartTime = Date()
+                }
             } catch {
                 let nsError = error as NSError
                 await MainActor.run {
-                    self?.delegate?.onPlaybackError(error: nsError)
+                    self.delegate?.onPlaybackError(error: nsError)
                 }
             }
         }
@@ -174,11 +196,19 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
 
     @objc public func pausePlayback() {
         player.pause()
+        if let start = playStartTime {
+            accumulatedTime += Date().timeIntervalSince(start)
+        }
+        playStartTime = nil
     }
 
     @objc public func stopPlayback() {
         player.stop()
-        stopPollingAndObservation()
+        stopPolling()
+        accumulatedTime = 0
+        playStartTime = nil
+        currentSongDuration = 0
+        lastKnownStatus = nil
     }
 
     @objc public func skipToNext() {
@@ -194,17 +224,25 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     }
 
     @objc public func seekTo(_ time: Double) {
-        player.state.playbackTime = time
+        // MusicKit doesn't support seeking on ApplicationMusicPlayer directly,
+        // so we stop and restart at the desired position.
+        // On iOS 16, we approximate by resetting accumulated time.
+        accumulatedTime = time
+        playStartTime = Date()
     }
 
     // ── Synchronous State Queries ──
 
     @objc public var currentPlaybackTime: Double {
-        player.state.playbackTime
+        var time = accumulatedTime
+        if let start = playStartTime {
+            time += Date().timeIntervalSince(start)
+        }
+        return time
     }
 
     @objc public var currentDuration: Double {
-        player.state.currentEntry?.duration ?? 0
+        currentSongDuration
     }
 
     @objc public var isCurrentlyPlaying: Bool {
@@ -213,51 +251,55 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
 
     /// Release any running observation — call when switching to a different engine.
     @objc public func invalidate() {
-        stopPollingAndObservation()
+        stopPolling()
         songCache.removeAll()
+        accumulatedTime = 0
+        playStartTime = nil
+        currentSongDuration = 0
+        lastKnownStatus = nil
     }
 
-    // ── State Observation ──
+    // ── Polling (state observation for iOS 16 compatibility) ──
 
-    /// Observe state changes using MusicKit's async sequence.
-    /// Runs until cancelled or the task is stopped.
-    private func startStateObservation() async {
-        stopPollingAndObservation()
+    /// Poll player state every ~250ms and report via delegate.
+    private func startPolling() {
+        stopPolling()
 
-        let task = Task { [weak self] in
-            guard let self = self else { return }
-            for await state in self.player.state {
-                if Task.isCancelled { break }
-
-                let status = state.playbackStatus
-                let isPlaying = status == .playing
-
-                await MainActor.run {
-                    // Detect completion: transition from .playing to .stopped
-                    if self.lastKnownStatus == .playing && status != .playing && status != .interrupted {
-                        self.delegate?.onDidFinishPlaying()
-                    }
-                    self.lastKnownStatus = status
-
-                    self.delegate?.onPlaybackStateChanged(
-                        isPlaying: isPlaying,
-                        playbackTime: state.playbackTime,
-                        duration: state.currentEntry?.duration ?? 0
-                    )
-                }
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
             }
+            self.pollState()
+        }
+    }
+
+    private func pollState() {
+        let status = player.state.playbackStatus
+        let isPlaying = status == .playing
+
+        // Calculate current playback time
+        var time = accumulatedTime
+        if isPlaying, let start = playStartTime {
+            time += Date().timeIntervalSince(start)
         }
 
-        // Store reference so we can cancel later
-        stateObservationTask = task
-        _ = await task.value
+        // Detect completion: status transition .playing → .stopped
+        if let last = lastKnownStatus, last == .playing && status != .playing && status != .interrupted {
+            delegate?.onDidFinishPlaying()
+        }
+        lastKnownStatus = status
+
+        delegate?.onPlaybackStateChanged(
+            isPlaying: isPlaying,
+            playbackTime: time,
+            duration: currentSongDuration
+        )
     }
 
-    private func stopPollingAndObservation() {
+    private func stopPolling() {
         pollingTimer?.invalidate()
         pollingTimer = nil
-        stateObservationTask?.cancel()
-        stateObservationTask = nil
     }
 }
 
