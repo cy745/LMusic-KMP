@@ -111,7 +111,10 @@ class MusicKitEngine : PlaybackEngine {
     }
 
     override suspend fun seekTo(positionMs: Long) {
-        logger.i(messageString = "seekTo: ${positionMs}ms")
+        // iOS 16 ApplicationMusicPlayer 不支持 seek（playbackTime 不可写），
+        // 此处仅更新本地时间追踪使 UI 进度显示正确，实际播放进度不会改变。
+        // iOS 17+ 可通过 MusicPlayer.State.playbackTime = time 实现真正 seek。
+        logger.w(messageString = "seekTo ${positionMs}ms — iOS 16 MusicKit does not support seeking")
         try {
             controller!!.seekTo(positionMs / 1000.0)
         } catch (e: Exception) {
