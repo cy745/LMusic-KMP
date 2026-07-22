@@ -15,7 +15,7 @@ commonMain:
 iosMain:
   AVPlayerEngine     ← extracted from AVPlayerPlayback (handles MediaData.Url)
   AVAudioPlayerEngine ← extracted from AVPlayerPlayback (handles MediaData.Bytes)
-  MusicKitEngine     ← placeholder for future (handles MusicKitSource songs)
+  MusicKitEngine     ← Apple Music playback via ApplicationMusicPlayer (handles MusicKitSource songs)
   AVPlayerPlayback   ← refactored: createEngines() + 100-line shell
 
 commonTest:
