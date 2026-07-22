@@ -217,9 +217,8 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     }
 
     @objc public func seekTo(_ time: Double) {
-        // MusicKit doesn't support seeking on ApplicationMusicPlayer directly,
-        // so we stop and restart at the desired position.
-        // On iOS 16, we approximate by resetting accumulated time.
+        // iOS 16 ApplicationMusicPlayer 没有 seek 方法（iOS 17+ 才有）。
+        // 此处仅更新本地时间追踪使 UI 进度显示正确，实际播放进度不会改变。
         accumulatedTime = time
         playStartTime = Date()
     }
