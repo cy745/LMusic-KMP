@@ -1,58 +1,73 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
-import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.repository.AudioRepository
-import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lplayer.extensions.VolumeFadeHelper
-import com.lalilu.lplayer.helper.*
+import com.lalilu.lplayer.helper.AudioSessionHelper
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
 import com.lalilu.lplayer.notifacation.RemoteCommandHandler
-import kotlinx.cinterop.*
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import platform.AVFAudio.AVAudioPlayer
-import platform.AVFoundation.*
-import platform.CoreMedia.CMTime
-import platform.CoreMedia.CMTimeMake
-import platform.Foundation.*
 
-
+/**
+ * iOS 平台播放实现。
+ *
+ * 通过 [PlaybackEngineRouter] 在 [AVPlayerEngine]（Url）和
+ * [AVAudioPlayerEngine]（Bytes）之间按类型匹配切换。
+ * 平台基础设施（NowPlaying、RemoteCommand、AudioSession）在此层管理。
+ */
 @Single(binds = [Playback::class])
-@OptIn(ExperimentalForeignApi::class)
 class AVPlayerPlayback(
     history: PlaybackHistory,
     audioRepository: AudioRepository
 ) : AbstractPlayback(history = history, audioRepository = audioRepository), KoinComponent {
-    companion object Companion {
+
+    companion object {
         const val TAG = "AVPlayerPlayback"
     }
 
-    private fun debugLog(message: String) {
-        Logger.i(tag = TAG, messageString = message)
-    }
+    private val logger = Logger.withTag(TAG)
 
-    override fun createEngines(): List<PlaybackEngine> = emptyList()
-
-    private val observerContext: COpaquePointer = cOpaquePtr()
-    override val platformMediaSource: PlatformMediaSource by inject()
-    private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
-    private val avPlayer: AVPlayer by lazy { AVPlayer() }
-    private var audioPlayer: AVAudioPlayer? = null
+    override fun createEngines(): List<PlaybackEngine> = listOf(
+        AVAudioPlayerEngine(),
+        AVPlayerEngine(),
+    )
 
     private var volumeFadeHelper = VolumeFadeHelper(
-        onSetVolume = {
-            audioPlayer?.volume = it
-            avPlayer.setVolume(it)
+        onSetVolume = { v ->
+            val engine = activeEngine
+            when {
+                engine is AVPlayerEngine -> engine.setVolume(v)
+                engine is AVAudioPlayerEngine -> engine.setVolume(v)
+            }
         }
     )
 
     init {
+        // 给每个 Engine 绑定 onEvent 回调（覆盖父类的默认绑定，加入日志）
+        engineRouter.allEngines.forEach { engine ->
+            val original = engine.onEvent
+            engine.onEvent = { event ->
+                when (event) {
+                    is PlaybackEngineEvent.Completion -> {
+                        logger.i(messageString = "Engine completion: ${engine::class.simpleName}")
+                        original?.invoke(event)
+                    }
+                    is PlaybackEngineEvent.Error -> {
+                        logger.e(
+                            tag = TAG,
+                            messageString = "Engine error: ${engine::class.simpleName}",
+                            throwable = event.throwable
+                        )
+                        original?.invoke(event)
+                    }
+                }
+            }
+        }
+
         NowPlayingInfoNotification.bindPlayback(this)
         RemoteCommandHandler.bindPlayback(this)
         if (AudioSessionHelper.setUpAudioSession()) {
@@ -60,184 +75,31 @@ class AVPlayerPlayback(
         }
     }
 
-    private val observer = Observer { keyPath, ofObject, change, context ->
-        if (observerContext != context) return@Observer
-        val playerItem = ofObject as AVPlayerItem
-        when (playerItem.status) {
-            AVPlayerStatusUnknown -> {
-                debugLog("status: AVPlayerStatusUnknown")
-            }
-
-            AVPlayerStatusReadyToPlay -> {
-                debugLog("status: AVPlayerStatusReadyToPlay")
-                _isPlaying.value = true
-                playerItem.duration.useContents { _currentDuration.value = toMilliseconds().toLong() }
-                avPlayer.play()
-            }
-
-            AVPlayerStatusFailed -> {
-                debugLog("status: AVPlayerStatusFailed")
-                playerItem.error?.print()
-            }
-        }
-    }
-
-    private suspend fun playItem(item: LAudio, start: Boolean) = withContext(Dispatchers.Main) {
-        AudioSessionHelper.ensureAudioSessionActive()
-        val source = platformMediaSource.sources
-            .firstOrNull { item.mediaSourceName == it.name }
-            ?: throw Exception("No source item found for ${item.mediaSourceName}")
-
-        when (val data = source.dataSource.getMedia(item)) {
-            is MediaData.Url -> {
-                // 移除旧的监听
-                avPlayer.currentItem?.removeObserver(
-                    forKeyPath = "status",
-                    observer = observer,
-                    context = observerContext
-                )
-
-                avPlayer.pause()
-
-                Logger.i(tag = "AVPlayer", messageString = "prepared with url: ${data.url}")
-                val url = NSURL.URLWithString(data.url)!!
-                val playerItem = AVPlayerItem(url)
-
-                // 监听playerItem的状态变化
-                playerItem.observeFor(
-                    keyPath = "status",
-                    observer = observer,
-                    context = observerContext
-                )
-
-                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.id == item.id }
-                queue.update { switchTo(index = targetIndex) }
-                avPlayer.replaceCurrentItemWithPlayerItem(playerItem)
-                if (start) {
-                    avPlayer.play()
-                }
-
-                // 监听播放完成事件
-                AVPlayerItemEventObserver.observe(
-                    key = AVPlayerItemDidPlayToEndTimeNotification,
-                    target = playerItem,
-                    callback = {
-                        debugLog("AVPlayerItemDidPlayToEndTimeNotification")
-                        this@AVPlayerPlayback.onCompletion()
-                    }
-                )
-
-                audioPlayer?.stop()
-                audioPlayer = null
-            }
-
-            is MediaData.Bytes -> {
-                Logger.i(tag = "AVPlayer", messageString = "prepared with bytes: ${data.bytes.size}")
-
-                val player = memScoped {
-                    val data = NSData.dataWithBytes(
-                        bytes = data.bytes.refTo(0).getPointer(this),
-                        length = data.bytes.size.toULong()
-                    )
-                    AVAudioPlayer(data, errorPtr.ptr)
-                }
-
-                AVAudioPlayerDidPlayToEndHelper.observe(
-                    player = player,
-                    onFinishPlaying = { _, isSuccess ->
-                        debugLog("AVAudioPlayerDidPlayToEndTimeNotification: $isSuccess")
-                        launch { this@AVPlayerPlayback.onCompletion() }
-                    },
-                    onEndInterruptionWithFlags = { _, flags ->
-                        debugLog("AVAudioPlayerDidEndInterruptionWithFlags: $flags")
-                    },
-                    onDecodeErrorDidOccur = { _, error ->
-                        debugLog("AVAudioPlayerDidDecodeErrorDidOccur: $error")
-                    },
-                    onBeginInterruption = {
-                        val duration = audioPlayer?.duration
-                        _currentDuration.value = duration?.toLong() ?: 0L
-                        debugLog("AVAudioPlayerDidBeginInterruption: duration: $duration")
-                    },
-                    onEndInterruption = {
-                        debugLog("AVAudioPlayerDidEndInterruption")
-                    }
-                )
-
-                // 停止并清除avplayer
-                avPlayer.pause()
-                avPlayer.replaceCurrentItemWithPlayerItem(null)
-                player.volume = avPlayer.volume
-                player.prepareToPlay()
-                if (start) {
-                    player.play()
-                    _isPlaying.value = true
-                }
-
-                val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.id == item.id }
-                queue.update { switchTo(index = targetIndex) }
-                _currentDuration.value = (player.duration * 1000L).toLong()
-
-                audioPlayer?.stop()
-                audioPlayer = player
-            }
-
-            else -> {
-                throw Exception("Unsupported source item: $data")
-            }
-        }
-    }
-
     override suspend fun play() = withContext(Dispatchers.Main) {
         volumeFadeHelper.play()
         try {
             AudioSessionHelper.ensureAudioSessionActive()
-            // 若audioPlayer存在，则直接播放
-            if (audioPlayer != null) {
-                debugLog("audioPlayer playing: ${audioPlayer?.currentTime} ${audioPlayer?.duration}")
-
-                audioPlayer?.play()
-                _isPlaying.value = true
-                return@withContext
+            if (activeEngine != null) {
+                activeEngine?.play()
+            } else {
+                val current = queue.currentItem()
+                    ?: throw Exception("No media to play")
+                logger.i(messageString = "playing: ${current.id} ${current.title} from ${current.mediaSourceName}")
+                skipTo(queue.stateSnapshot().index, true)
             }
-
-            // 若player存在播放中的元素，则直接播放
-            if (avPlayer.currentItem != null) {
-                debugLog("player playing: ${avPlayer.currentItem} ${avPlayer.currentItem?.status}")
-
-                avPlayer.play()
-                _isPlaying.value = true
-                return@withContext
-            }
-
-            // 获取当前播放元素，并进行播放
-            val current = queue.currentItem()
-                ?: throw Exception("No media to play")
-            debugLog("playing: ${current.id} ${current.title} ${current.subtitle} ${current.mediaSourceName}")
-
-            playItem(current, true)
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
             emitError(e)
         }
+        Unit
     }
 
-    override suspend fun pause() {
-        _isPlaying.value = false
-        withContext(Dispatchers.Main) {
-            volumeFadeHelper.pause {
-                try {
-                    if (audioPlayer != null) {
-                        audioPlayer?.pause()
-                    } else {
-                        avPlayer.pause()
-                    }
-                } catch (e: Exception) {
-                    Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-                    emitError(e)
-                }
-            }
+    override suspend fun pause() = withContext(Dispatchers.Main) {
+        volumeFadeHelper.pause {
+            // activeEngine.pause() is suspend; launch via ApplicationCoroutineScope
         }
+        activeEngine?.pause()
+        Unit
     }
 
     override suspend fun togglePlayPause() {
@@ -246,15 +108,12 @@ class AVPlayerPlayback(
 
     override suspend fun stop() = withContext(Dispatchers.Main) {
         try {
-            audioPlayer?.stop()
-            audioPlayer = null
-            avPlayer.pause()
-            avPlayer.replaceCurrentItemWithPlayerItem(null)
-            _isPlaying.value = false
+            activeEngine?.stop()
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
             emitError(e)
         }
+        Unit
     }
 
     override suspend fun skipTo(index: Int, start: Boolean) = withContext(Dispatchers.Main) {
@@ -262,63 +121,41 @@ class AVPlayerPlayback(
             val state = queue.stateSnapshot()
             if (index == state.index) {
                 seekTo(0)
-            } else {
-                val targetItem = state.list.getOrNull(index)
-                    ?: throw Exception("Invalid index")
-                playItem(targetItem, start)
+                return@withContext
             }
+
+            val item = state.list.getOrNull(index)
+                ?: throw Exception("Invalid index: $index")
+            val mediaData = resolveMediaData(item)
+            val engine = engineRouter.selectEngine(mediaData, item)
+                ?: throw NoEngineFoundException(mediaData, item)
+
+            if (engine !== activeEngine) {
+                activeEngine?.release()
+                activeEngine = engine
+            }
+
+            AudioSessionHelper.ensureAudioSessionActive()
+            engine.load(mediaData, item)
+            queue.update { switchTo(index = index) }
+            if (start) engine.play()
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
             emitError(e)
         }
     }
 
-    override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
+    override suspend fun seekTo(positionMs: Long) = withContext(Dispatchers.Main) {
         try {
-            if (audioPlayer != null) {
-                audioPlayer?.setCurrentTime(positionMs / 1000.0)
-                audioPlayer?.play()
-            } else {
-                val time = CMTimeMake(value = positionMs, timescale = 1000)
-                avPlayer.seekToTime(time)
-            }
+            activeEngine?.seekTo(positionMs)
         } catch (e: Exception) {
             Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
             emitError(e)
         }
+        Unit
     }
 
     override fun currentPosition(): Long {
-        return if (audioPlayer != null) {
-            (audioPlayer!!.currentTime * 1000).toLong()
-        } else {
-            memScoped {
-                // AVPlayer的currentTime返回的是ns，需要转换成ms
-                avPlayer.currentTime()
-                    .useContents { value / 1000L / 1000L }
-            }
-        }
+        return activeEngine?.currentPosition() ?: 0L
     }
-}
-
-fun NSError.print() {
-    val log = """
-        [NSError: ${this.hashCode()}]
-        [domain]: $domain
-        [code]: $code
-        [userInfo]: $userInfo
-        [localizedDescription]: $localizedDescription
-        [localizedFailureReason]: $localizedFailureReason
-        [localizedRecoverySuggestion]: $localizedRecoverySuggestion
-        [localizedRecoveryOptions]: $localizedRecoveryOptions
-    """.trimIndent()
-    Logger.e(tag = "NSError", messageString = log)
-}
-
-// 扩展函数：获取精确毫秒数（Double 类型，保留小数，适合需要高精度的场景）
-fun CMTime.toMilliseconds(): Double {
-    // 安全检查：timescale 不能为 0，否则返回 0.0
-    if (timescale == 0) return 0.0
-    // 核心计算：(value / timescale) * 1000 → 转换为毫秒
-    return (value.toDouble() / timescale.toDouble()) * 1000.0
 }
