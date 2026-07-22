@@ -6,6 +6,7 @@ import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.source.MediaData
 import com.lalilu.lplayer.notification.BrowserMediaSessionHelper
+import com.lalilu.lplayer.playback.PlaybackEngine
 import io.github.vinceglb.filekit.utils.toJsArray
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Single
@@ -27,7 +28,8 @@ class AudioPlayback(
         const val TAG = "AudioPlayback"
     }
 
-    private val platformMediaSource: PlatformMediaSource by inject()
+    override val platformMediaSource: PlatformMediaSource by inject()
+    override fun createEngines(): List<PlaybackEngine> = emptyList()
     private val player = Audio()
 
     override suspend fun resolveMedia(ids: List<String>): List<LAudio> = library.mapBy<LAudio>(ids)

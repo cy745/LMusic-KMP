@@ -4,12 +4,16 @@ import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+import org.koin.mp.KoinPlatform
 
 /**
  * Abstract base implementation of Playback interface.
@@ -17,6 +21,7 @@ import kotlin.random.Random
  * including automatic history recovery and recording via [PlaybackHistory] delegation.
  */
 @Suppress("PropertyName")
+@OptIn(ExperimentalCoroutinesApi::class)
 abstract class AbstractPlayback(
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.io + SupervisorJob()),
     private val history: PlaybackHistory,
@@ -36,6 +41,35 @@ abstract class AbstractPlayback(
     protected var _shuffledIndices: List<Int> = emptyList()
     protected var _currentIndexInShuffled: Int = 0
     private val logger = Logger.withTag("AbstractPlayback")
+
+    // ── Engine 基础设施 ──
+
+    private val _platformMediaSource: PlatformMediaSource by lazy {
+        KoinPlatform.getKoin().get<PlatformMediaSource>()
+    }
+    /** 平台媒体源聚合体，子类可通过 override（如 by inject()）提供特定实现。 */
+    protected open val platformMediaSource: PlatformMediaSource
+        get() = _platformMediaSource
+
+    /** 返回当前平台支持的 Engine 列表。注册顺序即匹配优先级。 */
+    protected abstract fun createEngines(): List<PlaybackEngine>
+
+    /** 链式匹配路由器，按 [createEngines] 注册顺序优先匹配。 */
+    protected val engineRouter: PlaybackEngineRouter by lazy {
+        PlaybackEngineRouter(createEngines())
+    }
+
+    private val _activeEngine = MutableStateFlow<PlaybackEngine?>(null)
+
+    /** 当前活跃的 Engine。切换时自动 release 旧的并 load 新的。 */
+    protected var activeEngine: PlaybackEngine?
+        get() = _activeEngine.value
+        set(value) { _activeEngine.value = value }
+
+    /** activeEngine 连续状态投影，供子类或对 Engine 状态做额外处理 */
+    protected val activeEngineState: StateFlow<PlaybackEngineState> = _activeEngine
+        .flatMapLatest { it?.state ?: flowOf(PlaybackEngineState.EMPTY) }
+        .stateIn(coroutineScope, SharingStarted.Eagerly, PlaybackEngineState.EMPTY)
 
     // Public state flows
     override val queue: PlayableQueue = PlayableQueueImpl()
@@ -58,6 +92,31 @@ abstract class AbstractPlayback(
 
         // 自动录制播放状态 — 此时所有属性均已初始化
         startRecording(this)
+
+        // ── Engine 事件绑定 ──
+        // 给每个 Engine 绑定 onEvent 回调，将离散事件转为 Playback 方法调用
+        engineRouter.allEngines.forEach { engine ->
+            engine.onEvent = { event ->
+                when (event) {
+                    is PlaybackEngineEvent.Completion -> {
+                        launch { onCompletion() }
+                    }
+                    is PlaybackEngineEvent.Error -> {
+                        emitError(event.throwable)
+                    }
+                }
+            }
+        }
+
+        // 监听 activeEngine 状态，同步到 Playback 的标准 StateFlow
+        _activeEngine
+            .flatMapLatest { it?.state ?: flowOf(PlaybackEngineState.EMPTY) }
+            .onEach { state ->
+                _isPlaying.value = state.isPlaying
+                _currentDuration.value = state.duration
+                _currentBufferedPosition.value = state.bufferedPosition
+            }
+            .launchIn(coroutineScope)
     }
 
     /**
@@ -67,6 +126,23 @@ abstract class AbstractPlayback(
     protected open suspend fun resolveMedia(ids: List<String>): List<LAudio> {
         return audioRepository.getAudios(ids).first()
     }
+
+    /**
+     * 通过 [platformMediaSource] 解析音频媒体数据。
+     * 消除三平台 [playItem] 中反复出现的 MediaSource 查找 + getMedia 调用。
+     */
+    protected suspend fun resolveMediaData(audio: LAudio): MediaData {
+        val source = platformMediaSource.sources
+            .firstOrNull { audio.mediaSourceName == it.name }
+            ?: throw Exception("MediaSource '${audio.mediaSourceName}' not found for ${audio.id}")
+        return source.dataSource.getMedia(audio)
+            ?: throw Exception("MediaData unavailable for ${audio.id}")
+    }
+
+    /**
+     * Engine 切换完成后的 hook。子类可 override 以补充逻辑（如 JVM 的 dataTracker 回调）。
+     */
+    protected open suspend fun onEngineSwitched(engine: PlaybackEngine, item: LAudio) {}
 
     /**
      * 当播放完成时调用

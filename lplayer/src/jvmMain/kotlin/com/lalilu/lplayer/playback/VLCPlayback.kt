@@ -11,6 +11,7 @@ import com.lalilu.lplayer.notification.MacOSNotification
 import com.lalilu.lplayer.player.ByteArrayCallbackMedia
 import com.lalilu.lplayer.player.VLCPlayer
 import com.lalilu.lplayer.player.VLCPlayerLoader
+import com.lalilu.lplayer.playback.PlaybackEngine
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Single
 import org.koin.core.component.KoinComponent
@@ -28,8 +29,10 @@ class VLCPlayback(
 ) : AbstractPlayback(history = history, audioRepository = audioRepository), KoinComponent {
     private var playerInstance: MediaPlayer? = null
     private val dataTracker: IPlaybackDataTracker by inject()
-    private val platformMediaSource: PlatformMediaSource by inject()
+    override val platformMediaSource: PlatformMediaSource by inject()
     private val logger = Logger.withTag("VLCPlayback")
+
+    override fun createEngines(): List<PlaybackEngine> = emptyList()
 
     val player: MediaPlayer
         get() = playerInstance ?: throw Exception("Player Not Initialized")

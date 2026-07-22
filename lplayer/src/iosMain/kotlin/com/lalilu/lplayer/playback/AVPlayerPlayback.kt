@@ -37,8 +37,10 @@ class AVPlayerPlayback(
         Logger.i(tag = TAG, messageString = message)
     }
 
+    override fun createEngines(): List<PlaybackEngine> = emptyList()
+
     private val observerContext: COpaquePointer = cOpaquePtr()
-    private val platformMediaSource: PlatformMediaSource by inject()
+    override val platformMediaSource: PlatformMediaSource by inject()
     private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
     private val avPlayer: AVPlayer by lazy { AVPlayer() }
     private var audioPlayer: AVAudioPlayer? = null
