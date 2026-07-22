@@ -223,10 +223,10 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     /// Fetch artwork image data for a song by store ID.
     /// Attempts to load the URL returned by MusicKit's Artwork API;
     /// returns nil if the URL is not loadable (e.g. musicKit:// scheme).
-    @objc public func artworkDataForStoreID(_ storeID: String) -> NSData? {
+    @objc public func artworkDataForStoreID(_ storeID: String, width: Int, height: Int) -> NSData? {
         guard let song = songCache[storeID],
               let artwork = song.artwork,
-              let url = artwork.url(width: 1200, height: 1200) else { return nil }
+              let url = artwork.url(width: width, height: height) else { return nil }
 
         // The URL may be musicKit:// for library items; try loading it.
         // If the system doesn't handle this scheme, URLSession or NSData(contentsOf:)

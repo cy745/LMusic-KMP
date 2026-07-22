@@ -8,6 +8,7 @@ import coil3.request.Options
 import coil3.toUri
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.MediaFetchOptions
 import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import org.koin.core.component.KoinComponent
@@ -32,7 +33,10 @@ class LAudioFetcher(
             ?.dataSource
             ?: throw IllegalArgumentException("MediaSource not found")
 
-        val pictureData = source.getPicture(audio) ?: return null
+        // TODO: 提取 Coil options 中的目标尺寸，传给 MediaFetchOptions
+        // Coil 3 SizeResolver 是 suspend 的，需要额外处理
+        val fetchOptions = MediaFetchOptions.EMPTY
+        val pictureData = source.getPicture(audio, fetchOptions) ?: return null
 
         val data = when (pictureData) {
             is MediaData.Bytes -> pictureData.bytes

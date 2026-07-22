@@ -116,8 +116,8 @@ typedef void (^MusicKitWrapperFetchCompletion)(NSArray<SongInfo *> * _Nullable s
 /// Release resources — call when switching to another playback engine.
 - (void)invalidate;
 
-/// Fetch artwork image data for a song (returns JPEG/PNG bytes, or nil).
-- (nullable NSData *)artworkDataForStoreID:(NSString *)storeID;
+/// Fetch artwork image data for a song at the given dimensions (returns JPEG/PNG bytes, or nil).
+- (nullable NSData *)artworkDataForStoreID:(NSString *)storeID width:(NSInteger)width height:(NSInteger)height;
 
 /// Shared singleton controller
 + (instancetype)shared;
