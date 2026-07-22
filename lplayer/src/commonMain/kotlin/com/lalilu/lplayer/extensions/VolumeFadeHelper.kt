@@ -44,7 +44,7 @@ class VolumeFadeHelper(
         }
     }
 
-    fun pause(superPause: () -> Unit = {}) {
+    fun pause(superPause: suspend () -> Unit = {}) {
         animationJob?.cancel()
         animationJob = launch(Dispatchers.io) {
             runAnimation(targetValue = 0f)
