@@ -145,7 +145,10 @@ class AVPlayerPlayback(
                 activeEngine = engine
             }
 
-            AudioSessionHelper.ensureAudioSessionActive()
+            // MusicKitEngine 自行管理 AudioSession，不需要外部激活
+            if (engine !is MusicKitEngine) {
+                AudioSessionHelper.ensureAudioSessionActive()
+            }
             engine.load(mediaData, item)
             queue.update { switchTo(index = index) }
             if (start) engine.play()
