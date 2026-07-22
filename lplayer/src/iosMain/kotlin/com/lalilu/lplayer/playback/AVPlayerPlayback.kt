@@ -121,13 +121,14 @@ class AVPlayerPlayback(
     override suspend fun skipTo(index: Int, start: Boolean) = withContext(Dispatchers.Main) {
         try {
             val state = queue.stateSnapshot()
-            if (index == state.index) {
+            val item = state.list.getOrNull(index)
+                ?: throw Exception("Invalid index: $index")
+
+            if (index == state.index && activeEngine != null) {
                 seekTo(0)
                 return@withContext
             }
 
-            val item = state.list.getOrNull(index)
-                ?: throw Exception("Invalid index: $index")
             val mediaData = resolveMediaData(item)
             val engine = engineRouter.selectEngine(mediaData, item)
                 ?: throw NoEngineFoundException(mediaData, item)
