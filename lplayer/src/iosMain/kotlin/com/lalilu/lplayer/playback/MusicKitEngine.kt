@@ -153,7 +153,6 @@ private class MusicKitPlaybackDelegate(
         playbackTime: Double,
         duration: Double
     ) {
-        logger.i(messageString = "state: isPlaying=$isPlaying time=$playbackTime duration=$duration")
         engine._state.update {
             PlaybackEngineState(
                 isPlaying = isPlaying,

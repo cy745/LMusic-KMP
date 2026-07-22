@@ -11,11 +11,14 @@ import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readBytes
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 import platform.Foundation.NSData
 
@@ -27,8 +30,6 @@ class MusicKitSource : MediaSource, MediaDataSource {
 
     /** id → SongInfo 缓存，用于 [getPicture] 和 [getMedia] 按 id 查找完整数据。 */
     private val songStore = mutableMapOf<String, SongInfo>()
-    /** storeID → artworkBytes 缓存，避免重复加载全尺寸图片。 */
-    private val artworkCache = mutableMapOf<String, ByteArray>()
 
     override fun source(): Flow<Snapshot> {
         val songsFlow = callbackFlow {
@@ -43,7 +44,6 @@ class MusicKitSource : MediaSource, MediaDataSource {
         return songsFlow.map { songs ->
             Logger.i(tag = name, messageString = "fetched ${songs.size} songs from MusicKit")
             songStore.clear()
-            artworkCache.clear()
 
             val audios = songs.map { song ->
                 val playUrl = song.url()?.absoluteString ?: ""
@@ -103,11 +103,13 @@ class MusicKitSource : MediaSource, MediaDataSource {
     override suspend fun getPicture(song: LAudio): MediaData? =
         getPicture(song, MediaFetchOptions.EMPTY)
 
-    override suspend fun getPicture(song: LAudio, options: MediaFetchOptions): MediaData? {
+    override suspend fun getPicture(
+        song: LAudio, options: MediaFetchOptions
+    ): MediaData? = withContext(Dispatchers.IO) {
         val si = songStore[song.id]
         val storeID = si?.storeID()?.takeIf { it.isNotBlank() }
             ?: song.extra?.get("storeID")
-            ?: return null
+            ?: return@withContext null
 
         // 优先使用 Coil 请求的目标尺寸，未指定时用 300 兜底（避免全尺寸 1200 占用内存）
         val maxW = si?.artwork()?.maxWidth?.toInt() ?: 0
@@ -115,18 +117,13 @@ class MusicKitSource : MediaSource, MediaDataSource {
         val w = if (options.width > 0) options.width.coerceIn(60, maxW.coerceAtLeast(300)) else 300
         val h = if (options.height > 0) options.height.coerceIn(60, maxH.coerceAtLeast(300)) else 300
 
-        // 缓存：相同 storeID 不重复加载
-        val cached = artworkCache[storeID]
-        if (cached != null) return MediaData.Bytes(cached)
-
         val controller = MusicKitPlayerController.shared()
         val data = controller?.artworkDataForStoreID(storeID, w.toLong(), h.toLong())
         if (data != null && data.length > 0uL) {
             val bytes = data.toByteArray()
-            artworkCache[storeID] = bytes
-            return MediaData.Bytes(bytes)
+            return@withContext MediaData.Bytes(bytes)
         }
-        return null
+        return@withContext null
     }
 }
 

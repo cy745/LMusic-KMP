@@ -230,12 +230,10 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     /// returns nil if the URL is not loadable (e.g. musicKit:// scheme).
     @objc public func artworkDataForStoreID(_ storeID: String, width: Int, height: Int) -> NSData? {
         guard let song = songCache[storeID],
-              let artwork = song.artwork,
-              let url = artwork.url(width: width, height: height) else { return nil }
+            let artwork = song.artwork,
+            let url = artwork.url(width: width, height: height)
+        else { return nil }
 
-        // The URL may be musicKit:// for library items; try loading it.
-        // If the system doesn't handle this scheme, URLSession or NSData(contentsOf:)
-        // will return nil, and we gracefully degrade to no artwork.
         guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
         return data as NSData
     }
@@ -297,16 +295,23 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     private func pollState() {
         let status = player.state.playbackStatus
         let isPlaying = status == .playing
+        let time = player.playbackTime
 
-        // Detect completion: only .playing → .stopped is natural end
-        if let last = lastKnownStatus, last == .playing && status == .stopped {
+        // 检测完成：状态变到 .stopped，或播放位置到达结尾
+        let reachedEnd = currentSongDuration > 0 && abs(time - currentSongDuration) < 1.5
+        if reachedEnd && isPlaying {
+            print("[MusicKitPlayerController] reached end of song (time=\(time) duration=\(currentSongDuration)) firing completion")
+            delegate?.onDidFinishPlaying()
+        } else if status == .stopped && lastKnownStatus != .stopped {
+            print("[MusicKitPlayerController] status=stopped, firing completion")
             delegate?.onDidFinishPlaying()
         }
+
         lastKnownStatus = status
 
         delegate?.onPlaybackStateChanged(
             isPlaying: isPlaying,
-            playbackTime: player.playbackTime,
+            playbackTime: time,
             duration: currentSongDuration
         )
     }

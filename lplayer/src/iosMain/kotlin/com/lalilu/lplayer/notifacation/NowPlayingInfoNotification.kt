@@ -12,13 +12,9 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.refTo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.transformLatest
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -85,19 +81,6 @@ object NowPlayingInfoNotification : CoroutineScope {
                 )
                 updateNowPlayingInfo()
             }.launchIn(this)
-
-        // 定时更新 elapsed time，确保 MusicKit 等不会覆盖我们的 NowPlaying 信息
-        playback.isPlaying
-            .transformLatest<Boolean, Unit> { isPlaying ->
-                if (!isPlaying) return@transformLatest
-                while (isActive) {
-                    nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-                        playback.currentPosition().toDouble().div(1000)
-                    updateNowPlayingInfo()
-                    delay(1000)
-                }
-            }
-            .launchIn(this)
     }
 
     private suspend fun loadAlbumArtwork(track: LAudio?) = withContext(Dispatchers.io) {
@@ -148,13 +131,10 @@ object NowPlayingInfoNotification : CoroutineScope {
      * 刷新当前播放信息
      */
     private suspend fun updateNowPlayingInfo() {
-        debugLog("Updating now playing info in mutex lock")
         updateMutex.withLock {
-            debugLog("Acquired mutex lock, posting update to main queue")
             suspendCancellableCoroutine { continuation ->
                 NSOperationQueue.mainQueue().addOperationWithBlock {
                     nowPlayingInfoCenter.nowPlayingInfo = nowPlayingInfo.toMap()
-                    debugLog("Now playing info updated successfully")
                     continuation.resume(true)
                 }
             }
