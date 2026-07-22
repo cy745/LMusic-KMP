@@ -27,6 +27,8 @@ class MusicKitSource : MediaSource, MediaDataSource {
 
     /** id → SongInfo 缓存，用于 [getPicture] 和 [getMedia] 按 id 查找完整数据。 */
     private val songStore = mutableMapOf<String, SongInfo>()
+    /** storeID → artworkBytes 缓存，避免重复加载全尺寸图片。 */
+    private val artworkCache = mutableMapOf<String, ByteArray>()
 
     override fun source(): Flow<Snapshot> {
         val songsFlow = callbackFlow {
@@ -41,6 +43,7 @@ class MusicKitSource : MediaSource, MediaDataSource {
         return songsFlow.map { songs ->
             Logger.i(tag = name, messageString = "fetched ${songs.size} songs from MusicKit")
             songStore.clear()
+            artworkCache.clear()
 
             val audios = songs.map { song ->
                 val playUrl = song.url()?.absoluteString ?: ""
@@ -106,16 +109,22 @@ class MusicKitSource : MediaSource, MediaDataSource {
             ?: song.extra?.get("storeID")
             ?: return null
 
-        // 优先使用 Coil 请求的目标尺寸，未指定时取 artwork 最大尺寸，再兜底 1200
+        // 优先使用 Coil 请求的目标尺寸，未指定时用 300 兜底（避免全尺寸 1200 占用内存）
         val maxW = si?.artwork()?.maxWidth?.toInt() ?: 0
         val maxH = si?.artwork()?.maxHeight?.toInt() ?: 0
-        val w = if (options.width > 0) options.width.coerceIn(60, maxW.coerceAtLeast(3000)) else maxW.coerceAtLeast(1200)
-        val h = if (options.height > 0) options.height.coerceIn(60, maxH.coerceAtLeast(3000)) else maxH.coerceAtLeast(1200)
+        val w = if (options.width > 0) options.width.coerceIn(60, maxW.coerceAtLeast(300)) else 300
+        val h = if (options.height > 0) options.height.coerceIn(60, maxH.coerceAtLeast(300)) else 300
+
+        // 缓存：相同 storeID 不重复加载
+        val cached = artworkCache[storeID]
+        if (cached != null) return MediaData.Bytes(cached)
 
         val controller = MusicKitPlayerController.shared()
         val data = controller?.artworkDataForStoreID(storeID, w.toLong(), h.toLong())
         if (data != null && data.length > 0uL) {
-            return MediaData.Bytes(data.toByteArray())
+            val bytes = data.toByteArray()
+            artworkCache[storeID] = bytes
+            return MediaData.Bytes(bytes)
         }
         return null
     }

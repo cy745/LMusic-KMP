@@ -298,8 +298,8 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
         let status = player.state.playbackStatus
         let isPlaying = status == .playing
 
-        // Detect completion: status transition .playing → .stopped
-        if let last = lastKnownStatus, last == .playing && status != .playing && status != .interrupted {
+        // Detect completion: only .playing → .stopped is natural end
+        if let last = lastKnownStatus, last == .playing && status == .stopped {
             delegate?.onDidFinishPlaying()
         }
         lastKnownStatus = status
