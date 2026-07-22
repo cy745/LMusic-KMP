@@ -44,11 +44,11 @@ object AudioSessionHelper : CoroutineScope {
     }
 
     fun ensureAudioSessionActive() {
-        audioSession.setActive(
-            active = true,
-            withOptions = 0u,
-            error = errorPtr.ptr
-        )
+        if (!audioSession.setActive(active = true, withOptions = 0u, error = errorPtr.ptr)) {
+            errorPtr.value?.let { error ->
+                debugLog("Error ensuring audio session active: ${error.localizedDescription}")
+            }
+        }
     }
 
     /**

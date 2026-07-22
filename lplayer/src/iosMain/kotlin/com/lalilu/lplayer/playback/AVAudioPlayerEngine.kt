@@ -4,14 +4,8 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lplayer.helper.AVAudioPlayerDidPlayToEndHelper
-import kotlinx.cinterop.BetaInteropApi
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.ObjCObjectVar
-import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.nativeHeap
-import kotlinx.cinterop.ptr
-import kotlinx.cinterop.refTo
-import kotlinx.cinterop.alloc
+import com.lalilu.lplayer.helper.AudioSessionHelper
+import kotlinx.cinterop.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,8 +14,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import platform.AVFAudio.*
-import platform.Foundation.*
+import platform.AVFAudio.AVAudioPlayer
+import platform.Foundation.NSData
+import platform.Foundation.NSError
+import platform.Foundation.dataWithBytes
 
 /**
  * Engine 封装 [AVAudioPlayer]，处理 [MediaData.Bytes] 类型的媒体。
@@ -98,6 +94,7 @@ class AVAudioPlayerEngine : PlaybackEngine {
     }
 
     override suspend fun play() {
+        AudioSessionHelper.ensureAudioSessionActive()
         currentPlayer?.play()
         _state.update { it.copy(isPlaying = true) }
     }

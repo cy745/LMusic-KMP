@@ -3,11 +3,7 @@ package com.lalilu.lplayer.playback
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaData
-import com.lalilu.lplayer.helper.AVPlayerItemEventObserver
-import com.lalilu.lplayer.helper.AVPlayerPositionObserver
-import com.lalilu.lplayer.helper.Observer
-import com.lalilu.lplayer.helper.cOpaquePtr
-import com.lalilu.lplayer.helper.observeFor
+import com.lalilu.lplayer.helper.*
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.memScoped
@@ -19,11 +15,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import platform.AVFoundation.*
 import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeMake
-import platform.Foundation.*
+import platform.Foundation.NSURL
+import platform.Foundation.removeObserver
 
 /**
  * Engine 封装 [AVPlayer]，处理 [MediaData.Url] 类型的媒体。
@@ -60,6 +56,7 @@ class AVPlayerEngine : PlaybackEngine {
             AVPlayerStatusUnknown -> {
                 logger.i(messageString = "AVPlayerStatusUnknown")
             }
+
             AVPlayerStatusReadyToPlay -> {
                 logger.i(messageString = "AVPlayerStatusReadyToPlay")
                 val duration = playerItem.duration.useContents { toMilliseconds().toLong() }
@@ -71,6 +68,7 @@ class AVPlayerEngine : PlaybackEngine {
                     autoPlayWhenReady = false
                 }
             }
+
             AVPlayerStatusFailed -> {
                 val err = playerItem.error
                 val errorMsg = err?.localizedDescription ?: "AVPlayerStatusFailed"
@@ -130,6 +128,7 @@ class AVPlayerEngine : PlaybackEngine {
 
     override suspend fun play() {
         if (currentItem?.status == AVPlayerStatusReadyToPlay) {
+            AudioSessionHelper.ensureAudioSessionActive()
             avPlayer.play()
             _state.update { it.copy(isPlaying = true) }
         } else {
