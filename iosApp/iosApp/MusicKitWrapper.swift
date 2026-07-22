@@ -270,11 +270,11 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     /// Release any running observation — call when switching to a different engine.
     @objc public func invalidate() {
         stopPolling()
-        songCache.removeAll()
         accumulatedTime = 0
         playStartTime = nil
         currentSongDuration = 0
         lastKnownStatus = nil
+        // 不清理 songCache——它是跨 Engine 生命周期共享的，由 configure() 管理
     }
 
     // ── Polling (state observation for iOS 16 compatibility) ──
