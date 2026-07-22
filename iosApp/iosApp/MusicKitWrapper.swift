@@ -110,7 +110,7 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     private let player = ApplicationMusicPlayer.shared
     private var songCache: [String: Song] = [:]
 
-    // ── Time Tracking (iOS 16 API does not expose playbackTime directly) ──
+    // ── Time Tracking ──
     /// When playback started/resumed; nil when paused.
     private var playStartTime: Date?
     /// Accumulated play time before the current play session (in seconds).
@@ -217,10 +217,10 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     }
 
     @objc public func seekTo(_ time: Double) {
-        // iOS 16 ApplicationMusicPlayer 没有 seek 方法（iOS 17+ 才有）。
-        // 此处仅更新本地时间追踪使 UI 进度显示正确，实际播放进度不会改变。
+        // MusicPlayer.playbackTime 是 MusicKit 官方 seek API，iOS 15.0+ 可用
         accumulatedTime = time
         playStartTime = Date()
+        player.playbackTime = time
     }
 
     // ── Artwork Loading ──
@@ -258,11 +258,7 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     // ── Synchronous State Queries ──
 
     @objc public var currentPlaybackTime: Double {
-        var time = accumulatedTime
-        if let start = playStartTime {
-            time += Date().timeIntervalSince(start)
-        }
-        return time
+        player.playbackTime
     }
 
     @objc public var currentDuration: Double {
@@ -302,12 +298,6 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
         let status = player.state.playbackStatus
         let isPlaying = status == .playing
 
-        // Calculate current playback time
-        var time = accumulatedTime
-        if isPlaying, let start = playStartTime {
-            time += Date().timeIntervalSince(start)
-        }
-
         // Detect completion: status transition .playing → .stopped
         if let last = lastKnownStatus, last == .playing && status != .playing && status != .interrupted {
             delegate?.onDidFinishPlaying()
@@ -316,7 +306,7 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
 
         delegate?.onPlaybackStateChanged(
             isPlaying: isPlaying,
-            playbackTime: time,
+            playbackTime: player.playbackTime,
             duration: currentSongDuration
         )
     }
