@@ -1,4 +1,5 @@
 import Foundation
+import MediaPlayer
 import MusicKit
 
 // MARK: - ArtworkItem
@@ -7,11 +8,16 @@ import MusicKit
 @objc(ArtworkItem) public class ArtworkItem: NSObject {
     private let urlCallback: (Int, Int) -> URL?
 
+    @objc public let maxWidth: Int
+    @objc public let maxHeight: Int
+
     @objc public func url(withWidth width: Int, height: Int) -> URL? {
         return urlCallback(width, height)
     }
 
-    init(urlCallback: @escaping (Int, Int) -> URL?) {
+    init(maxWidth: Int, maxHeight: Int, urlCallback: @escaping (Int, Int) -> URL?) {
+        self.maxWidth = maxWidth
+        self.maxHeight = maxHeight
         self.urlCallback = urlCallback
     }
 }
@@ -115,7 +121,7 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
     // ── Polling ──
     private var pollingTimer: Timer?
     /// Last known status for completion detection.
-    private var lastKnownStatus: MusicPlayer.PlaybackStatus?
+    private var lastKnownStatus: MusicKit.MusicPlayer.PlaybackStatus?
 
     // ── Cache Management ──
 
@@ -235,6 +241,21 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
         return data as NSData
     }
 
+    // ── Lyrics ──
+
+    /// Retrieve lyrics for a song using its store ID via MPMediaItem lookup.
+    @objc public func lyricsForStoreID(_ storeID: String) -> String? {
+        guard let song = songCache[storeID] else { return nil }
+        let idValue = UInt64(song.id.description) ?? 0
+        guard idValue > 0 else { return nil }
+        let predicate = MPMediaPropertyPredicate(
+            value: idValue,
+            forProperty: MPMediaItemPropertyPersistentID
+        )
+        let query = MPMediaQuery(filterPredicates: [predicate])
+        return query.items?.first?.lyrics
+    }
+
     // ── Synchronous State Queries ──
 
     @objc public var currentPlaybackTime: Double {
@@ -344,9 +365,13 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
                 let response = try await request.response()
                 let songs = response.items.map { song in
                     let artworkItem: ArtworkItem? = song.artwork.map { artwork in
-                        ArtworkItem(urlCallback: { width, height in
-                            artwork.url(width: width, height: height)
-                        })
+                        ArtworkItem(
+                            maxWidth: artwork.maximumWidth ?? 0,
+                            maxHeight: artwork.maximumHeight ?? 0,
+                            urlCallback: { width, height in
+                                artwork.url(width: width, height: height)
+                            }
+                        )
                     }
 
                     return SongInfo(

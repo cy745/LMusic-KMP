@@ -88,18 +88,29 @@ class MusicKitSource : MediaSource, MediaDataSource {
         return MediaData.Url("musickit://placeholder")
     }
 
+    override suspend fun getLyric(song: LAudio): String? {
+        val storeID = songStore[song.id]?.storeID()?.takeIf { it.isNotBlank() }
+            ?: song.extra?.get("storeID")
+            ?: return null
+        val controller = MusicKitPlayerController.shared()
+        return controller?.lyricsForStoreID(storeID)
+    }
+
     @Deprecated("Use getPicture(song, options) instead")
     override suspend fun getPicture(song: LAudio): MediaData? =
         getPicture(song, MediaFetchOptions.EMPTY)
 
     override suspend fun getPicture(song: LAudio, options: MediaFetchOptions): MediaData? {
-        val storeID = songStore[song.id]?.storeID()?.takeIf { it.isNotBlank() }
+        val si = songStore[song.id]
+        val storeID = si?.storeID()?.takeIf { it.isNotBlank() }
             ?: song.extra?.get("storeID")
             ?: return null
 
-        // 使用 Coil 请求的目标尺寸（若未指定则用 600 兜底）
-        val w = options.width.coerceIn(60, 3000)
-        val h = options.height.coerceIn(60, 3000)
+        // 优先使用 Coil 请求的目标尺寸，未指定时取 artwork 最大尺寸，再兜底 1200
+        val maxW = si?.artwork()?.maxWidth?.toInt() ?: 0
+        val maxH = si?.artwork()?.maxHeight?.toInt() ?: 0
+        val w = if (options.width > 0) options.width.coerceIn(60, maxW.coerceAtLeast(3000)) else maxW.coerceAtLeast(1200)
+        val h = if (options.height > 0) options.height.coerceIn(60, maxH.coerceAtLeast(3000)) else maxH.coerceAtLeast(1200)
 
         val controller = MusicKitPlayerController.shared()
         val data = controller?.artworkDataForStoreID(storeID, w.toLong(), h.toLong())

@@ -16,6 +16,11 @@ typedef void (^MusicKitWrapperFetchCompletion)(NSArray<SongInfo *> * _Nullable s
 
 @interface ArtworkItem : NSObject
 
+/// Maximum available width for this artwork (0 = unknown)
+@property (nonatomic, readonly) NSInteger maxWidth;
+/// Maximum available height for this artwork (0 = unknown)
+@property (nonatomic, readonly) NSInteger maxHeight;
+
 /// Get artwork URL with specified dimensions
 /// @param width The width dimension
 /// @param height The height dimension
@@ -118,6 +123,9 @@ typedef void (^MusicKitWrapperFetchCompletion)(NSArray<SongInfo *> * _Nullable s
 
 /// Fetch artwork image data for a song at the given dimensions (returns JPEG/PNG bytes, or nil).
 - (nullable NSData *)artworkDataForStoreID:(NSString *)storeID width:(NSInteger)width height:(NSInteger)height;
+
+/// Retrieve lyrics for a song by its store ID (via MPMediaItem lookup, may return nil).
+- (nullable NSString *)lyricsForStoreID:(NSString *)storeID;
 
 /// Shared singleton controller
 + (instancetype)shared;

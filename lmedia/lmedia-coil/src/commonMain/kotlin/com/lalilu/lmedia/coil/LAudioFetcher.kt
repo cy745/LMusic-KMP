@@ -5,6 +5,7 @@ import coil3.fetch.FetchResult
 import coil3.fetch.Fetcher
 import coil3.key.Keyer
 import coil3.request.Options
+import coil3.size.pxOrElse
 import coil3.toUri
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaData
@@ -13,7 +14,6 @@ import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import kotlinx.coroutines.flow.first
 
 class LAudioFetcher(
     val audio: LAudio,
@@ -33,9 +33,12 @@ class LAudioFetcher(
             ?.dataSource
             ?: throw IllegalArgumentException("MediaSource not found")
 
-        // TODO: 提取 Coil options 中的目标尺寸，传给 MediaFetchOptions
-        // Coil 3 SizeResolver 是 suspend 的，需要额外处理
-        val fetchOptions = MediaFetchOptions.EMPTY
+        // Coil 3 Size.width/height 是 Dimension 类型，
+        // pxOrElse { 0 } 提取像素值，未指定时回退 0
+        val fetchOptions = MediaFetchOptions(
+            width = options.size.width.pxOrElse { 0 },
+            height = options.size.height.pxOrElse { 0 },
+        )
         val pictureData = source.getPicture(audio, fetchOptions) ?: return null
 
         val data = when (pictureData) {
