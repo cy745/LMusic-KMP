@@ -51,7 +51,17 @@ object AudioSessionHelper : CoroutineScope {
         )
     }
 
-    fun bindPlayback(playback: Playback) {
+    /**
+     * 绑定 AudioSession 中断监听。
+     *
+     * @param playback Playback 实例
+     * @param onInterruptionBegan 可选的自定义中断处理（默认调 playback.pause()）。
+     *                            当 MusicKitEngine 活跃时传入可跳过误中断。
+     */
+    fun bindPlayback(
+        playback: Playback,
+        onInterruptionBegan: (suspend () -> Unit)? = null
+    ) {
         NSNotificationCenter.defaultCenter().addObserverForName(
             name = "AVAudioSessionInterruptionNotification",
             `object` = audioSession,
@@ -66,7 +76,11 @@ object AudioSessionHelper : CoroutineScope {
 
                     when (typeValue) {
                         AVAudioSessionInterruptionTypeBegan -> {
-                            launch { playback.pause() }
+                            if (onInterruptionBegan != null) {
+                                launch { onInterruptionBegan() }
+                            } else {
+                                launch { playback.pause() }
+                            }
                         }
 
                         AVAudioSessionInterruptionTypeEnded -> {

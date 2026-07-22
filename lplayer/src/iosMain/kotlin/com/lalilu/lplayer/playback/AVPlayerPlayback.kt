@@ -72,7 +72,13 @@ class AVPlayerPlayback(
         NowPlayingInfoNotification.bindPlayback(this)
         RemoteCommandHandler.bindPlayback(this)
         if (AudioSessionHelper.setUpAudioSession()) {
-            AudioSessionHelper.bindPlayback(this)
+            // MusicKit 启动播放时会触发 AudioSession 中断通知，导致误暂停。
+            // 自定义中断处理器：仅当非 MusicKitEngine 时 pause。
+            AudioSessionHelper.bindPlayback(this, onInterruptionBegan = {
+                if (activeEngine !is MusicKitEngine) {
+                    pause()
+                }
+            })
         }
     }
 
