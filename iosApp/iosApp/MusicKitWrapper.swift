@@ -136,9 +136,10 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
 
     // ── Playback Control ──
 
-    /// Play a single song identified by its store ID.
+    /// Set queue to a single song identified by its store ID.
+    /// Does NOT start playback — call [resumePlayback] separately.
     /// The song must be in the cache (pre-configured via [configure]).
-    @objc public func playWithStoreID(_ storeID: String) {
+    @objc public func setQueueWithStoreID(_ storeID: String) {
         guard let song = songCache[storeID] else {
             let error = NSError(
                 domain: "MusicKitPlayerController",
@@ -157,26 +158,11 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
         currentSongDuration = song.duration ?? 0
         lastKnownStatus = nil
 
-        // Queue the song and start playback (fire-and-forget Task)
+        // Queue the song only — playback will be started by resumePlayback
         player.queue = [song]
-        Task { [weak self] in
-            guard let self = self else { return }
-            do {
-                try await self.player.play()
-                await MainActor.run {
-                    // Start time tracking once playback begins
-                    self.playStartTime = Date()
-                    self.startPolling()
-                }
-            } catch {
-                let nsError = error as NSError
-                await MainActor.run {
-                    self.delegate?.onPlaybackError(error: nsError)
-                }
-            }
-        }
     }
 
+    /// Start or resume playback of the currently queued song.
     @objc public func resumePlayback() {
         Task { [weak self] in
             guard let self = self else { return }
@@ -184,6 +170,7 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
                 try await self.player.play()
                 await MainActor.run {
                     self.playStartTime = Date()
+                    self.startPolling()
                 }
             } catch {
                 let nsError = error as NSError
@@ -213,13 +200,13 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
 
     @objc public func skipToNext() {
         Task { [weak self] in
-            await self?.player.skipToNextEntry()
+            try? await self?.player.skipToNextEntry()
         }
     }
 
     @objc public func skipToPrevious() {
         Task { [weak self] in
-            await self?.player.skipToPreviousEntry()
+            try? await self?.player.skipToPreviousEntry()
         }
     }
 
@@ -229,6 +216,23 @@ public protocol MusicKitPlayerControllerDelegate: NSObjectProtocol {
         // On iOS 16, we approximate by resetting accumulated time.
         accumulatedTime = time
         playStartTime = Date()
+    }
+
+    // ── Artwork Loading ──
+
+    /// Fetch artwork image data for a song by store ID.
+    /// Attempts to load the URL returned by MusicKit's Artwork API;
+    /// returns nil if the URL is not loadable (e.g. musicKit:// scheme).
+    @objc public func artworkDataForStoreID(_ storeID: String) -> NSData? {
+        guard let song = songCache[storeID],
+              let artwork = song.artwork,
+              let url = artwork.url(width: 1200, height: 1200) else { return nil }
+
+        // The URL may be musicKit:// for library items; try loading it.
+        // If the system doesn't handle this scheme, URLSession or NSData(contentsOf:)
+        // will return nil, and we gracefully degrade to no artwork.
+        guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
+        return data as NSData
     }
 
     // ── Synchronous State Queries ──

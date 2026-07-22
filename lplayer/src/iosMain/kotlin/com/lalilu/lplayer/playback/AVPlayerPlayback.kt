@@ -131,7 +131,10 @@ class AVPlayerPlayback(
             val engine = engineRouter.selectEngine(mediaData, item)
                 ?: throw NoEngineFoundException(mediaData, item)
 
+            logger.i(messageString = "skipTo[$index] item=${item.title} source=${item.mediaSourceName} engine=${engine::class.simpleName} mediaData=${mediaData::class.simpleName}")
+
             if (engine !== activeEngine) {
+                logger.i(messageString = "switch engine: ${activeEngine?.let { it::class.simpleName }} → ${engine::class.simpleName}")
                 activeEngine?.release()
                 activeEngine = engine
             }

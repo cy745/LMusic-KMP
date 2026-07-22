@@ -1,5 +1,7 @@
 package com.lalilu.lmedia.source
 
+import co.touchlab.kermit.Logger
+import com.lalilu.lmedia.MusicKitPlayerController
 import com.lalilu.lmedia.MusicKitWrapper
 import com.lalilu.lmedia.SongInfo
 import com.lalilu.lmedia.domain.model.LAudio
@@ -10,7 +12,9 @@ import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.buildSnapshot
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.readBytes
 import kotlinx.coroutines.channels.awaitClose
+import platform.Foundation.NSData
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
@@ -23,6 +27,9 @@ class MusicKitSource : DomainMediaSource, MediaDataSource {
     override val name: String = "MusicKitSource"
     override val dataSource: MediaDataSource = this
 
+    /** id → SongInfo 缓存，用于 [getPicture] 和 [getMedia] 按 id 查找完整数据。 */
+    private val songStore = mutableMapOf<String, SongInfo>()
+
     override fun source(): Flow<Snapshot> {
         val songsFlow = callbackFlow {
             MusicKitWrapper.fetchUserLibrarySongsWithCompletionHandler { songs, error ->
@@ -34,15 +41,18 @@ class MusicKitSource : DomainMediaSource, MediaDataSource {
         }
 
         return songsFlow.map { songs ->
+            Logger.i(tag = name, messageString = "fetched ${songs.size} songs from MusicKit")
+            songStore.clear()
+
             val audios = songs.map { song ->
                     val playUrl = song.url()?.absoluteString ?: ""
-                    val artworkUrl = song.artwork()
-                        ?.urlWithWidth(512, 512)
-                        ?.absoluteString
-                        ?: ""
                     val storeID = song.storeID() ?: ""
 
-                    LAudio(
+                    if (storeID.isBlank()) {
+                        Logger.i(tag = name, messageString = "song missing storeID: ${song.title()}")
+                    }
+
+                    val audio = LAudio(
                         id = "${LAudio.ID_PREFIX}${song.title()}_${song.artist()}",
                         title = song.title() ?: "Unknown",
                         subtitle = song.artist() ?: "Unknown Subs",
@@ -56,21 +66,49 @@ class MusicKitSource : DomainMediaSource, MediaDataSource {
                         extra = buildMap {
                             if (storeID.isNotBlank()) put("storeID", storeID)
                             if (playUrl.isNotBlank()) put("url", playUrl)
-                            if (artworkUrl.isNotBlank()) put("artworkUrl", artworkUrl)
                         }
                     )
+                    songStore[audio.id] = song
+                    audio
                 }
-            buildSnapshot(audios)
+            Logger.i(tag = name, messageString = "configured MusicKitPlayerController with ${songs.size} songs")
+            val snapshot = buildSnapshot(audios)
+            Logger.i(tag = name, messageString = "snapshot: count=${snapshot.audios?.size} state=${snapshot.state}")
+            snapshot
         }
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? {
-        val url = song.extra?.get("url") ?: return null
-        return MediaData.Url(url)
+        val storeID = songStore[song.id]?.storeID()?.takeIf { it.isNotBlank() }
+            ?: song.extra?.get("storeID") as? String
+        if (storeID != null) {
+            // MusicKitEngine 按 mediaSourceName 路由，不需要实际的 MediaData
+            return MediaData.Url("musickit://play/$storeID")
+        }
+        val url = song.extra?.get("url") as? String
+        if (url != null && url.isNotBlank()) return MediaData.Url(url)
+        return MediaData.Url("musickit://placeholder")
     }
 
     override suspend fun getPicture(song: LAudio): MediaData? {
-        val artworkUrl = song.extra?.get("artworkUrl") ?: return null
-        return MediaData.Url(artworkUrl)
+        val storeID = songStore[song.id]?.storeID()?.takeIf { it.isNotBlank() }
+            ?: song.extra?.get("storeID") as? String
+            ?: return null
+
+        // 通过 Swift 桥获取 artwork 图片数据
+        val controller = MusicKitPlayerController.shared()
+        val data = controller?.artworkDataForStoreID(storeID)
+        if (data != null && data.length > 0uL) {
+            return MediaData.Bytes(data.toByteArray())
+        }
+        return null
     }
+}
+
+/** NSData → ByteArray */
+@OptIn(ExperimentalForeignApi::class)
+private fun NSData.toByteArray(): ByteArray {
+    val size = length.toInt()
+    if (size <= 0 || bytes == null) return ByteArray(0)
+    return bytes!!.readBytes(size)
 }

@@ -32,8 +32,7 @@ class LAudioFetcher(
             ?.dataSource
             ?: throw IllegalArgumentException("MediaSource not found")
 
-        val pictureData = source.getPicture(audio)
-            ?: throw IllegalArgumentException("Picture not found for data: $audio")
+        val pictureData = source.getPicture(audio) ?: return null
 
         val data = when (pictureData) {
             is MediaData.Bytes -> pictureData.bytes

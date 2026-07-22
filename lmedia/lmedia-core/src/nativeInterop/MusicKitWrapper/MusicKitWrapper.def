@@ -89,13 +89,13 @@ typedef void (^MusicKitWrapperFetchCompletion)(NSArray<SongInfo *> * _Nullable s
 @property (nonatomic, readonly) BOOL isCurrentlyPlaying;
 
 /// Populate the song cache from SongInfo objects.
-/// Must be called before playWithStoreID.
 - (void)configureWithSongInfos:(NSArray<SongInfo *> *)songInfos;
 
-/// Play a single song by its store ID (must be in cache).
-- (void)playWithStoreID:(NSString *)storeID;
+/// Set queue to a single song by its store ID (must be in cache).
+/// Does NOT start playback — call [resumePlayback] separately.
+- (void)setQueueWithStoreID:(NSString *)storeID;
 
-/// Resume playback (previously paused).
+/// Start or resume playback of the currently queued song.
 - (void)resumePlayback;
 
 /// Pause current playback.
@@ -115,6 +115,9 @@ typedef void (^MusicKitWrapperFetchCompletion)(NSArray<SongInfo *> * _Nullable s
 
 /// Release resources — call when switching to another playback engine.
 - (void)invalidate;
+
+/// Fetch artwork image data for a song (returns JPEG/PNG bytes, or nil).
+- (nullable NSData *)artworkDataForStoreID:(NSString *)storeID;
 
 /// Shared singleton controller
 + (instancetype)shared;

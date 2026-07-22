@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.launch
 import platform.Foundation.NSError
 import platform.darwin.NSObject
 
@@ -55,8 +54,11 @@ class MusicKitEngine : PlaybackEngine {
         controller!!.setDelegate(delegate)
     }
 
-    override fun canHandle(mediaData: MediaData, audio: LAudio): Boolean =
-        audio.mediaSourceName == "MusicKitSource"
+    override fun canHandle(mediaData: MediaData, audio: LAudio): Boolean {
+        val result = audio.mediaSourceName == "MusicKitSource"
+        logger.i(messageString = "canHandle(audio=${audio.id}, source=${audio.mediaSourceName}) → $result")
+        return result
+    }
 
     override suspend fun load(mediaData: MediaData, audio: LAudio) {
         val storeID = audio.extra?.get("storeID") as? String
@@ -65,33 +67,56 @@ class MusicKitEngine : PlaybackEngine {
         loadedStoreID = storeID
         _state.value = PlaybackEngineState(isLoading = true)
 
-        logger.i(messageString = "loading storeID: $storeID (${audio.title})")
+        logger.i(messageString = "loading storeID=$storeID title=${audio.title} artist=${audio.subtitle}")
 
-        controller!!.playWithStoreID(storeID)
+        try {
+            controller!!.setQueueWithStoreID(storeID)
+        } catch (e: Exception) {
+            logger.e(tag = TAG, messageString = "setQueueWithStoreID failed", throwable = e)
+            _state.value = PlaybackEngineState(isLoading = false, error = e.message)
+            throw e
+        }
         // State is updated asynchronously via delegate callbacks
     }
 
     override suspend fun play() {
-        logger.i(messageString = "resume playback")
-        controller!!.resumePlayback()
-        // isPlaying will be updated via delegate onPlaybackStateChanged
+        logger.i(messageString = "resume playback (storeID=$loadedStoreID)")
+        try {
+            controller!!.resumePlayback()
+        } catch (e: Exception) {
+            logger.e(tag = TAG, messageString = "resumePlayback failed", throwable = e)
+            _state.update { it.copy(error = e.message) }
+        }
     }
 
     override suspend fun pause() {
         logger.i(messageString = "pause playback")
-        controller!!.pausePlayback()
+        try {
+            controller!!.pausePlayback()
+        } catch (e: Exception) {
+            logger.e(tag = TAG, messageString = "pausePlayback failed", throwable = e)
+        }
         _state.update { it.copy(isPlaying = false) }
     }
 
     override suspend fun stop() {
         logger.i(messageString = "stop playback")
-        controller!!.stopPlayback()
+        try {
+            controller!!.stopPlayback()
+        } catch (e: Exception) {
+            logger.e(tag = TAG, messageString = "stopPlayback failed", throwable = e)
+        }
         _state.value = PlaybackEngineState.EMPTY
         loadedStoreID = null
     }
 
     override suspend fun seekTo(positionMs: Long) {
-        controller!!.seekTo(positionMs / 1000.0)
+        logger.i(messageString = "seekTo: ${positionMs}ms")
+        try {
+            controller!!.seekTo(positionMs / 1000.0)
+        } catch (e: Exception) {
+            logger.e(tag = TAG, messageString = "seekTo failed", throwable = e)
+        }
         _state.update { it.copy(position = positionMs) }
     }
 
@@ -101,8 +126,12 @@ class MusicKitEngine : PlaybackEngine {
 
     override suspend fun release() {
         logger.i(messageString = "release")
-        controller!!.stopPlayback()
-        controller!!.invalidate()
+        try {
+            controller!!.stopPlayback()
+            controller!!.invalidate()
+        } catch (e: Exception) {
+            logger.e(tag = TAG, messageString = "release failed", throwable = e)
+        }
         _state.value = PlaybackEngineState.EMPTY
         loadedStoreID = null
     }
