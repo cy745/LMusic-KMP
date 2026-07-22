@@ -32,6 +32,7 @@ class AVPlayerPlayback(
     private val logger = Logger.withTag(TAG)
 
     override fun createEngines(): List<PlaybackEngine> = listOf(
+        MusicKitEngine(),
         AVAudioPlayerEngine(),
         AVPlayerEngine(),
     )

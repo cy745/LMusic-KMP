@@ -5,6 +5,7 @@ package = com.lalilu.lmedia
 
 @class ArtworkItem;
 @class SongInfo;
+@class MusicKitPlayerController;
 
 /// Completion handler for fetchUserLibrarySongs
 /// @param songs Array of SongInfo objects, or nil if failed
@@ -39,6 +40,8 @@ typedef void (^MusicKitWrapperFetchCompletion)(NSArray<SongInfo *> * _Nullable s
 - (nullable ArtworkItem *)artwork;
 /// Song URL
 - (nullable NSURL *)url;
+/// Store ID (MusicItemID as string), used for playback
+- (NSString *)storeID;
 
 /// Initialize SongInfo with all properties
 /// @param title Song title
@@ -47,13 +50,74 @@ typedef void (^MusicKitWrapperFetchCompletion)(NSArray<SongInfo *> * _Nullable s
 /// @param duration Song duration in seconds
 /// @param artwork ArtworkItem for album art
 /// @param url Song URL
+/// @param storeID Store ID string
 /// @return Initialized SongInfo instance
 - (instancetype)initWithTitle:(NSString *)title
                       artist:(NSString *)artist
                        album:(NSString *)album
                     duration:(NSTimeInterval)duration
                     artwork:(nullable ArtworkItem *)artwork
-                         url:(nullable NSURL *)url;
+                         url:(nullable NSURL *)url
+                     storeID:(NSString *)storeID;
+
+@end
+
+#pragma mark - MusicKitPlayerControllerDelegate
+
+@protocol MusicKitPlayerControllerDelegate <NSObject>
+@required
+- (void)onPlaybackStateChangedWithIsPlaying:(BOOL)isPlaying
+                              playbackTime:(double)playbackTime
+                                  duration:(double)duration;
+- (void)onDidFinishPlaying;
+- (void)onPlaybackErrorWithError:(NSError *)error;
+@end
+
+#pragma mark - MusicKitPlayerController
+
+@interface MusicKitPlayerController : NSObject
+
+/// Delegate for receiving playback state updates
+@property (nonatomic, weak, nullable) id<MusicKitPlayerControllerDelegate> delegate;
+
+/// Number of songs currently in cache
+@property (nonatomic, readonly) NSInteger cachedSongCount;
+
+/// Synchronous playback state queries
+@property (nonatomic, readonly) double currentPlaybackTime;
+@property (nonatomic, readonly) double currentDuration;
+@property (nonatomic, readonly) BOOL isCurrentlyPlaying;
+
+/// Populate the song cache from SongInfo objects.
+/// Must be called before playWithStoreID.
+- (void)configureWithSongInfos:(NSArray<SongInfo *> *)songInfos;
+
+/// Play a single song by its store ID (must be in cache).
+- (void)playWithStoreID:(NSString *)storeID;
+
+/// Resume playback (previously paused).
+- (void)resumePlayback;
+
+/// Pause current playback.
+- (void)pausePlayback;
+
+/// Stop current playback and clear state.
+- (void)stopPlayback;
+
+/// Skip to next entry in the player's internal queue.
+- (void)skipToNext;
+
+/// Skip to previous entry.
+- (void)skipToPrevious;
+
+/// Seek to a specific time in seconds.
+- (void)seekTo:(double)time;
+
+/// Release resources — call when switching to another playback engine.
+- (void)invalidate;
+
+/// Shared singleton controller
++ (instancetype)shared;
 
 @end
 

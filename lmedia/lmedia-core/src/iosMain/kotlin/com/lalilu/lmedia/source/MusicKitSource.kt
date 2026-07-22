@@ -40,6 +40,7 @@ class MusicKitSource : DomainMediaSource, MediaDataSource {
                         ?.urlWithWidth(512, 512)
                         ?.absoluteString
                         ?: ""
+                    val storeID = song.storeID() ?: ""
 
                     LAudio(
                         id = "${LAudio.ID_PREFIX}${song.title()}_${song.artist()}",
@@ -53,6 +54,7 @@ class MusicKitSource : DomainMediaSource, MediaDataSource {
                             duration = (song.duration() * 1000).toLong(),
                         ),
                         extra = buildMap {
+                            if (storeID.isNotBlank()) put("storeID", storeID)
                             if (playUrl.isNotBlank()) put("url", playUrl)
                             if (artworkUrl.isNotBlank()) put("artworkUrl", artworkUrl)
                         }
