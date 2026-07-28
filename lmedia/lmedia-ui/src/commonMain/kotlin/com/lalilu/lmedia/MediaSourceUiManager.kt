@@ -1,24 +1,19 @@
 package com.lalilu.lmedia
 
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.lalilu.component.LazyStaggeredGridContent
 import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.source.RemoteSource
-import com.lalilu.lmedia.source.RemoteSourceContent
-import com.lalilu.lmedia.source.SubsonicSourceContent
+import com.lalilu.lmedia.source.remoteSourceContent
 import com.lalilu.lmedia.source.subsonic.SubsonicSource
+import com.lalilu.lmedia.source.subsonicSourceContent
 
-@Composable
-expect fun MediaSource.platformMediaSourceContent(modifier: Modifier): Boolean
+expect fun MediaSource.platformMediaSourceContent(modifier: Modifier): LazyStaggeredGridContent?
 
-@Composable
-fun MediaSource.Content(modifier: Modifier = Modifier) {
-    if (platformMediaSourceContent(modifier)) {
-        return
-    }
-
-    when (this) {
-        is SubsonicSource -> SubsonicSourceContent(modifier)
-        is RemoteSource -> RemoteSourceContent(modifier)
+fun MediaSource.content(modifier: Modifier = Modifier): LazyStaggeredGridContent? {
+    return platformMediaSourceContent(modifier) ?: when (this) {
+        is SubsonicSource -> subsonicSourceContent(modifier)
+        is RemoteSource -> remoteSourceContent(modifier)
+        else -> null
     }
 }

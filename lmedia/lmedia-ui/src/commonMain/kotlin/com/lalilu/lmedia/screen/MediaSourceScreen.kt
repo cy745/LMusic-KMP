@@ -4,7 +4,6 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -14,7 +13,7 @@ import androidx.window.core.layout.WindowSizeClass
 import com.lalilu.RemixIcon
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.krouter.annotation.Destination
-import com.lalilu.lmedia.Content
+import com.lalilu.lmedia.content
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.remote.RemoteServerPanel
 import com.lalilu.navigation.Screen
@@ -54,6 +53,10 @@ object MediaSourceScreen : Screen, ScreenInfoFactory {
             default = { navigationBar.calculateBottomPadding() }
         )
 
+        val sourcesContent = remember(platformSource.sources) {
+            platformSource.sources.mapNotNull { it.content(modifier = Modifier.fillMaxWidth()) }
+        }.map { it.register() }
+
         LazyVerticalStaggeredGrid(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -77,12 +80,7 @@ object MediaSourceScreen : Screen, ScreenInfoFactory {
             item {
                 RemoteServerPanel(modifier = Modifier.fillMaxWidth())
             }
-            items(
-                items = platformSource.sources,
-                key = { it.name },
-            ) { source ->
-                source.Content(modifier = Modifier.fillMaxWidth())
-            }
+            sourcesContent.forEach { it.invoke(this) }
         }
     }
 }
