@@ -1,18 +1,14 @@
 package com.lalilu.lmedia.source.subsonic
 
-import androidx.compose.runtime.getValue
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.md5
 import com.lalilu.common.ext.retrieveAllPage
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.Metadata
-import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.*
 import com.lalilu.lmedia.source.Configurable
 import com.lalilu.lmedia.source.MediaSourceConfig
-import com.lalilu.lmedia.domain.source.Snapshot
-import com.lalilu.lmedia.domain.source.SnapshotState
-import com.lalilu.lmedia.domain.source.buildSnapshot
 import com.lalilu.lmedia.source.buildConfig
 import com.lalilu.lmedia.source.subsonic.entity.toLrcContent
 import de.jensklingenberg.ktorfit.ktorfit
@@ -30,11 +26,11 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, com.lalilu.lmedia.domain.source.MediaDataSource::class])
+@Single(binds = [MediaSource::class, MediaDataSource::class])
 class SubsonicSource(
     private val json: Json,
     private val saver: com.lalilu.lmedia.source.Saver
-) : com.lalilu.lmedia.domain.source.MediaSource, com.lalilu.lmedia.domain.source.MediaDataSource, Configurable, CoroutineScope {
+) : MediaSource, MediaDataSource, Configurable, CoroutineScope {
 
     companion object {
         private const val TAG = "SubsonicSource"
@@ -93,7 +89,7 @@ class SubsonicSource(
             key = "Cancel",
             description = "取消当前执行任务",
             isAvailable = {
-                snapshotFlow.value.state.let { it is SnapshotState.Loading  }
+                snapshotFlow.value.state.let { it is SnapshotState.Loading }
             }
         ).onCall {
             // TODO: 实现取消逻辑

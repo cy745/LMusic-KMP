@@ -1,6 +1,5 @@
 package com.lalilu.lmedia.source.mediastore
 
-import android.annotation.SuppressLint
 import android.app.Application
 import android.database.ContentObserver
 import android.net.Uri
@@ -12,30 +11,22 @@ import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.source.*
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
-import com.lalilu.lmedia.domain.source.Snapshot
-import com.lalilu.lmedia.domain.source.SnapshotState
-import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
-import com.lalilu.lmedia.source.Configurable
-import com.lalilu.lmedia.source.MediaSourceConfig
-import com.lalilu.lmedia.source.Saver
-import com.lalilu.lmedia.source.buildConfig
-import com.lalilu.lmedia.source.range
+import com.lalilu.lmedia.source.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, MediaDataSource::class])
+@Single(binds = [MediaSource::class, MediaDataSource::class])
 class MediaStoreSource(
     private val context: Application,
     private val saver: Saver
-) : DomainMediaSource, MediaDataSource, Configurable {
+) : MediaSource, MediaDataSource, Configurable {
     override val name: String = "MediaStore"
     override val dataSource: MediaDataSource = this
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
