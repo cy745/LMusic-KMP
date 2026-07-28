@@ -4,23 +4,21 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
-import com.lalilu.lmedia.source.configOrNullCompat
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lalilu.component.LazyStaggeredGridContent
 import com.lalilu.lmedia.component.SourceCard
 import com.lalilu.lmedia.domain.source.Snapshot
-import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
 import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.source.mediastore.MediaStoreSource
 
 
-@Composable
-fun DomainMediaSource.MediaStoreSourceContent(modifier: Modifier) {
+fun MediaStoreSource.mediaStoreSourceContent(modifier: Modifier) = LazyStaggeredGridContent {
     val context = LocalContext.current
     val state = source().collectAsStateWithLifecycle(initialValue = Snapshot.Loading)
     val permission = remember {
@@ -54,10 +52,14 @@ fun DomainMediaSource.MediaStoreSourceContent(modifier: Modifier) {
         )
     }
 
-    SourceCard(
-        modifier = modifier,
-        state = { state.value },
-        extraFunctions = { extraFunctions },
-        extraMessage = msg@{ if (granted.value) "请求权限成功" else "请授权访问媒体文件" }
-    )
+    return@LazyStaggeredGridContent {
+        item(key = this@mediaStoreSourceContent.name) {
+            SourceCard(
+                modifier = modifier,
+                state = { state.value },
+                extraFunctions = { extraFunctions },
+                extraMessage = msg@{ if (granted.value) "请求权限成功" else "请授权访问媒体文件" }
+            )
+        }
+    }
 }
