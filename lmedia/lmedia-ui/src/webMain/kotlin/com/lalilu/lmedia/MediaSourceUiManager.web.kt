@@ -1,10 +1,9 @@
 package com.lalilu.lmedia
 
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.lalilu.component.LazyStaggeredGridContent
 import com.lalilu.lmedia.domain.source.MediaSource
 
-@Composable
-actual fun MediaSource.platformMediaSourceContent(modifier: Modifier): Boolean {
-    return false
+actual fun MediaSource.platformMediaSourceContent(modifier: Modifier): LazyStaggeredGridContent? {
+    return null
 }

@@ -1,32 +1,18 @@
 package com.lalilu.lmedia
 
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.lalilu.component.LazyStaggeredGridContent
 import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.source.MediaLibrarySource
-import com.lalilu.lmedia.source.MediaLibrarySourceContent
 import com.lalilu.lmedia.source.MusicKitSource
-import com.lalilu.lmedia.source.MusicKitSourceContent
-import com.lalilu.lmedia.source.SandBoxFileSystemSourceContent
+import com.lalilu.lmedia.source.mediaLibrarySourceContent
+import com.lalilu.lmedia.source.musicKitSourceContent
+import com.lalilu.lmedia.source.sandBoxFileSystemSourceContent
 import com.lalilu.lmedia.source.sandbox.SandboxFileSystemSource
 
-@Composable
-actual fun MediaSource.platformMediaSourceContent(modifier: Modifier): Boolean {
-    when (this) {
-        is SandboxFileSystemSource -> {
-            SandBoxFileSystemSourceContent(modifier)
-            return true
-        }
-
-        is MediaLibrarySource -> {
-            MediaLibrarySourceContent(modifier)
-            return true
-        }
-
-        is MusicKitSource -> {
-            MusicKitSourceContent(modifier)
-            return true
-        }
-    }
-    return false
+actual fun MediaSource.platformMediaSourceContent(modifier: Modifier): LazyStaggeredGridContent? {
+    if (this is SandboxFileSystemSource) return sandBoxFileSystemSourceContent(modifier)
+    if (this is MediaLibrarySource) return mediaLibrarySourceContent(modifier)
+    if (this is MusicKitSource) return musicKitSourceContent(modifier)
+    return null
 }
