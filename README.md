@@ -4,7 +4,7 @@
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2.21-blue?logo=kotlin)](https://kotlinlang.org)
 [![Compose Multiplatform](https://img.shields.io/badge/Compose-1.11.0--alpha01-purple)](https://www.jetbrains.com/lp/compose-multiplatform)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-green)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache--2.0-blue)](LICENSE)
 [![Gradle](https://img.shields.io/badge/Gradle-8.11.1-orange?logo=gradle)](https://gradle.org)
 [![CI Status](https://github.com/cy745/LMusic-KMP/actions/workflows/main.yml/badge.svg)](https://github.com/cy745/LMusic-KMP/actions)
 
@@ -80,5 +80,5 @@ LMusic-KMP/
 
 ## 协议
 
-- 主协议：[GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE)
+- 主协议：[Apache License 2.0](LICENSE)
 - 第三方组件：[NOTICE](NOTICE)
