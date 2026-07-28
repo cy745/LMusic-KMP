@@ -38,12 +38,13 @@ class AVPlayerPlayback(
 
     private var volumeFadeHelper = VolumeFadeHelper(
         onSetVolume = { v ->
-            val engine = activeEngine
-            when {
-                engine is AVPlayerEngine -> engine.setVolume(v)
-                engine is AVAudioPlayerEngine -> engine.setVolume(v)
+            when (val engine = activeEngine) {
+                is AVPlayerEngine -> engine.setVolume(v)
+                is AVAudioPlayerEngine -> engine.setVolume(v)
             }
-        }
+        },
+        // MusicKitEngine 不支持音量控制，跳过渐变直接播放/暂停
+        fadeEnabled = { activeEngine !is MusicKitEngine }
     )
 
     init {

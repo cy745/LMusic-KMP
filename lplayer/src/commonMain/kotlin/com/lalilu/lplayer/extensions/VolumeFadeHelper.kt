@@ -9,7 +9,9 @@ import kotlin.coroutines.CoroutineContext
 class VolumeFadeHelper(
     val debug: Boolean = false,
     val onSetVolume: (volume: Float) -> Unit,
-    val onGetVolume: (() -> Float)? = null
+    val onGetVolume: (() -> Float)? = null,
+    /** 返回当前引擎是否支持音量渐变；false 时 play/pause 跳过动画直接执行 */
+    val fadeEnabled: () -> Boolean = { true },
 ) : CoroutineScope {
     override val coroutineContext: CoroutineContext = Dispatchers.io
     private var currentVelocity: Float = 0f
@@ -34,6 +36,11 @@ class VolumeFadeHelper(
         }
 
     fun play(superPlay: () -> Unit = {}) {
+        if (!fadeEnabled()) {
+            superPlay()
+            if (debug) Logger.i("fade disabled, play immediately")
+            return
+        }
         animationJob?.cancel()
         animationJob = launch(Dispatchers.io) {
             runAnimation(targetValue = 100f)
@@ -45,6 +52,11 @@ class VolumeFadeHelper(
     }
 
     fun pause(superPause: suspend () -> Unit = {}) {
+        if (!fadeEnabled()) {
+            launch { superPause() }
+            if (debug) Logger.i("fade disabled, pause immediately")
+            return
+        }
         animationJob?.cancel()
         animationJob = launch(Dispatchers.io) {
             runAnimation(targetValue = 0f)
