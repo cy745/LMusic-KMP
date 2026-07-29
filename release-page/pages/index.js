@@ -167,7 +167,7 @@ export default function SnapshotPage({ snapshot, error }) {
               <h2 className="section-title">下载</h2>
               {hasAssets ? (
                 <div className="downloads">
-                  {Object.entries(groups).map(([pf, items]) => (
+                  {Object.entries(groups).filter(([pf]) => pf !== 'windows').map(([pf, items]) => (
                     <div key={pf} className="platform-group">
                       <div className="platform-label" data-platform={pf}>
                         <i className={`${PLATFORM_META[pf]?.icon || 'ri-file-2-fill'} ri-fw`} style={{ color: PLATFORM_META[pf]?.iconColor }} />
