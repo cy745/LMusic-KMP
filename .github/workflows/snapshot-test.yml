@@ -3,6 +3,21 @@ name: Snapshot Build
 on:
   push:
     branches: [ "dev" ]
+    # 仅在非文档/非工具路径变更时触发完整 CI
+    paths-ignore:
+      - '.claude/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.gitignore'
+      - '.yarnrc'
+      - 'docs/**'
+      - 'kotlin-js-store/**'
+      - 'LICENSE'
+      - 'midscene/**'
+      - 'NOTICE'
+      - 'release-page/**'
+      - 'vercel.json'
+      - '**/*.md'
+      - '**/README.md'
 
 concurrency:
   group: snapshot-${{ github.ref }}
