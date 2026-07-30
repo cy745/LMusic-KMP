@@ -122,7 +122,7 @@ settings-no-arg = { module = "com.russhwolf:multiplatform-settings-no-arg", vers
 settings-serialization = { module = "com.russhwolf:multiplatform-settings-serialization", version.ref = "settings" }
 settings-coroutines = { module = "com.russhwolf:multiplatform-settings-coroutines", version.ref = "settings" }
 
-remixicon-kmp = { module = "io.github.cy745:remixicon-kmp", version = "0.0.2" }
+remixicon-kmp = { module = "io.github.cy745:remixicon-kmp", version = "0.0.4" }
 
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
 ktor-server-cors = { module = "io.ktor:ktor-server-cors", version.ref = "ktor" }

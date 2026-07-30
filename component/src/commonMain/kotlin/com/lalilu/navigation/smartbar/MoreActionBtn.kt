@@ -23,11 +23,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -44,11 +40,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.lalilu.RemixIcon
-import com.lalilu.remixicon.Arrows
-import com.lalilu.remixicon.arrows.arrowRightSLine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlin.collections.indexOf
+import org.jetbrains.compose.resources.vectorResource
 
 
 /**
@@ -92,7 +86,7 @@ internal fun MoreActionBtn(
         ) {
             Icon(
                 modifier = Modifier.size(20.dp),
-                imageVector = RemixIcon.Arrows.arrowRightSLine,
+                imageVector = vectorResource(RemixIcon.Arrows.arrowRightSLine),
                 contentDescription = null,
                 tint = color
             )

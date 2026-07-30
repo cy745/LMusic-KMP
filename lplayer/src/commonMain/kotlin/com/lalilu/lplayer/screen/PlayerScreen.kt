@@ -37,8 +37,6 @@ import com.lalilu.lplayer.lplayer.generated.resources.Res
 import com.lalilu.lplayer.lplayer.generated.resources.player_screen_title
 import com.lalilu.lplayer.viewmodel.PlayerViewModel
 import com.lalilu.navigation.*
-import com.lalilu.remixicon.Media
-import com.lalilu.remixicon.media.music2Line
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch

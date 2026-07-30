@@ -16,15 +16,7 @@
 
 package com.lalilu.lhistory.screen
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,15 +40,12 @@ import com.lalilu.lhistory.lhistory.generated.resources.Res
 import com.lalilu.lhistory.lhistory.generated.resources.history_screen_title
 import com.lalilu.lhistory.viewmodel.HistoryVM
 import com.lalilu.lmedia.domain.repository.AudioRepository
-import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
 import com.lalilu.navigation.smartbar.NavigatorHeader
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.system.historyLine
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel

@@ -31,8 +31,6 @@ import com.lalilu.lplaylist.lplaylist.generated.resources.Res
 import com.lalilu.lplaylist.lplaylist.generated.resources.playlist_action_add_to_playlist
 import com.lalilu.lplaylist.repository.PlaylistRepository
 import com.lalilu.navigation.*
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.system.checkLine
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject

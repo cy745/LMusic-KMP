@@ -19,7 +19,7 @@ package com.lalilu.common.settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.graphics.vector.ImageVector
+import org.jetbrains.compose.resources.DrawableResource
 
 
 /**
@@ -62,7 +62,7 @@ sealed interface Preference<T> {
     val summary: @Composable () -> String?
 
     /** 左侧图标（可空）。 */
-    val icon: @Composable () -> ImageVector?
+    val icon: @Composable () -> DrawableResource?
 
     /**
      * 当前值。getter 形式——子类从内部 [MutableState] 实时读取，
@@ -105,7 +105,7 @@ class SwitchPreference(
     override val key: String,
     override val title: @Composable () -> String,
     override val summary: @Composable () -> String? = { null },
-    override val icon: @Composable () -> ImageVector? = { null },
+    override val icon: @Composable () -> DrawableResource? = { null },
     override val visible: () -> Boolean = { true },
     override val enabled: () -> Boolean = { true }
 ) : Preference<Boolean> {
@@ -117,7 +117,7 @@ class SwitchPreference(
         value: Boolean,
         onValueChange: (Boolean) -> Unit,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ) : this(
@@ -154,7 +154,7 @@ class SliderPreference(
     override val key: String,
     override val title: @Composable () -> String,
     override val summary: @Composable () -> String? = { null },
-    override val icon: @Composable () -> ImageVector? = { null },
+    override val icon: @Composable () -> DrawableResource? = { null },
     override val visible: () -> Boolean = { true },
     override val enabled: () -> Boolean = { true }
 ) : Preference<Float> {
@@ -168,7 +168,7 @@ class SliderPreference(
         steps: Int = 0,
         valueLabel: @Composable (Float) -> String = { it.toString() },
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ) : this(
@@ -215,7 +215,7 @@ class DropdownPreference<T : Any>(
     override val key: String,
     override val title: @Composable () -> String,
     override val summary: @Composable () -> String? = { null },
-    override val icon: @Composable () -> ImageVector? = { null },
+    override val icon: @Composable () -> DrawableResource? = { null },
     override val visible: () -> Boolean = { true },
     override val enabled: () -> Boolean = { true }
 ) : Preference<T> {
@@ -230,7 +230,7 @@ class DropdownPreference<T : Any>(
         serialize: (T) -> String,
         deserialize: (String) -> T?,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ) : this(
@@ -272,7 +272,7 @@ class MultiSelectPreference<T : Any>(
     override val key: String,
     override val title: @Composable () -> String,
     override val summary: @Composable () -> String? = { null },
-    override val icon: @Composable () -> ImageVector? = { null },
+    override val icon: @Composable () -> DrawableResource? = { null },
     override val visible: () -> Boolean = { true },
     override val enabled: () -> Boolean = { true }
 ) : Preference<Set<T>> {
@@ -287,7 +287,7 @@ class MultiSelectPreference<T : Any>(
         serializeSelected: (T) -> String,
         deserializeSelected: (String) -> T?,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ) : this(
@@ -327,7 +327,7 @@ class TextPreference(
     override val key: String,
     override val title: @Composable () -> String,
     override val summary: @Composable () -> String? = { null },
-    override val icon: @Composable () -> ImageVector? = { null },
+    override val icon: @Composable () -> DrawableResource? = { null },
     override val visible: () -> Boolean = { true },
     override val enabled: () -> Boolean = { true }
 ) : Preference<String> {
@@ -340,7 +340,7 @@ class TextPreference(
         singleLine: Boolean = true,
         hint: @Composable () -> String? = { null },
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ) : this(
@@ -376,7 +376,7 @@ class ClickPreference(
     override val key: String,
     override val title: @Composable () -> String,
     override val summary: @Composable () -> String? = { null },
-    override val icon: @Composable () -> ImageVector? = { null },
+    override val icon: @Composable () -> DrawableResource? = { null },
     override val visible: () -> Boolean = { true },
     override val enabled: () -> Boolean = { true }
 ) : Preference<Unit> {
@@ -398,7 +398,7 @@ class CustomPreference<T>(
     override val key: String,
     override val title: @Composable () -> String,
     override val summary: @Composable () -> String? = { null },
-    override val icon: @Composable () -> ImageVector? = { null },
+    override val icon: @Composable () -> DrawableResource? = { null },
     override val visible: () -> Boolean = { true },
     override val enabled: () -> Boolean = { true }
 ) : Preference<T> {
@@ -410,7 +410,7 @@ class CustomPreference<T>(
         onValueChange: (T) -> Unit,
         content: @Composable PreferenceRowScope.(Preference<*>) -> Unit,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ) : this(

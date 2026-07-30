@@ -30,8 +30,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.FixedScale
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
@@ -79,7 +80,7 @@ fun NavigateTabBar(
 fun NavigateItem(
     modifier: Modifier = Modifier,
     title: () -> String,
-    icon: () -> ImageVector?,
+    icon: () -> DrawableResource?,
     isSelected: () -> Boolean = { false },
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = {},
@@ -109,7 +110,7 @@ fun NavigateItem(
             ) {
                 icon()?.let {
                     Image(
-                        imageVector = it,
+                        imageVector = vectorResource(it),
                         contentDescription = title(),
                         colorFilter = ColorFilter.tint(iconTintColor.value),
                         contentScale = FixedScale(if (isSelected()) 1.1f else 1f)

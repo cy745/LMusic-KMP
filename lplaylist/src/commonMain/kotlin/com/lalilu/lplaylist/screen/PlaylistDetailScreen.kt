@@ -19,16 +19,6 @@ import com.lalilu.lplaylist.viewmodel.PlaylistDetailVM
 import com.lalilu.navigation.*
 import com.lalilu.navigation.smartbar.CancellableInputerBarPanel
 import com.lalilu.navigation.smartbar.CancellableScreenBarPanel
-import com.lalilu.remixicon.Design
-import com.lalilu.remixicon.Editor
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.design.editBoxLine
-import com.lalilu.remixicon.design.focus3Line
-import com.lalilu.remixicon.editor.sortDesc
-import com.lalilu.remixicon.system.checkboxMultipleBlankLine
-import com.lalilu.remixicon.system.checkboxMultipleLine
-import com.lalilu.remixicon.system.deleteBinLine
-import com.lalilu.remixicon.system.menuSearchLine
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf

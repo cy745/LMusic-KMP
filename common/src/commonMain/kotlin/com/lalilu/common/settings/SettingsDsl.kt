@@ -18,8 +18,8 @@ package com.lalilu.common.settings
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.graphics.vector.ImageVector
 import com.lalilu.common.kv.KVItem
+import org.jetbrains.compose.resources.DrawableResource
 
 
 /**
@@ -87,7 +87,7 @@ interface SettingsGroupBuilder {
         value: Boolean,
         onValueChange: (Boolean) -> Unit,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): SwitchPreference
@@ -97,7 +97,7 @@ interface SettingsGroupBuilder {
         kv: KVItem<Boolean>,
         title: @Composable () -> String,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): SwitchPreference
@@ -115,7 +115,7 @@ interface SettingsGroupBuilder {
         steps: Int = 0,
         valueLabel: @Composable (Float) -> String = { it.toString() },
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): SliderPreference
@@ -127,7 +127,7 @@ interface SettingsGroupBuilder {
         steps: Int = 0,
         valueLabel: @Composable (Float) -> String = { it.toString() },
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): SliderPreference
@@ -146,7 +146,7 @@ interface SettingsGroupBuilder {
         serialize: (T) -> String,
         deserialize: (String) -> T?,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): DropdownPreference<T>
@@ -160,7 +160,7 @@ interface SettingsGroupBuilder {
         deserialize: (String) -> T?,
         fallback: T,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): DropdownPreference<T>
@@ -179,7 +179,7 @@ interface SettingsGroupBuilder {
         serializeSelected: (T) -> String,
         deserializeSelected: (String) -> T?,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): MultiSelectPreference<T>
@@ -192,7 +192,7 @@ interface SettingsGroupBuilder {
         serializeSelected: (T) -> String,
         deserializeSelected: (String) -> T?,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): MultiSelectPreference<T>
@@ -209,7 +209,7 @@ interface SettingsGroupBuilder {
         singleLine: Boolean = true,
         hint: @Composable () -> String? = { null },
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): TextPreference
@@ -220,7 +220,7 @@ interface SettingsGroupBuilder {
         singleLine: Boolean = true,
         hint: @Composable () -> String? = { null },
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): TextPreference
@@ -230,7 +230,7 @@ interface SettingsGroupBuilder {
         title: @Composable () -> String,
         onClick: (PreferenceActionContext) -> Unit,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): ClickPreference
@@ -242,7 +242,7 @@ interface SettingsGroupBuilder {
         onValueChange: (T) -> Unit,
         content: @Composable PreferenceRowScope.(Preference<*>) -> Unit,
         summary: @Composable () -> String? = { null },
-        icon: @Composable () -> ImageVector? = { null },
+        icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): CustomPreference<T>
@@ -274,7 +274,7 @@ internal class SettingsGroupBuilderImpl(
         value: Boolean,
         onValueChange: (Boolean) -> Unit,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): SwitchPreference = add(
@@ -292,7 +292,7 @@ internal class SettingsGroupBuilderImpl(
         kv: KVItem<Boolean>,
         title: @Composable () -> String,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): SwitchPreference = add(
@@ -321,7 +321,7 @@ internal class SettingsGroupBuilderImpl(
         steps: Int,
         valueLabel: @Composable (Float) -> String,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): SliderPreference = add(
@@ -339,7 +339,7 @@ internal class SettingsGroupBuilderImpl(
         steps: Int,
         valueLabel: @Composable (Float) -> String,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): SliderPreference = add(
@@ -372,7 +372,7 @@ internal class SettingsGroupBuilderImpl(
         serialize: (T) -> String,
         deserialize: (String) -> T?,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): DropdownPreference<T> = add(
@@ -393,7 +393,7 @@ internal class SettingsGroupBuilderImpl(
         deserialize: (String) -> T?,
         fallback: T,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): DropdownPreference<T> = add(
@@ -424,7 +424,7 @@ internal class SettingsGroupBuilderImpl(
         serializeSelected: (T) -> String,
         deserializeSelected: (String) -> T?,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): MultiSelectPreference<T> = add(
@@ -444,7 +444,7 @@ internal class SettingsGroupBuilderImpl(
         serializeSelected: (T) -> String,
         deserializeSelected: (String) -> T?,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): MultiSelectPreference<T> = add(
@@ -473,7 +473,7 @@ internal class SettingsGroupBuilderImpl(
         singleLine: Boolean,
         hint: @Composable () -> String?,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): TextPreference = add(
@@ -490,7 +490,7 @@ internal class SettingsGroupBuilderImpl(
         singleLine: Boolean,
         hint: @Composable () -> String?,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): TextPreference = add(
@@ -510,7 +510,7 @@ internal class SettingsGroupBuilderImpl(
         title: @Composable () -> String,
         onClick: (PreferenceActionContext) -> Unit,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): ClickPreference = add(
@@ -529,7 +529,7 @@ internal class SettingsGroupBuilderImpl(
         onValueChange: (T) -> Unit,
         content: @Composable PreferenceRowScope.(Preference<*>) -> Unit,
         summary: @Composable () -> String?,
-        icon: @Composable () -> ImageVector?,
+        icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
         enabled: () -> Boolean
     ): CustomPreference<T> = add(

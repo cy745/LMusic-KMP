@@ -16,12 +16,8 @@
 
 package com.lalilu.navigation.smartbar
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -43,7 +39,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.isSpecified
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,6 +47,8 @@ import com.lalilu.navigation.ActionContext
 import com.lalilu.navigation.ScreenAction
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.vectorResource
 import kotlin.random.Random
 import kotlin.random.nextInt
 import kotlin.time.Clock
@@ -108,7 +105,7 @@ fun LongClickActionItemContent(
     color: Color,
     title: String,
     subTitle: String? = null,
-    icon: ImageVector? = null,
+    icon: DrawableResource? = null,
     dotColor: Color? = null,
     fullyExpended: Boolean = false,
     onAction: () -> Unit = {}
@@ -147,7 +144,7 @@ fun LongClickActionItemContent(
                 icon?.let {
                     Image(
                         modifier = Modifier.size(20.dp),
-                        imageVector = icon,
+                        imageVector = vectorResource(icon),
                         contentDescription = title,
                         colorFilter = ColorFilter.tint(color = color)
                     )
@@ -242,7 +239,7 @@ fun ActionItemContent(
     color: Color,
     title: String,
     subTitle: String? = null,
-    icon: ImageVector? = null,
+    icon: DrawableResource? = null,
     dotColor: Color? = null,
     onAction: () -> Unit = {}
 ) {
@@ -264,7 +261,7 @@ fun ActionItemContent(
                 icon?.let {
                     Image(
                         modifier = Modifier.size(20.dp),
-                        imageVector = icon,
+                        imageVector = vectorResource(icon),
                         contentDescription = title,
                         colorFilter = ColorFilter.tint(color = color)
                     )

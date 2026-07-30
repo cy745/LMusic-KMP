@@ -24,8 +24,6 @@ import com.lalilu.RemixIcon
 import com.lalilu.navigation.ActionContext
 import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenBarFactory
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.system.closeLine
 
 @Composable
 fun ScreenBarFactory.CancellableScreenBarPanel(

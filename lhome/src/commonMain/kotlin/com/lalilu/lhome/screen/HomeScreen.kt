@@ -19,8 +19,6 @@ import com.lalilu.lhome.extensions.LatestPanel
 import com.lalilu.lhome.lhome.generated.resources.Res
 import com.lalilu.lhome.lhome.generated.resources.home_screen_title
 import com.lalilu.navigation.*
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.system.loaderLine
 import org.koin.core.qualifier.named
 
 @Destination(router = ["/home"])
