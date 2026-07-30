@@ -39,15 +39,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import com.lalilu.RemixIcon
 import com.lalilu.lplayer.extensions.AccumulatedValue
-import com.lalilu.remixicon.Media
-import com.lalilu.remixicon.media.orderPlayFill
-import com.lalilu.remixicon.media.repeatOneFill
-import com.lalilu.remixicon.media.shuffleFill
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.vectorResource
 import kotlin.math.absoluteValue
 
 private sealed interface SeekbarState {
@@ -579,17 +576,17 @@ private fun SeekbarSwitcher(
             horizontalArrangement = Arrangement.SpaceAround
         ) {
             Icon(
-                imageVector = RemixIcon.Media.orderPlayFill,
+                imageVector = vectorResource(RemixIcon.Media.orderPlayFill),
                 contentDescription = null,
                 tint = Color.White
             )
             Icon(
-                imageVector = RemixIcon.Media.repeatOneFill,
+                imageVector = vectorResource(RemixIcon.Media.repeatOneFill),
                 contentDescription = null,
                 tint = Color.White
             )
             Icon(
-                imageVector = RemixIcon.Media.shuffleFill,
+                imageVector = vectorResource(RemixIcon.Media.shuffleFill),
                 contentDescription = null,
                 tint = Color.White
             )

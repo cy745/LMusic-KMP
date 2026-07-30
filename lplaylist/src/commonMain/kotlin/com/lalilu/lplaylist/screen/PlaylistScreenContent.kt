@@ -28,10 +28,8 @@ import com.lalilu.lplaylist.lplaylist.generated.resources.Res
 import com.lalilu.lplaylist.lplaylist.generated.resources.playlist_screen_title
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.smartbar.NavigatorHeader
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.system.addLargeFill
-import com.lalilu.remixicon.system.search2Line
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.vectorResource
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -91,7 +89,7 @@ internal fun PlaylistScreenContent(
                     ) {
                         Icon(
                             modifier = Modifier.size(16.dp),
-                            imageVector = RemixIcon.System.addLargeFill,
+                            imageVector = vectorResource(RemixIcon.System.addLargeFill),
                             contentDescription = "新建歌单",
                         )
                         Spacer(Modifier.width(4.dp))
@@ -101,7 +99,7 @@ internal fun PlaylistScreenContent(
                     Box {
                         IconButton(onClick = onStartSearch) {
                             Icon(
-                                imageVector = RemixIcon.System.search2Line,
+                                imageVector = vectorResource(RemixIcon.System.search2Line),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onBackground
                             )

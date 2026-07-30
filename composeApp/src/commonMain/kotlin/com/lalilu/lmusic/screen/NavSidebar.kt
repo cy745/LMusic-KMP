@@ -33,8 +33,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -172,7 +173,7 @@ fun NavSidebar(
 @Composable
 private fun NavSidebarItem(
     title: String,
-    icon: ImageVector?,
+    icon: DrawableResource?,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -201,7 +202,7 @@ private fun NavSidebarItem(
     ) {
         if (icon != null) {
             Icon(
-                imageVector = icon,
+                imageVector = vectorResource(icon),
                 contentDescription = title,
                 tint = contentColor,
                 modifier = Modifier.size(20.dp)

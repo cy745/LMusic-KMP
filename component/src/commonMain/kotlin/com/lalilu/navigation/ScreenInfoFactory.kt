@@ -17,7 +17,7 @@
 package com.lalilu.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.vector.ImageVector
+import org.jetbrains.compose.resources.DrawableResource
 
 
 /**
@@ -28,7 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
  */
 data class ScreenInfo(
     val title: @Composable () -> String,
-    val icon: ImageVector? = null
+    val icon: DrawableResource? = null
 )
 
 /**

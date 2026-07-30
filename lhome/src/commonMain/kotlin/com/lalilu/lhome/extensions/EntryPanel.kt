@@ -19,20 +19,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lalilu.RemixIcon
 import com.lalilu.component.LazyGridContent
 import com.lalilu.component.rememberGridItemPadding
-import com.lalilu.navigation.AppRouter
-import com.lalilu.navigation.NavIntent
-import com.lalilu.navigation.Screen
-import com.lalilu.navigation.ScreenInfoFactory
-import com.lalilu.navigation.actualScreen
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.system.errorWarningLine
+import com.lalilu.navigation.*
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.vectorResource
 
 
 /**
@@ -108,7 +103,7 @@ object EntryPanel : LazyGridContent {
 private fun EntryItem(
     modifier: Modifier = Modifier,
     title: String,
-    icon: ImageVector,
+    icon: DrawableResource,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -153,7 +148,7 @@ private fun EntryItem(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
-                imageVector = icon,
+                imageVector = vectorResource(icon),
                 contentDescription = title,
                 modifier = Modifier.size(24.dp),
                 tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)

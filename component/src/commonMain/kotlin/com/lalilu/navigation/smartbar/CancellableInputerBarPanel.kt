@@ -17,29 +17,14 @@
 package com.lalilu.navigation.smartbar
 
 import androidx.annotation.MainThread
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -60,10 +45,7 @@ import androidx.navigationevent.NavigationEventInput
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.lalilu.RemixIcon
 import com.lalilu.navigation.ScreenBarFactory
-import com.lalilu.remixicon.Arrows
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.arrows.arrowLeftSLine
-import com.lalilu.remixicon.system.closeLine
+import org.jetbrains.compose.resources.vectorResource
 
 
 @Composable
@@ -135,7 +117,7 @@ private fun CancellableInputerBarPanelContent(
             }
         ) {
             Icon(
-                imageVector = RemixIcon.Arrows.arrowLeftSLine,
+                imageVector = vectorResource(RemixIcon.Arrows.arrowLeftSLine),
                 tint = MaterialTheme.colorScheme.onBackground,
                 contentDescription = null
             )
@@ -221,7 +203,7 @@ private fun CancellableInputerBarPanelContent(
                                 onClick = { onUpdateKeyword("") }
                             ) {
                                 Icon(
-                                    imageVector = RemixIcon.System.closeLine,
+                                    imageVector = vectorResource(RemixIcon.System.closeLine),
                                     contentDescription = "clear",
                                     tint = MaterialTheme.colorScheme.onBackground
                                 )

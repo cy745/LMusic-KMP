@@ -21,14 +21,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.ViewModel
+import com.lalilu.RemixIcon
 import com.lalilu.common.settings.SettingsCollector
 import com.lalilu.common.settings.SettingsGroup
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
-import com.lalilu.remixicon.SystemGroup
-import com.lalilu.remixicon.system.settings2Line
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.koin.compose.viewmodel.koinViewModel
@@ -68,7 +67,7 @@ data object SettingsScreen : Screen, ScreenInfoFactory {
     override fun provideScreenInfo(): ScreenInfo = remember {
         ScreenInfo(
             title = { "设置" },
-            icon = SystemGroup.settings2Line
+            icon = RemixIcon.System.settings2Line
         )
     }
 

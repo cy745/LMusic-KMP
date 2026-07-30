@@ -20,7 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import org.jetbrains.compose.resources.DrawableResource
 
 
 /**
@@ -48,7 +48,7 @@ sealed class ScreenAction {
         val title: @Composable () -> String,
         val subTitle: @Composable () -> String? = { null },
         val color: @Composable () -> Color = { Color.Unspecified },
-        val icon: @Composable () -> ImageVector? = { null },
+        val icon: @Composable () -> DrawableResource? = { null },
         val dotColor: @Composable () -> Color? = { null },
         val longClick: (ActionContext) -> Boolean = { false },
         val onAction: (ActionContext) -> Unit = {}

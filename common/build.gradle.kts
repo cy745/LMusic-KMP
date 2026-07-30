@@ -28,6 +28,7 @@ kotlin {
             api(libs.kotlin.logging)
             api(libs.human.readable)
             api(libs.krouter.core)
+            api(libs.compose.resources)
             api(libs.kotlinx.serialization)
             api(libs.kotlinx.coroutines.core)
             api(libs.kotlinx.datetime)

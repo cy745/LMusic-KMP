@@ -54,15 +54,11 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplaylist.repository.PlaylistRepository
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.ScreenAction
-import com.lalilu.remixicon.HealthAndMedical
-import com.lalilu.remixicon.Media
-import com.lalilu.remixicon.healthandmedical.heart3Fill
-import com.lalilu.remixicon.healthandmedical.heart3Line
-import com.lalilu.remixicon.media.playListAddLine
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.vectorResource
 import org.koin.core.annotation.Factory
 import org.koin.core.annotation.Named
 
@@ -167,7 +163,8 @@ fun provideLikeAction(
                 modifier = Modifier
                     .size(24.dp)
                     .scale(scaleValue),
-                imageVector = if (isLiked) RemixIcon.HealthAndMedical.heart3Fill else RemixIcon.HealthAndMedical.heart3Line,
+                imageVector = if (isLiked) vectorResource(RemixIcon.HealthAndMedical.heart3Fill)
+                else vectorResource(RemixIcon.HealthAndMedical.heart3Line),
                 tint = iconColor,
                 contentDescription = "A Checkable Button"
             )

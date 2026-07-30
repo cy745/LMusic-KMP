@@ -16,14 +16,6 @@ import com.lalilu.lalbum.viewmodel.AlbumsVM
 import com.lalilu.lmedia.dialog.SortPanelDialog
 import com.lalilu.navigation.*
 import com.lalilu.navigation.smartbar.CancellableInputerBarPanel
-import com.lalilu.remixicon.Editor
-import com.lalilu.remixicon.Media
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.editor.formatClear
-import com.lalilu.remixicon.editor.sortDesc
-import com.lalilu.remixicon.editor.text
-import com.lalilu.remixicon.media.albumFill
-import com.lalilu.remixicon.system.search2Line
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 

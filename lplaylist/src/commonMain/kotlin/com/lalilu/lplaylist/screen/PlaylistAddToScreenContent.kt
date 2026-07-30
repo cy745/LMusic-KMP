@@ -36,9 +36,8 @@ import com.lalilu.lplaylist.lplaylist.generated.resources.playlist_action_add_to
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.NavIntent
 import com.lalilu.navigation.smartbar.NavigatorHeader
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.system.addLine
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.vectorResource
 
 
 @Composable
@@ -67,7 +66,7 @@ internal fun PlaylistAddToScreenContent(
                     }
                 ) {
                     Icon(
-                        imageVector = RemixIcon.System.addLine,
+                        imageVector = vectorResource(RemixIcon.System.addLine),
                         contentDescription = null
                     )
                 }

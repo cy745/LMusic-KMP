@@ -1,11 +1,7 @@
 package com.lalilu.lplaylist.screen
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,19 +21,11 @@ import com.lalilu.lplaylist.lplaylist.generated.resources.Res
 import com.lalilu.lplaylist.lplaylist.generated.resources.playlist_screen_title
 import com.lalilu.lplaylist.viewmodel.PlaylistsAction
 import com.lalilu.lplaylist.viewmodel.PlaylistsVM
-import com.lalilu.navigation.AppRouter
-import com.lalilu.navigation.Screen
-import com.lalilu.navigation.ScreenAction
-import com.lalilu.navigation.ScreenBarFactory
-import com.lalilu.navigation.ScreenInfo
-import com.lalilu.navigation.ScreenInfoFactory
+import com.lalilu.navigation.*
 import com.lalilu.navigation.smartbar.CancellableInputerBarPanel
 import com.lalilu.navigation.smartbar.CancellableScreenBarPanel
-import com.lalilu.remixicon.Media
-import com.lalilu.remixicon.System
-import com.lalilu.remixicon.media.playListFill
-import com.lalilu.remixicon.system.deleteBinLine
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.vectorResource
 import org.koin.compose.viewmodel.koinViewModel
 
 
@@ -86,7 +74,7 @@ object PlaylistScreen : Screen, ScreenInfoFactory, ScreenBarFactory {
                     ) {
                         Image(
                             modifier = Modifier.size(20.dp),
-                            imageVector = RemixIcon.System.deleteBinLine,
+                            imageVector = vectorResource(RemixIcon.System.deleteBinLine),
                             contentDescription = "删除歌单",
                             colorFilter = ColorFilter.tint(color = color)
                         )

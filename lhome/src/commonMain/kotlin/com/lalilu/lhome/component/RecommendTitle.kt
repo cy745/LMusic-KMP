@@ -8,13 +8,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.lalilu.RemixIcon
-import com.lalilu.preview.preview
-import com.lalilu.remixicon.Arrows
-import com.lalilu.remixicon.arrows.arrowRightSLine
-import androidx.compose.ui.tooling.preview.Preview
 import com.lalilu.SlotContent
+import com.lalilu.preview.preview
+import org.jetbrains.compose.resources.vectorResource
 import org.koin.core.annotation.Named
 import org.koin.core.annotation.Single
 
@@ -65,7 +64,7 @@ private fun RecommendTitlePreview() = preview {
             title = "Recommend",
         ) {
             Icon(
-                imageVector = RemixIcon.Arrows.arrowRightSLine,
+                imageVector = vectorResource(RemixIcon.Arrows.arrowRightSLine),
                 contentDescription = "",
                 tint = MaterialTheme.colorScheme.onBackground
             )

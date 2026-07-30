@@ -26,7 +26,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.dp
@@ -34,8 +33,8 @@ import androidx.compose.ui.unit.sp
 import com.lalilu.RemixIcon
 import com.lalilu.navigation.ActionContext
 import com.lalilu.navigation.ScreenAction
-import com.lalilu.remixicon.Arrows
-import com.lalilu.remixicon.arrows.arrowLeftSLine
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.vectorResource
 
 
 /**
@@ -72,7 +71,7 @@ fun NavigateCommonBar(
 
 data class BackActionBtn(
     val text: String,
-    val icon: ImageVector = RemixIcon.Arrows.arrowLeftSLine
+    val icon: DrawableResource = RemixIcon.Arrows.arrowLeftSLine
 )
 
 /**
@@ -117,7 +116,7 @@ fun NavigateCommonBarContent(
                     }
                 ) {
                     Icon(
-                        imageVector = backAction?.icon ?: RemixIcon.Arrows.arrowLeftSLine,
+                        imageVector = vectorResource(backAction?.icon ?: RemixIcon.Arrows.arrowLeftSLine),
                         tint = MaterialTheme.colorScheme.onBackground,
                         contentDescription = null
                     )

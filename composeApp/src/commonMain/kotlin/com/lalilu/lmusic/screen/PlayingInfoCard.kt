@@ -39,10 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.lalilu.RemixIcon
+import org.jetbrains.compose.resources.vectorResource
 import com.lalilu.animated
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.remixicon.Media
-import com.lalilu.remixicon.media.skipForwardLine
 
 @Composable
 fun PlayingInfoCard(
@@ -145,7 +144,7 @@ fun PlayingInfoCard(
                 ) {
                     Icon(
                         modifier = Modifier.size(24.dp),
-                        imageVector = RemixIcon.Media.skipForwardLine,
+                        imageVector = vectorResource(RemixIcon.Media.skipForwardLine),
                         tint = MaterialTheme.colorScheme.onBackground,
                         contentDescription = null
                     )

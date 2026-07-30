@@ -40,10 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.lalilu.RemixIcon
 import com.lalilu.lplaylist.entity.LPlaylist
 import com.lalilu.lplaylist.repository.PlaylistRepository
-import com.lalilu.remixicon.Editor
-import com.lalilu.remixicon.HealthAndMedical
-import com.lalilu.remixicon.editor.draggable
-import com.lalilu.remixicon.healthandmedical.heart3Fill
+import org.jetbrains.compose.resources.vectorResource
 
 @Composable
 fun PlaylistCard(
@@ -111,7 +108,7 @@ fun PlaylistCard(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .scale(0.9f),
-                imageVector = RemixIcon.HealthAndMedical.heart3Fill,
+                imageVector = vectorResource(RemixIcon.HealthAndMedical.heart3Fill),
                 tint = Color(0xFFFE4141),
                 contentDescription = "heart_icon"
             )
@@ -131,7 +128,7 @@ fun PlaylistCard(
             Icon(
                 modifier = draggingModifier
                     .padding(start = 16.dp),
-                imageVector = RemixIcon.Editor.draggable,
+                imageVector = vectorResource(RemixIcon.Editor.draggable),
                 tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
                 contentDescription = "DragHandle",
             )

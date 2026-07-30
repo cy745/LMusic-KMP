@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
 import com.lalilu.RemixIcon
+import org.jetbrains.compose.resources.vectorResource
 import com.lalilu.extensions.*
 import com.lalilu.lmedia.component.AudioItemCard
 import com.lalilu.lmedia.domain.model.LAudio
@@ -25,8 +26,6 @@ import com.lalilu.lplaylist.viewmodel.PlaylistDetailEvent
 import com.lalilu.lplaylist.viewmodel.PlaylistDetailVM
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.smartbar.NavigatorHeader
-import com.lalilu.remixicon.Design
-import com.lalilu.remixicon.design.editBoxFill
 import com.lalilu.state
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
@@ -132,7 +131,7 @@ internal fun PlaylistDetailScreenContent(
                             .push()
                     }) {
                         Icon(
-                            imageVector = RemixIcon.Design.editBoxFill,
+                            imageVector = vectorResource(RemixIcon.Design.editBoxFill),
                             contentDescription = null
                         )
                     }
