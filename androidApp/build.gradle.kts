@@ -1,4 +1,7 @@
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.Properties
+import kotlin.streams.asSequence
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -71,6 +74,29 @@ android {
     }
 }
 
+/**
+ * UPX 二次压缩（实验性）：在 AGP strip 之后对 .so 执行 upx --android-shlib --lzma。
+ * 顺序关键：必须先 strip 再 UPX（UPX 压缩后再 strip 会破坏压缩结构）。
+ * 风险：Android 15+ 16KB 页面设备上 UPX 压缩 so 有崩溃报告（upx/upx#18870），
+ *      需真机验证；可通过 -Plalilu.upx.enabled=false 一键关闭。
+ */
+val upxEnabled = providers.gradleProperty("lalilu.upx.enabled").orNull != "false"
+if (upxEnabled) {
+    // strip 任务在 variant 创建后注册，用 matching 延迟查找
+    tasks.matching { it.name == "stripReleaseDebugSymbols" }.configureEach {
+        doLast {
+            val strippedRoot = outputs.files.singleFile.toPath()
+            Files.walk(strippedRoot).use { stream ->
+                stream.asSequence()
+                    .filter { Files.isRegularFile(it) && it.fileName.toString() == "libtag.so" }
+                    .forEach { so ->
+                        compressWithUpx(so)
+                    }
+            }
+        }
+    }
+}
+
 dependencies {
     implementation(project(":composeApp"))
     implementation(libs.androidx.activity.compose)
@@ -82,4 +108,27 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.settings.no.arg)
     implementation(libs.compose.preview)
+}
+
+private fun compressWithUpx(so: Path) {
+    val sizeBefore = Files.size(so)
+    try {
+        // UPX 要求文件可执行
+        so.toFile().setExecutable(true, false)
+        val process = ProcessBuilder("upx", "--android-shlib", "--lzma", so.toString())
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText()
+        val exitCode = process.waitFor()
+        if (exitCode == 0) {
+            val sizeAfter = Files.size(so)
+            logger.lifecycle(
+                "[upx] $so: ${sizeBefore / 1024}KB -> ${sizeAfter / 1024}KB (省 ${(sizeBefore - sizeAfter) / 1024}KB)"
+            )
+        } else {
+            logger.warn("[upx] 压缩失败 (exit=$exitCode): ${output.lines().lastOrNull()}")
+        }
+    } catch (e: Exception) {
+        logger.warn("[upx] 压缩异常: $so (${e.message})")
+    }
 }
