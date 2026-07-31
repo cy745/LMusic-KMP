@@ -21,4 +21,8 @@ gradlePlugin {
         id = "com.lalilu.resignore"
         implementationClass = "com.lalilu.resignore.ResIgnorePlugin"
     }
+    plugins.register("com.lalilu.cmpshrink") {
+        id = "com.lalilu.cmpshrink"
+        implementationClass = "com.lalilu.cmpshrink.CmpShrinkPlugin"
+    }
 }

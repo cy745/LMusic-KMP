@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
     id("com.lalilu.resignore")
+    id("com.lalilu.cmpshrink")
 }
 
 val keystoreProps = rootProject.file("keystore.properties")
