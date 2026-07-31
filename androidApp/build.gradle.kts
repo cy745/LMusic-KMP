@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
+    id("com.lalilu.resignore")
 }
 
 val keystoreProps = rootProject.file("keystore.properties")

@@ -17,4 +17,8 @@ gradlePlugin {
         id = "build-logic"
         implementationClass = "com.lalilu.BuildLogicPlugin"
     }
+    plugins.register("com.lalilu.resignore") {
+        id = "com.lalilu.resignore"
+        implementationClass = "com.lalilu.resignore.ResIgnorePlugin"
+    }
 }

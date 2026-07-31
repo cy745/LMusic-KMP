@@ -1,0 +1,21 @@
+# ============================================================
+# LMusic-KMP 资源黑名单（语法参考 .gitignore）
+# 每行一个 glob 模式，匹配 APK 内路径（APK 根为基准）
+#   - 以 assets/ 开头 → 走 assets 剔除通道（merge*Assets 后置删除）
+#   - 其他 → 走 Java resources 剔除通道（packaging.resources.excludes）
+#   - # 开头为注释，空行忽略
+# ============================================================
+
+# --- 依赖传入的冗余原生库 ---
+# jansi：JVM 终端 ANSI 颜色库（Mac/Windows 的 dll/jnilib），Android 无终端概念，完全无用
+org/fusesource/jansi/**
+
+# --- 依赖版本信息文件（运行时无用）---
+META-INF/*.version
+
+# --- 协程调试探针（release 不应存在）---
+DebugProbesKt.bin
+
+# --- AGP 调试文件 ---
+# 注：META-INF/version-control-info.textproto 由 AGP 打包时强制注入，
+#      packaging.excludes 无法剔除（已验证），文件仅几十字节，忽略
