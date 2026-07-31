@@ -75,13 +75,13 @@ android {
 }
 
 /**
- * UPX 二次压缩（实验性，默认关闭）：在 AGP strip 之后对 .so 执行 upx --android-shlib --lzma。
+ * UPX 二次压缩（默认开启）：在 AGP strip 之后对 .so 执行 upx --android-shlib --lzma。
  * 顺序关键：必须先 strip 再 UPX（UPX 压缩后再 strip 会破坏压缩结构）。
- * 风险：UPX 压缩后的 so p_align 为 4KB，Android 15+ 16KB 页面设备上无法加载
- *      （upx/upx#18870 崩溃根因），与 16KB 对齐要求根本冲突。
- *      启用：-Plalilu.upx.enabled=true（仅当底层 so 已 16KB 对齐时考虑）。
+ * 已实测：UPX 保持输入文件的 p_align（16KB 输入 → 16KB 输出，段偏移重排满足一致性），
+ *         不影响其他 .so 的 16KB 对齐。
+ * 关闭：-Plalilu.upx.enabled=false
  */
-val upxEnabled = providers.gradleProperty("lalilu.upx.enabled").orNull == "true"
+val upxEnabled = providers.gradleProperty("lalilu.upx.enabled").orNull != "false"
 if (upxEnabled) {
     // strip 任务在 variant 创建后注册，用 matching 延迟查找
     tasks.matching { it.name == "stripReleaseDebugSymbols" }.configureEach {
