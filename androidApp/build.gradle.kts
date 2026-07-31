@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
     id("com.lalilu.resignore")
-    id("com.lalilu.nativestrip")
 }
 
 val keystoreProps = rootProject.file("keystore.properties")
@@ -14,6 +13,9 @@ val keystoreProps = rootProject.file("keystore.properties")
 android {
     namespace = "com.lalilu.lmusic"
     compileSdk = libs.versions.android.targetSdk.get().toInt()
+    // 显式指定 NDK 版本：未配置时 AGP 用默认版本解析 NDK handler，
+    // 版本不匹配会导致 stripDebugSymbols 静默降级（.so 带 debug 符号进包）
+    ndkVersion = libs.versions.android.ndk.get()
 
     if (keystoreProps != null) {
         val storeFileValue = keystoreProps["storeFile"]?.toString() ?: ""

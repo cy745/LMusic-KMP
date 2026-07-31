@@ -21,8 +21,4 @@ gradlePlugin {
         id = "com.lalilu.resignore"
         implementationClass = "com.lalilu.resignore.ResIgnorePlugin"
     }
-    plugins.register("com.lalilu.nativestrip") {
-        id = "com.lalilu.nativestrip"
-        implementationClass = "com.lalilu.nativestrip.NativeStripPlugin"
-    }
 }

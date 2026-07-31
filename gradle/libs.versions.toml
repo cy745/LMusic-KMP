@@ -2,6 +2,7 @@
 agp = "9.0.0"
 android-targetSdk = "36"
 android-minSdk = "23"
+android-ndk = "27.0.12077973"
 androidx-activity = "1.13.0"
 androidx-core = "1.18.0"
 androidx-test = "1.7.0"
