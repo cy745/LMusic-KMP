@@ -7,6 +7,7 @@ on:
     paths-ignore:
       - '.claude/**'
       - '.github/ISSUE_TEMPLATE/**'
+      - '.github/workflows/**'
       - '.gitignore'
       - '.yarnrc'
       - 'docs/**'
@@ -18,6 +19,12 @@ on:
       - 'vercel.json'
       - '**/*.md'
       - '**/README.md'
+  workflow_dispatch:
+    inputs:
+      skip_ios:
+        description: '跳过 iOS 构建与 TestFlight 上传（push 时可在 commit message 写 [skip ios]）'
+        type: boolean
+        default: false
 
 concurrency:
   group: snapshot-${{ github.ref }}
@@ -57,6 +64,15 @@ jobs:
 
       # 构建 Release APK（Ubuntu 无 iOS 工具链，需禁用 iOS 目标）
       - run: chmod +x gradlew
+
+      # 安装 UPX：Android 构建在 AGP strip 后用它压缩 libtag.so。
+      # 固定 v5.2.0（与本地开发环境一致），不依赖 runner 镜像预装。
+      - name: Install UPX
+        run: |
+          curl -sL https://github.com/upx/upx/releases/download/v5.2.0/upx-5.2.0-amd64_linux.tar.xz -o upx.tar.xz
+          tar -xJf upx.tar.xz
+          sudo mv upx-5.2.0-amd64_linux/upx /usr/local/bin/upx
+          upx --version
 
       - name: Build Release APK
         run: ./gradlew androidApp:assembleRelease -Plalilu.disable.ios.targets=true
@@ -167,6 +183,10 @@ jobs:
   # ──────────────────────────────────────────────
   build-ios:
     name: iOS + TestFlight
+    # 默认总是构建并上传 TestFlight；以下情况跳过：
+    #   - push 时任一 commit message 包含 [skip ios]
+    #   - 手动触发时勾选 skip_ios
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_ios == 'true') && !(github.event_name == 'push' && contains(join(github.event.commits.*.message, ' '), '[skip ios]')) }}
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -257,6 +277,8 @@ jobs:
   publish-snapshot:
     name: Publish Snapshot Release
     needs: [ build-android, build-windows, build-macos, build-linux, build-ios ]
+    # 手动勾选 skip_ios 跳过 iOS 时，仍正常发布其他平台产物；iOS 构建失败则跳过发布
+    if: ${{ !cancelled() && needs.build-android.result == 'success' && needs.build-windows.result == 'success' && needs.build-macos.result == 'success' && needs.build-linux.result == 'success' && needs.build-ios.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
