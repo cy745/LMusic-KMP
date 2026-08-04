@@ -92,6 +92,7 @@ kotlin {
             implementation(project(":lalbum"))
             implementation(project(":lartist"))
             implementation(project(":lsettings"))
+            implementation(project(":lfont"))
 
             implementation(libs.compose.ui.backhandler)
             implementation(libs.compose.material)
