@@ -42,14 +42,14 @@ import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lfont.component.fontMarquee
 import com.lalilu.lfont.component.label
 import com.lalilu.lfont.entity.FontItem
+import com.lalilu.lfont.manager.FontManager
 import com.lalilu.lfont.preview.rememberPreviewFont
 import com.lalilu.lfont.util.formatFileSize
-import com.lalilu.lfont.viewmodel.FontsVM
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
 import com.lalilu.navigation.smartbar.NavigatorHeader
-import org.koin.compose.viewmodel.koinViewModel
+import org.koin.compose.koinInject
 
 /** 长文本跑马灯预览：覆盖中文、英文、数字、日文。 */
 private const val SAMPLE_MARQUEE =
@@ -84,10 +84,10 @@ data class FontDetailScreen(
 
     @Composable
     override fun Content() {
-        val vm = koinViewModel<FontsVM>()
-        val fonts by vm.fonts.collectAsState()
+        val fontManager = koinInject<FontManager>()
+        val state by fontManager.state.collectAsState()
         FontDetailScreenContent(
-            item = fonts.firstOrNull { it.id == fileName },
+            item = state.fonts.firstOrNull { it.id == fileName },
             fileName = fileName
         )
     }

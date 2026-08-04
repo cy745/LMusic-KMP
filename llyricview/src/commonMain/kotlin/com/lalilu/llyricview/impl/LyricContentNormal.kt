@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lalilu.LocalFontFamily
+import com.lalilu.LocalLyricFontFamily
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyricview.LyricContext
 import com.lalilu.llyricview.LyricItemLayout
@@ -127,7 +128,9 @@ fun LyricContentNormal(
         Text(
             modifier = Modifier.fillMaxWidth(),
             text = lyric.content,
-            style = settings.mainTextStyle.copy(fontFamily = LocalFontFamily.current),
+            style = settings.mainTextStyle.copy(
+                fontFamily = LocalLyricFontFamily.current ?: LocalFontFamily.current
+            ),
             color = color.value
         )
 
@@ -143,7 +146,9 @@ fun LyricContentNormal(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = settings.gapSize),
-                    style = settings.translationTextStyle,
+                    style = settings.translationTextStyle.copy(
+                        fontFamily = LocalLyricFontFamily.current ?: LocalFontFamily.current
+                    ),
                     color = color.value
                 )
             }

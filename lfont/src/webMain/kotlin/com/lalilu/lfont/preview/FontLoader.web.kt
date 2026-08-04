@@ -16,8 +16,7 @@
 
 package com.lalilu.lfont.preview
 
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontFamily
 
-@Composable
-actual fun rememberPreviewFont(fileName: String): FontFamily? = null
+/** wasm 实现待接入 Font(identity, data) + preload，当前回退默认字体。 */
+actual fun loadFontFamily(fileName: String): FontFamily? = null

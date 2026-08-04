@@ -16,22 +16,17 @@
 
 package com.lalilu.lfont.preview
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import io.github.vinceglb.filekit.FileKit
+import io.github.vinceglb.filekit.filesDir
+import io.github.vinceglb.filekit.path
 import java.io.File
 
-@Composable
-actual fun rememberPreviewFont(fileName: String): FontFamily? {
-    val context = LocalContext.current
-    return remember(fileName) {
-        runCatching {
-            val file = File(context.filesDir, "lfont/$fileName")
-            FontFamily(Font(file, FontWeight.Normal, FontStyle.Normal))
-        }.getOrNull()
-    }
-}
+/** Android 实现：直接从应用私有目录文件加载字体。 */
+actual fun loadFontFamily(fileName: String): FontFamily? = runCatching {
+    val file = File(FileKit.filesDir.path, "lfont/$fileName")
+    FontFamily(Font(file, FontWeight.Normal, FontStyle.Normal))
+}.getOrNull()
