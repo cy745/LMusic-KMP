@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,13 +45,17 @@ import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lfont.component.FontItemCard
 import com.lalilu.lfont.entity.FontItem
-import com.lalilu.lfont.viewmodel.FontsVM
+import com.lalilu.lfont.viewmodel.FontsScreenVM
+import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenActionFactory
 import com.lalilu.navigation.Screen
+import com.lalilu.navigation.ScreenBarFactory
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
+import com.lalilu.navigation.smartbar.CancellableScreenBarPanel
 import com.lalilu.navigation.smartbar.NavigatorHeader
+import com.lalilu.extensions.ItemSelector
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.openFilePicker
@@ -65,7 +70,7 @@ import org.koin.compose.viewmodel.koinViewModel
  * 路由：`/settings/fonts`（KRouter）
  */
 @Destination("/settings/fonts")
-data object FontsScreen : Screen, ScreenInfoFactory, ScreenActionFactory {
+data object FontsScreen : Screen, ScreenInfoFactory, ScreenActionFactory, ScreenBarFactory {
 
     @Composable
     override fun provideScreenInfo(): ScreenInfo = remember {
@@ -77,7 +82,7 @@ data object FontsScreen : Screen, ScreenInfoFactory, ScreenActionFactory {
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
-        val vm = koinViewModel<FontsVM>()
+        val vm = koinViewModel<FontsScreenVM>()
         val scope = rememberCoroutineScope()
 
         return remember {
@@ -94,7 +99,7 @@ data object FontsScreen : Screen, ScreenInfoFactory, ScreenActionFactory {
                             ) ?: return@launch
 
                             try {
-                                vm.importFont(file.readBytes(), file.name)
+                                vm.fontManager.importFont(file.readBytes(), file.name)
                             } catch (e: Exception) {
                                 Logger.e(
                                     tag = "FontsScreen",
@@ -104,6 +109,12 @@ data object FontsScreen : Screen, ScreenInfoFactory, ScreenActionFactory {
                             }
                         }
                     }
+                ),
+                ScreenAction.Static(
+                    title = { "选择" },
+                    icon = { RemixIcon.Design.editBoxLine },
+                    color = { Color(0xFF009673) },
+                    onAction = { vm.selector.isSelecting.value = true }
                 )
             )
         }
@@ -111,14 +122,47 @@ data object FontsScreen : Screen, ScreenInfoFactory, ScreenActionFactory {
 
     @Composable
     override fun Content() {
-        val vm = koinViewModel<FontsVM>()
-        val fonts by vm.fonts.collectAsState()
-        FontsScreenContent(fonts = fonts)
+        val vm = koinViewModel<FontsScreenVM>()
+        val state by vm.fontManager.state.collectAsState()
+
+        CancellableScreenBarPanel(
+            isVisible = { vm.selector.isSelecting.value },
+            onDismiss = { vm.selector.isSelecting.value = false },
+            screenActions = listOfNotNull(
+                ScreenAction.Static(
+                    title = { "全选" },
+                    icon = { RemixIcon.System.checkboxMultipleLine },
+                    color = { Color(0xFF00ACF0) },
+                    onAction = { vm.selector.selectAll(state.fonts) }
+                ),
+                ScreenAction.Static(
+                    title = { "取消全选" },
+                    icon = { RemixIcon.System.checkboxMultipleBlankLine },
+                    color = { Color(0xFFFF5100) },
+                    onAction = { vm.selector.clear() }
+                ),
+                ScreenAction.Static(
+                    title = { "删除" },
+                    icon = { RemixIcon.System.deleteBinLine },
+                    longClick = { true },
+                    color = { Color(0xFFF5381D) },
+                    onAction = { vm.deleteSelected() }
+                )
+            )
+        )
+
+        FontsScreenContent(
+            fonts = state.fonts,
+            selector = vm.selector
+        )
     }
 }
 
 @Composable
-private fun FontsScreenContent(fonts: List<FontItem>) {
+private fun FontsScreenContent(
+    fonts: List<FontItem>,
+    selector: ItemSelector<FontItem>,
+) {
     val statusBar = WindowInsets.statusBars.asPaddingValues()
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()
     val smartBarHeight = PassThroughHelper.getValue(
@@ -128,6 +172,7 @@ private fun FontsScreenContent(fonts: List<FontItem>) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
         contentPadding = PaddingValues(
             top = statusBar.calculateTopPadding() + 16.dp,
             bottom = smartBarHeight() + 16.dp
@@ -162,7 +207,19 @@ private fun FontsScreenContent(fonts: List<FontItem>) {
                 items = fonts,
                 key = { it.id }
             ) { item ->
-                FontItemCard(item = item)
+                FontItemCard(
+                    item = item,
+                    modifier = Modifier.animateItem(),
+                    isSelecting = { selector.isSelecting.value },
+                    isSelected = { selector.isSelected(item) },
+                    onEnterSelect = { selector.onSelect(item) },
+                    onSelect = { selector.onSelect(item) },
+                    onNavigate = {
+                        AppRouter.route("/settings/fonts/detail")
+                            .with("fileName", item.fileName)
+                            .jump()
+                    }
+                )
             }
         }
     }

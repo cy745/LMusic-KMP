@@ -8,6 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.lalilu.LocalFontFamily
+import com.lalilu.LocalLyricFontFamily
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyricview.LyricContext
 import com.lalilu.llyricview.LyricItemLayout
@@ -57,7 +59,9 @@ fun LyricFixedTips(
         Text(
             modifier = Modifier.fillMaxWidth(),
             text = item.content,
-            style = settings.translationTextStyle,
+            style = settings.translationTextStyle.copy(
+                fontFamily = LocalLyricFontFamily.current ?: LocalFontFamily.current
+            ),
             color = Color(0x80FFFFFF)
         )
     }

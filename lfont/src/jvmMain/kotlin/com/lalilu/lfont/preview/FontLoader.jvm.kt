@@ -16,8 +16,6 @@
 
 package com.lalilu.lfont.preview
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -25,15 +23,10 @@ import androidx.compose.ui.text.platform.Font
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.filesDir
 import io.github.vinceglb.filekit.path
-import io.github.vinceglb.filekit.resolve
 import java.io.File
 
-@Composable
-actual fun rememberPreviewFont(fileName: String): FontFamily? {
-    return remember(fileName) {
-        runCatching {
-            val file = File(FileKit.filesDir.resolve("lfont").resolve(fileName).path)
-            FontFamily(Font(file, FontWeight.Normal, FontStyle.Normal))
-        }.getOrNull()
-    }
-}
+/** JVM 实现：直接从用户目录加载字体文件。 */
+actual fun loadFontFamily(fileName: String): FontFamily? = runCatching {
+    val file = File(FileKit.filesDir.path, "lfont/$fileName")
+    FontFamily(Font(file, FontWeight.Normal, FontStyle.Normal))
+}.getOrNull()

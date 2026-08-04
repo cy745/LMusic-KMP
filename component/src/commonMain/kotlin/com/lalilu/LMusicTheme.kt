@@ -28,6 +28,7 @@ import com.materialkolor.DynamicMaterialTheme
 import org.jetbrains.compose.resources.Font
 
 val LocalFontFamily = staticCompositionLocalOf<FontFamily> { error("No font family provided") }
+val LocalLyricFontFamily = staticCompositionLocalOf<FontFamily?> { null }
 val LocalSeedColor = staticCompositionLocalOf<MutableState<Color>> { error("No seed color state provided") }
 
 /**
@@ -66,20 +67,25 @@ internal fun createTypography(
 @Composable
 fun LMusicTheme(
     isDarkTheme: Boolean = isSystemInDarkTheme(),
+    globalFontFamily: FontFamily? = null,
+    lyricFontFamily: FontFamily? = null,
     content: @Composable () -> Unit,
 ) {
     val seedColorState = remember { mutableStateOf(Color.Red) }
     val fontWeight = remember { (100..900 step 100).map { FontWeight(it) } }
-    val fonts = fontWeight.map { Font(resource = Res.font.noto_sans_sc_vf, weight = it) }
-    val fontFamily = remember { FontFamily(fonts) }
+    val defaultFonts = fontWeight.map { Font(resource = Res.font.noto_sans_sc_vf, weight = it) }
+    val defaultFontFamily = remember { FontFamily(defaultFonts) }
+    val appliedGlobalFont = globalFontFamily ?: defaultFontFamily
+    val appliedLyricFont = lyricFontFamily ?: appliedGlobalFont
 
     CompositionLocalProvider(
         LocalSeedColor provides seedColorState,
-        LocalFontFamily provides fontFamily
+        LocalFontFamily provides appliedGlobalFont,
+        LocalLyricFontFamily provides appliedLyricFont
     ) {
         DynamicMaterialTheme(
             seedColor = seedColorState.value,
-            typography = createTypography(MaterialTheme.typography, fontFamily),
+            typography = createTypography(MaterialTheme.typography, appliedGlobalFont),
             isDark = isDarkTheme,
             animate = true,
             content = content,

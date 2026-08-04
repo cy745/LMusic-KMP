@@ -16,6 +16,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.retain.retain
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -41,12 +43,14 @@ import com.lalilu.ScreenModeHandler
 import com.lalilu.component.rememberCupertinoOverscrollEffectFactory
 import com.lalilu.extensions.DialogWrapper
 import com.lalilu.extensions.ProvideLocalToaster
+import com.lalilu.lfont.manager.FontManager
 import com.lalilu.lmusic.screen.BottomBarApplier
 import com.lalilu.lmusic.screen.ExceptionScreen
 import com.lalilu.lmusic.screen.NavSideApplier
 import com.lalilu.lmusic.screen.NavSidebarItem
 import com.lalilu.lmusic.util.handleMouseBackPress
 import com.lalilu.navigation.*
+import org.koin.compose.koinInject
 
 @Suppress("UNCHECKED_CAST")
 @OptIn(
@@ -92,7 +96,13 @@ fun App() = ScreenModeHandler {
         )
     }
 
-    LMusicTheme {
+    val fontManager = koinInject<FontManager>()
+    val fontState by fontManager.state.collectAsState()
+
+    LMusicTheme(
+        globalFontFamily = fontState.globalFont,
+        lyricFontFamily = fontState.lyricFont,
+    ) {
         LookaheadAnimationVisualDebugging(isEnabled = false) {
             SharedTransitionLayout shareScope@{
                 val animationSpec = spring(

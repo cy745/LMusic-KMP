@@ -17,6 +17,7 @@
 package com.lalilu.lfont.preview
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.text.font.FontFamily
 
 /** 预览示例文本：覆盖中文、英文、数字、日文，长度保证跑马灯滚动。 */
@@ -26,8 +27,15 @@ const val FONT_PREVIEW_TEXT =
 /**
  * 加载指定字体的预览 [FontFamily]。
  *
- * Android 使用 [androidx.compose.ui.text.font.Font] 直接从私有目录文件加载；
- * iOS / wasm 的预览渲染随字体加载阶段统一接入，当前返回 null 回退默认字体。
+ * 组合环境下使用；Android/JVM 直接加载私有目录文件，iOS/wasm 暂回退默认字体。
  */
 @Composable
-expect fun rememberPreviewFont(fileName: String): FontFamily?
+fun rememberPreviewFont(fileName: String): FontFamily? = remember(fileName) {
+    loadFontFamily(fileName)
+}
+
+/**
+ * 非组合环境加载字体（[com.lalilu.lfont.manager.FontManager] 使用）。
+ * Android/JVM 直接加载私有目录文件；iOS/wasm 暂返回 null 回退默认字体。
+ */
+expect fun loadFontFamily(fileName: String): FontFamily?

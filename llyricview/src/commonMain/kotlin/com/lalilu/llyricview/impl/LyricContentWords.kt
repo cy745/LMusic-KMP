@@ -23,6 +23,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lalilu.LocalFontFamily
+import com.lalilu.LocalLyricFontFamily
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.findPlayingIndexForWords
 import com.lalilu.llyricview.LyricContext
@@ -229,9 +230,11 @@ fun LyricContentWords(
                             }
                         }
                     }
-                },
+            },
             text = fullSentence,
-            style = settings.mainTextStyle.copy(fontFamily = LocalFontFamily.current),
+            style = settings.mainTextStyle.copy(
+                fontFamily = LocalLyricFontFamily.current ?: LocalFontFamily.current
+            ),
             onTextLayout = { textResult.value = it },
         )
 
@@ -247,7 +250,9 @@ fun LyricContentWords(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = settings.gapSize),
-                    style = settings.translationTextStyle,
+                    style = settings.translationTextStyle.copy(
+                        fontFamily = LocalLyricFontFamily.current ?: LocalFontFamily.current
+                    ),
                     color = Color(0x80FFFFFF)
                 )
             }
