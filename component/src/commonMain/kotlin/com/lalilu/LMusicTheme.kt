@@ -21,15 +21,20 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import com.lalilu.component.component.generated.resources.Res
-import com.lalilu.component.component.generated.resources.noto_sans_sc_vf
 import com.materialkolor.DynamicMaterialTheme
-import org.jetbrains.compose.resources.Font
 
 val LocalFontFamily = staticCompositionLocalOf<FontFamily> { error("No font family provided") }
 val LocalLyricFontFamily = staticCompositionLocalOf<FontFamily?> { null }
 val LocalSeedColor = staticCompositionLocalOf<MutableState<Color>> { error("No seed color state provided") }
+
+/**
+ * 平台默认字体族：
+ * - Android/iOS：系统字体（不打包字体，省包体积）
+ * - JVM：附带可变字体（noto_sans_sc_vf）
+ * - Web：默认字体（NotoSansSC-Regular 在 Web 阶段接入）
+ */
+@Composable
+expect fun platformDefaultFontFamily(): FontFamily
 
 /**
  * 创建一个新的 Typography 实例，基于父级 Typography 并应用指定的字体族。
@@ -72,11 +77,10 @@ fun LMusicTheme(
     content: @Composable () -> Unit,
 ) {
     val seedColorState = remember { mutableStateOf(Color.Red) }
-    val fontWeight = remember { (100..900 step 100).map { FontWeight(it) } }
-    val defaultFonts = fontWeight.map { Font(resource = Res.font.noto_sans_sc_vf, weight = it) }
-    val defaultFontFamily = remember { FontFamily(defaultFonts) }
+    val defaultFontFamily = platformDefaultFontFamily()
     val appliedGlobalFont = globalFontFamily ?: defaultFontFamily
-    val appliedLyricFont = lyricFontFamily ?: appliedGlobalFont
+    // 歌词字体未配置时使用平台默认字体，不跟随界面字体
+    val appliedLyricFont = lyricFontFamily ?: defaultFontFamily
 
     CompositionLocalProvider(
         LocalSeedColor provides seedColorState,
