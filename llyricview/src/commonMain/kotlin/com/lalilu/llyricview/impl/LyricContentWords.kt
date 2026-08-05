@@ -74,9 +74,9 @@ fun LyricContentWords(
     val scaleValue = remember {
         derivedStateOf {
             when {
-                context.currentIndex() == index -> settings.scaleRange.endInclusive
+                context.currentIndex() == index -> settings.scaleEnd
                 context.currentTime() in lyric.startTime..lyric.endTime -> 0.95f
-                else -> settings.scaleRange.start
+                else -> settings.scaleStart
             }
         }
     }
