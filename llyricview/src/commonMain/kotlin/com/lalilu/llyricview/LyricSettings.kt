@@ -41,7 +41,8 @@ data class LyricSettings(
     val textAlign: TextAlign = TextAlign.Start,
     val containerPadding: PaddingValues = PaddingValues(horizontal = 40.dp, vertical = 15.dp),
     val gapSize: Dp = 8.dp,
-    val scaleRange: ClosedRange<Float> = 0.85f..1f,
+    val scaleStart: Float = 0.85f,
+    val scaleEnd: Float = 1f,
     val timeOffset: Long = 50L,
 
     // 字体样式配置
@@ -56,7 +57,6 @@ data class LyricSettings(
     val blurEffectEnable: Boolean = true,
     val translationVisible: Boolean = true,
     val onlyCurrentTranslationVisible: Boolean = false,
-    val variableFontWeightEnable: Boolean = false,
 
     // 歌词滚动效果配置
     val scrollSpringStiffness: Float = 100f,

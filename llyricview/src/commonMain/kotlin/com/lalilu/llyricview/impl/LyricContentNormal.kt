@@ -79,8 +79,7 @@ fun LyricContentNormal(
         }
     }
     val scale = animateFloatAsState(
-        targetValue = if (isCurrent) settings.scaleRange.endInclusive
-        else settings.scaleRange.start,
+        targetValue = if (isCurrent) settings.scaleEnd else settings.scaleStart,
         visibilityThreshold = 0.001f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
