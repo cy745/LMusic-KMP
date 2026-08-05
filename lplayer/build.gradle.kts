@@ -42,6 +42,7 @@ kotlin {
             api(project(":lmedia:lmedia-core"))
             api(project(":lmedia:lmedia-data"))
             api(project(":llyricview"))
+            implementation(project(":lsettings"))
             api(libs.compose.resources)
             api(libs.compose.preview)
             api(libs.koin.core)

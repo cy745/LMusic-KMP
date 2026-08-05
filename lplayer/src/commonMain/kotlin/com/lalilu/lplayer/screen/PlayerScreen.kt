@@ -8,7 +8,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,16 +24,22 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.util.lerp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import co.touchlab.kermit.Logger
 import com.lalilu.LocalSeedColor
 import com.lalilu.RemixIcon
 import com.lalilu.common.ext.io
+import com.lalilu.common.kv.KVItem
+import com.lalilu.extensions.DialogItem
+import com.lalilu.extensions.DialogWrapper
 import com.lalilu.extensions.bindToLifecycle
 import com.lalilu.extensions.retrieve
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.llyricview.LyricLayout
+import com.lalilu.llyricview.LyricSettings
+import com.lalilu.llyricview.provideLyricSettings
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.*
@@ -37,9 +48,13 @@ import com.lalilu.lplayer.lplayer.generated.resources.Res
 import com.lalilu.lplayer.lplayer.generated.resources.player_screen_title
 import com.lalilu.lplayer.viewmodel.PlayerViewModel
 import com.lalilu.navigation.*
+import com.lalilu.lsettings.SettingsScreenContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.vectorResource
+import org.koin.compose.koinInject
+import org.koin.core.qualifier.named
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.PI
 import kotlin.math.cos
@@ -168,7 +183,87 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                         title = { currentItem.value?.title ?: "LMusic" },
                         subtitle = { currentItem.value?.subtitle ?: "....." },
                         contentColor = { contentColor },
-                        isPlaying = { isPlaying.value }
+                        isPlaying = { isPlaying.value },
+                        // 与旧项目一致：仅在播放面板完全展开时显示工具栏操作（带进入/退出动画）
+                        isUserTouchEnable = {
+                            draggable.state.value == DragAnchor.Min ||
+                                draggable.state.value == DragAnchor.Max
+                        },
+                        isExtraVisible = { draggable.state.value == DragAnchor.Max },
+                        extraContent = {
+                            val lyricSettings = koinInject<KVItem<LyricSettings>>(
+                                named("LyricSettings")
+                            )
+                            val translationAlpha = animateFloatAsState(
+                                targetValue = if (lyricSettings.value.translationVisible) 1f else 0.5f,
+                                label = ""
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        DialogWrapper.push(
+                                            DialogItem.Dynamic(
+                                                backgroundColor = Color.Transparent,
+                                                content = {
+                                                    Surface(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .heightIn(max = 560.dp)
+                                                            .padding(horizontal = 16.dp)
+                                                            .padding(bottom = 8.dp),
+                                                        border = BorderStroke(
+                                                            1.dp,
+                                                            MaterialTheme.colorScheme
+                                                                .onBackground
+                                                                .copy(alpha = 0.1f)
+                                                        ),
+                                                        shape = RoundedCornerShape(20.dp),
+                                                        color = MaterialTheme.colorScheme.background,
+                                                    ) {
+                                                        SettingsScreenContent(
+                                                            groups = listOf(
+                                                                provideLyricSettings(
+                                                                    includeFontEntry = false
+                                                                )
+                                                            ),
+                                                            showNavigatorHeader = false
+                                                        )
+                                                    }
+                                                }
+                                            )
+                                        )
+                                    },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = vectorResource(RemixIcon.Editor.text),
+                                        contentDescription = "歌词样式",
+                                        tint = contentColor
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        lyricSettings.value = lyricSettings.value.copy(
+                                            translationVisible = !lyricSettings.value.translationVisible
+                                        )
+                                        lyricSettings.save()
+                                    },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = vectorResource(RemixIcon.Editor.translate2),
+                                        contentDescription = "翻译",
+                                        modifier = Modifier.graphicsLayer {
+                                            alpha = translationAlpha.value
+                                        },
+                                        tint = contentColor
+                                    )
+                                }
+                            }
+                        }
                     )
                 }
             },
