@@ -117,7 +117,9 @@ interface SettingsGroupBuilder {
         summary: @Composable () -> String? = { null },
         icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
-        enabled: () -> Boolean = { true }
+        enabled: () -> Boolean = { true },
+        /** 松手（拖动结束）时回调：持久化时机。拖动中的 [onValueChange] 只更新内存 state。 */
+        onValueChangeFinished: (() -> Unit)? = null
     ): SliderPreference
 
     fun slider(
@@ -129,7 +131,8 @@ interface SettingsGroupBuilder {
         summary: @Composable () -> String? = { null },
         icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
-        enabled: () -> Boolean = { true }
+        enabled: () -> Boolean = { true },
+        onValueChangeFinished: (() -> Unit)? = null
     ): SliderPreference
 
     // endregion
@@ -148,7 +151,9 @@ interface SettingsGroupBuilder {
         summary: @Composable () -> String? = { null },
         icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
-        enabled: () -> Boolean = { true }
+        enabled: () -> Boolean = { true },
+        /** 单项左侧图标（可空），如对齐方式的方向图标。 */
+        optionIcon: ((T) -> DrawableResource?)? = null
     ): DropdownPreference<T>
 
     fun <T : Any> dropdown(
@@ -162,7 +167,8 @@ interface SettingsGroupBuilder {
         summary: @Composable () -> String? = { null },
         icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
-        enabled: () -> Boolean = { true }
+        enabled: () -> Boolean = { true },
+        optionIcon: ((T) -> DrawableResource?)? = null
     ): DropdownPreference<T>
 
     // endregion
@@ -224,6 +230,19 @@ interface SettingsGroupBuilder {
         visible: () -> Boolean = { true },
         enabled: () -> Boolean = { true }
     ): TextPreference
+
+    /**
+     * 可折叠分组：把一组子偏好项收进折叠容器。
+     *
+     * 子项通过嵌套的 [SettingsGroupBuilder] 声明（key 在 group 内唯一），
+     * 渲染时由 [AccordionPreference] 的渲染行递归分发。
+     */
+    fun accordion(
+        key: String,
+        title: @Composable () -> String,
+        summary: @Composable () -> String? = { null },
+        block: SettingsGroupBuilder.() -> Unit,
+    ): AccordionPreference
 
     fun click(
         key: String,
@@ -323,11 +342,13 @@ internal class SettingsGroupBuilderImpl(
         summary: @Composable () -> String?,
         icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
-        enabled: () -> Boolean
+        enabled: () -> Boolean,
+        onValueChangeFinished: (() -> Unit)?
     ): SliderPreference = add(
         SliderPreference(
             key = key, title = title, value = value, onValueChange = onValueChange,
             valueRange = valueRange, steps = steps, valueLabel = valueLabel,
+            onValueChangeFinished = onValueChangeFinished,
             summary = summary, icon = icon, visible = visible, enabled = enabled
         )
     )
@@ -341,7 +362,8 @@ internal class SettingsGroupBuilderImpl(
         summary: @Composable () -> String?,
         icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
-        enabled: () -> Boolean
+        enabled: () -> Boolean,
+        onValueChangeFinished: (() -> Unit)?
     ): SliderPreference = add(
         SliderPreference(
             state = mutableStateOf(kv.value),
@@ -349,6 +371,7 @@ internal class SettingsGroupBuilderImpl(
             valueRange = valueRange,
             steps = steps,
             valueLabel = valueLabel,
+            onValueChangeFinished = onValueChangeFinished,
             key = kv.key,
             title = title,
             summary = summary,
@@ -374,12 +397,14 @@ internal class SettingsGroupBuilderImpl(
         summary: @Composable () -> String?,
         icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
-        enabled: () -> Boolean
+        enabled: () -> Boolean,
+        optionIcon: ((T) -> DrawableResource?)?
     ): DropdownPreference<T> = add(
         DropdownPreference(
             key = key, title = title, selectedValue = selectedValue,
             options = options, optionLabel = optionLabel, onValueChange = onValueChange,
             serialize = serialize, deserialize = deserialize,
+            optionIcon = optionIcon,
             summary = summary, icon = icon, visible = visible, enabled = enabled
         )
     )
@@ -395,7 +420,8 @@ internal class SettingsGroupBuilderImpl(
         summary: @Composable () -> String?,
         icon: @Composable () -> DrawableResource?,
         visible: () -> Boolean,
-        enabled: () -> Boolean
+        enabled: () -> Boolean,
+        optionIcon: ((T) -> DrawableResource?)?
     ): DropdownPreference<T> = add(
         DropdownPreference(
             state = mutableStateOf(deserialize(kv.value) ?: fallback),
@@ -404,6 +430,7 @@ internal class SettingsGroupBuilderImpl(
             optionLabel = optionLabel,
             serialize = serialize,
             deserialize = deserialize,
+            optionIcon = optionIcon,
             key = kv.key,
             title = title,
             summary = summary, icon = icon, visible = visible, enabled = enabled
@@ -504,6 +531,24 @@ internal class SettingsGroupBuilderImpl(
             summary = summary, icon = icon, visible = visible, enabled = enabled
         )
     )
+
+    override fun accordion(
+        key: String,
+        title: @Composable () -> String,
+        summary: @Composable () -> String?,
+        block: SettingsGroupBuilder.() -> Unit,
+    ): AccordionPreference {
+        val children = mutableListOf<Preference<*>>()
+        SettingsGroupBuilderImpl(children).block()
+        return add(
+            AccordionPreference(
+                children = children,
+                key = key,
+                title = title,
+                summary = summary
+            )
+        )
+    }
 
     override fun click(
         key: String,
