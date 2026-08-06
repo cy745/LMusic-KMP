@@ -19,6 +19,7 @@ package com.lalilu.lsettings.component
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import com.lalilu.common.settings.AccordionPreference
 import com.lalilu.common.settings.ClickPreference
 import com.lalilu.common.settings.CustomPreference
 import com.lalilu.common.settings.DropdownPreference
@@ -28,6 +29,7 @@ import com.lalilu.common.settings.SliderPreference
 import com.lalilu.common.settings.SwitchPreference
 import com.lalilu.common.settings.TextPreference
 import com.lalilu.common.settings.newPreferenceRowScope
+import com.lalilu.lsettings.component.preferences.AccordionPreferenceRow
 import com.lalilu.lsettings.component.preferences.ClickPreferenceRow
 import com.lalilu.lsettings.component.preferences.DropdownPreferenceRow
 import com.lalilu.lsettings.component.preferences.MultiSelectPreferenceRow
@@ -59,6 +61,9 @@ interface PreferenceRenderers {
 
     @Composable
     fun renderDropdown(pref: DropdownPreference<*>, modifier: Modifier)
+
+    @Composable
+    fun renderAccordion(pref: AccordionPreference, modifier: Modifier)
 
     @Composable
     fun renderMultiSelect(pref: MultiSelectPreference<*>, modifier: Modifier)
@@ -101,6 +106,7 @@ fun PreferenceRenderers.render(
         is SwitchPreference          -> renderSwitch(pref, modifier)
         is SliderPreference          -> renderSlider(pref, modifier)
         is DropdownPreference<*>     -> renderDropdown(pref, modifier)
+        is AccordionPreference       -> renderAccordion(pref, modifier)
         is MultiSelectPreference<*>  -> renderMultiSelect(pref, modifier)
         is TextPreference            -> renderText(pref, modifier)
         is ClickPreference           -> renderClick(pref, modifier)
@@ -121,6 +127,9 @@ class DefaultPreferenceRenderers : PreferenceRenderers {
 
     @Composable
     override fun renderDropdown(pref: DropdownPreference<*>, modifier: Modifier) = DropdownPreferenceRow(pref, modifier)
+
+    @Composable
+    override fun renderAccordion(pref: AccordionPreference, modifier: Modifier) = AccordionPreferenceRow(pref, modifier)
 
     @Composable
     override fun renderMultiSelect(pref: MultiSelectPreference<*>, modifier: Modifier) = MultiSelectPreferenceRow(pref, modifier)

@@ -153,6 +153,7 @@ fun <T : Any> DropdownPreferenceRow(
             ) {
                 pref.options.forEachIndexed { index, option ->
                     val isSelected = option == pref.value
+                    val leadingIcon = pref.optionIcon?.invoke(option)
                     DropdownMenuItem(
                         modifier = Modifier
                             .testTag("preference_dropdown_${pref.key}_option_$index"),
@@ -166,6 +167,23 @@ fun <T : Any> DropdownPreferenceRow(
                                     MaterialTheme.colorScheme.onSurface
                                 }
                             )
+                        },
+                        // 左侧图标（如对齐方向）；无图标时用 Spacer 占位保持文本对齐
+                        leadingIcon = {
+                            if (leadingIcon != null) {
+                                Icon(
+                                    imageVector = vectorResource(leadingIcon),
+                                    contentDescription = null,
+                                    tint = if (isSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.size(18.dp))
+                            }
                         },
                         // 选中图标放右侧：未选中时用 Spacer 占位保持文本对齐
                         trailingIcon = {

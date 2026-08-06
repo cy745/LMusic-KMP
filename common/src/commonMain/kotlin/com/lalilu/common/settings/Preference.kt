@@ -151,6 +151,8 @@ class SliderPreference(
     val valueRange: ClosedFloatingPointRange<Float>,
     val steps: Int,
     val valueLabel: @Composable (Float) -> String,
+    /** 松手（拖动结束）时的回调：持久化时机，避免拖动过程高频写盘。 */
+    val onValueChangeFinished: (() -> Unit)?,
     override val key: String,
     override val title: @Composable () -> String,
     override val summary: @Composable () -> String? = { null },
@@ -170,13 +172,15 @@ class SliderPreference(
         summary: @Composable () -> String? = { null },
         icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
-        enabled: () -> Boolean = { true }
+        enabled: () -> Boolean = { true },
+        onValueChangeFinished: (() -> Unit)? = null
     ) : this(
         state = mutableStateOf(value),
         writeBack = onValueChange,
         valueRange = valueRange,
         steps = steps,
         valueLabel = valueLabel,
+        onValueChangeFinished = onValueChangeFinished,
         key = key,
         title = title,
         summary = summary,
@@ -212,6 +216,8 @@ class DropdownPreference<T : Any>(
     val optionLabel: (T) -> String,
     val serialize: (T) -> String,
     val deserialize: (String) -> T?,
+    /** 单项左侧图标（可空），如对齐方式的方向图标。 */
+    val optionIcon: ((T) -> DrawableResource?)?,
     override val key: String,
     override val title: @Composable () -> String,
     override val summary: @Composable () -> String? = { null },
@@ -232,7 +238,8 @@ class DropdownPreference<T : Any>(
         summary: @Composable () -> String? = { null },
         icon: @Composable () -> DrawableResource? = { null },
         visible: () -> Boolean = { true },
-        enabled: () -> Boolean = { true }
+        enabled: () -> Boolean = { true },
+        optionIcon: ((T) -> DrawableResource?)? = null
     ) : this(
         state = mutableStateOf(selectedValue),
         writeBack = onValueChange,
@@ -240,6 +247,7 @@ class DropdownPreference<T : Any>(
         optionLabel = optionLabel,
         serialize = serialize,
         deserialize = deserialize,
+        optionIcon = optionIcon,
         key = key,
         title = title,
         summary = summary,
@@ -430,4 +438,31 @@ class CustomPreference<T>(
         state.value = newValue
         writeBack(newValue)
     }
+}
+
+
+/**
+ * 可折叠分组偏好项。
+ *
+ * 一组子 [Preference] 包裹在折叠/展开容器中，避免设置页全部平铺过长。
+ * 子项由渲染层递归交给 [com.lalilu.lsettings.component.PreferenceRenderers] 分发。
+ *
+ * ## 状态
+ *
+ * 展开/收起是纯 UI 状态（渲染行内部 remember），不持久化；
+ * 本类不承载任何可写值（[value] 恒为 [Unit]）。
+ *
+ * @param children 子偏好项列表，由 DSL `accordion { ... }` 块收集
+ */
+class AccordionPreference(
+    val children: List<Preference<*>>,
+    override val key: String,
+    override val title: @Composable () -> String,
+    override val summary: @Composable () -> String? = { null },
+    override val icon: @Composable () -> DrawableResource? = { null },
+    override val visible: () -> Boolean = { true },
+    override val enabled: () -> Boolean = { true }
+) : Preference<Unit> {
+    override val value: Unit = Unit
+    override val onValueChange: (Unit) -> Unit = {}
 }

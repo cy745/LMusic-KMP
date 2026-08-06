@@ -45,9 +45,11 @@ import com.lalilu.common.settings.SliderPreference
  *
  * ## 行为
  *
- * 拖动过程中仅更新本地 `localValue`（避免高频写盘 + 频繁重组），
- * `onValueChangeFinished` 时再正式通过 [SliderPreference.onValueChange] 提交，
- * 由 `writeBack` 写穿到 KV / 业务方。
+ * 拖动过程中实时通过 [SliderPreference.onValueChange] 更新内存 state
+ * （驱动依赖方即时重组，如歌词渲染的实时预览），同时保持本地 `localValue`
+ * 避免高频重组；持久化时机由 [SliderPreference.onValueChangeFinished]
+ * 决定——默认在松手时调用 `onValueChange` 提交写穿，
+ * 业务侧也可显式提供 `onValueChangeFinished` 只落盘、不重复写内存。
  *
  * 测试 tag：`preference_slider_<key>`
  */
@@ -84,9 +86,12 @@ fun SliderPreferenceRow(
         )
         Slider(
             value = localValue,
-            onValueChange = { localValue = it },
+            onValueChange = {
+                localValue = it
+                if (isEnabled) pref.onValueChange(it)
+            },
             onValueChangeFinished = {
-                if (isEnabled) pref.onValueChange(localValue)
+                if (isEnabled) pref.onValueChangeFinished?.invoke()
             },
             valueRange = pref.valueRange,
             steps = pref.steps,
