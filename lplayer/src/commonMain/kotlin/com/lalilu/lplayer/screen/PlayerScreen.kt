@@ -226,10 +226,17 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                                                         SettingsScreenContent(
                                                             groups = listOf(
                                                                 provideLyricSettings(
+                                                                    fontManager = koinInject(),
                                                                     includeFontEntry = false
                                                                 )
                                                             ),
-                                                            showNavigatorHeader = false
+                                                            showNavigatorHeader = false,
+                                                            // 弹层内不应用页面级 statusBar/smartBar inset：
+                                                            // 默认 contentPadding 会按屏幕状态栏计算，导致弹窗顶部出现一截空白
+                                                            contentPadding = PaddingValues(
+                                                                top = 0.dp,
+                                                                bottom = 8.dp
+                                                            )
                                                         )
                                                     }
                                                 }
