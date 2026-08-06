@@ -30,6 +30,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":component"))
             api(project(":llyric"))
+            api(project(":lfont"))
             api(libs.compose.resources)
             api(libs.koin.core)
             api(libs.koin.annotations)
