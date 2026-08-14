@@ -18,6 +18,7 @@ package com.lalilu.lsettings.testutil
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.lalilu.common.settings.AccordionPreference
 import com.lalilu.common.settings.ClickPreference
 import com.lalilu.common.settings.DropdownPreference
 import com.lalilu.common.settings.MultiSelectPreference
@@ -48,6 +49,8 @@ class FakePreferenceRenderers : PreferenceRenderers {
     override fun renderMultiSelect(pref: MultiSelectPreference<*>, modifier: Modifier) { seenTypes += pref::class.java }
     @Composable
     override fun renderText(pref: TextPreference, modifier: Modifier) { seenTypes += pref::class.java }
+    @Composable
+    override fun renderAccordion(pref: AccordionPreference, modifier: Modifier) { seenTypes += pref::class.java }
     @Composable
     override fun renderClick(pref: ClickPreference, modifier: Modifier) { seenTypes += pref::class.java }
 
