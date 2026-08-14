@@ -57,9 +57,7 @@ data object LyricSettingsScreen : Screen, ScreenInfoFactory {
         SettingsSubpageContent(
             title = "歌词设置",
             subTitle = "歌词显示样式",
-            groups = listOf(
-                provideLyricSettings(fontManager = koinInject())
-            )
+            groups = provideLyricSettings(fontManager = koinInject())
         )
     }
 }
