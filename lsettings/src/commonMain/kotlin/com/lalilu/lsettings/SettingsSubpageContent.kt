@@ -34,7 +34,7 @@ import com.lalilu.common.settings.SettingsGroup
  *         SettingsSubpageContent(
  *             title = "歌词设置",
  *             subTitle = "歌词显示样式",
- *             groups = listOf(provideLyricSettings())
+ *             groups = provideLyricSettings()
  *         )
  *     }
  * }
