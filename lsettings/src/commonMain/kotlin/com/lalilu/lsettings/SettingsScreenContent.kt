@@ -78,6 +78,8 @@ fun SettingsScreenContent(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     showNavigatorHeader: Boolean = true,
+    headerTitle: String = "设置",
+    headerSubTitle: String = "应用与各模块偏好",
 ) {
     val renderers = LocalPreferenceRenderers.current
 
@@ -125,8 +127,8 @@ fun SettingsScreenContent(
                 //   与 HistoryScreen / SongsScreen / MediaSourceScreen 三种头部模式保持一致
                 NavigatorHeader(
                     modifier = Modifier.testTag("settings_navigator_header"),
-                    title = "设置",
-                    subTitle = "应用与各模块偏好",
+                    title = headerTitle,
+                    subTitle = headerSubTitle,
                     paddingValues = PaddingValues(
                         top = 8.dp,
                         bottom = 20.dp,
