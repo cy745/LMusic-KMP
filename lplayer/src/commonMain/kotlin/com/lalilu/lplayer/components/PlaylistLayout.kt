@@ -24,7 +24,6 @@ import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.SongCard
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
-import com.lalilu.navigation.LocalModalBottomSheetState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -42,7 +41,6 @@ fun PlaylistLayout(
     val context = LocalPlatformContext.current
     var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
-    val bottomSheetState = LocalModalBottomSheetState.current
 
     LaunchedEffect(Unit) {
         items.collect { list ->
@@ -121,8 +119,8 @@ fun PlaylistLayout(
                         .with("sharedMap", sharedMap)
                         .with("coverCacheKey", coverMemoryKey)
                         .jump()
-
-                    scope.launch { bottomSheetState.show() }
+                    // 展开播放页底栏由 AppRouter 末尾的 SheetExpandInterceptor 统一处理，
+                    // 无需在此手动 bottomSheetState.show()
                 }
             )
         }
