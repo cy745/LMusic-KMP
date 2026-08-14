@@ -46,6 +46,7 @@ sealed class DialogItem {
     data class Dynamic(
         val backgroundColor: Color? = null,
         val onDismiss: () -> Unit = {},
+        val skipPartiallyExpanded: Boolean = false,
         val content: @Composable DialogContext.() -> Unit,
     ) : DialogItem()
 }
@@ -113,7 +114,15 @@ object DialogWrapper : DialogHost, DialogContext {
         if (dialogItem == null) return
 
         val scope = rememberCoroutineScope()
-        val sheetState = rememberModalBottomSheetState().also { state ->
+        // 按弹窗类型创建 sheetState：Dynamic 可声明 skipPartiallyExpanded 跳过
+        // PartiallyExpanded 中间态（打开直接完全展开），默认与其他弹窗行为一致。
+        // rememberModalBottomSheetState 内部以 skipPartiallyExpanded 为 rememberSaveable key，
+        // 参数变化时自动重建 state，无需手动 key
+        val skipPartiallyExpanded =
+            (dialogItem as? DialogItem.Dynamic)?.skipPartiallyExpanded == true
+        val sheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = skipPartiallyExpanded
+        ).also { state ->
             dismissFunc = {
                 scope.launch {
                     state.hide()

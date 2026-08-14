@@ -34,7 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,7 +71,8 @@ fun AccordionPreferenceRow(
     modifier: Modifier = Modifier
 ) {
     val renderers = LocalPreferenceRenderers.current
-    var expanded by remember { mutableStateOf(false) }
+    // rememberSaveable：LazyColumn 滚动回收 item 后恢复展开状态
+    var expanded by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = modifier
