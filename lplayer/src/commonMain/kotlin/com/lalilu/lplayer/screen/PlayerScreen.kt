@@ -39,7 +39,7 @@ import com.lalilu.extensions.retrieve
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.llyricview.LyricLayout
 import com.lalilu.llyricview.LyricSettings
-import com.lalilu.llyricview.provideLyricSettings
+import com.lalilu.llyricview.provideLyricSettingsQuick
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.*
@@ -230,9 +230,10 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                                                     ) {
                                                         SettingsScreenContent(
                                                             groups = listOf(
-                                                                provideLyricSettings(
-                                                                    fontManager = koinInject(),
-                                                                    includeFontEntry = false
+                                                                // 弹窗只保留高频设置项 + 完整设置入口，
+                                                                // 完整 17 项设置已迁至独立子页 /settings/lyric
+                                                                provideLyricSettingsQuick(
+                                                                    fontManager = koinInject()
                                                                 )
                                                             ),
                                                             showNavigatorHeader = false,
