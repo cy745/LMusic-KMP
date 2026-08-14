@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.lalilu.navigation.AppRouter
+import com.lalilu.navigation.NavIntent
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -112,6 +114,18 @@ object DialogWrapper : DialogHost, DialogContext {
     @Composable
     override fun Content() {
         if (dialogItem == null) return
+
+        // 路由跳转时自动关闭弹窗：弹窗内的 click 入口（如「完整歌词设置」）
+        // 跳转子页后，若不关闭全屏弹窗，新页面会被弹窗遮挡。监听 AppRouter
+        // 的实际跳转意图（非 None），一旦发生即 dismiss。Content 仅在弹窗存在
+        // 时组合，故 collect 生命周期与弹窗一致。
+        LaunchedEffect(Unit) {
+            AppRouter.intents.collectLatest { intent ->
+                if (intent !is NavIntent.None) {
+                    dismiss()
+                }
+            }
+        }
 
         val scope = rememberCoroutineScope()
         // 按弹窗类型创建 sheetState：Dynamic 可声明 skipPartiallyExpanded 跳过

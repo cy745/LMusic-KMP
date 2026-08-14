@@ -25,6 +25,7 @@ import com.lalilu.component.ModalBottomSheetState
 import com.lalilu.component.ModalBottomSheetValue
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.navigation.LocalModalBottomSheetState
+import com.lalilu.navigation.SheetExpandInterceptor
 import kotlinx.coroutines.launch
 
 
@@ -40,6 +41,15 @@ fun ScaleBottomSheetLayout(
     val scope = rememberCoroutineScope()
     val navigatorBar = WindowInsets.navigationBars.asPaddingValues()
     val ime = WindowInsets.ime.asPaddingValues()
+
+    // 注册"路由跳转后展开底栏"回调：AppRouter 末尾的 SheetExpandInterceptor
+    // 在真实跳转时调用。拦截器无法访问 CompositionLocal，只能通过该全局
+    // 注册表间接驱动；组合销毁时清理，避免泄漏到其他布局（如平板布局
+    // 不注册则跳转不触发展开）。
+    DisposableEffect(Unit) {
+        SheetExpandInterceptor.expandModalSheet = { scope.launch { bottomSheetState.show() } }
+        onDispose { SheetExpandInterceptor.expandModalSheet = null }
+    }
 
     CompositionLocalProvider(LocalModalBottomSheetState provides bottomSheetState) {
         ModalBottomSheetLayout(

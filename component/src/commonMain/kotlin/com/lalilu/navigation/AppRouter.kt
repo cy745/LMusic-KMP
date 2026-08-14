@@ -8,6 +8,7 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -170,6 +171,48 @@ val DefaultHandler = NavHandler { backstack, intent ->
     }
 }
 
+/**
+ * 路由跳转后展开播放页底栏（ModalBottomSheetLayout）的拦截器。
+ *
+ * ## 背景
+ *
+ * 播放页（PlayerScreen）由 `ScaleBottomSheetLayout` 作为底层 content 常驻组合，
+ * 主路由页面渲染在其 sheetContent（上层）。当播放页处于折叠（Hidden）状态时，
+ * 任意跳转到主路由页面的操作（如歌词设置子页、歌曲详情）都会让新页面被
+ * 折叠的播放页挡住——历史上需要在跳转处手动 `bottomSheetState.show()`。
+ *
+ * 本拦截器放在拦截器链**最后**：只要意图没有被前面的拦截器消化为
+ * [NavIntent.None]（说明发生了实际跳转），就通过 [SheetExpandInterceptor.expandModalSheet]
+ * 请求展开底栏（若未注册则为 no-op，如平板布局 / 播放页未组合时）。
+ *
+ * ## 为什么放在最后
+ *
+ * 前面的拦截器（TooFast / SingleTop / SingleInstance / TabScreen）会把"不应
+ * 跳转"的意图折叠为 [NavIntent.None]；只有真正要跳转的意图才会走到这里。
+ * [com.lalilu.component.ModalBottomSheetState.show] 幂等——已展开时无副作用。
+ */
+object SheetExpandInterceptor : NavInterceptor {
+    override val name: String = "SheetExpandInterceptor"
+
+    /**
+     * 由底栏容器（如 `ScaleBottomSheetLayout`）组合时注册的"展开回调"。
+     *
+     * 拦截器不是 @Composable 上下文，无法直接读 `LocalModalBottomSheetState`，
+     * 因此通过此注册表间接触发展开。注册方负责用自身协程作用域包装
+     * `bottomSheetState.show()`，并在组合销毁时置回 `null`。
+     *
+     * 独立于 [AppRouter] 挂载：展开逻辑是播放页底栏对导航行为的响应，
+     * 不属于路由核心，避免 AppRouter 持有 UI 回调。
+     */
+    var expandModalSheet: (() -> Unit)? = null
+
+    override fun intercept(backStack: NavBackStack<Screen>, intent: NavIntent): NavIntent {
+        if (intent is NavIntent.None) return intent
+        expandModalSheet?.invoke()
+        return intent
+    }
+}
+
 @OptIn(DelicateCoroutinesApi::class)
 object AppRouter {
     private val logger = Logger.withTag("AppRouter")
@@ -180,7 +223,11 @@ object AppRouter {
         DefaultSingleTopInterceptor,
         DefaultSingleInstanceInterceptor,
         DefaultInterceptorForTabScreen,
+        SheetExpandInterceptor,
     )
+
+    /** 路由意图热流：供其他组件监听实际发生的跳转（如弹窗自动关闭）。 */
+    val intents: SharedFlow<NavIntent> get() = sharedFlow
 
     suspend fun bind(
         backStack: NavBackStack<Screen>,
