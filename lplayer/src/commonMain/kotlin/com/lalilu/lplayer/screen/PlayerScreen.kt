@@ -207,11 +207,16 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                                         DialogWrapper.push(
                                             DialogItem.Dynamic(
                                                 backgroundColor = Color.Transparent,
+                                                // 歌词设置项多：跳过 PartiallyExpanded 中间态，
+                                                // 打开直接完全展开，避免半屏状态下的裁剪感
+                                                skipPartiallyExpanded = true,
                                                 content = {
                                                     Surface(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
-                                                            .heightIn(max = 560.dp)
+                                                            // 弹窗高度固定上限 350dp，
+                                                            // 内容在内部滚动，不随 accordion 展开变化
+                                                            .heightIn(max = 350.dp)
                                                             .padding(horizontal = 16.dp)
                                                             .padding(bottom = 8.dp),
                                                         border = BorderStroke(

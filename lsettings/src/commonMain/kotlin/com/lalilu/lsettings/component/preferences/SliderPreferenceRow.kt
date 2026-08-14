@@ -18,6 +18,7 @@ package com.lalilu.lsettings.component.preferences
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -85,6 +86,8 @@ fun SliderPreferenceRow(
             color = MaterialTheme.colorScheme.primary
         )
         Slider(
+            modifier = Modifier.padding(top = 2.dp)
+                .height(24.dp),
             value = localValue,
             onValueChange = {
                 localValue = it
