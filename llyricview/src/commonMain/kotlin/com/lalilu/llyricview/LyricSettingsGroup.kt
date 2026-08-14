@@ -46,8 +46,15 @@ import org.koin.core.annotation.Named
  * 分组结构对齐旧项目 LyricViewToolbar 的 Accordion：
  * 歌词方向 / 歌词样式 / 翻译样式 / 其他（偏移、滚动参数、开关、字体入口）。
  */
-@Factory
-@Named("settings_lyric")
+/**
+ * 完整歌词设置组：供歌词设置子页 `/settings/lyric` 渲染。
+ *
+ * **不再通过 `@Factory` + `@Named` 自动注册进主设置页**（避免 17 项设置
+ * 全部堆积到主设置页）；主设置页只保留 [provideLyricSettingsEntry] 的
+ * click 入口，点击后跳转到子页。播放页弹窗使用 [provideLyricSettingsQuick]。
+ *
+ * @param includeFontEntry 是否包含「歌词字体」入口（子页 true，弹窗 false）
+ */
 fun provideLyricSettings(
     fontManager: FontManager,
     includeFontEntry: Boolean = true,
@@ -290,5 +297,125 @@ fun provideLyricSettings(
                 )
             }
         }
+    }
+}
+
+/**
+ * 主设置页的歌词入口组：只暴露一个 click 入口，点击后跳转到歌词设置子页
+ * `/settings/lyric`。17 项完整设置由子页承载，不再堆积到主设置页。
+ */
+@Factory
+@Named("settings_lyric")
+fun provideLyricSettingsEntry(): SettingsGroup = settingsGroup(
+    key = "lyric",
+    order = 12,
+    title = { "歌词" },
+    description = { "歌词显示样式" },
+) {
+    click(
+        key = "lyric.settings",
+        title = { "歌词设置" },
+        summary = { "字号、对齐、翻译、滚动效果等完整设置" },
+        onClick = {
+            AppRouter.route("/settings/lyric").jump()
+        }
+    )
+}
+
+/**
+ * 播放页弹窗用的精简歌词设置组：只保留高频调整项（对齐 / 主歌词字号 /
+ * 翻译字号 / 翻译开关），外加「完整歌词设置」入口跳转子页。
+ *
+ * 与 [provideLyricSettings] 共享同一份 `LyricSettings` KV（实时预览 + 松手落盘）。
+ */
+fun provideLyricSettingsQuick(
+    fontManager: FontManager,
+): SettingsGroup {
+    val settings = KVContext.obtainStatic<LyricSettings>(
+        key = "LyricSettings",
+        defaultValue = LyricSettings(),
+    ).apply { disableAutoSave() }
+
+    /** 仅更新内存 state（驱动歌词渲染实时反馈），不落盘。 */
+    fun updateInMemory(block: LyricSettings.() -> LyricSettings) {
+        settings.value = settings.value.block()
+    }
+
+    /** 强制落盘。 */
+    fun persist() = settings.save()
+
+    /** 内存 + 落盘一步完成（dropdown / switch 等离散选择场景）。 */
+    fun updateAndPersist(block: LyricSettings.() -> LyricSettings) {
+        updateInMemory(block)
+        persist()
+    }
+
+    return settingsGroup(
+        key = "lyric_quick",
+        order = 0,
+        title = { "歌词" },
+        description = { "常用歌词设置" },
+    ) {
+        dropdown(
+            key = "lyric_quick_text_align",
+            title = { "对齐方式" },
+            selectedValue = settings.value.textAlign,
+            options = listOf(TextAlign.Start, TextAlign.Center, TextAlign.End),
+            optionLabel = { align ->
+                when (align) {
+                    TextAlign.Start -> "左对齐"
+                    TextAlign.Center -> "居中"
+                    else -> "右对齐"
+                }
+            },
+            onValueChange = { updateAndPersist { copy(textAlign = it) } },
+            serialize = { it.toString() },
+            deserialize = { name ->
+                when (name) {
+                    "Center" -> TextAlign.Center
+                    "End" -> TextAlign.End
+                    else -> TextAlign.Start
+                }
+            },
+            optionIcon = { align ->
+                when (align) {
+                    TextAlign.Start -> RemixIcon.Editor.alignLeft
+                    TextAlign.Center -> RemixIcon.Editor.alignCenter
+                    else -> RemixIcon.Editor.alignRight
+                }
+            }
+        )
+        slider(
+            key = "lyric_quick_main_font_size",
+            title = { "歌词文字大小" },
+            value = settings.value.mainFontSize.value,
+            onValueChange = { updateInMemory { copy(mainFontSize = it.sp) } },
+            valueRange = 14f..64f,
+            valueLabel = { "${it.toInt()} sp" },
+            onValueChangeFinished = { persist() }
+        )
+        slider(
+            key = "lyric_quick_translation_font_size",
+            title = { "翻译文字大小" },
+            value = settings.value.translationFontSize.value,
+            onValueChange = { updateInMemory { copy(translationFontSize = it.sp) } },
+            valueRange = 14f..64f,
+            valueLabel = { "${it.toInt()} sp" },
+            onValueChangeFinished = { persist() }
+        )
+        switch(
+            key = "lyric_quick_translation_visible",
+            title = { "显示翻译" },
+            value = settings.value.translationVisible,
+            onValueChange = { updateAndPersist { copy(translationVisible = it) } }
+        )
+        click(
+            key = "lyric_quick_full_settings",
+            title = { "完整歌词设置" },
+            summary = { "行高、字重、偏移、滚动效果等" },
+            onClick = {
+                AppRouter.route("/settings/lyric").jump()
+            }
+        )
     }
 }

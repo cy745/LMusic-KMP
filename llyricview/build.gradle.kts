@@ -31,6 +31,7 @@ kotlin {
             api(project(":component"))
             api(project(":llyric"))
             api(project(":lfont"))
+            implementation(project(":lsettings"))
             api(libs.compose.resources)
             api(libs.koin.core)
             api(libs.koin.annotations)
