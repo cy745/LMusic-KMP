@@ -1,6 +1,5 @@
 package com.lalilu.lmusic.component
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -13,7 +12,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.max
 import androidx.compose.ui.util.lerp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
@@ -69,16 +67,11 @@ fun ScaleBottomSheetLayout(
                         mainContent.invoke()
                     }
 
-                    val navigatorBarHeight = navigatorBar.calculateBottomPadding()
-                    val imeHeight = ime.calculateBottomPadding()
-
                     smartBarContent.invoke(
                         bottomBarModifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .background(color = MaterialTheme.colorScheme.background.copy(0.9f))
-                            .padding(bottom = max(navigatorBarHeight, imeHeight))
-                            .height(72.dp)
+                            .height(72.dp + navigatorBar.calculateBottomPadding())
                     )
                 }
             },

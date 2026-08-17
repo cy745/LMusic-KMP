@@ -1,8 +1,9 @@
 package com.lalilu.lmusic.component
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,9 +25,11 @@ import kotlinx.coroutines.launch
 @Composable
 fun PlayerBottomSheetScaffold(
     modifier: Modifier,
+    bottomBarModifier: Modifier,
     bottomSheetState: BottomSheetState,
     playerContent: @Composable ColumnScope.() -> Unit,
     mainContent: @Composable (PaddingValues) -> Unit,
+    smartBarContent: @Composable (Modifier) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val navigatorBar = WindowInsets.navigationBars.asPaddingValues()
@@ -40,7 +43,7 @@ fun PlayerBottomSheetScaffold(
         sheetBackgroundColor = Color.Transparent,
         shadowElevation = 0.dp,
         tonalElevation = 0.dp,
-        sheetPeekHeight = 72.dp + navigatorBar.calculateBottomPadding(),
+        sheetPeekHeight = 0.dp,
         sheetContent = playerContent,
         sheetShape = RectangleShape,
         content = { paddingValues ->
@@ -50,7 +53,50 @@ fun PlayerBottomSheetScaffold(
                         .coerceAtLeast(navigatorBar.calculateBottomPadding())
                 }
             ) {
-                mainContent.invoke(paddingValues)
+                Box(modifier = Modifier.fillMaxSize()) {
+                    mainContent.invoke(paddingValues)
+
+                    val draggable2DState = rememberDraggableState(onDelta = {
+                        bottomSheetState.anchoredDraggableState.dispatchRawDelta(it)
+                    })
+
+                    Row(
+                        modifier = bottomBarModifier
+                            .align(Alignment.BottomCenter)
+                            .graphicsLayer {
+                                val progress = bottomSheetState.progress(
+                                    BottomSheetValue.Collapsed,
+                                    BottomSheetValue.Expanded
+                                )
+                                alpha = (1f - progress)
+                            }
+                            .fillMaxWidth()
+                            .height(72.dp + navigatorBar.calculateBottomPadding()),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        PlayingInfoCardImpl(
+                            modifier = Modifier
+                                .draggable(
+                                    state = draggable2DState,
+                                    orientation = Orientation.Vertical,
+                                    onDragStarted = {},
+                                    onDragStopped = { bottomSheetState.anchoredDraggableState.settle(it) }
+                                ).navigationBarsPadding(),
+                            onClick = { scope.launch { bottomSheetState.expand() } },
+                        )
+
+                        smartBarContent.invoke(
+                            Modifier
+                                .weight(1f)
+                                .draggable(
+                                    state = draggable2DState,
+                                    orientation = Orientation.Vertical,
+                                    onDragStarted = {},
+                                    onDragStopped = { bottomSheetState.anchoredDraggableState.settle(it) }
+                                )
+                        )
+                    }
+                }
             }
         }
     )
@@ -61,13 +107,11 @@ fun PlayerBottomSheetScaffold(
     }
 }
 
+
 @Composable
-fun PlayerBottomSheetContent(
+fun PlayingInfoCardImpl(
     modifier: Modifier = Modifier,
-    bottomBarModifier: Modifier = Modifier,
-    bottomSheetState: BottomSheetState,
-    playerScreen: @Composable BoxScope.() -> Unit,
-    smartBarContent: @Composable (Modifier) -> Unit = {},
+    onClick: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val currentPlaying = remember { LPlayer.instance.queue.currentItemFlow() }
@@ -86,52 +130,37 @@ fun PlayerBottomSheetContent(
         }
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    val progress = bottomSheetState.progress(
-                        BottomSheetValue.Collapsed,
-                        BottomSheetValue.Expanded
-                    )
-                    alpha = progress
-                }
-        ) {
-            playerScreen.invoke(this)
-        }
+    PlayingInfoCard(
+        modifier = modifier,
+        currentPlaying = { currentPlaying.value },
+        currentProgress = {
+            (currentPosition.value / currentDuration.value.toFloat()).coerceIn(0f, 1f)
+        },
+        isPlaying = { isPlaying.value },
+        hasNext = { hasNext.value },
+        onClickPlayPause = { scope.launch { LPlayer.instance.togglePlayPause() } },
+        onClickNext = { scope.launch { LPlayer.instance.skipToNext() } },
+        onClick = onClick,
+    )
+}
 
-        Row(
-            modifier = bottomBarModifier
-                .graphicsLayer {
-                    val progress = bottomSheetState.progress(
-                        BottomSheetValue.Collapsed,
-                        BottomSheetValue.Expanded
-                    )
-
-                    translationY = constraints.maxHeight * progress
-                    alpha = (1f - progress)
-                }
-                .fillMaxWidth()
-                .background(color = MaterialTheme.colorScheme.background.copy(0.6f))
-                .navigationBarsPadding()
-                .height(72.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            PlayingInfoCard(
-                modifier = Modifier,
-                currentPlaying = { currentPlaying.value },
-                currentProgress = {
-                    (currentPosition.value / currentDuration.value.toFloat()).coerceIn(0f, 1f)
-                },
-                isPlaying = { isPlaying.value },
-                hasNext = { hasNext.value },
-                onClickPlayPause = { scope.launch { LPlayer.instance.togglePlayPause() } },
-                onClickNext = { scope.launch { LPlayer.instance.skipToNext() } },
-                onClick = { scope.launch { bottomSheetState.expand() } },
-            )
-
-            smartBarContent.invoke(Modifier.weight(1f))
-        }
+@Composable
+fun PlayerBottomSheetContent(
+    modifier: Modifier = Modifier,
+    bottomSheetState: BottomSheetState,
+    playerScreen: @Composable BoxScope.() -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                val progress = bottomSheetState.progress(
+                    BottomSheetValue.Collapsed,
+                    BottomSheetValue.Expanded
+                )
+                alpha = progress
+            }
+    ) {
+        playerScreen.invoke(this)
     }
 }
