@@ -66,10 +66,11 @@ fun BottomBarApplier(
         movableContentOf<() -> Boolean> { content(it) }
     }
     val smartBarContent = remember {
-        movableContentOf<Modifier> {
+        movableContentOf<Modifier, Boolean> { modifier, hideTabBar ->
             NavigationSmartBar(
-                modifier = it,
-                tabScreens = tabsScreen
+                modifier = modifier,
+                tabScreens = tabsScreen,
+                hideTabBar = { hideTabBar }
             )
         }
     }
@@ -81,14 +82,12 @@ fun BottomBarApplier(
             }
         }
     }
-    val padPlayerContent = remember(smartBarContent) {
+    val padPlayerContent = remember {
         movableContentOf {
             PlayerBottomSheetContent(
                 modifier = Modifier,
-                bottomBarModifier = bottomBarModifier,
                 bottomSheetState = bottomSheetStateForPad,
                 playerScreen = { padPlayerScreen.Content() },
-                smartBarContent = { smartBarContent.invoke(it) }
             )
         }
     }
@@ -97,7 +96,9 @@ fun BottomBarApplier(
         if (windowClass.atLeastMedium()) {
             PlayerBottomSheetScaffold(
                 modifier = modifier,
+                bottomBarModifier = bottomBarModifier,
                 bottomSheetState = bottomSheetStateForPad,
+                smartBarContent = { smartBarContent.invoke(it, true) },
                 playerContent = { padPlayerContent.invoke() },
                 mainContent = { mainContent.invoke { !bottomSheetStateForPad.isExpanded } }
             )
@@ -108,7 +109,7 @@ fun BottomBarApplier(
                 bottomSheetState = bottomSheetState,
                 playerContent = { playerContent.invoke(it) },
                 mainContent = { mainContent.invoke { bottomSheetState.isVisible } },
-                smartBarContent = { smartBarContent.invoke(it) }
+                smartBarContent = { smartBarContent.invoke(it, false) }
             )
         }
     }

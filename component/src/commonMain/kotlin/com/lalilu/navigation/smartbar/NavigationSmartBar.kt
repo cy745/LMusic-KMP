@@ -21,13 +21,14 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.dp
 import com.lalilu.navigation.*
 import kotlinx.coroutines.flow.filterNotNull
 
@@ -35,7 +36,7 @@ import kotlinx.coroutines.flow.filterNotNull
 /**
  * 智能导航栏密封类，用于区分不同类型的导航栏
  */
-private sealed interface NavigationBarType {
+sealed interface NavigationBarType {
     /**
      * Tab 类型的导航栏（主页面）
      */
@@ -68,7 +69,9 @@ private sealed interface NavigationBarType {
 @Composable
 fun NavigationSmartBar(
     modifier: Modifier = Modifier,
+    barModifier: Modifier = Modifier,
     tabScreens: () -> List<Screen> = { emptyList() },
+    hideTabBar: () -> Boolean = { false }
 ) {
     val backStack = LocalBackStack.current
     val navigationBar = remember { mutableStateOf<NavigationBarType>(NavigationBarType.EmptyBar) }
@@ -82,17 +85,53 @@ fun NavigationSmartBar(
             .collect { (barComponent, actions, currentScreen) ->
                 navigationBar.value = when {
                     barComponent != null -> NavigationBarType.NormalBar(barComponent)
-                    currentScreen is ScreenInfoFactory && currentScreen.isTabScreen() -> NavigationBarType.TabBar
+
+                    currentScreen is ScreenInfoFactory && currentScreen.isTabScreen() -> {
+                        if (hideTabBar()) NavigationBarType.EmptyBar
+                        else NavigationBarType.TabBar
+                    }
+
                     actions != null -> NavigationBarType.CommonBar(actions)
                     else -> NavigationBarType.EmptyBar
                 }
             }
     }
 
+    NavigationSmartBar(
+        modifier = modifier,
+        barModifier = barModifier,
+        tabScreens = tabScreens,
+        state = navigationBar.value,
+        currentScreen = { backStack.lastOrNull()?.actualScreen() },
+        previousTitle = {
+            val previousScreen = backStack
+                .takeIf { it.size > 1 }
+                ?.let { it[it.size - 2] }
+                ?.actualScreen()
+
+            if (previousScreen == null) {
+                null
+            } else {
+                (previousScreen as? ScreenInfoFactory)
+                    ?.provideScreenInfo()
+                    ?.title?.invoke()
+                    ?: "Back"
+            }
+        },
+    )
+}
+
+@Composable
+fun NavigationSmartBar(
+    modifier: Modifier = Modifier,
+    barModifier: Modifier = Modifier,
+    currentScreen: () -> Screen? = { null },
+    previousTitle: @Composable () -> String? = { null },
+    tabScreens: () -> List<Screen> = { emptyList() },
+    state: NavigationBarType,
+) {
     AnimatedContent(
-        modifier = modifier
-            .pointerInput(Unit) { } // 避免点击穿透
-            .fillMaxHeight(),
+        modifier = modifier,
         transitionSpec = {
             slideIntoContainer(
                 towards = AnimatedContentTransitionScope.SlideDirection.Up,
@@ -103,48 +142,42 @@ fun NavigationSmartBar(
             )
         },
         contentAlignment = Alignment.BottomCenter,
-        targetState = navigationBar.value,
+        targetState = state,
         label = "NavigationBar"
     ) { item ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        if (item is NavigationBarType.EmptyBar) {
+            Spacer(
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .height(72.dp)
+                    .fillMaxWidth()
+            )
+            return@AnimatedContent
+        }
+
+        Box(
+            modifier = barModifier
+                .pointerInput(Unit) {}
+                .background(color = MaterialTheme.colorScheme.background.copy(0.9f))
+                .navigationBarsPadding()
+                .height(72.dp)
+        ) {
             when (item) {
-                is NavigationBarType.NormalBar -> {
-                    item.barComponent.content()
-                }
+                is NavigationBarType.NormalBar -> item.barComponent.content()
 
-                is NavigationBarType.TabBar -> {
-                    val currentScreen = backStack.lastOrNull()?.actualScreen()
+                is NavigationBarType.TabBar -> NavigateTabBar(
+                    modifier = Modifier.fillMaxSize(),
+                    currentScreen = currentScreen,
+                    tabScreens = tabScreens,
+                    onSelectTab = { screen -> AppRouter.intent(NavIntent.Push(screen)) }
+                )
 
-                    NavigateTabBar(
-                        modifier = Modifier.fillMaxHeight(),
-                        currentScreen = { currentScreen },
-                        tabScreens = tabScreens,
-                        onSelectTab = { screen -> AppRouter.intent(NavIntent.Push(screen)) }
-                    )
-                }
-
-                is NavigationBarType.CommonBar -> {
-                    val previousScreen = backStack
-                        .takeIf { it.size > 1 }
-                        ?.let { it[it.size - 2] }
-                        ?.actualScreen()
-
-                    val previousTitle = if (previousScreen == null) {
-                        null
-                    } else {
-                        (previousScreen as? ScreenInfoFactory)
-                            ?.provideScreenInfo()
-                            ?.title?.invoke()
-                            ?: "Back"
-                    }
-
-                    NavigateCommonBar(
-                        modifier = Modifier.fillMaxHeight(),
-                        previousScreenTitle = previousTitle,
-                        screenActions = { item.actions },
-                        onBackPress = { AppRouter.intent(NavIntent.Pop) }
-                    )
-                }
+                is NavigationBarType.CommonBar -> NavigateCommonBar(
+                    modifier = Modifier.fillMaxSize(),
+                    previousScreenTitle = previousTitle(),
+                    screenActions = { item.actions },
+                    onBackPress = { AppRouter.intent(NavIntent.Pop) }
+                )
             }
         }
     }
