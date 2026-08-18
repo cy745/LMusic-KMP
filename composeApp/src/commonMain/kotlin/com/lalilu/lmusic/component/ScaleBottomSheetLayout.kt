@@ -11,6 +11,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.navigationevent.NavigationEventInfo
@@ -71,7 +72,6 @@ fun ScaleBottomSheetLayout(
                         bottomBarModifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .height(72.dp + navigatorBar.calculateBottomPadding())
                     )
                 }
             },
