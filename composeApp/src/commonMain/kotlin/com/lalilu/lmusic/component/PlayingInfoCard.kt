@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.lalilu.lmusic.screen
+package com.lalilu.lmusic.component
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInVertically
@@ -39,9 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.lalilu.RemixIcon
-import org.jetbrains.compose.resources.vectorResource
 import com.lalilu.animated
 import com.lalilu.lmedia.domain.model.LAudio
+import org.jetbrains.compose.resources.vectorResource
 
 @Composable
 fun PlayingInfoCard(

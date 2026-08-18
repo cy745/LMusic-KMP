@@ -1,4 +1,4 @@
-package com.lalilu.lplayer
+package com.lalilu.lplayer.components
 
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource

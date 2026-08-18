@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.lalilu.navigation.*
+import com.lalilu.navigation.NavIntent.Push
 import kotlinx.coroutines.flow.filterNotNull
 
 
@@ -55,7 +56,7 @@ sealed interface NavigationBarType {
     /**
      * 空导航栏
      */
-    data object EmptyBar : CommonBar(emptyList())
+    data object EmptyBar : NavigationBarType
 }
 
 /**
@@ -92,7 +93,7 @@ fun NavigationSmartBar(
                     }
 
                     actions != null -> NavigationBarType.CommonBar(actions)
-                    else -> NavigationBarType.EmptyBar
+                    else -> NavigationBarType.CommonBar(emptyList())
                 }
             }
     }
@@ -141,7 +142,7 @@ fun NavigationSmartBar(
                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
             )
         },
-        contentAlignment = Alignment.BottomCenter,
+        contentAlignment = Alignment.TopCenter,
         targetState = state,
         label = "NavigationBar"
     ) { item ->
@@ -157,9 +158,11 @@ fun NavigationSmartBar(
 
         Box(
             modifier = barModifier
+                .fillMaxWidth()
                 .pointerInput(Unit) {}
                 .background(color = MaterialTheme.colorScheme.background.copy(0.9f))
                 .navigationBarsPadding()
+                .imePadding()
                 .height(72.dp)
         ) {
             when (item) {
@@ -169,7 +172,7 @@ fun NavigationSmartBar(
                     modifier = Modifier.fillMaxSize(),
                     currentScreen = currentScreen,
                     tabScreens = tabScreens,
-                    onSelectTab = { screen -> AppRouter.intent(NavIntent.Push(screen)) }
+                    onSelectTab = { screen -> AppRouter.intent(Push(screen)) }
                 )
 
                 is NavigationBarType.CommonBar -> NavigateCommonBar(
@@ -178,6 +181,8 @@ fun NavigationSmartBar(
                     screenActions = { item.actions },
                     onBackPress = { AppRouter.intent(NavIntent.Pop) }
                 )
+
+                is NavigationBarType.EmptyBar -> Unit
             }
         }
     }
