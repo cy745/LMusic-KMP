@@ -217,6 +217,17 @@ jobs:
           api-key-id: ${{ secrets.ASC_KEY_ID }}
           api-private-key: ${{ secrets.ASC_PRIVATE_KEY }}
 
+      # 2.5 预构建 Kotlin Framework（隔离链接内存）
+      # K/N linkReleaseFrameworkIosArm64 在 Gradle daemon 内链接大 framework 需要 >8G 堆，
+      # 直接放进 xcodebuild 会与 Xcode/clang 抢内存导致 java.lang.OutOfMemoryError
+      #（07-30 / 08-18 三次同位置失败）。这里单独先跑，独占整机内存：
+      #   - GRADLE_OPTS 只作用于本步骤的 daemon，不影响其他平台任务
+      #   - 产物落 runner 磁盘缓存，xcodebuild 阶段 embedAndSign 时 link 任务 UP-TO-DATE 直接复用
+      - name: Pre-build Kotlin Framework
+        run: ./gradlew :composeApp:linkReleaseFrameworkIosArm64 --console=plain
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx12G -XX:MaxMetaspaceSize=1G -XX:+UseParallelGC -Dfile.encoding=UTF-8
+
       # 3. 构建 + Archive（手动签名，使用导入的证书和已下载的 Profile）
       - name: Build and Archive
         run: |
