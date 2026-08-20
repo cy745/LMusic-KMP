@@ -48,10 +48,17 @@ private val TAB_ROW_HEIGHT = 56.dp
 /**
  * Content for [SearchScreen]. Rendered inside the Screen's main content slot.
  *
- * The layout is a [Box] that overlays a floating [SearchTypeTabBar] (anchored
- * to BottomCenter) over a [LazyColumn] of results. The LazyColumn's bottom
- * contentPadding accounts for the tab row + smart bar height so content never
- * sits underneath the floating UI.
+ * Layout:
+ *  - Outer Box reserves `bottom = smartBarHeight()` padding so neither the
+ *    floating tab row nor the lazy column extend underneath the SmartBar
+ *    (which is positioned at BottomCenter of the same parent Box by
+ *    [com.lalilu.lmusic.component.ScaleBottomSheetLayout]).
+ *  - The [SearchTypeTabBar] is anchored to BottomCenter of the *padded*
+ *    inner Box, so it sits flush against the top edge of the SmartBar
+ *    rather than being covered by it.
+ *  - The [LazyColumn]'s bottom contentPadding only needs to account for the
+ *    tab row height, since the SmartBar is already excluded by the outer
+ *    Box's padding.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -68,12 +75,16 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
         default = { 72.dp }
     )
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(bottom = smartBarHeight())
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp,
-                bottom = TAB_ROW_HEIGHT + smartBarHeight() + 16.dp
+                bottom = TAB_ROW_HEIGHT + 16.dp
             )
         ) {
             when (state.typeFilter) {
