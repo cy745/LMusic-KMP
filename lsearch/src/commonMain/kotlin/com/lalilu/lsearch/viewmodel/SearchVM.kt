@@ -23,17 +23,15 @@ import org.koin.core.annotation.Factory
 /**
  * ViewModel for [com.lalilu.lsearch.screen.SearchScreen].
  *
- * Aggregates three independent UseCases:
- *  - [SearchAudiosUseCase]
- *  - [SearchAlbumsUseCase]
- *  - [SearchArtistsUseCase]
- *
- * Each UseCase is re-driven whenever [SearchState.keyword] changes; the type
- * filter is purely a UI concern (the consumer chooses which flow to expose).
+ * Aggregates three independent UseCases — one per content type — that share a
+ * single keyword. Each UseCase is re-driven whenever [SearchState.keyword]
+ * changes. The active type tab is NOT held here: it lives in the UI's
+ * [androidx.compose.foundation.pager.PagerState] so every page keeps its own
+ * scroll position.
  *
  * All three flows run unconditionally — keyword filtering is cheap when the
- * list is small (local media library) and skipping when typeFilter excludes
- * a type would add unnecessary branching.
+ * list is small (local media library) and skipping unnecessary types would
+ * couple the VM to UI concerns.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @Factory
@@ -70,7 +68,6 @@ class SearchVM(
     override fun intent(intent: SearchAction) = viewModelScope.launch {
         when (intent) {
             is SearchAction.UpdateKeyword -> reduce { it.copy(keyword = intent.keyword) }
-            is SearchAction.SelectType -> reduce { it.copy(typeFilter = intent.type) }
             SearchAction.ClearKeyword -> reduce { it.copy(keyword = "") }
         }
     }

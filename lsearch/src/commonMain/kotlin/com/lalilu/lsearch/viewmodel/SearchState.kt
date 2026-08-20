@@ -7,16 +7,18 @@ import androidx.compose.runtime.Stable
  * UI state for [com.lalilu.lsearch.screen.SearchScreen].
  *
  * @param keyword current keyword in the bottom input bar; blank means "show all"
- * @param typeFilter active content-type filter; [SearchTypeFilter.All] shows
- *                   songs/albums/artists grouped by type
+ *
+ * Note: the active tab (All / Songs / Albums / Artists) is intentionally NOT
+ * part of the state — it is driven by the [androidx.compose.foundation.pager.PagerState]
+ * inside [com.lalilu.lsearch.screen.SearchScreenContent], so each page keeps an
+ * independent scroll position.
  */
 @Stable
 @Immutable
 data class SearchState(
-    val keyword: String = "",
-    val typeFilter: SearchTypeFilter = SearchTypeFilter.All
+    val keyword: String = ""
 ) {
-    val distinctKey: Int = keyword.hashCode() * 31 + typeFilter.ordinal
+    val distinctKey: Int = keyword.hashCode()
 }
 
 /**
@@ -34,9 +36,6 @@ sealed interface SearchEvent
 sealed interface SearchAction {
     /** Update the search keyword; triggers re-query across all three UseCases. */
     data class UpdateKeyword(val keyword: String) : SearchAction
-
-    /** Switch the active content-type filter. */
-    data class SelectType(val type: SearchTypeFilter) : SearchAction
 
     /** Clear the keyword (called by the input bar's clear button). */
     data object ClearKeyword : SearchAction
