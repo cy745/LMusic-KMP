@@ -7,11 +7,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -28,12 +24,7 @@ import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lsearch.component.SearchTypeTabBar
-import com.lalilu.lsearch.lsearch.generated.resources.Res
-import com.lalilu.lsearch.lsearch.generated.resources.search_empty_all
-import com.lalilu.lsearch.lsearch.generated.resources.search_empty_no_results
-import com.lalilu.lsearch.lsearch.generated.resources.search_section_albums
-import com.lalilu.lsearch.lsearch.generated.resources.search_section_artists
-import com.lalilu.lsearch.lsearch.generated.resources.search_section_songs
+import com.lalilu.lsearch.lsearch.generated.resources.*
 import com.lalilu.lsearch.viewmodel.SearchAction
 import com.lalilu.lsearch.viewmodel.SearchTypeFilter
 import com.lalilu.lsearch.viewmodel.SearchVM
@@ -60,7 +51,6 @@ private val TAB_ROW_HEIGHT = 56.dp
  *    tab row height, since the SmartBar is already excluded by the outer
  *    Box's padding.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SearchScreenContent(modifier: Modifier = Modifier) {
     val vm = koinViewModel<SearchVM>()
@@ -78,13 +68,12 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .padding(bottom = smartBarHeight())
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp,
-                bottom = TAB_ROW_HEIGHT + 16.dp
+                bottom = smartBarHeight() + TAB_ROW_HEIGHT + 16.dp
             )
         ) {
             when (state.typeFilter) {
@@ -94,6 +83,7 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
                     artists = artists,
                     isKeywordEmpty = state.keyword.isBlank()
                 )
+
                 SearchTypeFilter.Audio -> renderAudioTab(audios)
                 SearchTypeFilter.Album -> renderAlbumTab(albums)
                 SearchTypeFilter.Artist -> renderArtistTab(artists)
@@ -101,7 +91,9 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
         }
 
         SearchTypeTabBar(
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .padding(bottom = smartBarHeight())
+                .align(Alignment.BottomCenter),
             selected = { state.typeFilter },
             onSelect = { vm.intent(SearchAction.SelectType(it)) }
         )
