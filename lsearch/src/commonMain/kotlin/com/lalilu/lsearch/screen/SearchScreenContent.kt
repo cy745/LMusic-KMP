@@ -10,11 +10,6 @@ import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items as listItems
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items as staggerItems
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.window.core.layout.WindowSizeClass
 import coil3.compose.LocalPlatformContext
 import com.lalilu.adaptiveValue
 import com.lalilu.extensions.PassThroughHelper
@@ -39,6 +35,7 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lsearch.component.SearchTypeTabBar
 import com.lalilu.lsearch.lsearch.generated.resources.*
+import com.lalilu.lsearch.viewmodel.SearchAction
 import com.lalilu.lsearch.viewmodel.SearchTypeFilter
 import com.lalilu.lsearch.viewmodel.SearchVM
 import com.lalilu.navigation.AppRouter
@@ -108,17 +105,14 @@ private fun LazyGridItemSpanScope.fullSpan(): GridItemSpan = GridItemSpan(maxLin
 /**
  * Content for [SearchScreen].
  *
- * A [HorizontalPager] hosts four independently-scrolling pages, one per
- * [SearchTypeFilter]:
- *  - All     → [LazyVerticalGrid] preview, at most [ALL_PAGE_ITEM_LIMIT] per type + a "more" button
- *  - Audio   → [LazyColumn] of song rows (styled like detail pages)
- *  - Album   → [LazyVerticalStaggeredGrid] of album cards (styled like AlbumsScreen)
- *  - Artist  → [LazyColumn] of artist rows (styled like ArtistsScreen)
- *
- * Each page owns its own lazy-list state, so switching tabs / swiping pages does
- * NOT share or disturb the other pages' scroll positions. The floating
- * [SearchTypeTabBar] is anchored to the bottom of the surrounding Box and syncs
- * with [androidx.compose.foundation.pager.PagerState.currentPage].
+ * 布局（无 Pager，tab 状态由 [SearchVM] 的 [SearchState.typeFilter] 决定）：
+ *  - 内容区：根据 [SearchTypeFilter] 渲染单一内容：
+ *      - [SearchTypeFilter.All]    →「全部」[LazyVerticalGrid]，每类最多 [ALL_PAGE_ITEM_LIMIT] 个 + 「更多」按钮
+ *      - [SearchTypeFilter.Audio]  → 歌曲全量 [LazyColumn]（与歌曲列表页同风格）
+ *      - [SearchTypeFilter.Album]  → 专辑全量 [LazyColumn]，行内用 [Row] 平铺（数组按行拆分）
+ *      - [SearchTypeFilter.Artist] → 歌手全量 [LazyColumn]（与歌手列表页同风格）
+ *  - 底部：悬浮 [SearchTypeTabBar]，选中态绑定 [SearchState.typeFilter]，点击时通过
+ *    [SearchAction.SelectType] 切换内容区。
  */
 @Composable
 fun SearchScreenContent(modifier: Modifier = Modifier) {
@@ -129,14 +123,11 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
     val albums by remember(vm) { vm.albums }.collectAsState(emptyList())
     val artists by remember(vm) { vm.artists }.collectAsState(emptyList())
 
-    val pagerState = rememberPagerState(pageCount = { SearchTypeFilter.entries.size })
-    val scope = rememberCoroutineScope()
-
     val smartBarHeight = PassThroughHelper.getValue(
         key = "SmartBarHeight",
         default = { 72.dp }
     )
-    // 每个分页内容区底部需让出 SmartBar + 悬浮 TabRow
+    // 内容区底部需让出 SmartBar + 悬浮 TabRow
     val bottomPadding = smartBarHeight() + TAB_ROW_HEIGHT + 16.dp
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp
 
@@ -151,55 +142,45 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
     ) {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize()
-        ) { page ->
-            val filter = SearchTypeFilter.entries[page]
-            when (filter) {
-                SearchTypeFilter.All -> AllSearchTab(
-                    spanRule = spanRule,
-                    audios = audios,
-                    albums = albums,
-                    artists = artists,
-                    keywordBlank = state.keyword.isBlank(),
-                    statusBarTop = statusBarTop,
-                    bottomPadding = bottomPadding,
-                )
+        when (state.typeFilter) {
+            SearchTypeFilter.All -> AllSearchTab(
+                spanRule = spanRule,
+                audios = audios,
+                albums = albums,
+                artists = artists,
+                keywordBlank = state.keyword.isBlank(),
+                statusBarTop = statusBarTop,
+                bottomPadding = bottomPadding,
+            )
 
-                SearchTypeFilter.Audio -> AudioSearchTab(
-                    audios = audios,
-                    keyword = state.keyword,
-                    statusBarTop = statusBarTop,
-                    bottomPadding = bottomPadding,
-                )
+            SearchTypeFilter.Audio -> AudioSearchTab(
+                audios = audios,
+                keyword = state.keyword,
+                statusBarTop = statusBarTop,
+                bottomPadding = bottomPadding,
+            )
 
-                SearchTypeFilter.Album -> AlbumSearchTab(
-                    albums = albums,
-                    keyword = state.keyword,
-                    statusBarTop = statusBarTop,
-                    bottomPadding = bottomPadding,
-                )
+            SearchTypeFilter.Album -> AlbumRowsTab(
+                albums = albums,
+                keyword = state.keyword,
+                statusBarTop = statusBarTop,
+                bottomPadding = bottomPadding,
+            )
 
-                SearchTypeFilter.Artist -> ArtistSearchTab(
-                    artists = artists,
-                    keyword = state.keyword,
-                    statusBarTop = statusBarTop,
-                    bottomPadding = bottomPadding,
-                )
-            }
+            SearchTypeFilter.Artist -> ArtistSearchTab(
+                artists = artists,
+                keyword = state.keyword,
+                statusBarTop = statusBarTop,
+                bottomPadding = bottomPadding,
+            )
         }
 
         SearchTypeTabBar(
             modifier = Modifier
                 .padding(bottom = smartBarHeight())
                 .align(Alignment.BottomCenter),
-            selected = { SearchTypeFilter.entries[pagerState.currentPage] },
-            onSelect = { filter ->
-                scope.launch {
-                    pagerState.animateScrollToPage(SearchTypeFilter.entries.indexOf(filter))
-                }
-            }
+            selected = { state.typeFilter },
+            onSelect = { vm.intent(SearchAction.SelectType(it)) }
         )
     }
 }
@@ -207,7 +188,7 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
 // region: tab pages
 
 /**
- * 「全部」分页：三类内容各展示前 [ALL_PAGE_ITEM_LIMIT] 个，每类带一个「更多」按钮
+ * 「全部」内容：三类内容各展示前 [ALL_PAGE_ITEM_LIMIT] 个，每类带一个「更多」按钮
  * 跳转到对应的独立列表页（/pages/songs、/pages/albums、/pages/artists）。
  */
 @Composable
@@ -295,7 +276,7 @@ private fun AllSearchTab(
     }
 }
 
-/** 歌曲分页：整行歌曲卡片列表（与歌曲详情页同风格）。 */
+/** 歌曲内容：整行歌曲卡片列表（与歌曲列表页同风格），展示全部结果。 */
 @Composable
 private fun AudioSearchTab(
     audios: List<LAudio>,
@@ -338,19 +319,26 @@ private fun AudioSearchTab(
     }
 }
 
-/** 专辑分页：专辑卡片瀑布流（与专辑列表页同风格）。 */
+/**
+ * 专辑内容：把专辑数组按当前窗口宽度拆分成若干行数组，每行用 [androidx.compose.foundation.layout.Row]
+ * 平铺渲染（元素在当前窗口下的列数分配），展示全部结果。
+ */
 @Composable
-private fun AlbumSearchTab(
+private fun AlbumRowsTab(
     albums: List<LAlbum>,
     keyword: String,
     statusBarTop: Dp,
     bottomPadding: Dp,
 ) {
+    val context = LocalPlatformContext.current
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
-    val columns = if (windowSizeClass.windowWidthSizeClass.toString().contains("Expanded")) 3 else 2
+    val columns = when {
+        windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) -> 4
+        windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND) -> 3
+        else -> 2
+    }
 
-    LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Fixed(columns),
+    LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = 10.dp,
@@ -358,10 +346,9 @@ private fun AlbumSearchTab(
             top = statusBarTop,
             bottom = bottomPadding
         ),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalItemSpacing = 8.dp
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item {
+        item(key = "album-header") {
             NavigatorHeader(
                 modifier = Modifier.fillMaxWidth(),
                 title = stringResource(Res.string.search_filter_album),
@@ -373,22 +360,45 @@ private fun AlbumSearchTab(
             )
         }
         if (albums.isEmpty()) {
-            item {
+            item(key = "album-empty") {
                 EmptyHint(text = stringResource(Res.string.search_empty_no_results))
             }
-            return@LazyVerticalStaggeredGrid
+            return@LazyColumn
         }
-        staggerItems(
-            items = albums,
-            key = { it.id },
-            contentType = { LAlbum::class }
-        ) { album ->
-            AlbumCardItem(album = album)
+
+        // 把专辑数组按列数拆分成多行，每行一个 Row（元素均分宽度）
+        albums.chunked(columns).forEachIndexed { rowIndex, rowAlbums ->
+            item(key = "album-row-$rowIndex") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowAlbums.forEach { album ->
+                        AlbumCard(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            album = { album },
+                            onClick = { sharedMap ->
+                                val coverCacheKey = context.retrieveCacheKey(album)
+                                AppRouter.route("/pages/albums/detail")
+                                    .with("albumId", album.id)
+                                    .with("album", album)
+                                    .with("sharedMap", sharedMap)
+                                    .with("coverCacheKey", coverCacheKey)
+                                    .push()
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
-/** 歌手分页：整行歌手卡片列表（与歌手列表页同风格）。 */
+/** 歌手内容：整行歌手卡片列表（与歌手列表页同风格），展示全部结果。 */
 @Composable
 private fun ArtistSearchTab(
     artists: List<LArtist>,
