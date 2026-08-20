@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_screen_title">Search</string>
+    <string name="search_input_placeholder">Type a keyword to search</string>
+    <string name="search_filter_all">All</string>
+    <string name="search_filter_audio">Songs</string>
+    <string name="search_filter_album">Albums</string>
+    <string name="search_filter_artist">Artists</string>
+    <string name="search_section_songs">Songs</string>
+    <string name="search_section_albums">Albums</string>
+    <string name="search_section_artists">Artists</string>
+    <string name="search_empty_all">Type a keyword to start searching</string>
+    <string name="search_empty_no_results">No results found</string>
+</resources>

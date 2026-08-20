@@ -64,6 +64,7 @@ include(":lhistory")
 include(":lplaylist")
 include(":lalbum")
 include(":lartist")
+include(":lsearch")
 include(":lsettings")
 include(":lfont")
 

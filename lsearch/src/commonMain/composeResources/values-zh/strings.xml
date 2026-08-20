@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_screen_title">搜索</string>
+    <string name="search_input_placeholder">输入关键词以匹配元素</string>
+    <string name="search_filter_all">全部</string>
+    <string name="search_filter_audio">歌曲</string>
+    <string name="search_filter_album">专辑</string>
+    <string name="search_filter_artist">歌手</string>
+    <string name="search_section_songs">歌曲</string>
+    <string name="search_section_albums">专辑</string>
+    <string name="search_section_artists">歌手</string>
+    <string name="search_empty_all">输入关键词开始搜索</string>
+    <string name="search_empty_no_results">未找到相关内容</string>
+</resources>
