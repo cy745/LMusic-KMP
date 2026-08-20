@@ -92,7 +92,7 @@ fun App() = ScreenModeHandler {
         listOfNotNull(
             AppRouter.route("/home").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
             AppRouter.route("/pages/playlist").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
-            AppRouter.route("/settings").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
+            AppRouter.route("/pages/search").get() ?: ExceptionScreen.SCREEN_NOT_FOUND,
         )
     }
 

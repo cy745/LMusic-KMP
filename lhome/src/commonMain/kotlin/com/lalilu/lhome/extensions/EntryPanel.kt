@@ -64,7 +64,8 @@ object EntryPanel : LazyGridContent {
                     "/pages/albums",
                     "/pages/history",
                     "/media_source",
-                    "/log"
+                    "/log",
+                    "/settings"
                 ).mapNotNull { AppRouter.route(it).get() }
             }
         }

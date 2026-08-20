@@ -91,6 +91,7 @@ kotlin {
             implementation(project(":lplaylist"))
             implementation(project(":lalbum"))
             implementation(project(":lartist"))
+            implementation(project(":lsearch"))
             implementation(project(":lsettings"))
             implementation(project(":lfont"))
 
