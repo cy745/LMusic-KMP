@@ -8,6 +8,7 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.window.core.layout.WindowSizeClass
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.extensions.SharedMap
 import com.lalilu.lalbum.component.AlbumCard
@@ -23,7 +24,11 @@ internal fun AlbumsScreenContent(
     onClickAlbum: (LAlbum, SharedMap) -> Unit
 ) {
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
-    val columns = if (windowSizeClass.windowWidthSizeClass.toString().contains("Expanded")) 3 else 2
+    val columns = when {
+        windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) -> 4
+        windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND) -> 3
+        else -> 2
+    }
 
     val statusBar = WindowInsets.statusBars
     val statusBarPadding = statusBar.asPaddingValues()
