@@ -16,13 +16,7 @@
 
 package com.lalilu.navigation
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.currentCompositeKeyHashCode
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import com.lalilu.extensions.ClassicBackHandler
 
 
@@ -52,6 +46,13 @@ class ComponentStack {
          */
         fun getInstance(attach: ScreenBarFactory): ComponentStack {
             return instanceMap.getOrPut(attach) { ComponentStack() }
+        }
+
+        /**
+         * 移除先前创建的组件栈，需要在页面退出时调用
+         */
+        fun removeInstance(attached: ScreenBarFactory) {
+            instanceMap.remove(attached)
         }
     }
 }

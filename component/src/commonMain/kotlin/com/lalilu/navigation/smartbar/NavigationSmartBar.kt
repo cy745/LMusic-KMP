@@ -142,7 +142,7 @@ fun NavigationSmartBar(
                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
             )
         },
-        contentAlignment = Alignment.TopCenter,
+        contentAlignment = Alignment.BottomCenter,
         targetState = state,
         label = "NavigationBar"
     ) { item ->
@@ -150,6 +150,7 @@ fun NavigationSmartBar(
             Spacer(
                 modifier = Modifier
                     .navigationBarsPadding()
+                    .imePadding()
                     .height(72.dp)
                     .fillMaxWidth()
             )

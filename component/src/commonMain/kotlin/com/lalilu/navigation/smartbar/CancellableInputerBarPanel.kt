@@ -50,6 +50,7 @@ import org.jetbrains.compose.resources.vectorResource
 
 @Composable
 fun ScreenBarFactory.CancellableInputerBarPanel(
+    focusOnShow: Boolean = true,
     isVisible: () -> Boolean,
     onDismiss: () -> Unit,
     keyword: () -> String,
@@ -62,6 +63,7 @@ fun ScreenBarFactory.CancellableInputerBarPanel(
     ) {
         CancellableInputerBarPanelContent(
             modifier = Modifier,
+            focusOnShow = focusOnShow,
             keyword = keyword,
             onUpdateKeyword = onUpdateKeyword,
             onBackPress = { onDismiss() }
@@ -72,6 +74,7 @@ fun ScreenBarFactory.CancellableInputerBarPanel(
 @Composable
 private fun CancellableInputerBarPanelContent(
     modifier: Modifier = Modifier,
+    focusOnShow: Boolean = true,
     keyword: () -> String,
     onUpdateKeyword: (String) -> Unit,
     onBackPress: (() -> Unit)? = null
@@ -91,8 +94,10 @@ private fun CancellableInputerBarPanelContent(
         input::onBackPress
     }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+    if (focusOnShow) {
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+        }
     }
 
     Row(
