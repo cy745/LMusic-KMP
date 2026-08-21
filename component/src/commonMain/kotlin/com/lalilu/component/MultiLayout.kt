@@ -28,7 +28,8 @@ data class MultiLayoutContext(
     val contentPadding: PaddingValues = PaddingValues(),
     val span: Int = UNIVERSE_COLUMN,
     val enableAnimateItem: Boolean = false,
-    val horizontalGap: Dp = 0.dp
+    val horizontalGap: Dp = 0.dp,
+    val verticalGap: Dp = 0.dp
 )
 
 class MultiLayoutGlobalData {
@@ -106,6 +107,16 @@ interface MultiLayoutContextScope : MultiLayoutGlobalScope {
         this@span
             .copyContext { copy(span = span) }
             .content()
+    }
+
+    fun MultiLayoutScope.gap(
+        horizontalGap: Dp = context.horizontalGap,
+        verticalGap: Dp = context.verticalGap,
+        content: MultiLayoutScope.() -> Unit = {}
+    ) {
+        this@gap.copyContext {
+            copy(horizontalGap = horizontalGap, verticalGap = verticalGap)
+        }.content()
     }
 }
 
@@ -292,6 +303,7 @@ fun MultiLayout(
     overscrollEffect: OverscrollEffect? = rememberOverscrollEffect(),
     userScrollEnabled: Boolean = true,
     reverseLayout: Boolean = false,
+    contentPadding: PaddingValues = PaddingValues(),
     verticalArrangement: Arrangement.Vertical =
         if (!reverseLayout) Arrangement.Top else Arrangement.Bottom,
     horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
@@ -303,6 +315,10 @@ fun MultiLayout(
         userScrollEnabled = userScrollEnabled,
         overscrollEffect = overscrollEffect,
         reverseLayout = reverseLayout,
+        contentPadding = PaddingValues(
+            top = contentPadding.calculateTopPadding(),
+            bottom = contentPadding.calculateBottomPadding()
+        ),
         verticalArrangement = verticalArrangement,
         horizontalArrangement = horizontalArrangement,
         columns = GridCells.Fixed(UNIVERSE_COLUMN),
@@ -316,6 +332,7 @@ fun MultiLayoutPreview() = preview {
     MultiLayout(
         modifier = Modifier.fillMaxHeight(1f),
         reverseLayout = false,
+        contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.Top
     ) {
         contentPadding(contentPadding = PaddingValues(horizontal = 8.dp)) {
@@ -328,14 +345,16 @@ fun MultiLayoutPreview() = preview {
                 }
             }
 
-            divider()
+            gap(horizontalGap = 8.dp) {
+                divider(span = 12)
 
-            span(4) {
-                item { index ->
-                    TestItem(
-                        modifier = Modifier,
-                        index = index
-                    )
+                span(4) {
+                    item { index ->
+                        TestItem(
+                            modifier = Modifier,
+                            index = index
+                        )
+                    }
                 }
             }
 
