@@ -105,7 +105,7 @@ interface MultiLayoutContextScope : MultiLayoutGlobalScope {
         content: MultiLayoutScope.() -> Unit = {}
     ) {
         this@span
-            .copyContext { copy(span = span) }
+            .copyContext { copy(span = span.coerceAtMost(UNIVERSE_COLUMN)) }
             .content()
     }
 
@@ -224,8 +224,8 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
     context(gridScope: LazyGridScope)
     fun <T> MultiLayoutScope.items(
         items: List<T>,
-        key: ((item: T) -> Any)? = null,
-        contentType: (item: T) -> Any? = { null },
+        key: ((index: Int, item: T) -> Any)? = null,
+        contentType: (index: Int, item: T) -> Any? = { _, _ -> null },
         span: Int = context.span,
         paddingValues: PaddingValues = context.contentPadding,
         content: @Composable LazyGridItemScope.(Int, T) -> Unit
@@ -233,13 +233,12 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
         val startIndex = global.compositionIndex
         val startCurrentLineSpan = global.compositionCurrentLine
 
-        gridScope.items(
+        gridScope.itemsIndexed(
             items = items,
             key = key,
             contentType = contentType,
-            span = { GridItemSpan(span) }
-        ) { item ->
-            val offsetIndex = items.indexOf(item)
+            span = { index, item -> GridItemSpan(span) }
+        ) { offsetIndex, item ->
             val currentIndex = startIndex + offsetIndex
             val targetEndSpan = global.precalcEndSpan(startCurrentLineSpan, span, offsetIndex)
             val reachLineEnd = targetEndSpan == UNIVERSE_COLUMN
