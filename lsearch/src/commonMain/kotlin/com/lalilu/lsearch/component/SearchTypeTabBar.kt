@@ -43,6 +43,7 @@ fun SearchTypeTabBar(
     selected: () -> SearchTypeFilter,
     onSelect: (SearchTypeFilter) -> Unit,
     modifier: Modifier = Modifier,
+    paddingBottom: () -> Dp = { 0.dp },
     height: Dp = 56.dp
 ) {
     val bgColor = MaterialTheme.colorScheme.background
@@ -59,8 +60,9 @@ fun SearchTypeTabBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(height)
             .background(gradient)
+            .padding(bottom = paddingBottom())
+            .height(height)
     ) {
         Row(
             modifier = Modifier
