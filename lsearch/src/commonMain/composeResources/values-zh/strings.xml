@@ -11,5 +11,6 @@
     <string name="search_section_artists">歌手</string>
     <string name="search_empty_all">输入关键词开始搜索</string>
     <string name="search_empty_no_results">未找到相关内容</string>
+    <string name="search_result_count">一共搜索到了 %d 个元素</string>
     <string name="search_more">更多</string>
 </resources>

@@ -6,9 +6,35 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class MultiLayoutBuildSessionTest {
+
+    @Test
+    fun animateItemScopeOnlyOverridesItsDescendants() {
+        val root = object : MultiLayoutScope {
+            override val context = MultiLayoutContext()
+            override val global = MultiLayoutGlobalData()
+        }
+
+        with(root) {
+            assertFalse(context.enableAnimateItem)
+
+            animateItem {
+                assertTrue(context.enableAnimateItem)
+
+                animateItem(enabled = false) {
+                    assertFalse(context.enableAnimateItem)
+                }
+
+                assertTrue(context.enableAnimateItem)
+            }
+
+            assertFalse(context.enableAnimateItem)
+        }
+    }
 
     @Test
     fun uniformFullLineMatchesRememberGridItemPaddingDistribution() {

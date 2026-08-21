@@ -6,7 +6,7 @@ import androidx.compose.runtime.Stable
 /**
  * UI state for [com.lalilu.lsearch.screen.SearchScreen].
  *
- * @param keyword current keyword in the bottom input bar; blank means "show all"
+ * @param keyword current keyword in the bottom input bar; blank means no search results are shown
  * @param typeFilter active content-type filter; [SearchTypeFilter.All] previews
  *                   songs/albums/artists, the other values show the full list
  *                   for one content type

@@ -12,10 +12,11 @@ import com.lalilu.lmedia.domain.usecase.SearchArtistsUseCase
 import com.lalilu.lmedia.domain.usecase.SearchAudiosUseCase
 import com.lalilu.mviImplWithIntent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Factory
@@ -28,9 +29,9 @@ import org.koin.core.annotation.Factory
  * changes. The active filter lives in the state (see [SearchState.typeFilter])
  * so the UI can decide which content type to render.
  *
- * All three flows run unconditionally — keyword filtering is cheap when the
- * list is small (local media library), so the UI can switch tabs instantly
- * without a re-query.
+ * 三类结果都由 ViewModel 持有为热 StateFlow。这样页面跳转后返回时可以立即拿到上一次结果，
+ * 避免 LazyGrid 在冷 Flow 重新发射前短暂收到空列表、进而把已经恢复的滚动位置钳制到顶部。
+ * 空关键词不会触发仓库搜索，也不会向 UI 暴露全量媒体数据。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @Factory
@@ -43,19 +44,31 @@ class SearchVM(
     by mviImplWithIntent(SearchState()) {
 
     /** Song results, reactively filtered by the current keyword. */
-    val audios: Flow<List<LAudio>> = stateFlow()
+    val audios: StateFlow<List<LAudio>> = stateFlow()
         .distinctUntilChangedBy { it.keyword }
-        .flatMapLatest { searchAudiosUseCase(keywords = splitKeywords(it.keyword)) }
+        .flatMapLatest {
+            if (it.keyword.isBlank()) flowOf(emptyList())
+            else searchAudiosUseCase(keywords = splitKeywords(it.keyword))
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Album results, reactively filtered by the current keyword. */
-    val albums: Flow<List<LAlbum>> = stateFlow()
+    val albums: StateFlow<List<LAlbum>> = stateFlow()
         .distinctUntilChangedBy { it.keyword }
-        .flatMapLatest { searchAlbumsUseCase(keywords = splitKeywords(it.keyword)) }
+        .flatMapLatest {
+            if (it.keyword.isBlank()) flowOf(emptyList())
+            else searchAlbumsUseCase(keywords = splitKeywords(it.keyword))
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Artist results, reactively filtered by the current keyword. */
-    val artists: Flow<List<LArtist>> = stateFlow()
+    val artists: StateFlow<List<LArtist>> = stateFlow()
         .distinctUntilChangedBy { it.keyword }
-        .flatMapLatest { searchArtistsUseCase(keywords = splitKeywords(it.keyword)) }
+        .flatMapLatest {
+            if (it.keyword.isBlank()) flowOf(emptyList())
+            else searchArtistsUseCase(keywords = splitKeywords(it.keyword))
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val state = stateFlow()
         .stateIn(

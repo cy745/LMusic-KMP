@@ -489,6 +489,22 @@ interface MultiLayoutContextScope : MultiLayoutGlobalScope {
     }
 
     /**
+     * 为当前作用域内注册的 LazyGrid item 启用增删、重排动画。
+     *
+     * 动画实际应用在 MultiLayout 为每个 item 创建的外层容器上，因此调用方不需要再在卡片
+     * 内部重复添加 [Modifier.animateItem]。item 必须提供稳定且唯一的 key，Compose 才能在内容
+     * 变化前后识别同一个元素并正确执行位置动画。
+     */
+    fun MultiLayoutScope.animateItem(
+        enabled: Boolean = true,
+        content: MultiLayoutScope.() -> Unit = {}
+    ) {
+        this@animateItem
+            .copyContext { copy(enableAnimateItem = enabled) }
+            .content()
+    }
+
+    /**
      * 设置当前作用域后代之间的间距，不额外生成作用域外边距。
      *
      * 水平方向由相邻 item 最近的公共 gap 作用域决定，因此嵌套 gap 只影响其内部，两个独立
@@ -526,6 +542,7 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
         paddingValues: PaddingValues = context.contentPadding,
         content: @Composable LazyGridItemScope.(Int) -> Unit = { HorizontalDivider() }
     ) {
+        val shouldAnimateItem = context.enableAnimateItem
         val layoutItem = global.addItems(
             count = 1,
             span = span,
@@ -537,8 +554,9 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
             contentType = contentType,
             span = { GridItemSpan(span) }
         ) {
+            val itemModifier = if (shouldAnimateItem) Modifier.animateItem() else Modifier
             Box(
-                modifier = Modifier.padding(layoutItem.resolvedPadding)
+                modifier = itemModifier.padding(layoutItem.resolvedPadding)
             ) {
                 content(layoutItem.index)
             }
@@ -553,6 +571,7 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
         paddingValues: PaddingValues = context.contentPadding,
         content: @Composable LazyGridItemScope.(Int) -> Unit
     ) {
+        val shouldAnimateItem = context.enableAnimateItem
         val layoutItem = global.addItems(
             count = 1,
             span = span,
@@ -564,8 +583,9 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
             contentType = contentType,
             span = { GridItemSpan(span) }
         ) {
+            val itemModifier = if (shouldAnimateItem) Modifier.animateItem() else Modifier
             Box(
-                modifier = Modifier.padding(layoutItem.resolvedPadding)
+                modifier = itemModifier.padding(layoutItem.resolvedPadding)
             ) {
                 content(layoutItem.index)
             }
@@ -581,6 +601,7 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
         paddingValues: PaddingValues = context.contentPadding,
         content: @Composable LazyGridItemScope.(index: Int) -> Unit
     ) {
+        val shouldAnimateItem = context.enableAnimateItem
         val layoutItems = global.addItems(
             count = count,
             span = span,
@@ -594,9 +615,10 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
             span = { GridItemSpan(span) }
         ) { offsetIndex ->
             val layoutItem = layoutItems[offsetIndex]
+            val itemModifier = if (shouldAnimateItem) Modifier.animateItem() else Modifier
 
             Box(
-                modifier = Modifier.padding(layoutItem.resolvedPadding)
+                modifier = itemModifier.padding(layoutItem.resolvedPadding)
             ) {
                 content(layoutItem.index)
             }
@@ -612,6 +634,7 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
         paddingValues: PaddingValues = context.contentPadding,
         content: @Composable LazyGridItemScope.(Int, T) -> Unit
     ) {
+        val shouldAnimateItem = context.enableAnimateItem
         val layoutItems = global.addItems(
             count = items.size,
             span = span,
@@ -625,9 +648,10 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
             span = { index, item -> GridItemSpan(span) }
         ) { offsetIndex, item ->
             val layoutItem = layoutItems[offsetIndex]
+            val itemModifier = if (shouldAnimateItem) Modifier.animateItem() else Modifier
 
             Box(
-                modifier = Modifier.padding(layoutItem.resolvedPadding)
+                modifier = itemModifier.padding(layoutItem.resolvedPadding)
             ) {
                 content(layoutItem.index, item)
             }

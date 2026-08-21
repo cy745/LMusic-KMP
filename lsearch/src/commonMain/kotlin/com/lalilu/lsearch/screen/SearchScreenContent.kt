@@ -1,6 +1,8 @@
 package com.lalilu.lsearch.screen
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -29,6 +31,7 @@ import com.lalilu.lsearch.viewmodel.SearchAction
 import com.lalilu.lsearch.viewmodel.SearchTypeFilter
 import com.lalilu.lsearch.viewmodel.SearchVM
 import com.lalilu.navigation.AppRouter
+import com.lalilu.navigation.smartbar.NavigatorHeader
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -36,8 +39,10 @@ import org.koin.compose.viewmodel.koinViewModel
 /** 底部悬浮类型 Tab 的高度，需要与 [SearchTypeTabBar] 的默认高度保持一致。 */
 private val TAB_ROW_HEIGHT = 56.dp
 
-/** 全部 Tab 中每个内容类型最多展示的元素个数。 */
-private const val ALL_PAGE_ITEM_LIMIT = 10
+/** “全部”Tab 中各内容类型的预览数量上限。 */
+private const val ALL_PAGE_AUDIO_LIMIT = 5
+private const val ALL_PAGE_ALBUM_LIMIT = 6
+private const val ALL_PAGE_ARTIST_LIMIT = 6
 
 /** [MultiLayout] 使用的固定逻辑列数。 */
 private const val GRID_COLUMNS = 12
@@ -79,7 +84,7 @@ private data class GridSpanRule(
 /**
  * 搜索页面始终只维护一个 [MultiLayout] 列表，Tab 不再切换不同的 Lazy 容器，而是控制同一个
  * 列表本轮注册哪些类型的 item：
- * - [SearchTypeFilter.All]：依次显示歌曲、专辑和歌手，每类最多 [ALL_PAGE_ITEM_LIMIT] 条；
+ * - [SearchTypeFilter.All]：依次显示歌曲、专辑和歌手，各类只显示规定数量的预览；
  * - 其他类型：只显示对应类型的全部结果。
  *
  * 这种结构会复用同一个 LazyGridState 与布局容器，避免不同 Tab 各自维护列表和滚动实现。
@@ -89,9 +94,10 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
     val vm = koinViewModel<SearchVM>()
     val state by vm.state.collectAsState()
 
-    val audios by remember(vm) { vm.audios }.collectAsState(emptyList())
-    val albums by remember(vm) { vm.albums }.collectAsState(emptyList())
-    val artists by remember(vm) { vm.artists }.collectAsState(emptyList())
+    val audios by remember(vm) { vm.audios }.collectAsState()
+    val albums by remember(vm) { vm.albums }.collectAsState()
+    val artists by remember(vm) { vm.artists }.collectAsState()
+    val listState = rememberLazyGridState()
 
     val smartBarHeight = PassThroughHelper.getValue(
         key = "SmartBarHeight",
@@ -119,8 +125,10 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
             albums = albums,
             artists = artists,
             keywordBlank = state.keyword.isBlank(),
+            state = listState,
             statusBarTop = statusBarTop,
             bottomPadding = bottomPadding,
+            onSelectType = { vm.intent(SearchAction.SelectType(it)) },
         )
 
         SearchTypeTabBar(
@@ -147,24 +155,26 @@ private fun SearchResultList(
     albums: List<LAlbum>,
     artists: List<LArtist>,
     keywordBlank: Boolean,
+    state: LazyGridState,
     statusBarTop: Dp,
     bottomPadding: Dp,
+    onSelectType: (SearchTypeFilter) -> Unit,
 ) {
     val showAudios = typeFilter == SearchTypeFilter.All || typeFilter == SearchTypeFilter.Audio
     val showAlbums = typeFilter == SearchTypeFilter.All || typeFilter == SearchTypeFilter.Album
     val showArtists = typeFilter == SearchTypeFilter.All || typeFilter == SearchTypeFilter.Artist
     val visibleAudios = if (typeFilter == SearchTypeFilter.All) {
-        audios.take(ALL_PAGE_ITEM_LIMIT)
+        audios.take(ALL_PAGE_AUDIO_LIMIT)
     } else {
         audios
     }
     val visibleAlbums = if (typeFilter == SearchTypeFilter.All) {
-        albums.take(ALL_PAGE_ITEM_LIMIT)
+        albums.take(ALL_PAGE_ALBUM_LIMIT)
     } else {
         albums
     }
     val visibleArtists = if (typeFilter == SearchTypeFilter.All) {
-        artists.take(ALL_PAGE_ITEM_LIMIT)
+        artists.take(ALL_PAGE_ARTIST_LIMIT)
     } else {
         artists
     }
@@ -178,98 +188,113 @@ private fun SearchResultList(
 
     MultiLayout(
         modifier = Modifier.fillMaxSize(),
+        state = state,
         contentPadding = PaddingValues(
             top = statusBarTop,
             bottom = bottomPadding
         )
     ) {
-        gap(horizontalGap = 12.dp, verticalGap = 0.5f.dp) {
-            if (!hasVisibleItems) {
-                item(
-                    key = "search-empty-${typeFilter.name}",
-                    span = GRID_COLUMNS,
-                    paddingValues = pageHorizontalPadding
-                ) {
-                    val showInitialHint = typeFilter == SearchTypeFilter.All && keywordBlank
-                    EmptyHint(
-                        text = stringResource(
-                            if (showInitialHint) Res.string.search_empty_all
-                            else Res.string.search_empty_no_results
-                        )
-                    )
-                }
-                return@gap
-            }
-
-            if (showAudios && audios.isNotEmpty()) {
-                if (typeFilter == SearchTypeFilter.All) {
+        animateItem {
+            gap(horizontalGap = 12.dp, verticalGap = 0.5f.dp) {
+                if (keywordBlank) {
                     item(
-                        key = "all-songs-header",
+                        key = "search-initial",
                         span = GRID_COLUMNS,
                         paddingValues = pageHorizontalPadding
                     ) {
-                        SectionHeaderWithMore(
-                            title = stringResource(Res.string.search_section_songs),
-                            onMoreClick = { AppRouter.route("/pages/songs").push() }
-                        )
+                        // 关键词推荐区将在推荐来源和交互方案确定后接入，这里暂时只展示搜索引导。
+                        EmptyHint(text = stringResource(Res.string.search_empty_all))
                     }
+                    return@gap
                 }
-                items(
-                    items = visibleAudios,
-                    key = { _, audio -> "audio-${audio.id}" },
-                    contentType = { _, _ -> LAudio::class },
-                    span = GRID_COLUMNS / spanRule.audioDivisor,
-                    paddingValues = PaddingValues()
-                ) { _, audio ->
-                    AudioCardItem(audio = audio, allAudios = audios)
-                }
-            }
 
-            if (showAlbums && albums.isNotEmpty()) {
-                if (typeFilter == SearchTypeFilter.All) {
+                if (!hasVisibleItems) {
                     item(
-                        key = "all-albums-header",
+                        key = "search-empty-${typeFilter.name}",
                         span = GRID_COLUMNS,
                         paddingValues = pageHorizontalPadding
                     ) {
-                        SectionHeaderWithMore(
-                            title = stringResource(Res.string.search_section_albums),
-                            onMoreClick = { AppRouter.route("/pages/albums").push() }
-                        )
+                        EmptyHint(text = stringResource(Res.string.search_empty_no_results))
                     }
+                    return@gap
                 }
-                items(
-                    items = visibleAlbums,
-                    key = { _, album -> "album-${album.id}" },
-                    contentType = { _, _ -> LAlbum::class },
-                    span = GRID_COLUMNS / spanRule.albumDivisor,
-                    paddingValues = pageHorizontalPadding
-                ) { _, album ->
-                    AlbumCardItem(album = album)
-                }
-            }
 
-            if (showArtists && artists.isNotEmpty()) {
-                if (typeFilter == SearchTypeFilter.All) {
-                    item(
-                        key = "all-artists-header",
-                        span = GRID_COLUMNS,
-                        paddingValues = pageHorizontalPadding
-                    ) {
-                        SectionHeaderWithMore(
-                            title = stringResource(Res.string.search_section_artists),
-                            onMoreClick = { AppRouter.route("/pages/artists").push() }
-                        )
+                if (showAudios && audios.isNotEmpty()) {
+                    if (typeFilter == SearchTypeFilter.All) {
+                        item(
+                            key = "all-songs-header",
+                            span = GRID_COLUMNS,
+                            paddingValues = PaddingValues()
+                        ) {
+                            SearchResultHeader(
+                                title = stringResource(Res.string.search_section_songs),
+                                resultCount = audios.size,
+                                previewLimit = ALL_PAGE_AUDIO_LIMIT,
+                                onMoreClick = { onSelectType(SearchTypeFilter.Audio) }
+                            )
+                        }
+                    }
+                    items(
+                        items = visibleAudios,
+                        key = { _, audio -> "audio-${audio.id}" },
+                        contentType = { _, _ -> LAudio::class },
+                        span = GRID_COLUMNS / spanRule.audioDivisor,
+                        paddingValues = PaddingValues()
+                    ) { _, audio ->
+                        AudioCardItem(audio = audio, allAudios = audios)
                     }
                 }
-                items(
-                    items = visibleArtists,
-                    key = { _, artist -> "artist-${artist.id}" },
-                    contentType = { _, _ -> LArtist::class },
-                    span = GRID_COLUMNS / spanRule.artistDivisor,
-                    paddingValues = PaddingValues()
-                ) { _, artist ->
-                    ArtistCardItem(artist = artist)
+
+                if (showAlbums && albums.isNotEmpty()) {
+                    if (typeFilter == SearchTypeFilter.All) {
+                        item(
+                            key = "all-albums-header",
+                            span = GRID_COLUMNS,
+                            paddingValues = PaddingValues()
+                        ) {
+                            SearchResultHeader(
+                                title = stringResource(Res.string.search_section_albums),
+                                resultCount = albums.size,
+                                previewLimit = ALL_PAGE_ALBUM_LIMIT,
+                                onMoreClick = { onSelectType(SearchTypeFilter.Album) }
+                            )
+                        }
+                    }
+                    items(
+                        items = visibleAlbums,
+                        key = { _, album -> "album-${album.id}" },
+                        contentType = { _, _ -> LAlbum::class },
+                        span = GRID_COLUMNS / spanRule.albumDivisor,
+                        paddingValues = pageHorizontalPadding
+                    ) { _, album ->
+                        AlbumCardItem(album = album)
+                    }
+                }
+
+                if (showArtists && artists.isNotEmpty()) {
+                    if (typeFilter == SearchTypeFilter.All) {
+                        item(
+                            key = "all-artists-header",
+                            span = GRID_COLUMNS,
+                            paddingValues = PaddingValues()
+                        ) {
+                            SearchResultHeader(
+                                title = stringResource(Res.string.search_section_artists),
+                                resultCount = artists.size,
+                                previewLimit = ALL_PAGE_ARTIST_LIMIT,
+                                onMoreClick = { onSelectType(SearchTypeFilter.Artist) }
+                            )
+                        }
+                    }
+                    items(
+                        items = visibleArtists,
+                        key = { _, artist -> "artist-${artist.id}" },
+                        contentType = { _, _ -> LArtist::class },
+                        span = GRID_COLUMNS / spanRule.artistDivisor,
+                        paddingValues = PaddingValues()
+                    ) { _, artist ->
+                        ArtistCardItem(artist = artist)
+                    }
                 }
             }
         }
@@ -354,32 +379,34 @@ private fun ArtistCardItem(artist: LArtist) {
 // region: shared composables
 
 @Composable
-private fun SectionHeaderWithMore(
+private fun SearchResultHeader(
     title: String,
+    resultCount: Int,
+    previewLimit: Int,
     onMoreClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 16.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = title,
-            modifier = Modifier.weight(1f),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        TextButton(onClick = onMoreClick) {
-            Text(
-                text = stringResource(Res.string.search_more),
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary
-            )
+    NavigatorHeader(
+        modifier = Modifier.fillMaxWidth(),
+        title = title,
+        subTitle = stringResource(Res.string.search_result_count, resultCount),
+        paddingValues = PaddingValues(
+            start = 16.dp,
+            top = 16.dp,
+            end = 16.dp,
+            bottom = 8.dp
+        ),
+        extraContent = {
+            if (resultCount > previewLimit) {
+                TextButton(onClick = onMoreClick) {
+                    Text(
+                        text = stringResource(Res.string.search_more),
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         }
-    }
+    )
 }
 
 @Composable
