@@ -11,6 +11,6 @@
     <string name="search_section_artists">Artists</string>
     <string name="search_empty_all">Type a keyword to start searching</string>
     <string name="search_empty_no_results">No results found</string>
-    <string name="search_result_count">%d results found</string>
+    <string name="search_result_count">%1$d results found</string>
     <string name="search_more">More</string>
 </resources>

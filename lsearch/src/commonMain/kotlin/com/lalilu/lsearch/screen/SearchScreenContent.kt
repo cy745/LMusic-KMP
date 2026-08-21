@@ -9,6 +9,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -98,6 +99,15 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
     val albums by remember(vm) { vm.albums }.collectAsState()
     val artists by remember(vm) { vm.artists }.collectAsState()
     val listState = rememberLazyGridState()
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    // 列表开始拖动或惯性滚动时收起软键盘，搜索词、焦点对应的数据和滚动位置均保持不变。
+    LaunchedEffect(listState, keyboardController) {
+        snapshotFlow { listState.isScrollInProgress }
+            .collect { isScrolling ->
+                if (isScrolling) keyboardController?.hide()
+            }
+    }
 
     val smartBarHeight = PassThroughHelper.getValue(
         key = "SmartBarHeight",
