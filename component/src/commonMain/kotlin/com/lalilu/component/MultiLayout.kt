@@ -6,12 +6,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.rememberOverscrollEffect
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -24,7 +25,7 @@ annotation class MultiLayoutDsl
 private const val UNIVERSE_COLUMN = 12
 
 data class MultiLayoutContext(
-    val paddingValues: PaddingValues = PaddingValues(),
+    val contentPadding: PaddingValues = PaddingValues(),
     val span: Int = UNIVERSE_COLUMN,
     val enableAnimateItem: Boolean = false,
     val horizontalGap: Dp = 0.dp
@@ -32,13 +33,42 @@ data class MultiLayoutContext(
 
 class MultiLayoutGlobalData {
     var compositionIndex: Int = 0
+    var compositionCurrentLine: Int = 0
 
-    fun increase(count: Int = 1) {
+    fun increaseIndex(count: Int = 1) {
         compositionIndex += count
     }
 
     fun resetIndex() {
         compositionIndex = 0
+    }
+
+    fun increaseSpan(span: Int, count: Int = 1) {
+        repeat(count) {
+            val targetValue = compositionCurrentLine + span
+            compositionCurrentLine = when {
+                targetValue == UNIVERSE_COLUMN -> 0
+                targetValue > UNIVERSE_COLUMN -> span
+                else -> targetValue
+            }
+        }
+    }
+
+    fun precalcEndSpan(startValue: Int, span: Int, index: Int = 0): Int {
+        var tempValue = startValue
+        repeat(index + 1) {
+            val targetValue = tempValue + span
+            tempValue = when {
+                // 大于列数，说明该行放不下，需要换行再放入
+                targetValue > UNIVERSE_COLUMN -> span
+                else -> targetValue
+            }
+        }
+        return tempValue
+    }
+
+    fun resetSpan() {
+        compositionCurrentLine = 0
     }
 }
 
@@ -60,12 +90,12 @@ interface MultiLayoutGlobalScope {
 interface MultiLayoutContextScope : MultiLayoutGlobalScope {
     val context: MultiLayoutContext
 
-    fun MultiLayoutScope.padding(
-        paddingValues: PaddingValues = PaddingValues(),
+    fun MultiLayoutScope.contentPadding(
+        contentPadding: PaddingValues = PaddingValues(),
         content: MultiLayoutScope.() -> Unit = {}
     ) {
-        this@padding
-            .copyContext { copy(paddingValues = paddingValues) }
+        this@contentPadding
+            .copyContext { copy(contentPadding = contentPadding) }
             .content()
     }
 
@@ -87,20 +117,30 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
         key: Any? = null,
         contentType: Any? = null,
         span: Int = UNIVERSE_COLUMN,
-        paddingValues: PaddingValues = context.paddingValues,
-        content: @Composable LazyGridItemScope.(Int) -> Unit = { Divider() }
+        paddingValues: PaddingValues = context.contentPadding,
+        content: @Composable LazyGridItemScope.(Int) -> Unit = { HorizontalDivider() }
     ) {
         val startIndex = global.compositionIndex
+        val startCurrentLineSpan = global.compositionCurrentLine
+
         gridScope.item(
             key = key,
             contentType = contentType,
             span = { GridItemSpan(span) }
         ) {
-            Box(modifier = Modifier.padding(paddingValues)) {
+            val reachLineStart = startCurrentLineSpan == 0
+            val reachLineEnd = startCurrentLineSpan + span == UNIVERSE_COLUMN
+
+            Box(
+                modifier = Modifier.padding(
+                    paddingValues = paddingValues.applyWithLinePosition(reachLineStart, reachLineEnd)
+                )
+            ) {
                 content(startIndex)
             }
         }
-        global.increase()
+        global.increaseSpan(span = span)
+        global.increaseIndex()
     }
 
     context(gridScope: LazyGridScope)
@@ -108,20 +148,31 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
         key: Any? = null,
         contentType: Any? = null,
         span: Int = context.span,
-        paddingValues: PaddingValues = context.paddingValues,
+        paddingValues: PaddingValues = context.contentPadding,
         content: @Composable LazyGridItemScope.(Int) -> Unit
     ) {
         val startIndex = global.compositionIndex
+        val startCurrentLineSpan = global.compositionCurrentLine
+
         gridScope.item(
             key = key,
             contentType = contentType,
             span = { GridItemSpan(span) }
         ) {
-            Box(modifier = Modifier.padding(paddingValues)) {
+            val reachLineStart = startCurrentLineSpan == 0
+            val reachLineEnd = startCurrentLineSpan + span == UNIVERSE_COLUMN
+
+            Box(
+                modifier = Modifier.padding(
+                    paddingValues = paddingValues.applyWithLinePosition(reachLineStart, reachLineEnd)
+                )
+            ) {
                 content(startIndex)
             }
         }
-        global.increase()
+
+        global.increaseSpan(span = span)
+        global.increaseIndex()
     }
 
     context(gridScope: LazyGridScope)
@@ -130,10 +181,12 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
         key: ((index: Int) -> Any)? = null,
         contentType: (index: Int) -> Any? = { null },
         span: Int = context.span,
-        paddingValues: PaddingValues = context.paddingValues,
+        paddingValues: PaddingValues = context.contentPadding,
         content: @Composable LazyGridItemScope.(index: Int) -> Unit
     ) {
         val startIndex = global.compositionIndex
+        val startCurrentLineSpan = global.compositionCurrentLine
+
         gridScope.items(
             count = count,
             key = key,
@@ -141,11 +194,20 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
             span = { GridItemSpan(span) }
         ) { offsetIndex ->
             val currentIndex = startIndex + offsetIndex
-            Box(modifier = Modifier.padding(paddingValues)) {
+            val targetEndSpan = global.precalcEndSpan(startCurrentLineSpan, span, offsetIndex)
+            val reachLineEnd = targetEndSpan == UNIVERSE_COLUMN
+            val reachLineStart = targetEndSpan - span == 0
+
+            Box(
+                modifier = Modifier.padding(
+                    paddingValues = paddingValues.applyWithLinePosition(reachLineStart, reachLineEnd)
+                )
+            ) {
                 content(currentIndex)
             }
         }
-        global.increase(count = count)
+        global.increaseSpan(span = span, count = count)
+        global.increaseIndex(count = count)
     }
 
     context(gridScope: LazyGridScope)
@@ -154,24 +216,48 @@ interface MultiLayoutLazyScope : MultiLayoutContextScope {
         key: ((item: T) -> Any)? = null,
         contentType: (item: T) -> Any? = { null },
         span: Int = context.span,
-        paddingValues: PaddingValues = context.paddingValues,
+        paddingValues: PaddingValues = context.contentPadding,
         content: @Composable LazyGridItemScope.(Int, T) -> Unit
     ) {
         val startIndex = global.compositionIndex
+        val startCurrentLineSpan = global.compositionCurrentLine
+
         gridScope.items(
             items = items,
             key = key,
             contentType = contentType,
             span = { GridItemSpan(span) }
         ) { item ->
-            val currentIndex = startIndex + items.indexOf(item)
-            Box(modifier = Modifier.padding(paddingValues)) {
+            val offsetIndex = items.indexOf(item)
+            val currentIndex = startIndex + offsetIndex
+            val targetEndSpan = global.precalcEndSpan(startCurrentLineSpan, span, offsetIndex)
+            val reachLineEnd = targetEndSpan == UNIVERSE_COLUMN
+            val reachLineStart = targetEndSpan - span == 0
+
+            Box(
+                modifier = Modifier.padding(
+                    paddingValues = paddingValues.applyWithLinePosition(reachLineStart, reachLineEnd)
+                )
+            ) {
                 content(currentIndex, item)
             }
-
         }
-        global.increase(count = items.size)
+        global.increaseSpan(span = span, count = items.size)
+        global.increaseIndex(count = items.size)
     }
+}
+
+@Composable
+private fun PaddingValues.applyWithLinePosition(
+    reachLineStart: Boolean,
+    reachLineEnd: Boolean
+): PaddingValues {
+    return PaddingValues(
+        start = if (reachLineStart) calculateStartPadding(layoutDirection = LocalLayoutDirection.current)
+        else 0.dp,
+        end = if (reachLineEnd) calculateEndPadding(layoutDirection = LocalLayoutDirection.current)
+        else 0.dp
+    )
 }
 
 @MultiLayoutDsl
@@ -179,6 +265,7 @@ interface MultiLayoutScope : MultiLayoutLazyScope {
     fun doComposite(layoutContent: context(LazyGridScope) MultiLayoutScope.() -> Unit): LazyGridScope.() -> Unit {
         return {
             global.resetIndex()
+            global.resetSpan()
             layoutContent()
         }
     }
@@ -231,19 +318,17 @@ fun MultiLayoutPreview() = preview {
         reverseLayout = false,
         verticalArrangement = Arrangement.Top
     ) {
-        padding(paddingValues = PaddingValues(horizontal = 12.dp)) {
+        contentPadding(contentPadding = PaddingValues(horizontal = 8.dp)) {
             span(12) {
-                padding(
-                    paddingValues = context.paddingValues + PaddingValues(horizontal = 15.dp)
-                ) {
-                    item { index ->
-                        TestItem(
-                            modifier = Modifier,
-                            index = index
-                        )
-                    }
+                item { index ->
+                    TestItem(
+                        modifier = Modifier,
+                        index = index
+                    )
                 }
             }
+
+            divider()
 
             span(4) {
                 item { index ->
