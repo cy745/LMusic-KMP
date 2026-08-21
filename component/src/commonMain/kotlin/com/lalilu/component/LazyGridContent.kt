@@ -60,7 +60,7 @@ fun rememberGridItemPadding(
 
     return remember(count, paddingValues, gapHorizontal, gapVertical, layoutDirection) {
         val paddingStart = paddingValues.calculateStartPadding(layoutDirection)
-        val paddingEnd = paddingValues.calculateStartPadding(layoutDirection)
+        val paddingEnd = paddingValues.calculateEndPadding(layoutDirection)
 
         val averageGap =
             (paddingStart + paddingEnd + (gapHorizontal * (count - 1))) / count.toFloat()
