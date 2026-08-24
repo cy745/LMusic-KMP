@@ -226,16 +226,15 @@ fun provideLyricSettings(
             title = { "其他" },
             description = { "偏移、滚动参数与显示开关" },
         ) {
-            // TODO(#6): 歌词播放偏移校准落地后，timeOffset 将与 #6 的音游式节拍校准联动
-            slider(
+            click(
                 key = "lyric_time_offset",
-                title = { "歌词偏移时间" },
-                value = kv.settings.value.timeOffset.toFloat(),
-                onValueChange = { kv.updateInMemory { copy(timeOffset = it.toLong()) } },
-                valueRange = -200f..500f,
-                valueLabel = { "${it.toInt()} ms" },
-                summary = { "适合使用蓝牙耳机时针对耳机延迟调节" },
-                onValueChangeFinished = { kv.persist() }
+                title = { "歌词偏移校准" },
+                summary = {
+                    "当前 ${kv.settings.value.timeOffset} ms · 跟随节拍测量扬声器或耳机延迟"
+                },
+                onClick = {
+                    AppRouter.route("/settings/lyric/offset-calibration").jump()
+                },
             )
             slider(
                 key = "lyric_scroll_spring_damping",
