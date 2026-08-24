@@ -82,14 +82,12 @@ interface ScreenBarFactory {
      * 注册导航栏内容
      *
      * @param isVisible 是否可见
-     * @param onDismiss 关闭时的回调
      * @param onBackPressed 返回按钮按下时的回调，可为 null
      * @param content 导航栏内容
      */
     @Composable
     fun RegisterContent(
         isVisible: () -> Boolean,
-        onDismiss: () -> Unit,
         onBackPressed: (() -> Unit)?,
         content: @Composable () -> Unit
     ) {
@@ -104,7 +102,6 @@ interface ScreenBarFactory {
 
                         if (onBackPressed != null) {
                             ClassicBackHandler {
-                                onDismiss()
                                 onBackPressed()
                             }
                         }

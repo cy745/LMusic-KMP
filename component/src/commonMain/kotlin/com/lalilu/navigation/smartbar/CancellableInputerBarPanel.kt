@@ -16,7 +16,6 @@
 
 package com.lalilu.navigation.smartbar
 
-import androidx.annotation.MainThread
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -40,17 +39,22 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigationevent.NavigationEvent
-import androidx.navigationevent.NavigationEventInput
-import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.lalilu.RemixIcon
+import com.lalilu.extensions.ClassicBackHandler
 import com.lalilu.navigation.ScreenBarFactory
 import org.jetbrains.compose.resources.vectorResource
 
 
+/**
+ * 可取消的搜索输入栏。
+ *
+ * [cancellable] 为 `true` 时，返回操作会优先清空非空关键词；关键词为空时不拦截系统返回，
+ * 左侧返回按钮则调用 [onDismiss]。为 `false` 时，返回操作直接关闭输入栏。
+ */
 @Composable
 fun ScreenBarFactory.CancellableInputerBarPanel(
     focusOnShow: Boolean = true,
+    cancellable: Boolean = false,
     isVisible: () -> Boolean,
     onDismiss: () -> Unit,
     keyword: () -> String,
@@ -58,15 +62,15 @@ fun ScreenBarFactory.CancellableInputerBarPanel(
 ) {
     RegisterContent(
         isVisible = isVisible,
-        onDismiss = onDismiss,
-        onBackPressed = { }
+        onBackPressed = if (cancellable) null else onDismiss
     ) {
         CancellableInputerBarPanelContent(
             modifier = Modifier,
             focusOnShow = focusOnShow,
+            cancellable = cancellable,
             keyword = keyword,
             onUpdateKeyword = onUpdateKeyword,
-            onBackPress = { onDismiss() }
+            onClickBack = onDismiss
         )
     }
 }
@@ -75,28 +79,23 @@ fun ScreenBarFactory.CancellableInputerBarPanel(
 private fun CancellableInputerBarPanelContent(
     modifier: Modifier = Modifier,
     focusOnShow: Boolean = true,
+    cancellable: Boolean = false,
     keyword: () -> String,
     onUpdateKeyword: (String) -> Unit,
-    onBackPress: (() -> Unit)? = null
+    onClickBack: (() -> Unit)? = null
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
-    val dispatcherOwner = LocalNavigationEventDispatcherOwner.current
-    val onBackPressedDispatcher = remember {
-        val input = object : NavigationEventInput() {
-            @MainThread
-            fun onBackPress() {
-                dispatchOnBackStarted(NavigationEvent())
-                dispatchOnBackCompleted()
-            }
-        }.also { dispatcherOwner?.navigationEventDispatcher?.addInput(it) }
-
-        input::onBackPress
-    }
 
     if (focusOnShow) {
         LaunchedEffect(Unit) {
             focusRequester.requestFocus()
+        }
+    }
+
+    if (cancellable) {
+        ClassicBackHandler(enabled = keyword().isNotEmpty()) {
+            onUpdateKeyword("")
         }
     }
 
@@ -114,10 +113,14 @@ private fun CancellableInputerBarPanelContent(
             onClick = {
                 keyboard?.hide()
 
-                if (onBackPress != null) {
-                    onBackPress()
-                } else {
-                    onBackPressedDispatcher.invoke()
+                when {
+                    cancellable && keyword().isNotEmpty() -> {
+                        onUpdateKeyword("")
+                    }
+
+                    onClickBack != null -> {
+                        onClickBack()
+                    }
                 }
             }
         ) {

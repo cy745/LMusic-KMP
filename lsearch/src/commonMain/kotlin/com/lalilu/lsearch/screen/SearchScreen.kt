@@ -50,6 +50,7 @@ data object SearchScreen :
 
         CancellableInputerBarPanel(
             focusOnShow = false,
+            cancellable = true,
             isVisible = { true },
             onDismiss = { AppRouter.intent(NavIntent.Pop) },
             keyword = { state.keyword },

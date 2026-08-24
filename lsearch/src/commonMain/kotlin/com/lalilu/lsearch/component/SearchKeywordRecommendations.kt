@@ -38,7 +38,8 @@ private val RECOMMENDATION_MAX_WIDTH = 200.dp
 @Composable
 internal fun SearchKeywordRecommendations(
     modifier: Modifier = Modifier,
-    title: String,
+    recommendationTitle: String,
+    emptyTitle: String,
     candidates: SearchRecommendationCandidates,
     onKeywordClick: (String) -> Unit,
 ) {
@@ -84,10 +85,16 @@ internal fun SearchKeywordRecommendations(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(32.dp),
+            .padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Text(
+            text = if (recommendations.isEmpty()) emptyTitle else recommendationTitle,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+
         if (recommendations.isNotEmpty()) {
             FlowRow(
                 // Lookahead 先按新关键词宽度完成一次目标布局，再由 animateBounds 将容器高度、
@@ -116,12 +123,6 @@ internal fun SearchKeywordRecommendations(
                 }
             }
         }
-
-        Text(
-            text = title,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-            style = MaterialTheme.typography.bodyMedium,
-        )
     }
 }
 
@@ -174,9 +175,9 @@ private fun SearchKeywordChip(
 /**
  * 文本切换时同时执行淡入淡出和 blur 变化。
  *
- * 与全宽内容版本不同，这里不使用 `fillMaxWidth`，让 [AnimatedContent] 根据新旧文本自由改变
- * 宽度；外层的 `LookaheadScope + animateBounds` 会预先计算新宽度及换行后的最终位置，
- * 再连续过渡胶囊的尺寸和坐标，并限制最终最大宽度为 200.dp。
+ * [AnimatedContent] 只负责内容效果，并通过立即完成的 SizeTransform 在过渡期间始终上报目标
+ * 内容尺寸；胶囊的尺寸和位置动画统一交给外层的 `LookaheadScope + animateBounds`。内部内容使用
+ * 不受中间宽度限制的测量方式，保证文本从进入动画开始就按最终宽度决定是否省略。
  */
 @Composable
 private fun <T> BlurFadeTransition(
@@ -188,8 +189,9 @@ private fun <T> BlurFadeTransition(
     AnimatedContent(
         modifier = Modifier,
         transitionSpec = {
-            fadeIn(spring(stiffness = Spring.StiffnessLow)) togetherWith
-                    fadeOut(spring(stiffness = Spring.StiffnessLow))
+            (fadeIn(spring(stiffness = Spring.StiffnessLow)) togetherWith
+                fadeOut(spring(stiffness = Spring.StiffnessLow))) using
+                SizeTransform(clip = false) { _, _ -> snap() }
         },
         contentAlignment = Alignment.Center,
         targetState = item(),
@@ -207,8 +209,11 @@ private fun <T> BlurFadeTransition(
         }
 
         Box(
-            modifier = modifier
-                .wrapContentWidth()
+            // animateBounds 会以每一帧的胶囊宽度约束 AnimatedContent。这里放宽内部测量，
+            // 让新旧文本始终用各自的最终宽度排版；超出动画边界的部分由外层胶囊裁切。
+            modifier = Modifier
+                .wrapContentWidth(unbounded = true)
+                .then(modifier)
                 .blur(
                     radius = blurValue.value,
                     edgeTreatment = BlurredEdgeTreatment.Unbounded,

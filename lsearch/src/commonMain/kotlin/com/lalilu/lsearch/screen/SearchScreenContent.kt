@@ -34,8 +34,8 @@ import com.lalilu.lsearch.viewmodel.SearchRecommendationCandidates
 import com.lalilu.lsearch.viewmodel.SearchVM
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.smartbar.NavigatorHeader
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -182,7 +182,10 @@ private fun SearchResultList(
                         val candidates by recommendationCandidates.collectAsState()
                         SearchKeywordRecommendations(
                             modifier = Modifier.height(emptyStateHeight),
-                            title = stringResource(Res.string.search_empty_all),
+                            recommendationTitle = stringResource(
+                                Res.string.search_recommendation_hint
+                            ),
+                            emptyTitle = stringResource(Res.string.search_empty_all),
                             candidates = candidates,
                             onKeywordClick = onRecommendationClick,
                         )

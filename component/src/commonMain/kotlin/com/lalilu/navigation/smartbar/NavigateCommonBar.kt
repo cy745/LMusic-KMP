@@ -45,7 +45,7 @@ fun NavigateCommonBar(
     modifier: Modifier = Modifier,
     previousScreenTitle: String?,
     screenActions: () -> List<ScreenAction>? = { emptyList() },
-    onBackPress: (() -> Unit)? = null
+    onClickBack: (() -> Unit)? = null
 ) {
     val screenActions = screenActions()
     val actionContext = remember { ActionContext(isFullyExpanded = false) }
@@ -65,7 +65,7 @@ fun NavigateCommonBar(
         onDialogVisibilityChange = { isDialogVisible = it },
         screenActions = screenActions,
         actionContext = actionContext,
-        onBackPress = onBackPress
+        onClickBack = onClickBack
     )
 }
 
@@ -85,7 +85,7 @@ fun NavigateCommonBarContent(
     onDialogVisibilityChange: (Boolean) -> Unit,
     screenActions: List<ScreenAction>?,
     actionContext: ActionContext,
-    onBackPress: (() -> Unit)? = null
+    onClickBack: (() -> Unit)? = null
 ) {
     MoreActionPanelDialog(
         isVisible = dialogVisible,
@@ -111,9 +111,7 @@ fun NavigateCommonBarContent(
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.onBackground
                     ),
-                    onClick = {
-                        onBackPress?.invoke()
-                    }
+                    onClick = { onClickBack?.invoke() }
                 ) {
                     Icon(
                         imageVector = vectorResource(backAction?.icon ?: RemixIcon.Arrows.arrowLeftSLine),

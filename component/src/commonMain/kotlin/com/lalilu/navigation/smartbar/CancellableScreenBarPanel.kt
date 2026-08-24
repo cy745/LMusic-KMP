@@ -28,18 +28,17 @@ import com.lalilu.navigation.ScreenBarFactory
 @Composable
 fun ScreenBarFactory.CancellableScreenBarPanel(
     isVisible: () -> Boolean,
-    onDismiss: () -> Unit,
+    onDismiss: (() -> Unit)? = null,
     screenActions: List<ScreenAction>? = null,
 ) {
     RegisterContent(
         isVisible = isVisible,
-        onDismiss = onDismiss,
-        onBackPressed = { }
+        onBackPressed = onDismiss
     ) {
         CancellableScreenBarPanelContent(
             modifier = Modifier,
             screenActions = screenActions,
-            onBackPress = { onDismiss() }
+            onClickBack = onDismiss
         )
     }
 }
@@ -48,7 +47,7 @@ fun ScreenBarFactory.CancellableScreenBarPanel(
 private fun CancellableScreenBarPanelContent(
     modifier: Modifier = Modifier,
     screenActions: List<ScreenAction>?,
-    onBackPress: (() -> Unit)? = null
+    onClickBack: (() -> Unit)? = null
 ) {
     val dialogVisible = remember { mutableStateOf(false) }
 
@@ -61,7 +60,7 @@ private fun CancellableScreenBarPanelContent(
         dialogVisible = dialogVisible.value,
         screenActions = screenActions,
         actionContext = ActionContext(false),
-        onBackPress = onBackPress,
+        onClickBack = onClickBack,
         onDialogVisibilityChange = { dialogVisible.value = it }
     )
 }

@@ -5,7 +5,8 @@
     <string name="search_section_songs">歌曲</string>
     <string name="search_section_albums">专辑</string>
     <string name="search_section_artists">歌手</string>
-    <string name="search_empty_all">输入关键词开始搜索</string>
+    <string name="search_empty_all">下方输入关键词开始搜索</string>
+    <string name="search_recommendation_hint">点击关键词快速搜索</string>
     <string name="search_empty_no_results">未找到相关内容</string>
     <string name="search_result_count">一共搜索到了 %1$d 个元素</string>
     <string name="search_more">更多</string>

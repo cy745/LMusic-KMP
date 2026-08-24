@@ -180,7 +180,7 @@ fun NavigationSmartBar(
                     modifier = Modifier.fillMaxSize(),
                     previousScreenTitle = previousTitle(),
                     screenActions = { item.actions },
-                    onBackPress = { AppRouter.intent(NavIntent.Pop) }
+                    onClickBack = { AppRouter.intent(NavIntent.Pop) }
                 )
 
                 is NavigationBarType.EmptyBar -> Unit
