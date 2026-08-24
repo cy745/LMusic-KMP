@@ -2,7 +2,6 @@ package com.lalilu.lplayer.screen
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -103,7 +102,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
         }
         val listState = rememberLazyListState()
         val duration = LPlayer.instance.currentDuration.collectAsState(0L)
-        val animation = remember { Animatable(currentTime.value.toFloat()) }
+        val positionState = rememberSeekbarPositionState(currentTime.value.toFloat())
         val navigationBar = WindowInsets.navigationBars
 
         val bgAnimateColor = animateColorAsState(
@@ -351,7 +350,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                                 translationY = additionalOffset + fixOffset
                                 alpha = progressIncrease
                             },
-                        currentTime = { animation.value.toLong() },
+                        currentTime = { positionState.position.toLong() },
                         screenConstraints = constraints,
                         lyricEntry = vm.lyricItems,
                         isUserClickEnable = { true },
@@ -401,7 +400,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                             .padding(horizontal = 40.dp)
                             .padding(bottom = 100.dp),
                         animateColor = { bgAnimateColor.value },
-                        animation = animation,
+                        positionState = positionState,
                         maxValue = { duration.value.toFloat() },
                         dataValue = { currentTime.value.toFloat() },
                         onDispatchDragOffset = { deltaY ->
@@ -418,6 +417,9 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                         },
                         onSeekTo = { position ->
                             Logger.i("seekTo: $position")
+                            // Media3 的 Seek 命令异步执行；先更新本地播放时钟，避免拖动松手后
+                            // 在播放器确认新位置前短暂回弹到旧进度。
+                            currentTime.value = position.toLong()
                             PlayerAction.SeekTo(position.toLong()).action()
                         },
                         onSwitchTo = { index ->
