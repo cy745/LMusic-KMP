@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -148,6 +149,9 @@ private fun SearchResultList(
     val visibleArtists = artists.take(ALL_PAGE_ARTIST_LIMIT)
     val hasVisibleItems = audios.isNotEmpty() || albums.isNotEmpty() || artists.isNotEmpty()
     val pageHorizontalPadding = PaddingValues(horizontal = 16.dp)
+    val emptyStateHeight = (
+        LocalWindowInfo.current.containerDpSize.height - statusBarTop - bottomPadding
+    ).coerceAtLeast(0.dp)
 
     MultiLayout(
         modifier = modifier.fillMaxSize(),
@@ -166,7 +170,10 @@ private fun SearchResultList(
                         paddingValues = pageHorizontalPadding
                     ) {
                         // 关键词推荐区将在推荐来源和交互方案确定后接入，这里暂时只展示搜索引导。
-                        EmptyHint(text = stringResource(Res.string.search_empty_all))
+                        EmptyHint(
+                            modifier = Modifier.height(emptyStateHeight),
+                            text = stringResource(Res.string.search_empty_all)
+                        )
                     }
                     return@gap
                 }
@@ -177,7 +184,10 @@ private fun SearchResultList(
                         span = GRID_COLUMNS,
                         paddingValues = pageHorizontalPadding
                     ) {
-                        EmptyHint(text = stringResource(Res.string.search_empty_no_results))
+                        EmptyHint(
+                            modifier = Modifier.height(emptyStateHeight),
+                            text = stringResource(Res.string.search_empty_no_results)
+                        )
                     }
                     return@gap
                 }
@@ -294,11 +304,12 @@ private fun AudioCardItem(audio: LAudio, allAudios: List<LAudio>) {
                 ).action()
             }
         },
-        onNavigateToDetail = { _ ->
+        onNavigateToDetail = { sharedMap ->
             AppRouter.route("/song/detail")
                 .with("mediaId", audio.id)
                 .with("song", audio)
                 .with("coverCacheKey", coverCacheKey)
+                .with("sharedMap", sharedMap)
                 .jump()
         }
     )
@@ -314,11 +325,12 @@ private fun AlbumCardItem(album: LAlbum) {
             .fillMaxWidth()
             .padding(vertical = 0.5.dp),
         album = { album },
-        onClick = { _ ->
+        onClick = { sharedMap ->
             AppRouter.route("/pages/albums/detail")
                 .with("albumId", album.id)
                 .with("album", album)
                 .with("coverCacheKey", coverCacheKey)
+                .with("sharedMap", sharedMap)
                 .push()
         }
     )
@@ -334,11 +346,13 @@ private fun ArtistCardItem(artist: LArtist) {
             .fillMaxWidth()
             .padding(vertical = 0.5.dp),
         artist = artist,
-        onClick = { _ ->
+        sharedMapPrefix = "list",
+        onClick = { sharedMap ->
             AppRouter.route("/pages/artists/detail")
                 .with("artistId", artist.id)
                 .with("artist", artist)
                 .with("coverCacheKey", coverCacheKey)
+                .with("sharedMap", sharedMap)
                 .push()
         }
     )
@@ -380,9 +394,12 @@ private fun SearchResultHeader(
 }
 
 @Composable
-private fun EmptyHint(text: String) {
+private fun EmptyHint(
+    modifier: Modifier = Modifier,
+    text: String
+) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(32.dp),
         contentAlignment = Alignment.Center
