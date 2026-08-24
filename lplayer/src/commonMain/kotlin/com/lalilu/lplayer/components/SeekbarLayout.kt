@@ -40,7 +40,6 @@ import androidx.compose.ui.util.lerp
 import com.lalilu.RemixIcon
 import com.lalilu.lplayer.extensions.AccumulatedValue
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -113,7 +112,7 @@ fun SeekbarLayout(
     dataValue: () -> Float = { 0f },
     switchIndex: () -> Int = { 0 },
     scrollThreadHold: Float = 200f,
-    animation: Animatable<Float, AnimationVector1D> = remember { Animatable(0f) },
+    positionState: SeekbarPositionState = rememberSeekbarPositionState(),
     animateColor: () -> Color = { Color.DarkGray },
     onDragStart: suspend (Offset) -> Unit = {},
     onDragStop: suspend (Int) -> Unit = {},
@@ -162,26 +161,15 @@ fun SeekbarLayout(
         val snap = remember { derivedStateOf { !(isSwitching || !isTouching || isCanceled) } }
 
         val maxDurationText = remember(maxValue()) { maxValue().toLong().durationToTime() }
-        val currentTimeText = durationToText(duration = { animation.value.toLong() })
+        val currentTimeText = durationToText(duration = { positionState.position.toLong() })
         val animationJob = remember { mutableStateOf<Job?>(null) }
 
-        // 使值的变化平滑
-        LaunchedEffect(Unit) {
-            snapshotFlow { if (snap.value) progressKeeper.nowValue else dataValue() }
-                .distinctUntilChanged()
-                .onEach { value ->
-                    if (snap.value) {
-                        animation.snapTo(value)
-                    } else {
-                        progressKeeper.updateValue(value)
-                        launch {
-                            animation.animateTo(
-                                targetValue = value,
-                                animationSpec = spring(stiffness = Spring.StiffnessLow)
-                            )
-                        }
-                    }
-                }.launchIn(this)
+        LaunchedEffect(positionState) {
+            positionState.track(
+                isDragging = { snap.value },
+                draggingPosition = { progressKeeper.nowValue },
+                playbackPosition = dataValue,
+            )
         }
 
         val offsetY = remember {
@@ -283,7 +271,7 @@ fun SeekbarLayout(
                             when (event.type) {
                                 PointerEventType.Press -> {
                                     // 开始触摸时，将当前可见的进度值记录下来
-                                    progressKeeper.updateValue(animation.value)
+                                    progressKeeper.updateValue(positionState.position)
                                     isTouching = true
                                     isMoved = false
                                 }
@@ -370,7 +358,7 @@ fun SeekbarLayout(
             SeekbarThumb(
                 clip = { isTouching && !isCanceled },
                 thumbColor = animateColor,
-                progress = { animation.value.normalize(minValue(), maxValue()) },
+                progress = { positionState.position.normalize(minValue(), maxValue()) },
                 switching = { isSwitching },
                 switchModeX = { switchModeX.floatValue }
             )
@@ -380,7 +368,7 @@ fun SeekbarLayout(
                 visible = { !isSwitching },
                 text = { currentTimeText.value },
                 textStyle = textStyle,
-                offsetProgress = { animation.value.normalize(minValue(), maxValue()) }
+                offsetProgress = { positionState.position.normalize(minValue(), maxValue()) }
             )
             SeekbarSwitcher(switching = { isSwitching })
         }
