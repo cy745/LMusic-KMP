@@ -26,8 +26,7 @@ import org.koin.core.annotation.Factory
  *
  * Aggregates three independent UseCases — one per content type — that share a
  * single keyword. Each UseCase is re-driven whenever [SearchState.keyword]
- * changes. The active filter lives in the state (see [SearchState.typeFilter])
- * so the UI can decide which content type to render.
+ * changes. The UI always renders limited previews of all three result types.
  *
  * 三类结果都由 ViewModel 持有为热 StateFlow。这样页面跳转后返回时可以立即拿到上一次结果，
  * 避免 LazyGrid 在冷 Flow 重新发射前短暂收到空列表、进而把已经恢复的滚动位置钳制到顶部。
@@ -80,7 +79,6 @@ class SearchVM(
     override fun intent(intent: SearchAction) = viewModelScope.launch {
         when (intent) {
             is SearchAction.UpdateKeyword -> reduce { it.copy(keyword = intent.keyword) }
-            is SearchAction.SelectType -> reduce { it.copy(typeFilter = intent.type) }
             SearchAction.ClearKeyword -> reduce { it.copy(keyword = "") }
         }
     }

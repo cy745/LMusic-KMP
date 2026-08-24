@@ -46,8 +46,18 @@ import kotlin.time.Duration.Companion.milliseconds
 @Destination("/pages/songs")
 data class SongsScreen(
     private val title: String? = null,
-    private val mediaIds: List<String> = emptyList()
-) : Screen, ScreenInfoFactory, ScreenActionFactory, ScreenBarFactory {
+    private val mediaIds: List<String> = emptyList(),
+    private val keyword: String = ""
+) : Screen,
+    ScreenInfoFactory,
+    ScreenActionFactory,
+    ScreenBarFactory,
+    ScreenViewModelFactory<SongsVM> {
+
+    @Composable
+    override fun vm(): SongsVM = koinViewModel(
+        parameters = { parametersOf(keyword) }
+    )
 
     @Composable
     override fun provideScreenInfo(): ScreenInfo = remember {
@@ -59,7 +69,7 @@ data class SongsScreen(
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
-        val vm = koinViewModel<SongsVM>()
+        val vm = vm()
         val state by vm.state
 
         return remember {
@@ -108,7 +118,7 @@ data class SongsScreen(
 
     @Composable
     override fun Content() {
-        val vm = koinViewModel<SongsVM>()
+        val vm = vm()
         val audioRepo = org.koin.compose.koinInject<AudioRepository>()
         val songs by vm.songs
         val state by vm.state

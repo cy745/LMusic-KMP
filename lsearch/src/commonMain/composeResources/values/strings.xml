@@ -2,10 +2,6 @@
 <resources>
     <string name="search_screen_title">Search</string>
     <string name="search_input_placeholder">Type a keyword to search</string>
-    <string name="search_filter_all">All</string>
-    <string name="search_filter_audio">Songs</string>
-    <string name="search_filter_album">Albums</string>
-    <string name="search_filter_artist">Artists</string>
     <string name="search_section_songs">Songs</string>
     <string name="search_section_albums">Albums</string>
     <string name="search_section_artists">Artists</string>

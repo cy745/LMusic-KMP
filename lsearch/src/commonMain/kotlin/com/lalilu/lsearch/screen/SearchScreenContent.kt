@@ -26,10 +26,7 @@ import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.action.PlayerAction
-import com.lalilu.lsearch.component.SearchTypeTabBar
 import com.lalilu.lsearch.lsearch.generated.resources.*
-import com.lalilu.lsearch.viewmodel.SearchAction
-import com.lalilu.lsearch.viewmodel.SearchTypeFilter
 import com.lalilu.lsearch.viewmodel.SearchVM
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.smartbar.NavigatorHeader
@@ -37,10 +34,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
-/** 底部悬浮类型 Tab 的高度，需要与 [SearchTypeTabBar] 的默认高度保持一致。 */
-private val TAB_ROW_HEIGHT = 56.dp
-
-/** “全部”Tab 中各内容类型的预览数量上限。 */
+/** 聚合搜索结果中各内容类型的预览数量上限。 */
 private const val ALL_PAGE_AUDIO_LIMIT = 5
 private const val ALL_PAGE_ALBUM_LIMIT = 6
 private const val ALL_PAGE_ARTIST_LIMIT = 6
@@ -83,12 +77,8 @@ private data class GridSpanRule(
 }
 
 /**
- * 搜索页面始终只维护一个 [MultiLayout] 列表，Tab 不再切换不同的 Lazy 容器，而是控制同一个
- * 列表本轮注册哪些类型的 item：
- * - [SearchTypeFilter.All]：依次显示歌曲、专辑和歌手，各类只显示规定数量的预览；
- * - 其他类型：只显示对应类型的全部结果。
- *
- * 这种结构会复用同一个 LazyGridState 与布局容器，避免不同 Tab 各自维护列表和滚动实现。
+ * 搜索页面只维护一个 [MultiLayout]，依次聚合展示歌曲、专辑和歌手的限量预览。
+ * 完整结果交由各类别已有的列表页展示，并复用列表页自身的关键词搜索能力。
  */
 @Composable
 fun SearchScreenContent(modifier: Modifier = Modifier) {
@@ -113,8 +103,8 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
         key = "SmartBarHeight",
         default = { 72.dp }
     )
-    // 内容区底部需让出 SmartBar + 悬浮 TabRow
-    val bottomPadding = smartBarHeight() + TAB_ROW_HEIGHT + 16.dp
+    // 内容区底部只需让出 SmartBar；类型 TabBar 已移除。
+    val bottomPadding = smartBarHeight() + 16.dp
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp
 
     // 单一结果列表的网格跨越规则（由窗口宽度档位解析）
@@ -124,80 +114,43 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
         expanded = { GridSpanRule.Expanded }
     )
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-    ) {
-        SearchResultList(
-            typeFilter = state.typeFilter,
-            spanRule = spanRule,
-            audios = audios,
-            albums = albums,
-            artists = artists,
-            keywordBlank = state.keyword.isBlank(),
-            state = listState,
-            statusBarTop = statusBarTop,
-            bottomPadding = bottomPadding,
-            onSelectType = { vm.intent(SearchAction.SelectType(it)) },
-        )
-
-        SearchTypeTabBar(
-            modifier = Modifier
-                .align(Alignment.BottomCenter),
-            selected = { state.typeFilter },
-            onSelect = { vm.intent(SearchAction.SelectType(it)) },
-            paddingBottom = smartBarHeight
-        )
-    }
+    SearchResultList(
+        modifier = modifier,
+        keyword = state.keyword,
+        spanRule = spanRule,
+        audios = audios,
+        albums = albums,
+        artists = artists,
+        state = listState,
+        statusBarTop = statusBarTop,
+        bottomPadding = bottomPadding,
+    )
 }
 
 /**
- * 单一搜索结果列表。
- *
- * [typeFilter] 只控制向同一个 [MultiLayout] 注册的元素类型。「全部」包含分区标题和“更多”
- * 入口，单类型 Tab 不再创建另一套列表，仅注册该类型的全部卡片。
+ * 聚合搜索结果列表。每种类型只注册预览上限内的元素；结果超过上限时由标题中的“更多”
+ * 跳转至对应列表页，并把当前 [keyword] 交给列表页现有的搜索逻辑。
  */
 @Composable
 private fun SearchResultList(
-    typeFilter: SearchTypeFilter,
+    modifier: Modifier = Modifier,
+    keyword: String,
     spanRule: GridSpanRule,
     audios: List<LAudio>,
     albums: List<LAlbum>,
     artists: List<LArtist>,
-    keywordBlank: Boolean,
     state: LazyGridState,
     statusBarTop: Dp,
     bottomPadding: Dp,
-    onSelectType: (SearchTypeFilter) -> Unit,
 ) {
-    val showAudios = typeFilter == SearchTypeFilter.All || typeFilter == SearchTypeFilter.Audio
-    val showAlbums = typeFilter == SearchTypeFilter.All || typeFilter == SearchTypeFilter.Album
-    val showArtists = typeFilter == SearchTypeFilter.All || typeFilter == SearchTypeFilter.Artist
-    val visibleAudios = if (typeFilter == SearchTypeFilter.All) {
-        audios.take(ALL_PAGE_AUDIO_LIMIT)
-    } else {
-        audios
-    }
-    val visibleAlbums = if (typeFilter == SearchTypeFilter.All) {
-        albums.take(ALL_PAGE_ALBUM_LIMIT)
-    } else {
-        albums
-    }
-    val visibleArtists = if (typeFilter == SearchTypeFilter.All) {
-        artists.take(ALL_PAGE_ARTIST_LIMIT)
-    } else {
-        artists
-    }
-    val hasVisibleItems = when (typeFilter) {
-        SearchTypeFilter.All -> audios.isNotEmpty() || albums.isNotEmpty() || artists.isNotEmpty()
-        SearchTypeFilter.Audio -> audios.isNotEmpty()
-        SearchTypeFilter.Album -> albums.isNotEmpty()
-        SearchTypeFilter.Artist -> artists.isNotEmpty()
-    }
+    val visibleAudios = audios.take(ALL_PAGE_AUDIO_LIMIT)
+    val visibleAlbums = albums.take(ALL_PAGE_ALBUM_LIMIT)
+    val visibleArtists = artists.take(ALL_PAGE_ARTIST_LIMIT)
+    val hasVisibleItems = audios.isNotEmpty() || albums.isNotEmpty() || artists.isNotEmpty()
     val pageHorizontalPadding = PaddingValues(horizontal = 16.dp)
 
     MultiLayout(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         state = state,
         contentPadding = PaddingValues(
             top = statusBarTop,
@@ -206,7 +159,7 @@ private fun SearchResultList(
     ) {
         animateItem {
             gap(horizontalGap = 12.dp, verticalGap = 0.5f.dp) {
-                if (keywordBlank) {
+                if (keyword.isBlank()) {
                     item(
                         key = "search-initial",
                         span = GRID_COLUMNS,
@@ -220,7 +173,7 @@ private fun SearchResultList(
 
                 if (!hasVisibleItems) {
                     item(
-                        key = "search-empty-${typeFilter.name}",
+                        key = "search-empty",
                         span = GRID_COLUMNS,
                         paddingValues = pageHorizontalPadding
                     ) {
@@ -229,20 +182,20 @@ private fun SearchResultList(
                     return@gap
                 }
 
-                if (showAudios && audios.isNotEmpty()) {
-                    if (typeFilter == SearchTypeFilter.All) {
-                        item(
-                            key = "all-songs-header",
-                            span = GRID_COLUMNS,
-                            paddingValues = PaddingValues()
-                        ) {
-                            SearchResultHeader(
-                                title = stringResource(Res.string.search_section_songs),
-                                resultCount = audios.size,
-                                previewLimit = ALL_PAGE_AUDIO_LIMIT,
-                                onMoreClick = { onSelectType(SearchTypeFilter.Audio) }
-                            )
-                        }
+                if (audios.isNotEmpty()) {
+                    item(
+                        key = "all-songs-header",
+                        span = GRID_COLUMNS,
+                        paddingValues = PaddingValues()
+                    ) {
+                        SearchResultHeader(
+                            title = stringResource(Res.string.search_section_songs),
+                            resultCount = audios.size,
+                            previewLimit = ALL_PAGE_AUDIO_LIMIT,
+                            onMoreClick = {
+                                navigateToResultList(route = "/pages/songs", keyword = keyword)
+                            }
+                        )
                     }
                     items(
                         items = visibleAudios,
@@ -255,20 +208,20 @@ private fun SearchResultList(
                     }
                 }
 
-                if (showAlbums && albums.isNotEmpty()) {
-                    if (typeFilter == SearchTypeFilter.All) {
-                        item(
-                            key = "all-albums-header",
-                            span = GRID_COLUMNS,
-                            paddingValues = PaddingValues()
-                        ) {
-                            SearchResultHeader(
-                                title = stringResource(Res.string.search_section_albums),
-                                resultCount = albums.size,
-                                previewLimit = ALL_PAGE_ALBUM_LIMIT,
-                                onMoreClick = { onSelectType(SearchTypeFilter.Album) }
-                            )
-                        }
+                if (albums.isNotEmpty()) {
+                    item(
+                        key = "all-albums-header",
+                        span = GRID_COLUMNS,
+                        paddingValues = PaddingValues()
+                    ) {
+                        SearchResultHeader(
+                            title = stringResource(Res.string.search_section_albums),
+                            resultCount = albums.size,
+                            previewLimit = ALL_PAGE_ALBUM_LIMIT,
+                            onMoreClick = {
+                                navigateToResultList(route = "/pages/albums", keyword = keyword)
+                            }
+                        )
                     }
                     items(
                         items = visibleAlbums,
@@ -281,20 +234,20 @@ private fun SearchResultList(
                     }
                 }
 
-                if (showArtists && artists.isNotEmpty()) {
-                    if (typeFilter == SearchTypeFilter.All) {
-                        item(
-                            key = "all-artists-header",
-                            span = GRID_COLUMNS,
-                            paddingValues = PaddingValues()
-                        ) {
-                            SearchResultHeader(
-                                title = stringResource(Res.string.search_section_artists),
-                                resultCount = artists.size,
-                                previewLimit = ALL_PAGE_ARTIST_LIMIT,
-                                onMoreClick = { onSelectType(SearchTypeFilter.Artist) }
-                            )
-                        }
+                if (artists.isNotEmpty()) {
+                    item(
+                        key = "all-artists-header",
+                        span = GRID_COLUMNS,
+                        paddingValues = PaddingValues()
+                    ) {
+                        SearchResultHeader(
+                            title = stringResource(Res.string.search_section_artists),
+                            resultCount = artists.size,
+                            previewLimit = ALL_PAGE_ARTIST_LIMIT,
+                            onMoreClick = {
+                                navigateToResultList(route = "/pages/artists", keyword = keyword)
+                            }
+                        )
                     }
                     items(
                         items = visibleArtists,
@@ -309,6 +262,13 @@ private fun SearchResultList(
             }
         }
     }
+}
+
+/** 跳转到对应类型的完整列表，并由目标页使用自身的搜索逻辑处理关键词。 */
+private fun navigateToResultList(route: String, keyword: String) {
+    AppRouter.route(route)
+        .with("keyword", keyword)
+        .jump()
 }
 
 @Composable

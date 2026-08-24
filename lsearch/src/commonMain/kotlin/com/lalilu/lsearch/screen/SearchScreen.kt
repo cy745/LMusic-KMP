@@ -19,8 +19,8 @@ import org.koin.compose.viewmodel.koinViewModel
  * Integrated content search screen (Issue #9).
  *
  * Aggregates search results across songs / albums / artists. Layout:
- *  - Content: one MultiLayout whose registered items are controlled by the type filter
- *  - Mid-bottom: floating [com.lalilu.lsearch.component.SearchTypeTabBar]
+ *  - Content: one MultiLayout with limited previews for all three result types
+ *  - More: opens the corresponding full list and forwards the current keyword
  *  - Bottom: persistent [CancellableInputerBarPanel] (acts as the always-visible
  *    search input bar)
  *

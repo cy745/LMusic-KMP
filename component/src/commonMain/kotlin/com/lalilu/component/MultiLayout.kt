@@ -93,12 +93,6 @@ internal class MultiLayoutBuildSession(
     private var currentColumn = 0
     private var finished = false
 
-    val itemCount: Int
-        get() = items.size
-
-    val nextColumn: Int
-        get() = currentColumn
-
     fun createGapScope(
         parentId: Int,
         horizontalGap: Dp,
@@ -339,9 +333,6 @@ internal class MultiLayoutBuildSession(
 }
 
 class MultiLayoutGlobalData {
-    var compositionIndex: Int = 0
-    var compositionCurrentLine: Int = 0
-
     private var currentSession: MultiLayoutBuildSession? = null
 
     // gap DSL 通过同步嵌套调用形成作用域栈；退出 gap 时必须恢复父级，不能把局部设置泄漏出去。
@@ -349,8 +340,6 @@ class MultiLayoutGlobalData {
 
     internal fun beginBuild(layoutDirection: LayoutDirection): MultiLayoutBuildSession {
         check(currentSession == null) { "A MultiLayout plan is already being built." }
-        resetIndex()
-        resetSpan()
         currentGapScopeId = ROOT_GAP_SCOPE_ID
         return MultiLayoutBuildSession(layoutDirection).also { currentSession = it }
     }
@@ -398,10 +387,7 @@ class MultiLayoutGlobalData {
         val session = requireNotNull(currentSession) {
             "Items can only be added while building MultiLayout content."
         }
-        val result = session.addItems(count, span, contentPadding, gapScopeId)
-        compositionIndex = session.itemCount
-        compositionCurrentLine = session.nextColumn
-        return result
+        return session.addItems(count, span, contentPadding, gapScopeId)
     }
 
     internal fun addItems(
@@ -414,42 +400,6 @@ class MultiLayoutGlobalData {
         contentPadding = contentPadding,
         gapScopeId = currentGapScopeId
     )
-
-    fun increaseIndex(count: Int = 1) {
-        compositionIndex += count
-    }
-
-    fun resetIndex() {
-        compositionIndex = 0
-    }
-
-    fun increaseSpan(span: Int, count: Int = 1) {
-        repeat(count) {
-            val targetValue = compositionCurrentLine + span
-            compositionCurrentLine = when {
-                targetValue == UNIVERSE_COLUMN -> 0
-                targetValue > UNIVERSE_COLUMN -> span
-                else -> targetValue
-            }
-        }
-    }
-
-    fun precalcEndSpan(startValue: Int, span: Int, index: Int = 0): Int {
-        var tempValue = startValue
-        repeat(index + 1) {
-            val targetValue = tempValue + span
-            tempValue = when {
-                // 大于列数，说明该行放不下，需要换行再放入
-                targetValue > UNIVERSE_COLUMN -> span
-                else -> targetValue
-            }
-        }
-        return tempValue
-    }
-
-    fun resetSpan() {
-        compositionCurrentLine = 0
-    }
 }
 
 fun MultiLayoutScope.copyContext(

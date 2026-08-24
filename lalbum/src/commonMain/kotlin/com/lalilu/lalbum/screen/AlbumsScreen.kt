@@ -18,9 +18,21 @@ import com.lalilu.navigation.*
 import com.lalilu.navigation.smartbar.CancellableInputerBarPanel
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Destination("/pages/albums")
-data object AlbumsScreen : Screen, ScreenInfoFactory, ScreenActionFactory, ScreenBarFactory {
+data class AlbumsScreen(
+    private val keyword: String = ""
+) : Screen,
+    ScreenInfoFactory,
+    ScreenActionFactory,
+    ScreenBarFactory,
+    ScreenViewModelFactory<AlbumsVM> {
+
+    @Composable
+    override fun vm(): AlbumsVM = koinViewModel(
+        parameters = { parametersOf(keyword) }
+    )
 
     @Composable
     override fun provideScreenInfo(): ScreenInfo = remember {
@@ -32,7 +44,7 @@ data object AlbumsScreen : Screen, ScreenInfoFactory, ScreenActionFactory, Scree
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
-        val vm = koinViewModel<AlbumsVM>()
+        val vm = vm()
         val state by vm.state
 
         return remember {
@@ -68,7 +80,7 @@ data object AlbumsScreen : Screen, ScreenInfoFactory, ScreenActionFactory, Scree
 
     @Composable
     override fun Content() {
-        val vm = koinViewModel<AlbumsVM>()
+        val vm = vm()
 
         val state by vm.state
         val albums by vm.albums

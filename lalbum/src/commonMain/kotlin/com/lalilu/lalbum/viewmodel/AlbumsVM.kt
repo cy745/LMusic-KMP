@@ -68,10 +68,11 @@ sealed interface AlbumsEvent
 @OptIn(ExperimentalCoroutinesApi::class)
 @KoinViewModel
 class AlbumsVM(
-    private val albumRepository: AlbumRepository
+    private val albumRepository: AlbumRepository,
+    initialKeyword: String,
 ) : ViewModel(),
     MviWithIntent<AlbumsState, AlbumsEvent, AlbumsAction>
-    by mviImplWithIntent(AlbumsState()) {
+    by mviImplWithIntent(AlbumsState(searchKeyWord = initialKeyword)) {
 
     val sorter = SortManager(
         prefix = "albums_",
@@ -94,7 +95,7 @@ class AlbumsVM(
         .flatMapLatest { it.getAlbumsFlow(albumRepository) }
         .doSortState(sorter, viewModelScope)
     val state = stateFlow()
-        .toState(AlbumsState(), viewModelScope)
+        .toState(AlbumsState(searchKeyWord = initialKeyword), viewModelScope)
 
     override fun intent(intent: AlbumsAction) = viewModelScope.launch {
         when (intent) {

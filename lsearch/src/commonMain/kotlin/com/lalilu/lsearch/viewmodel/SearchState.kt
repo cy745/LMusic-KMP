@@ -7,18 +7,12 @@ import androidx.compose.runtime.Stable
  * UI state for [com.lalilu.lsearch.screen.SearchScreen].
  *
  * @param keyword current keyword in the bottom input bar; blank means no search results are shown
- * @param typeFilter active content-type filter; [SearchTypeFilter.All] previews
- *                   songs/albums/artists, the other values show the full list
- *                   for one content type
  */
 @Stable
 @Immutable
 data class SearchState(
-    val keyword: String = "",
-    val typeFilter: SearchTypeFilter = SearchTypeFilter.All
-) {
-    val distinctKey: Int = keyword.hashCode() * 31 + typeFilter.ordinal
-}
+    val keyword: String = ""
+)
 
 /**
  * Sealed hierarchy of side-events emitted by [com.lalilu.lsearch.viewmodel.SearchVM].
@@ -35,9 +29,6 @@ sealed interface SearchEvent
 sealed interface SearchAction {
     /** Update the search keyword; triggers re-query across all three UseCases. */
     data class UpdateKeyword(val keyword: String) : SearchAction
-
-    /** Switch the active content-type filter (All / Songs / Albums / Artists). */
-    data class SelectType(val type: SearchTypeFilter) : SearchAction
 
     /** Clear the keyword (called by the input bar's clear button). */
     data object ClearKeyword : SearchAction

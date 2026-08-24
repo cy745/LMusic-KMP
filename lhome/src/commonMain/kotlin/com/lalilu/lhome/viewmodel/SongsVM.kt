@@ -10,18 +10,16 @@ import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.ItemRecorder
 import com.lalilu.extensions.ItemSelector
 import com.lalilu.extensions.toState
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.usecase.SearchAudiosUseCase
-import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.sortable.*
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.mviImplWithIntent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import org.koin.core.annotation.Factory
 
@@ -66,7 +64,10 @@ class SongsVM(
     private val mediaIds: List<String>,
     private val audioRepository: AudioRepository,
     private val searchAudiosUseCase: SearchAudiosUseCase,
-) : ViewModel(), MviWithIntent<SongsState, SongsEvent, SongsAction> by mviImplWithIntent(SongsState(mediaIds)) {
+    initialKeyword: String,
+) : ViewModel(), MviWithIntent<SongsState, SongsEvent, SongsAction> by mviImplWithIntent(
+    SongsState(mediaIds = mediaIds, searchKeyWord = initialKeyword)
+) {
     val recorder = ItemRecorder()
     val selector = ItemSelector<LAudio>()
     val sorter = SortManager(
@@ -96,7 +97,10 @@ class SongsVM(
         }
         .map { list -> list.map { it } }
         .doSortState(sorter, viewModelScope)
-    val state = stateFlow().toState(SongsState(), viewModelScope)
+    val state = stateFlow().toState(
+        SongsState(mediaIds = mediaIds, searchKeyWord = initialKeyword),
+        viewModelScope
+    )
 
     override fun intent(intent: SongsAction) = viewModelScope.launch {
         when (intent) {
