@@ -1,6 +1,10 @@
 package com.lalilu.lsearch.viewmodel
 
 import androidx.compose.runtime.Immutable
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlin.random.Random
 
 /** 推荐词来源类型。替换时保持类型不变，从而始终维持歌手、专辑、歌曲的 3:3:2 比例。 */
@@ -17,6 +21,41 @@ data class SearchRecommendation(
     val type: SearchRecommendationType,
     val keyword: String,
 )
+
+/**
+ * 当前聚合搜索页实例所展示的推荐词快照。
+ *
+ * 该状态由 [SearchVM] 组合持有，生命周期与导航栈中的聚合搜索页实例一致：跳转到其他页面再
+ * 返回时继续使用原来的推荐词；只有聚合搜索页真正出栈、对应 ViewModel 被销毁后，下一次进入
+ * 页面才会重新随机生成一组推荐词。
+ */
+internal class SearchRecommendationState {
+    private val _recommendations = MutableStateFlow(emptyList<SearchRecommendation>())
+
+    val recommendations: StateFlow<List<SearchRecommendation>> =
+        _recommendations.asStateFlow()
+
+    /** 候选池首次可用时生成推荐词；已有快照时保持不变。 */
+    fun initialize(candidates: SearchRecommendationCandidates) {
+        _recommendations.update { current ->
+            current.ifEmpty { candidates.initialRecommendations() }
+        }
+    }
+
+    /** 替换一个完成倒计时的胶囊，并忽略已经失效的下标。 */
+    fun replace(index: Int, recommendation: SearchRecommendation) {
+        _recommendations.update { current ->
+            if (index !in current.indices) return@update current
+
+            current.toMutableList().also { items ->
+                items[index] = recommendation
+            }
+        }
+    }
+
+    /** 提供给定时协程读取的同步快照。 */
+    fun current(): List<SearchRecommendation> = _recommendations.value
+}
 
 /**
  * 三类推荐词候选池。

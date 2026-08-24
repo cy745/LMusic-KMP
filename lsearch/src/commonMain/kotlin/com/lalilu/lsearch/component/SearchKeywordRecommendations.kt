@@ -21,8 +21,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.lalilu.lsearch.viewmodel.SearchRecommendation
 import com.lalilu.lsearch.viewmodel.SearchRecommendationCandidates
+import com.lalilu.lsearch.viewmodel.SearchRecommendationState
 import kotlin.random.Random
 
 private const val RECOMMENDATION_CHANGE_INTERVAL_MILLIS = 10_000
@@ -33,31 +33,35 @@ private val RECOMMENDATION_MAX_WIDTH = 200.dp
  *
  * 初始内容按歌手、专辑、歌曲 3:3:2 生成并打乱。组件进入组合后，每轮随机选择一个胶囊，
  * 用 10 秒线性填充背景；填满后从同类型候选中替换关键词，再开始下一轮。定时循环由
- * [LaunchedEffect] 托管，页面离开组合或候选池变化时会自动取消并重建。
+ * [LaunchedEffect] 托管，页面离开组合时会暂停，重新进入后从当前推荐词开始新一轮倒计时。
  */
 @Composable
 internal fun SearchKeywordRecommendations(
     modifier: Modifier = Modifier,
+    state: SearchRecommendationState,
     recommendationTitle: String,
     emptyTitle: String,
     candidates: SearchRecommendationCandidates,
     onKeywordClick: (String) -> Unit,
 ) {
-    var recommendations by remember { mutableStateOf(emptyList<SearchRecommendation>()) }
     var progressingIndex by remember { mutableIntStateOf(-1) }
     val progress = remember { Animatable(0f) }
+    val recommendations by state.recommendations.collectAsState()
 
     LaunchedEffect(candidates) {
-        recommendations = candidates.initialRecommendations()
         progressingIndex = -1
         progress.snapTo(0f)
 
-        while (recommendations.isNotEmpty()) {
+        state.initialize(candidates)
+
+        while (state.current().isNotEmpty()) {
+            val currentRecommendations = state.current()
+
             // 只从确实存在同类型替代词的胶囊中选择，保证每轮倒计时结束都会发生内容变化。
-            val replacementOptions = recommendations.mapIndexedNotNull { index, current ->
+            val replacementOptions = currentRecommendations.mapIndexedNotNull { index, current ->
                 candidates.replacementFor(
                     current = current,
-                    displayed = recommendations,
+                    displayed = currentRecommendations,
                 )?.let { replacement -> index to replacement }
             }
             if (replacementOptions.isEmpty()) break
@@ -73,12 +77,10 @@ internal fun SearchKeywordRecommendations(
                 ),
             )
 
-            val currentItems = recommendations
+            val currentItems = state.current()
             if (index !in currentItems.indices) continue
 
-            recommendations = currentItems.toMutableList().also { items ->
-                items[index] = replacement
-            }
+            state.replace(index = index, recommendation = replacement)
         }
     }
 

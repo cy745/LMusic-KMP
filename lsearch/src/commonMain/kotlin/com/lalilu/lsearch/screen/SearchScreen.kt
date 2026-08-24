@@ -31,7 +31,11 @@ import org.koin.compose.viewmodel.koinViewModel
 data object SearchScreen :
     Screen,
     ScreenInfoFactory,
-    ScreenBarFactory {
+    ScreenBarFactory,
+    ScreenViewModelFactory<SearchVM> {
+
+    @Composable
+    override fun vm(): SearchVM = koinViewModel()
 
     override fun isTabScreen(): Boolean = true
 
@@ -45,7 +49,7 @@ data object SearchScreen :
 
     @Composable
     override fun Content() {
-        val vm = koinViewModel<SearchVM>()
+        val vm = vm()
         val state by vm.state.collectAsState()
 
         CancellableInputerBarPanel(
@@ -57,6 +61,6 @@ data object SearchScreen :
             onUpdateKeyword = { vm.intent(SearchAction.UpdateKeyword(it)) }
         )
 
-        SearchScreenContent()
+        SearchScreenContent(vm = vm)
     }
 }

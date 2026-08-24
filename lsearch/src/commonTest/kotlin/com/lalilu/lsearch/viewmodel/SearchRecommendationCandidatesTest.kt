@@ -63,4 +63,26 @@ class SearchRecommendationCandidatesTest {
         assertEquals(listOf("Artist"), candidates.artistNames)
         assertTrue(candidates.initialRecommendations(Random(0)).all { it.keyword.isNotBlank() })
     }
+
+    @Test
+    fun recommendationState_initializesOnlyOnceForCurrentPageInstance() {
+        val state = SearchRecommendationState()
+        val firstCandidates = SearchRecommendationCandidates.create(
+            artistNames = (1..3).map { "Artist $it" },
+            albumNames = (1..3).map { "Album $it" },
+            audioNames = (1..2).map { "Audio $it" },
+        )
+        val changedCandidates = SearchRecommendationCandidates.create(
+            artistNames = (4..6).map { "Artist $it" },
+            albumNames = (4..6).map { "Album $it" },
+            audioNames = (3..4).map { "Audio $it" },
+        )
+
+        state.initialize(firstCandidates)
+        val initialRecommendations = state.current()
+        state.initialize(changedCandidates)
+
+        assertEquals(8, initialRecommendations.size)
+        assertEquals(initialRecommendations, state.current())
+    }
 }

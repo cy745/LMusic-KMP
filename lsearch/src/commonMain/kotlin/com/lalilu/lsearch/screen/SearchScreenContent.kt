@@ -31,13 +31,13 @@ import com.lalilu.lsearch.component.SearchKeywordRecommendations
 import com.lalilu.lsearch.lsearch.generated.resources.*
 import com.lalilu.lsearch.viewmodel.SearchAction
 import com.lalilu.lsearch.viewmodel.SearchRecommendationCandidates
+import com.lalilu.lsearch.viewmodel.SearchRecommendationState
 import com.lalilu.lsearch.viewmodel.SearchVM
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.smartbar.NavigatorHeader
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.viewmodel.koinViewModel
 
 /** 聚合搜索结果中各内容类型的预览数量上限。 */
 private const val ALL_PAGE_AUDIO_LIMIT = 5
@@ -86,8 +86,10 @@ private data class GridSpanRule(
  * 完整结果交由各类别已有的列表页展示，并复用列表页自身的关键词搜索能力。
  */
 @Composable
-fun SearchScreenContent(modifier: Modifier = Modifier) {
-    val vm = koinViewModel<SearchVM>()
+fun SearchScreenContent(
+    modifier: Modifier = Modifier,
+    vm: SearchVM,
+) {
     val state by vm.state.collectAsState()
 
     val audios by remember(vm) { vm.audios }.collectAsState()
@@ -127,6 +129,7 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
         albums = albums,
         artists = artists,
         recommendationCandidates = vm.recommendationCandidates,
+        recommendationState = vm.recommendationState,
         onRecommendationClick = { keyword ->
             vm.intent(SearchAction.UpdateKeyword(keyword))
         },
@@ -149,6 +152,7 @@ private fun SearchResultList(
     albums: List<LAlbum>,
     artists: List<LArtist>,
     recommendationCandidates: StateFlow<SearchRecommendationCandidates>,
+    recommendationState: SearchRecommendationState,
     onRecommendationClick: (String) -> Unit,
     state: LazyGridState,
     statusBarTop: Dp,
@@ -182,6 +186,7 @@ private fun SearchResultList(
                         val candidates by recommendationCandidates.collectAsState()
                         SearchKeywordRecommendations(
                             modifier = Modifier.height(emptyStateHeight),
+                            state = recommendationState,
                             recommendationTitle = stringResource(
                                 Res.string.search_recommendation_hint
                             ),

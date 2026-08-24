@@ -43,6 +43,9 @@ class SearchVM(
     MviWithIntent<SearchState, SearchEvent, SearchAction>
     by mviImplWithIntent(SearchState()) {
 
+    /** 当前导航栈页面实例的推荐词快照；页面出栈并销毁本 ViewModel 时一并清除。 */
+    internal val recommendationState = SearchRecommendationState()
+
     /**
      * 空关键词页面使用的全量名称候选池。三类仓库任意一类更新时都会重新整理候选名称；
      * 随机抽取、定时替换和动画只在推荐组件实际进入组合时运行。
