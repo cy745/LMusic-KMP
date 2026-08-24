@@ -27,11 +27,15 @@ import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.action.PlayerAction
+import com.lalilu.lsearch.component.SearchKeywordRecommendations
 import com.lalilu.lsearch.lsearch.generated.resources.*
+import com.lalilu.lsearch.viewmodel.SearchAction
+import com.lalilu.lsearch.viewmodel.SearchRecommendationCandidates
 import com.lalilu.lsearch.viewmodel.SearchVM
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.smartbar.NavigatorHeader
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.StateFlow
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -122,6 +126,10 @@ fun SearchScreenContent(modifier: Modifier = Modifier) {
         audios = audios,
         albums = albums,
         artists = artists,
+        recommendationCandidates = vm.recommendationCandidates,
+        onRecommendationClick = { keyword ->
+            vm.intent(SearchAction.UpdateKeyword(keyword))
+        },
         state = listState,
         statusBarTop = statusBarTop,
         bottomPadding = bottomPadding,
@@ -140,6 +148,8 @@ private fun SearchResultList(
     audios: List<LAudio>,
     albums: List<LAlbum>,
     artists: List<LArtist>,
+    recommendationCandidates: StateFlow<SearchRecommendationCandidates>,
+    onRecommendationClick: (String) -> Unit,
     state: LazyGridState,
     statusBarTop: Dp,
     bottomPadding: Dp,
@@ -169,10 +179,12 @@ private fun SearchResultList(
                         span = GRID_COLUMNS,
                         paddingValues = pageHorizontalPadding
                     ) {
-                        // 关键词推荐区将在推荐来源和交互方案确定后接入，这里暂时只展示搜索引导。
-                        EmptyHint(
+                        val candidates by recommendationCandidates.collectAsState()
+                        SearchKeywordRecommendations(
                             modifier = Modifier.height(emptyStateHeight),
-                            text = stringResource(Res.string.search_empty_all)
+                            title = stringResource(Res.string.search_empty_all),
+                            candidates = candidates,
+                            onKeywordClick = onRecommendationClick,
                         )
                     }
                     return@gap

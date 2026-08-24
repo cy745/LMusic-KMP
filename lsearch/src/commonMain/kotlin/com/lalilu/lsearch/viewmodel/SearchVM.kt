@@ -14,6 +14,7 @@ import com.lalilu.mviImplWithIntent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -41,6 +42,26 @@ class SearchVM(
 ) : ViewModel(),
     MviWithIntent<SearchState, SearchEvent, SearchAction>
     by mviImplWithIntent(SearchState()) {
+
+    /**
+     * 空关键词页面使用的全量名称候选池。三类仓库任意一类更新时都会重新整理候选名称；
+     * 随机抽取、定时替换和动画只在推荐组件实际进入组合时运行。
+     */
+    val recommendationCandidates: StateFlow<SearchRecommendationCandidates> = combine(
+        searchArtistsUseCase(),
+        searchAlbumsUseCase(),
+        searchAudiosUseCase(),
+    ) { artists, albums, audios ->
+        SearchRecommendationCandidates.create(
+            artistNames = artists.map { it.title },
+            albumNames = albums.map { it.title },
+            audioNames = audios.map { it.title },
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+        initialValue = SearchRecommendationCandidates.Empty,
+    )
 
     /** Song results, reactively filtered by the current keyword. */
     val audios: StateFlow<List<LAudio>> = stateFlow()
