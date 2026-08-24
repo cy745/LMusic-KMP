@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -58,9 +59,17 @@ class SeekbarPositionState internal constructor(initialPosition: Float) {
     private var correctionJob: Job? = null
     private var correctionGeneration = 0
     private var isSettling = false
+    private var overridesPlaybackPosition by mutableStateOf(false)
 
     val position: Float
         get() = sourcePosition + correction.value
+
+    /**
+     * 正常播放时直接返回最新的播放器位置，绕过 [snapshotFlow] 到 [sourcePosition] 的一次
+     * 异步转发；只有拖动和松手后的回正窗口使用交互位置。
+     */
+    fun positionFor(playbackPosition: Float): Float =
+        if (overridesPlaybackPosition) position else playbackPosition
 
     internal suspend fun track(
         isDragging: () -> Boolean,
@@ -94,6 +103,7 @@ class SeekbarPositionState internal constructor(initialPosition: Float) {
         correction.snapTo(0f)
         sourcePosition = position
         previousPlaybackPosition = null
+        overridesPlaybackPosition = true
     }
 
     private suspend fun CoroutineScope.updatePlaybackPosition(position: Float) {
@@ -117,6 +127,7 @@ class SeekbarPositionState internal constructor(initialPosition: Float) {
         sourcePosition = playbackPosition
         correction.snapTo(visiblePosition - playbackPosition)
         isSettling = true
+        overridesPlaybackPosition = true
         correctionJob = launch {
             try {
                 // correction 为 0 时也保留完整窗口，用来吸收异步 Seek 生效时可能出现的
@@ -136,6 +147,7 @@ class SeekbarPositionState internal constructor(initialPosition: Float) {
             } finally {
                 if (generation == correctionGeneration) {
                     isSettling = false
+                    overridesPlaybackPosition = false
                 }
             }
         }
@@ -146,6 +158,7 @@ class SeekbarPositionState internal constructor(initialPosition: Float) {
         correctionJob?.cancel()
         correctionJob = null
         isSettling = false
+        overridesPlaybackPosition = false
     }
 
     private fun stopTracking() {

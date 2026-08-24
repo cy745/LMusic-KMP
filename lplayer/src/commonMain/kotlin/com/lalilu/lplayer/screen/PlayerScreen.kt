@@ -350,7 +350,11 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                                 translationY = additionalOffset + fixOffset
                                 alpha = progressIncrease
                             },
-                        currentTime = { positionState.position.toLong() },
+                        // 正常播放直接使用本帧读取的播放器时间；拖动及松手回正期间才切换到
+                        // SeekbarPositionState，避免 snapshotFlow 中转给歌词额外增加一帧延迟。
+                        currentTime = {
+                            positionState.positionFor(currentTime.value.toFloat()).toLong()
+                        },
                         screenConstraints = constraints,
                         lyricEntry = vm.lyricItems,
                         isUserClickEnable = { true },
