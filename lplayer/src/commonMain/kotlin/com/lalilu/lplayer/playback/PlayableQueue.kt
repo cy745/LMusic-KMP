@@ -35,10 +35,12 @@ interface PlayableQueue {
      * 所有操作在一次原子更新中完成，只触发一次 StateFlow emit。
      *
      * @param updateReason 队列更新原因，默认 Inner
+     * @param predicate 在同一原子区间内检查当前队列；返回 false 时不执行也不发送更新
      * @param block 在 [QueueUpdateRequest] 作用域内执行的操作序列
      */
     suspend fun update(
         updateReason: QueueUpdateReason = QueueUpdateReason.Inner,
+        predicate: (QueueState) -> Boolean = { true },
         block: QueueUpdateRequest.() -> Unit
     )
 

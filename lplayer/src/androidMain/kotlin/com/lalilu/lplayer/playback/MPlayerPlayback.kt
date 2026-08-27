@@ -84,6 +84,7 @@ class MPlayerPlayback(
         val browser = browserFuture.get() ?: return
         browserInstance = browser
         browser.addListener(this@MPlayerPlayback)
+        startQueueMetadataRefresh(queue, audioRepository)
 
         // 历史恢复
         val snapshot = restoreFromHistory()
