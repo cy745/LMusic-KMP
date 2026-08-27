@@ -53,6 +53,78 @@ interface LMediaDao {
     @Query("DELETE FROM cross_ref_audio_x_genre WHERE song_id IN (:songIds)")
     suspend fun deleteGenreRelationsBySongIds(songIds: List<String>)
 
+    @Query(
+        """
+        DELETE FROM cross_ref_audio_x_artist
+        WHERE NOT EXISTS (
+            SELECT 1 FROM l_audio
+            WHERE l_audio.song_id = cross_ref_audio_x_artist.song_id
+                AND l_audio.available = 1
+        )
+        """
+    )
+    suspend fun deleteArtistRelationsWithoutAvailableAudio()
+
+    @Query(
+        """
+        DELETE FROM cross_ref_audio_x_album
+        WHERE NOT EXISTS (
+            SELECT 1 FROM l_audio
+            WHERE l_audio.song_id = cross_ref_audio_x_album.song_id
+                AND l_audio.available = 1
+        )
+        """
+    )
+    suspend fun deleteAlbumRelationsWithoutAvailableAudio()
+
+    @Query(
+        """
+        DELETE FROM cross_ref_audio_x_genre
+        WHERE NOT EXISTS (
+            SELECT 1 FROM l_audio
+            WHERE l_audio.song_id = cross_ref_audio_x_genre.song_id
+                AND l_audio.available = 1
+        )
+        """
+    )
+    suspend fun deleteGenreRelationsWithoutAvailableAudio()
+
+    @Query("DELETE FROM l_audio WHERE available = 0")
+    suspend fun deleteUnavailableAudios()
+
+    @Query(
+        """
+        DELETE FROM l_artist
+        WHERE NOT EXISTS (
+            SELECT 1 FROM cross_ref_audio_x_artist
+            WHERE cross_ref_audio_x_artist.artist_id = l_artist.artist_id
+        )
+        """
+    )
+    suspend fun deleteOrphanArtists()
+
+    @Query(
+        """
+        DELETE FROM l_album
+        WHERE NOT EXISTS (
+            SELECT 1 FROM cross_ref_audio_x_album
+            WHERE cross_ref_audio_x_album.album_id = l_album.album_id
+        )
+        """
+    )
+    suspend fun deleteOrphanAlbums()
+
+    @Query(
+        """
+        DELETE FROM l_genre
+        WHERE NOT EXISTS (
+            SELECT 1 FROM cross_ref_audio_x_genre
+            WHERE cross_ref_audio_x_genre.genre_id = l_genre.genre_id
+        )
+        """
+    )
+    suspend fun deleteOrphanGenres()
+
     @Transaction
     suspend fun insert(snapshot: Snapshot, sourceName: String) {
         require(snapshot.audios.all { it.mediaSourceName == sourceName }) {
@@ -92,6 +164,23 @@ interface LMediaDao {
         insertArtistRelation(batch.artistRelations)
         insertAlbumRelation(batch.albumRelations)
         insertGenreRelation(batch.genreRelations)
+    }
+
+    /**
+     * 完整清理不可用的媒体库条目。
+     *
+     * 关系表当前没有声明外键级联，因此必须先移除指向不可用歌曲或已不存在歌曲的悬空关系，再删除
+     * 歌曲及失去全部歌曲引用的派生实体。整个过程处于同一事务，不会暴露只清理了一半的中间状态。
+     */
+    @Transaction
+    suspend fun clearUnavailableMedia() {
+        deleteArtistRelationsWithoutAvailableAudio()
+        deleteAlbumRelationsWithoutAvailableAudio()
+        deleteGenreRelationsWithoutAvailableAudio()
+        deleteUnavailableAudios()
+        deleteOrphanArtists()
+        deleteOrphanAlbums()
+        deleteOrphanGenres()
     }
 
     companion object {

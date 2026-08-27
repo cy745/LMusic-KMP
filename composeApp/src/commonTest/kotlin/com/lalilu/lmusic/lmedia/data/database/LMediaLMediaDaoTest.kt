@@ -1,5 +1,6 @@
 package com.lalilu.lmusic.lmedia.data.database
 
+import com.lalilu.lmedia.data.mapper.toEntity
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.source.Snapshot
@@ -247,23 +248,91 @@ class LMediaLMediaDaoTest {
     }
 
     @Test
-    fun clearUnavailableRemovesOnlyMarkedAudioRows() = runTest {
+    fun clearUnavailableRemovesOrphanRelationsAndDerivedEntities() = runTest {
         db.mediaDao().insert(
             Snapshot(listOf(
-                sourceAudio("clear-current", "clear-source"),
-                sourceAudio("clear-missing", "clear-source"),
+                sourceAudio(
+                    id = "clear-current",
+                    source = "clear-source",
+                    artist = "Shared Artist",
+                    album = "Shared Album",
+                    genre = "Shared Genre",
+                ),
+                sourceAudio(
+                    id = "clear-shared-missing",
+                    source = "clear-source",
+                    artist = "Shared Artist",
+                    album = "Shared Album",
+                    genre = "Shared Genre",
+                ),
+                sourceAudio(
+                    id = "clear-orphan-missing",
+                    source = "clear-source",
+                    artist = "Orphan Artist",
+                    album = "Orphan Album",
+                    genre = "Orphan Genre",
+                ),
             )),
             "clear-source",
         )
         db.mediaDao().insert(
-            Snapshot(listOf(sourceAudio("clear-current", "clear-source"))),
+            Snapshot(listOf(sourceAudio(
+                id = "clear-current",
+                source = "clear-source",
+                artist = "Shared Artist",
+                album = "Shared Album",
+                genre = "Shared Genre",
+            ))),
             "clear-source",
         )
 
-        audioDao.clearUnavailableAudio()
+        db.mediaDao().clearUnavailableMedia()
 
         assertNotNull(audioDao.getAudio("clear-current").firstOrNull())
-        assertEquals(null, audioDao.getAudio("clear-missing").firstOrNull())
+        assertEquals(null, audioDao.getAudio("clear-shared-missing").firstOrNull())
+        assertEquals(null, audioDao.getAudio("clear-orphan-missing").firstOrNull())
+
+        val artists = artistDao.getAllArtist().firstOrNull().orEmpty()
+        val albums = albumDao.getAllAlbum().firstOrNull().orEmpty()
+        val genres = genreDao.getAllGenre().firstOrNull().orEmpty()
+        assertTrue(artists.any { it.title == "Shared Artist" })
+        assertTrue(albums.any { it.title == "Shared Album" })
+        assertTrue(genres.any { it.title == "Shared Genre" })
+        assertTrue(artists.none { it.title == "Orphan Artist" })
+        assertTrue(albums.none { it.title == "Orphan Album" })
+        assertTrue(genres.none { it.title == "Orphan Genre" })
+
+        val current = audioDao.getAudioWithRelations("clear-current").firstOrNull()
+        assertNotNull(current)
+        assertEquals(listOf("Shared Artist"), current.artists.map { it.title })
+        assertEquals(listOf("Shared Album"), current.albums.map { it.title })
+        assertEquals(listOf("Shared Genre"), current.genres.map { it.title })
+    }
+
+    @Test
+    fun clearUnavailableAlsoRepairsPreviouslyDanglingRelations() = runTest {
+        val audio = sourceAudio(
+            id = "dangling-audio",
+            source = "dangling-source",
+            artist = "Dangling Artist",
+            album = "Dangling Album",
+            genre = "Dangling Genre",
+        )
+        db.mediaDao().insert(Snapshot(listOf(audio)), "dangling-source")
+
+        // 模拟旧清理逻辑只删除歌曲、留下交叉表关系的数据库状态。
+        audioDao.delete(audio.copy(available = true).toEntity())
+        db.mediaDao().clearUnavailableMedia()
+
+        assertTrue(artistDao.getAllArtist().firstOrNull().orEmpty().none {
+            it.title == "Dangling Artist"
+        })
+        assertTrue(albumDao.getAllAlbum().firstOrNull().orEmpty().none {
+            it.title == "Dangling Album"
+        })
+        assertTrue(genreDao.getAllGenre().firstOrNull().orEmpty().none {
+            it.title == "Dangling Genre"
+        })
     }
 
     private fun audioExtra(
@@ -276,11 +345,17 @@ class LMediaLMediaDaoTest {
         LAudioExtraKeys.Genre to genre,
     )
 
-    private fun sourceAudio(id: String, source: String) = LAudio(
+    private fun sourceAudio(
+        id: String,
+        source: String,
+        artist: String = "Artist",
+        album: String = "Album",
+        genre: String = "Genre",
+    ) = LAudio(
         id = id,
         title = id,
-        subtitle = "Artist",
+        subtitle = artist,
         mediaSourceName = source,
-        extra = audioExtra("Artist", "Album", "Genre"),
+        extra = audioExtra(artist, album, genre),
     )
 }

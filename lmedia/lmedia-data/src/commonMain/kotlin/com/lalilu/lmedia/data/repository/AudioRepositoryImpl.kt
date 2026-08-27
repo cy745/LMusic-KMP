@@ -29,6 +29,6 @@ class AudioRepositoryImpl(
         audioDao.getAudio(id).mapLatest { it?.toDomain() }
 
     override suspend fun clearUnavailableAudio() {
-        audioDao.clearUnavailableAudio()
+        database.mediaDao().clearUnavailableMedia()
     }
 }
