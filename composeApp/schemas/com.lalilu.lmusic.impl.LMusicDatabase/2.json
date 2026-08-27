@@ -1,12 +1,12 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 1,
-    "identityHash": "d63b282ede70379258d9d193630c82e7",
+    "version": 2,
+    "identityHash": "9d3be67d1b718c7ec4e0c27016386882",
     "entities": [
       {
         "tableName": "l_audio",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`song_id` TEXT NOT NULL, `title` TEXT NOT NULL, `subtitle` TEXT NOT NULL, `media_source_name` TEXT NOT NULL, `metadata` TEXT NOT NULL, `extra` TEXT, `available` INTEGER NOT NULL, PRIMARY KEY(`song_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`song_id` TEXT NOT NULL, `title` TEXT NOT NULL, `subtitle` TEXT NOT NULL, `media_source_name` TEXT NOT NULL, `extra` TEXT, `available` INTEGER NOT NULL, PRIMARY KEY(`song_id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -29,12 +29,6 @@
           {
             "fieldPath": "mediaSourceName",
             "columnName": "media_source_name",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "metadata",
-            "columnName": "metadata",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -389,7 +383,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd63b282ede70379258d9d193630c82e7')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9d3be67d1b718c7ec4e0c27016386882')"
     ]
   }
 }
