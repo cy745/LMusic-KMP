@@ -27,11 +27,10 @@ import com.lalilu.lmedia.source.buildConfig
 import com.lalilu.lmedia.source.range
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
-import org.koin.core.annotation.Single
 
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Single(binds = [MediaSource::class, MediaDataSource::class])
+// 测试内容就绪与重试链路期间，暂时移除 Koin 注册，不加入 PlatformMediaSource。
 class MediaStoreSource(
     private val context: Application,
     private val saver: Saver
