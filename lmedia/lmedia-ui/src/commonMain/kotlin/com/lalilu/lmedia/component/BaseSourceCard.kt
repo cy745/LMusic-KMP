@@ -2,6 +2,7 @@ package com.lalilu.lmedia.component
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +25,7 @@ fun BaseSourceCard(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        shape = RoundedCornerShape(20.dp),
         border = BorderStroke(
             width = 1.dp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f),
@@ -31,8 +33,8 @@ fun BaseSourceCard(
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .padding(top = 16.dp, bottom = 12.dp)
+                .padding(horizontal = 18.dp)
+                .padding(top = 18.dp, bottom = 16.dp)
                 .fillMaxWidth()
         ) {
             Row(
@@ -43,7 +45,8 @@ fun BaseSourceCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
 
                     subtitleContent(subtitle)
@@ -65,7 +68,7 @@ fun DefaultSubtitleContent(
     Text(
         modifier = modifier
             .alpha(0.6f)
-            .padding(top = 8.dp),
+            .padding(top = 4.dp),
         text = subtitle,
         style = MaterialTheme.typography.labelSmall,
     )

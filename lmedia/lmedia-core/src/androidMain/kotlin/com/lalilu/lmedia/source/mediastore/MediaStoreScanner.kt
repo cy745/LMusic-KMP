@@ -21,7 +21,7 @@ open class MediaStoreScanner(
         @Suppress("inlinedApi")
         private const val AUDIO_COLUMN_ALBUM_ARTIST = MediaStore.Audio.AudioColumns.ALBUM_ARTIST
         private const val BASE_SELECTOR =
-            "${MediaStore.Audio.Media.SIZE} >= 10 AND ${MediaStore.Audio.Media.DURATION} >= 15000"
+            "${MediaStore.Audio.Media.SIZE} >= 10 AND ${MediaStore.Audio.Media.DURATION} >= ?"
         private const val BASE_SORT_ORDER = "${MediaStore.Audio.Media._ID} DESC"
     }
 
@@ -42,11 +42,14 @@ open class MediaStoreScanner(
         AUDIO_COLUMN_ALBUM_ARTIST
     )
 
-    override suspend fun scan(): List<LAudio> = withContext(Dispatchers.IO) {
+    override suspend fun scan(minDurationMillis: Long): List<LAudio> = withContext(Dispatchers.IO) {
         val cr = context.applicationContext.contentResolver
         val cursor = cr.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            projection, BASE_SELECTOR, null, BASE_SORT_ORDER
+            projection,
+            BASE_SELECTOR,
+            arrayOf(minDurationMillis.coerceAtLeast(0L).toString()),
+            BASE_SORT_ORDER,
         ) ?: return@withContext emptyList()
 
         val audios = cursor.use { c ->

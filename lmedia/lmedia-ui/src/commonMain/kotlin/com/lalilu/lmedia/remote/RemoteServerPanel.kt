@@ -1,61 +1,211 @@
 package com.lalilu.lmedia.remote
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.component.BaseSourceCard
+import com.lalilu.lmedia.component.SourceActionButton
+import com.lalilu.lmedia.component.SourceActionStyle
+import com.lalilu.lmedia.component.SourceInfoPanel
+import com.lalilu.lmedia.component.SourceTextField
+import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import org.koin.compose.koinInject
-import kotlin.time.ExperimentalTime
 
-
-@OptIn(ExperimentalTime::class)
+/**
+ * 关闭 KVItem 的自动保存后，config.value 本身就是表单草稿；只有调用 save() 才会发布配置，
+ * 因此文本输入和切换媒体源不会反复重启服务。
+ */
 @Composable
 fun RemoteServerPanel(
     modifier: Modifier = Modifier,
 ) {
-    val removeServer = koinInject<RemoteServer>()
+    val remoteServer = koinInject<RemoteServer>()
     val sources = koinInject<PlatformMediaSource>()
-    val config = removeServer.config
+    val config = remoteServer.config
+    val appliedConfig by config.flow().collectAsState(initial = config.value)
+    val defaultSourceName = sources.sources.firstOrNull()?.name.orEmpty()
+    val draft = config.value
+    val hasChanges = draft != appliedConfig
 
     BaseSourceCard(
         modifier = modifier,
-        title = "Remote Server",
-        subtitle = if (removeServer.running.value) "Running at port: ${config.value.port}" else "Not Running",
+        title = "局域网共享",
+        subtitle = "让同一网络中的其他 LMusic 设备访问一个媒体源",
         actionContent = {
             Switch(
-                checked = config.value.enable,
-                onCheckedChange = { config.value = config.value.copy(enable = it) }
+                checked = appliedConfig.enable,
+                onCheckedChange = { enabled ->
+                    config.value = if (enabled) {
+                        config.value.copy(
+                            enable = true,
+                            sourceName = config.value.sourceName.ifBlank { defaultSourceName },
+                        )
+                    } else {
+                        // 关闭服务时丢弃尚未应用的表单修改，只改变已生效配置的开关。
+                        appliedConfig.copy(enable = false)
+                    }
+                    config.save()
+                },
             )
         },
-        content = {
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = config.value.password,
-                onValueChange = { config.value = config.value.copy(password = it) },
-                label = { Text("密码") },
-                placeholder = { Text("留空表示无需密码") },
-            )
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(0.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SourceInfoPanel(
+            modifier = Modifier.padding(top = 14.dp),
+            label = if (appliedConfig.enable) "共享服务" else "当前已关闭",
+            value = when {
+                remoteServer.running.value -> "正在端口 ${appliedConfig.port} 上运行"
+                appliedConfig.enable -> "正在启动服务…"
+                else -> "开启后，其他设备可以连接到这台设备"
+            },
+            supportingText = if (appliedConfig.enable && appliedConfig.sourceName.isNotBlank()) {
+                val sourceName = sources.sources
+                    .firstOrNull { it.name == appliedConfig.sourceName }
+                    ?.displayName()
+                    ?: appliedConfig.sourceName
+                "当前共享：$sourceName"
+            } else {
+                null
+            },
+            emphasized = remoteServer.running.value,
+        )
+
+        AnimatedVisibility(visible = appliedConfig.enable) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                sources.sources.forEach {
-                    FilterChip(
-                        selected = config.value.sourceName == it.name,
-                        onClick = { config.value = config.value.copy(sourceName = it.name) },
-                        label = { Text(text = it.name) }
+                Text(
+                    text = "选择要共享的媒体源",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    sources.sources.forEach { source ->
+                        SharedSourceOption(
+                            source = source,
+                            selected = config.value.sourceName == source.name,
+                            onClick = {
+                                config.value = config.value.copy(sourceName = source.name)
+                            },
+                        )
+                    }
+                }
+
+                SourceTextField(
+                    value = config.value.password,
+                    onValueChange = {
+                        config.value = config.value.copy(password = it)
+                    },
+                    label = "访问密码（可选）",
+                    supportingText = "留空表示同一网络中的设备无需密码即可访问",
+                    visualTransformation = PasswordVisualTransformation(),
+                )
+
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SourceActionButton(
+                        title = "应用共享设置",
+                        style = SourceActionStyle.Primary,
+                        enabled = hasChanges && config.value.sourceName.isNotBlank(),
+                        onClick = config::save,
                     )
+                    if (hasChanges) {
+                        SourceActionButton(
+                            title = "放弃修改",
+                            style = SourceActionStyle.Quiet,
+                            onClick = config::update,
+                        )
+                    }
                 }
             }
         }
-    )
+    }
+}
+
+@Composable
+private fun SharedSourceOption(
+    source: MediaSource,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val indicatorColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outline
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.38f)
+        },
+        contentColor = contentColor,
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (selected) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+            },
+        ),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier = Modifier.size(18.dp)
+                    .border(1.5.dp, indicatorColor, CircleShape)
+                    .padding(4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (selected) {
+                    Box(
+                        modifier = Modifier.fillMaxSize()
+                            .background(indicatorColor, CircleShape),
+                    )
+                }
+            }
+            Text(
+                text = source.displayName(),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+private fun MediaSource.displayName(): String = when (name) {
+    "AndroidFileSystemSource" -> "本地文件夹"
+    "MediaStore" -> "系统媒体库"
+    "MediaStoreSource" -> "系统媒体库"
+    "SubsonicSource" -> "Subsonic / Navidrome"
+    "RemoteSource" -> "Remote Server"
+    "SandboxFileSystemSource" -> "沙盒文件"
+    "MediaLibrarySource" -> "系统媒体库"
+    "MusicKitSource" -> "Apple Music"
+    "SystemMediaSource" -> "系统媒体库"
+    else -> name
 }

@@ -3,6 +3,8 @@ package com.lalilu.lmedia.source
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.md5
+import com.lalilu.common.kv.KVItem
+import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
@@ -33,8 +35,8 @@ import kotlin.random.Random
 @Single(binds = [MediaSource::class, MediaDataSource::class])
 class RemoteSource(
     private val json: Json,
-    private val saver: Saver,
-) : MediaSource, MediaDataSource, Configurable, CoroutineScope {
+    kv: LMediaKV,
+) : MediaSource, MediaDataSource, CoroutineScope {
     companion object {
         private const val TAG = "RemoteSource"
         private const val EXTRA_REMOTE_ID = "remoteId"
@@ -55,71 +57,85 @@ class RemoteSource(
     private var client: HttpClient? = null
     private var loadingJob: Job? = null
 
-    override val config: MediaSourceConfig = buildConfig(
-        onConfigChange = ::onConfigChange,
-        key = name,
-        description = "连接其他开放的 Remote Server 实例",
-        saver = saver,
-    ) {
-        property<String>("url")
-        property<String>("password")
-        property<String>("salt", visibleInUI = false)
-        property<String>("token", visibleInUI = false)
+    val config: KVItem<RemoteSourceConfig> = kv.obtain(
+        key = "${name}Config",
+        defaultValue = RemoteSourceConfig(),
+    ).apply { disableAutoSave() }
+    private var activeConfig: RemoteSourceConfig = config.value
 
-        function<Unit>(
-            key = "Connect",
-            description = "连接远程媒体源",
-            isAvailable = { state.value is SnapshotState.Idle },
-        ).onCall { loadData() }
-
-        function<Unit>(
-            key = "Cancel",
-            description = "取消当前执行任务",
-            isAvailable = { state.value is SnapshotState.Loading },
-        ).onCall { loadingJob?.cancel() }
-
-        function<Unit>(
-            key = "Reset",
-            description = "重置远程媒体源",
-            isAvailable = { state.value !is SnapshotState.Idle && state.value !is SnapshotState.Loading },
-        ).onCall { reset() }
-
-        function<Unit>(
-            key = "Refresh",
-            description = "刷新远程媒体源",
-            isAvailable = { state.value !is SnapshotState.Idle && state.value !is SnapshotState.Loading },
-        ).onCall { loadData() }
+    override fun init() {
+        if (activeConfig.isConfigured) loadData(isInitialize = true)
     }
 
-    override fun onConfigChange() {
-        client?.close()
-        client = null
+    /**
+     * 保存连接配置并发起连接。密码为空时，仅在服务器地址未变化的情况下复用既有认证信息；
+     * 切换服务器且不填写密码则按无密码服务连接。
+     */
+    fun connect(url: String, password: String): Result<Unit> = runCatching {
+        val normalizedUrl = normalizeServerUrl(url)
+        val current = activeConfig
+        val canReuseAuthentication = password.isBlank() &&
+            normalizedUrl == current.url &&
+            current.salt.isNotBlank() &&
+            current.token.isNotBlank()
+
+        val (salt, token) = when {
+            password.isNotBlank() -> {
+                val newSalt = Random.nextBytes(16).toHexString()
+                newSalt to (password + newSalt).md5()
+            }
+
+            canReuseAuthentication -> current.salt to current.token
+            else -> "" to ""
+        }
+
+        config.value = RemoteSourceConfig(
+            url = normalizedUrl,
+            salt = salt,
+            token = token,
+        )
+        config.save()
+        activeConfig = config.value
+        recreateHttpClient()
+        loadData()
     }
 
-    override fun init() = loadData(isInitialize = true)
+    fun retry(): Result<Unit> = runCatching {
+        require(activeConfig.isConfigured) { "请先填写服务器地址" }
+        loadData()
+    }
+
+    fun cancel() {
+        loadingJob?.cancel()
+    }
+
+    fun reset() {
+        closeClient()
+        loadingJob?.cancel()
+        loadingJob = launch { stateStore.reset() }
+        config.value = activeConfig.copy(salt = "", token = "")
+        config.save()
+        activeConfig = config.value
+    }
+
+    fun refresh() = retry()
 
     private suspend fun requireClient(): HttpClient = client ?: recreateHttpClient()
 
-    private suspend fun recreateHttpClient(): HttpClient = withContext(Dispatchers.io) {
-        client?.close()
-        val url = config.get<String>("url").getOrThrow()
-        require(url.isNotBlank()) { "请填写服务器地址" }
+    private fun recreateHttpClient(): HttpClient {
+        closeClient()
+        val serverUrl = activeConfig.url
+        require(serverUrl.isNotBlank()) { "请填写服务器地址" }
 
-        HttpClient {
-            defaultRequest { url("http://$url") }
+        return HttpClient {
+            defaultRequest { url(serverUrl) }
             install(ContentNegotiation) { json(json) }
         }.also { client = it }
     }
 
-    private fun reset() {
+    private fun closeClient() {
         client?.close()
         client = null
-        loadingJob?.cancel()
-        loadingJob = launch { stateStore.reset() }
-        config.update { setter ->
-            setter("salt", "")
-            setter("token", "")
-        }
     }
 
     private fun loadData(isInitialize: Boolean = false) {
@@ -127,12 +143,11 @@ class RemoteSource(
         loadingJob = launch {
             val taskId = stateStore.begin(if (isInitialize) "Restoring connection..." else "Loading...")
             try {
-                updateAuthentication()
                 val result = requireClient()
                     .get("/source") { appendAuthentication() }
                     .body<Snapshot>()
 
-                val serverAddress = config.get<String>("url").getOrThrow()
+                val serverAddress = activeConfig.url
                 val audios = result.audios.map { audio ->
                     val remoteId = audio.id
                     audio.copy(
@@ -156,22 +171,9 @@ class RemoteSource(
         }
     }
 
-    private fun updateAuthentication() {
-        val password = config.get<String>("password").getOrNull().orEmpty()
-        if (password.isBlank()) return
-
-        val salt = Random.nextBytes(16).toHexString()
-        val token = (password + salt).md5()
-        config.update { setter ->
-            setter("password", "")
-            setter("salt", salt)
-            setter("token", token)
-        }
-    }
-
     private fun HttpRequestBuilder.appendAuthentication() {
-        val salt = config.get<String>("salt").getOrNull()?.takeIf(String::isNotBlank)
-        val token = config.get<String>("token").getOrNull()?.takeIf(String::isNotBlank)
+        val salt = activeConfig.salt.takeIf(String::isNotBlank)
+        val token = activeConfig.token.takeIf(String::isNotBlank)
         if (salt != null && token != null) {
             parameter("s", salt)
             parameter("t", token)
@@ -195,10 +197,21 @@ class RemoteSource(
 
     override suspend fun getMedia(song: LAudio): MediaData? {
         val remoteId = song.extra?.get(EXTRA_REMOTE_ID) ?: return null
-        val serverAddress = config.get<String>("url").getOrThrow()
-        val salt = config.get<String>("salt").getOrNull()?.takeIf(String::isNotBlank)
-        val token = config.get<String>("token").getOrNull()?.takeIf(String::isNotBlank)
+        val serverAddress = activeConfig.url.trimEnd('/')
+        val salt = activeConfig.salt.takeIf(String::isNotBlank)
+        val token = activeConfig.token.takeIf(String::isNotBlank)
         val auth = if (salt != null && token != null) "?s=$salt&t=$token" else ""
-        return MediaData.Url("http://$serverAddress/media/${remoteId.encodeURLPathPart()}$auth")
+        return MediaData.Url("$serverAddress/media/${remoteId.encodeURLPathPart()}$auth")
+    }
+
+    private fun normalizeServerUrl(value: String): String {
+        val url = value.trim()
+        require(url.isNotBlank()) { "请填写服务器地址" }
+        val withScheme = if (url.startsWith("http://") || url.startsWith("https://")) {
+            url
+        } else {
+            "http://$url"
+        }
+        return withScheme.trimEnd('/')
     }
 }

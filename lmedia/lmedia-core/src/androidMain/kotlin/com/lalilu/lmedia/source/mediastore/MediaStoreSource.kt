@@ -12,6 +12,8 @@ import android.provider.MediaStore
 import androidx.core.net.toUri
 import androidx.core.content.ContextCompat
 import co.touchlab.kermit.Logger
+import com.lalilu.common.kv.KVItem
+import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaData
@@ -20,21 +22,17 @@ import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.MediaSourceStateStore
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
-import com.lalilu.lmedia.source.Configurable
-import com.lalilu.lmedia.source.MediaSourceConfig
-import com.lalilu.lmedia.source.Saver
-import com.lalilu.lmedia.source.buildConfig
-import com.lalilu.lmedia.source.range
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
+import org.koin.core.annotation.Single
 
 
 @OptIn(ExperimentalCoroutinesApi::class)
-// 测试内容就绪与重试链路期间，暂时移除 Koin 注册，不加入 PlatformMediaSource。
+@Single(binds = [MediaSource::class, MediaDataSource::class])
 class MediaStoreSource(
     private val context: Application,
-    private val saver: Saver
-) : MediaSource, MediaDataSource, Configurable {
+    kv: LMediaKV,
+) : MediaSource, MediaDataSource {
     override val name: String = "MediaStore"
     override val dataSource: MediaDataSource = this
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -52,38 +50,10 @@ class MediaStoreSource(
         else -> MediaStoreScanner(this, context)
     }
 
-    override val config: MediaSourceConfig = buildConfig(
-        onConfigChange = ::onConfigChange,
-        key = name,
-        name = "MediaStore",
-        description = "通过 MediaStore 扫描音频文件",
-        saver = saver
-    ) {
-        property<Int>(
-            key = "min_duration",
-            name = "最小时长",
-            description = "最小时长（秒），低于此值将忽略"
-        ).provide(10)
-            .range(0, 60, 0)
-
-        function<Unit>(
-            key = "Reset",
-            description = "重置",
-            isAvailable = { state.value !is SnapshotState.Loading }
-        ).onCall {
-            Logger.i(tag = name, messageString = "On Reset")
-            loadingJob?.cancel()
-            loadingJob = scope.launch { stateStore.reset() }
-        }
-
-        function<Unit>(
-            key = "扫描",
-            description = "执行扫描",
-            isAvailable = { state.value !is SnapshotState.Loading && hasReadPermission() }
-        ).onCall {
-            refresh()
-        }
-    }
+    val config: KVItem<MediaStoreSourceConfig> = kv.obtain(
+        key = "${name}Config",
+        defaultValue = MediaStoreSourceConfig(),
+    ).apply { disableAutoSave() }
 
     private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean, uri: Uri?) {
@@ -109,12 +79,29 @@ class MediaStoreSource(
         return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun refresh() {
+    fun updateMinDuration(seconds: Int) {
+        config.value = config.value.copy(minDurationSeconds = seconds.coerceIn(0, 60))
+        config.save()
+        if (initialized && hasReadPermission()) refresh()
+    }
+
+    fun cancel() {
+        loadingJob?.cancel()
+    }
+
+    fun reset() {
+        Logger.i(tag = name, messageString = "Reset requested")
+        loadingJob?.cancel()
+        loadingJob = scope.launch { stateStore.reset() }
+    }
+
+    fun refresh() {
         loadingJob?.cancel()
         loadingJob = scope.launch {
             val taskId = stateStore.begin()
             try {
-                stateStore.succeed(taskId, scanner.scan())
+                val minDurationMillis = config.value.minDurationSeconds * 1000L
+                stateStore.succeed(taskId, scanner.scan(minDurationMillis))
             } catch (cancelled: CancellationException) {
                 stateStore.cancel(taskId)
                 throw cancelled

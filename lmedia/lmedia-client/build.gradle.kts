@@ -44,6 +44,9 @@ kotlin {
             api(libs.ktorfit)
             api(kotlincrypto.hash.md)
         }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
     }
 }
 

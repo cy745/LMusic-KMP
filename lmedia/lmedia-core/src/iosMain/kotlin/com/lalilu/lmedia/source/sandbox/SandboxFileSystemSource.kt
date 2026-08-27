@@ -13,9 +13,6 @@ import com.lalilu.lmedia.domain.source.MediaSourceStateStore
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.entity.toAudioExtra
-import com.lalilu.lmedia.source.Configurable
-import com.lalilu.lmedia.source.MediaSourceConfig
-import com.lalilu.lmedia.source.buildConfig
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +25,7 @@ import platform.Foundation.*
 
 @OptIn(ExperimentalForeignApi::class)
 @Single(binds = [MediaSource::class, MediaDataSource::class])
-class SandboxFileSystemSource : MediaSource, MediaDataSource, Configurable {
+class SandboxFileSystemSource : MediaSource, MediaDataSource {
     override val name: String = "SandboxFileSystemSource"
     override val dataSource: MediaDataSource = this
 
@@ -44,17 +41,18 @@ class SandboxFileSystemSource : MediaSource, MediaDataSource, Configurable {
         (NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true)
             .firstOrNull() as? String)
 
-    override val config: MediaSourceConfig = buildConfig(key = name) {
-        function<Unit>(
-            key = "Refresh",
-            description = "Refresh the sandbox folder",
-            isAvailable = { state.value !is SnapshotState.Loading },
-        ).onCall { refresh() }
-    }
-
     override fun init() = refresh()
 
-    private fun refresh() {
+    fun cancel() {
+        loadingJob?.cancel()
+    }
+
+    fun reset() {
+        loadingJob?.cancel()
+        loadingJob = scope.launch { stateStore.reset() }
+    }
+
+    fun refresh() {
         loadingJob?.cancel()
         loadingJob = scope.launch {
             val taskId = stateStore.begin()

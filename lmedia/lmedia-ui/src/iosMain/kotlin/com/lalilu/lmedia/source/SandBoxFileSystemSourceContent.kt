@@ -1,20 +1,22 @@
 package com.lalilu.lmedia.source
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.lalilu.common.ext.io
 import com.lalilu.component.LazyStaggeredGridContent
+import com.lalilu.lmedia.component.SourceActionButton
+import com.lalilu.lmedia.component.SourceActionStyle
+import com.lalilu.lmedia.component.SourceInfoPanel
 import com.lalilu.lmedia.component.SourcePipelineCard
-import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
-import com.lalilu.lmedia.domain.repository.SourceStatus
 import com.lalilu.lmedia.lmedia_ui.generated.resources.Res
 import com.lalilu.lmedia.server.SandBoxFileSystemServer
 import com.lalilu.lmedia.source.sandbox.SandboxFileSystemSource
@@ -27,18 +29,14 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import qrcode.QRCode
 import qrcode.color.Colors
-import org.koin.compose.koinInject
 
 @OptIn(ExperimentalForeignApi::class)
 fun SandboxFileSystemSource.sandBoxFileSystemSourceContent(modifier: Modifier) = LazyStaggeredGridContent {
-    val repository = koinInject<MediaSourceBindingRepository>()
-    val syncState = state.collectAsStateWithLifecycle()
-    val latestSnapshot = snapshot.collectAsStateWithLifecycle()
-    val status = repository.observeSource(name).collectAsStateWithLifecycle(initialValue = null)
     val address = remember { mutableStateOf<List<IfAddresses>>(emptyList()) }
     val currentIp = remember { mutableStateOf("") }
     val qrCodeData = remember { mutableStateOf<ByteArray?>(null) }
     val scope = rememberCoroutineScope()
+    var networkDetailsExpanded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         delay(2000)
@@ -65,7 +63,7 @@ fun SandboxFileSystemSource.sandBoxFileSystemSourceContent(modifier: Modifier) =
                     }
                 },
                 onSourceUpdate = {
-                    configOrNullCompat?.call<Unit>("Refresh")
+                    refresh()
                 }
             )
         }
@@ -79,54 +77,73 @@ fun SandboxFileSystemSource.sandBoxFileSystemSourceContent(modifier: Modifier) =
         item(key = this@sandBoxFileSystemSourceContent.name) {
             SourcePipelineCard(
                 modifier = modifier,
-                status = {
-                    status.value ?: SourceStatus(
-                        syncState = syncState.value,
-                        resultRevision = latestSnapshot.value?.revision,
-                        songCount = latestSnapshot.value?.audios?.size ?: 0,
+                title = "Sandbox 文件系统",
+                description = "扫描应用 Documents 目录，也可以从局域网向这里上传音乐",
+                idleLabel = "待扫描",
+            ) { uiState ->
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SourceActionButton(
+                        title = if (uiState.isLoading) "停止扫描" else "重新扫描 Documents",
+                        style = SourceActionStyle.Primary,
+                        onClick = { if (uiState.isLoading) cancel() else refresh() },
                     )
-                },
-                snapshot = { latestSnapshot.value },
-                extraContent = {
-                    Column(
-                        modifier = Modifier,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                }
+
+                SourceInfoPanel(
+                    modifier = Modifier.padding(top = 12.dp),
+                    label = "局域网上传服务",
+                    value = currentIp.value.ifBlank { "正在启动…" },
+                    supportingText = "在同一网络的设备上打开该地址，或扫描二维码上传文件",
+                    emphasized = currentIp.value.isNotBlank(),
+                )
+
+                qrCodeData.value?.let {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = "running on: ${currentIp.value}",
-                            style = MaterialTheme.typography.bodySmall,
+                        AsyncImage(
+                            modifier = Modifier
+                                .size(184.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceDim,
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                                )
+                                .padding(14.dp),
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface),
+                            model = it,
+                            contentDescription = "局域网上传地址二维码",
                         )
+                    }
+                }
 
-                        qrCodeData.value?.let {
-                            AsyncImage(
-                                modifier = Modifier
-                                    .height(200.dp)
-                                    .width(200.dp)
-                                    .background(color = MaterialTheme.colorScheme.surfaceDim)
-                                    .padding(16.dp),
-                                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface),
-                                model = it,
-                                contentDescription = "Server Address QRCode"
-                            )
-                        }
-
-                        address.value.forEach {
-                            Column {
-                                Text(text = "[${it.ifName}]", style = MaterialTheme.typography.titleMedium)
-
-                                Column {
-                                    Text(text = "ipv4: ${it.afInet}", style = MaterialTheme.typography.bodySmall)
-                                    Text(text = "ipv6: ${it.afInet6}", style = MaterialTheme.typography.bodySmall)
-                                    Text(
-                                        text = "UP: ${it.isUp}, RUNNING: ${it.isRunning}, LOOPBACK: ${it.isLoopback}",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
+                if (address.value.isNotEmpty()) {
+                    com.lalilu.lmedia.component.SourceSectionHeader(
+                        title = "网络详情",
+                        summary = "${address.value.size} 个网络接口",
+                        expanded = networkDetailsExpanded,
+                        onToggle = { networkDetailsExpanded = !networkDetailsExpanded },
+                    )
+                    AnimatedVisibility(visible = networkDetailsExpanded) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            address.value.forEach { item ->
+                                SourceInfoPanel(
+                                    label = item.ifName,
+                                    value = item.afInet ?: item.afInet6 ?: "无可用地址",
+                                    supportingText = "UP ${item.isUp} · RUNNING ${item.isRunning}",
+                                )
                             }
                         }
                     }
                 }
-            )
+            }
         }
     }
 }

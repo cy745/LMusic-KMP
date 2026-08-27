@@ -6,6 +6,8 @@ import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.md5
+import com.lalilu.common.kv.KVItem
+import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.MagicNumber
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
@@ -16,10 +18,7 @@ import com.lalilu.lmedia.domain.source.MediaSourceStateStore
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.entity.toAudioExtra
-import com.lalilu.lmedia.source.Configurable
-import com.lalilu.lmedia.source.MediaSourceConfig
-import com.lalilu.lmedia.source.Saver
-import com.lalilu.lmedia.source.buildConfig
+import com.lalilu.lmedia.source.FileSystemSourceConfig
 import com.lalilu.lmedia.task.FileScannerTask
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
@@ -35,8 +34,8 @@ import java.io.FileNotFoundException
 @Single(binds = [MediaSource::class, MediaDataSource::class])
 class AndroidFileSystemSource(
     private val context: Application,
-    private val saver: Saver,
-) : MediaSource, MediaDataSource, Configurable {
+    kv: LMediaKV,
+) : MediaSource, MediaDataSource {
     override val name: String = "AndroidFileSystemSource"
     override val dataSource: MediaDataSource = this
 
@@ -47,53 +46,36 @@ class AndroidFileSystemSource(
     override val contentState = stateStore.contentState
     private var loadingJob: Job? = null
 
-    override val config: MediaSourceConfig = buildConfig(
-        onConfigChange = ::onConfigChange,
-        key = name,
-        name = "Android文件系统源",
-        description = "选择文件夹后，通过文件系统扫描音频文件",
-        saver = saver,
-    ) {
-        property<String>(key = "file_path").provide("")
+    val config: KVItem<FileSystemSourceConfig> = kv.obtain(
+        key = "${name}Config",
+        defaultValue = FileSystemSourceConfig(),
+    ).apply { disableAutoSave() }
 
-        function<Unit>(
-            key = "Cancel",
-            description = "取消当前任务",
-            isAvailable = { state.value is SnapshotState.Loading },
-        ).onCall {
-            Logger.i(tag = name, messageString = "On Cancel")
-            loadingJob?.cancel()
-        }
-
-        function<Unit>(
-            key = "Reset",
-            description = "重置",
-            isAvailable = { state.value !is SnapshotState.Loading },
-        ).onCall {
-            Logger.i(tag = name, messageString = "On Reset")
-            loadingJob?.cancel()
-            loadingJob = scope.launch { stateStore.reset() }
-        }
-
-        function<Unit>(
-            key = "Rescan",
-            description = "重新扫描",
-            isAvailable = { state.value !is SnapshotState.Loading },
-        ).onCall {
-            Logger.i(tag = name, messageString = "On Rescan")
-            refresh()
-        }
-    }
-
-    private val filePath get() = config.get<String>("file_path").getOrThrow()
-
-    override fun onConfigChange() = Unit
+    private val filePath: String
+        get() = config.value.directoryBookmark
 
     override fun init() {
         if (filePath.isNotBlank()) refresh()
     }
 
-    private fun refresh() {
+    fun selectDirectory(bookmark: String) {
+        config.value = config.value.copy(directoryBookmark = bookmark)
+        config.save()
+        refresh()
+    }
+
+    fun cancel() {
+        Logger.i(tag = name, messageString = "Cancel requested")
+        loadingJob?.cancel()
+    }
+
+    fun reset() {
+        Logger.i(tag = name, messageString = "Reset requested")
+        loadingJob?.cancel()
+        loadingJob = scope.launch { stateStore.reset() }
+    }
+
+    fun refresh() {
         loadingJob?.cancel()
         loadingJob = scope.launch {
             val taskId = stateStore.begin()
