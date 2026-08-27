@@ -30,14 +30,12 @@ fun <I> RecommendRow(
 
         LaunchedEffect(items()) {
             val items = items()
-            var changed = false
-            for (index in items.indices) {
-                if (getId(items[index]) != getId(currentItems.value[index])) {
-                    changed = true
-                }
+            val previousItems = currentItems.value
+            val changed = items.size != previousItems.size || items.indices.any { index ->
+                getId(items[index]) != getId(previousItems[index])
             }
             currentItems.value = items
-            if (changed) {
+            if (changed && items.isNotEmpty()) {
                 listState.scrollToItem(0)
             }
         }
