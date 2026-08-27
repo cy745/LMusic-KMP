@@ -19,6 +19,8 @@ fun platformSetupCoil(
             .components {
                 add(LAudioFetcherFactory())
                 add(LAudioKeyer())
+                add(MediaCoverRequestFetcherFactory())
+                add(MediaCoverRequestKeyer())
                 add(LAlbumCoverFetcherFactory())
                 add(LAlbumCoverKeyer())
                 add(LArtistCoverFetcherFactory())

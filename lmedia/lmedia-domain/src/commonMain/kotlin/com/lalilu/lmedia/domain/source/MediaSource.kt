@@ -22,6 +22,9 @@ interface MediaSource {
     /** 最近一次完整成功结果；Loading、失败和取消不会清空它。 */
     val snapshot: StateFlow<Snapshot?>
 
+    /** 音频、封面和歌词等媒体内容的读取就绪状态。 */
+    val contentState: StateFlow<MediaContentState>
+
     fun init() {}
     fun onConfigChange() {}
 }

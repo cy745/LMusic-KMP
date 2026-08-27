@@ -1,6 +1,8 @@
 package com.lalilu.lmedia.domain.source
 
 import com.lalilu.lmedia.domain.model.LAudio
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -92,5 +94,50 @@ class MediaSourceStateStoreTest {
         assertNull(store.snapshot.value)
     }
 
+    @Test
+    fun contentBecomesReadyOnlyAfterAcceptedSuccess() = runTest {
+        val store = MediaSourceStateStore()
+        val firstTask = store.begin()
+
+        assertIs<MediaContentAvailability.Preparing>(store.contentState.value.availability)
+        assertEquals(0L, store.contentState.value.generation)
+
+        val staleTask = store.begin()
+        assertNull(store.succeed(firstTask, listOf(audio("stale"))))
+        assertEquals(0L, store.contentState.value.generation)
+
+        store.succeed(staleTask, listOf(audio("current")))
+
+        assertIs<MediaContentAvailability.Ready>(store.contentState.value.availability)
+        assertEquals(1L, store.contentState.value.generation)
+    }
+
+    @Test
+    fun waitingConsumerContinuesAcrossFailureUntilRetrySucceeds() = runTest {
+        val store = MediaSourceStateStore()
+        val source = TestMediaSource(store)
+        val waiting = async { source.awaitContentReady() }
+        runCurrent()
+
+        val failedTask = store.begin()
+        store.fail(failedTask, "offline")
+        runCurrent()
+        assertFalse(waiting.isCompleted)
+
+        val retryTask = store.begin()
+        store.succeed(retryTask, listOf(audio("song")))
+
+        assertEquals(1L, waiting.await().generation)
+    }
+
     private fun audio(id: String) = LAudio(id = id, mediaSourceName = "test")
+
+    private class TestMediaSource(
+        store: MediaSourceStateStore,
+    ) : MediaSource {
+        override val name: String = "test"
+        override val state = store.state
+        override val snapshot = store.snapshot
+        override val contentState = store.contentState
+    }
 }

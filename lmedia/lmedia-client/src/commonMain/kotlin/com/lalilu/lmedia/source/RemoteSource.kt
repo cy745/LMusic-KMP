@@ -51,6 +51,7 @@ class RemoteSource(
     private val stateStore = MediaSourceStateStore()
     override val state: StateFlow<SnapshotState> = stateStore.state
     override val snapshot: StateFlow<Snapshot?> = stateStore.snapshot
+    override val contentState = stateStore.contentState
     private var client: HttpClient? = null
     private var loadingJob: Job? = null
 

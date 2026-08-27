@@ -17,6 +17,7 @@ class MediaSourceStateStore {
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow<SnapshotState>(SnapshotState.Idle)
     private val mutableSnapshot = MutableStateFlow<Snapshot?>(null)
+    private val mutableContentState = MutableStateFlow(MediaContentState())
 
     private var nextTaskId = 0L
     private var activeTaskId: Long? = null
@@ -24,6 +25,7 @@ class MediaSourceStateStore {
 
     val state: StateFlow<SnapshotState> = mutableState.asStateFlow()
     val snapshot: StateFlow<Snapshot?> = mutableSnapshot.asStateFlow()
+    val contentState: StateFlow<MediaContentState> = mutableContentState.asStateFlow()
 
     suspend fun begin(
         message: String = "Loading...",
@@ -32,6 +34,9 @@ class MediaSourceStateStore {
         nextTaskId += 1
         activeTaskId = nextTaskId
         mutableState.value = SnapshotState.Loading(message, progress.coerceIn(0f, 1f))
+        mutableContentState.value = mutableContentState.value.copy(
+            availability = MediaContentAvailability.Preparing,
+        )
         nextTaskId
     }
 
@@ -60,6 +65,10 @@ class MediaSourceStateStore {
         ).also {
             mutableSnapshot.value = it
             mutableState.value = SnapshotState.Success
+            mutableContentState.value = MediaContentState(
+                availability = MediaContentAvailability.Ready,
+                generation = currentRevision,
+            )
         }
     }
 
@@ -67,6 +76,9 @@ class MediaSourceStateStore {
         if (taskId != activeTaskId) return@withLock false
         activeTaskId = null
         mutableState.value = SnapshotState.Error(message)
+        mutableContentState.value = mutableContentState.value.copy(
+            availability = MediaContentAvailability.Unavailable(message),
+        )
         true
     }
 
@@ -78,6 +90,13 @@ class MediaSourceStateStore {
         } else {
             SnapshotState.Idle
         }
+        mutableContentState.value = mutableContentState.value.copy(
+            availability = if (mutableSnapshot.value != null) {
+                MediaContentAvailability.Ready
+            } else {
+                MediaContentAvailability.Unavailable("Cancelled")
+            },
+        )
         true
     }
 
@@ -85,5 +104,12 @@ class MediaSourceStateStore {
     suspend fun reset() = mutex.withLock {
         activeTaskId = null
         mutableState.value = SnapshotState.Idle
+        mutableContentState.value = mutableContentState.value.copy(
+            availability = if (mutableSnapshot.value != null) {
+                MediaContentAvailability.Ready
+            } else {
+                MediaContentAvailability.Unavailable("Not initialized")
+            },
+        )
     }
 }

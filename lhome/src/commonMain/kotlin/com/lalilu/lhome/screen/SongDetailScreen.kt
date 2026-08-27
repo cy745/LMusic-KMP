@@ -41,6 +41,7 @@ import com.lalilu.lmedia.domain.model.albumName
 import com.lalilu.lmedia.domain.model.artistName
 import com.lalilu.lmedia.domain.model.duration
 import com.lalilu.lmedia.domain.model.genre
+import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.slotContent
 import kotlinx.serialization.Serializable
 import org.koin.compose.viewmodel.koinViewModel
@@ -101,10 +102,11 @@ fun SongDetailScreenContent(
     sharedMap: Map<String, String> = emptyMap(),
 ) = SharedContext(sharedMap = sharedMap) {
     val context = LocalPlatformContext.current
-    val coverData = remember(song) {
+    val coverModel = rememberMediaCoverRequest(song)
+    val coverData = remember(coverModel, coverCacheKey) {
         ImageRequest.Builder(context)
             .placeholderMemoryCacheKey(coverCacheKey)
-            .data(song)
+            .data(coverModel)
             .build()
     }
     val songsInfo = remember(song) {

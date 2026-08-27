@@ -44,6 +44,7 @@ import com.lalilu.animated
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyricview.LyricLayout
+import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.viewmodel.PlayerViewModel
@@ -63,6 +64,7 @@ class PlayerScreenForPad : Screen {
         val scope = rememberCoroutineScope()
         val vm = koinViewModel<PlayerViewModel>()
         val currentPlaying = vm.currentItem.collectAsState(null)
+        val currentCover = rememberMediaCoverRequest(currentPlaying.value)
         val currentTime = vm.currentTime
         val isPlaying = vm.isPlaying
 
@@ -78,7 +80,7 @@ class PlayerScreenForPad : Screen {
         }
 
         PlayerScreenForPadContent(
-            coverData = { currentPlaying.value },
+            coverData = { currentCover },
             currentTime = { currentTime.value },
             lyricEntry = vm.lyricItems
         )

@@ -31,6 +31,7 @@ class MusicKitSource : MediaSource, MediaDataSource {
     private val stateStore = MediaSourceStateStore()
     override val state: StateFlow<SnapshotState> = stateStore.state
     override val snapshot: StateFlow<Snapshot?> = stateStore.snapshot
+    override val contentState = stateStore.contentState
 
     /** id → SongInfo 缓存，用于 [getPicture] 和 [getMedia] 按 id 查找完整数据。 */
     private val songStore = mutableMapOf<String, SongInfo>()

@@ -27,6 +27,7 @@ class MediaLibrarySource : MediaSource, MediaDataSource {
     private val stateStore = MediaSourceStateStore()
     override val state: StateFlow<SnapshotState> = stateStore.state
     override val snapshot: StateFlow<Snapshot?> = stateStore.snapshot
+    override val contentState = stateStore.contentState
     private var loadingJob: Job? = null
 
     override fun init() {

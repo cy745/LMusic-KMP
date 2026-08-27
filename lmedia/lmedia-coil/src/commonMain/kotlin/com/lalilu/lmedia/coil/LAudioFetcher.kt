@@ -7,11 +7,9 @@ import coil3.key.Keyer
 import coil3.request.Options
 import coil3.size.pxOrElse
 import coil3.toUri
+import com.lalilu.lmedia.MediaCoverRequest
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.source.MediaData
-import com.lalilu.lmedia.domain.source.MediaFetchOptions
-import com.lalilu.lmedia.domain.source.MediaSource
-import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.*
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -29,9 +27,10 @@ class LAudioFetcher(
             return fetcher.fetch()
         }
 
-        val source = source(audio.mediaSourceName)
-            ?.dataSource
+        val mediaSource = source(audio.mediaSourceName)
             ?: throw IllegalArgumentException("MediaSource not found")
+        mediaSource.awaitContentReady()
+        val source = mediaSource.dataSource
 
         // Coil 3 Size.width/height 是 Dimension 类型，
         // pxOrElse { 0 } 提取像素值，未指定时回退 0
@@ -75,8 +74,40 @@ class LAudioFetcherFactory : Fetcher.Factory<LAudio>, KoinComponent {
     }
 }
 
-class LAudioKeyer : Keyer<LAudio> {
+class LAudioKeyer : Keyer<LAudio>, KoinComponent {
+    private val platformMediaSource by inject<PlatformMediaSource>()
+    private val sourceMap by lazy { platformMediaSource.sources.associateBy { it.name } }
+
     override fun key(data: LAudio, options: Options): String? {
-        return "${data.mediaSourceName}_${data.id}"
+        val generation = sourceMap[data.mediaSourceName]
+            ?.contentState
+            ?.value
+            ?.generation
+            ?: 0L
+        return mediaCoverCacheKey(data, generation)
     }
 }
+
+class MediaCoverRequestFetcherFactory : Fetcher.Factory<MediaCoverRequest>, KoinComponent {
+    private val platformMediaSource by inject<PlatformMediaSource>()
+    private val sourceMap by lazy { platformMediaSource.sources.associateBy { it.name } }
+
+    override fun create(
+        data: MediaCoverRequest,
+        options: Options,
+        imageLoader: ImageLoader,
+    ): Fetcher = LAudioFetcher(
+        audio = data.audio,
+        options = options,
+        imageLoader = imageLoader,
+        source = sourceMap::get,
+    )
+}
+
+class MediaCoverRequestKeyer : Keyer<MediaCoverRequest> {
+    override fun key(data: MediaCoverRequest, options: Options): String =
+        mediaCoverCacheKey(data.audio, data.generation)
+}
+
+private fun mediaCoverCacheKey(audio: LAudio, generation: Long): String =
+    "${audio.mediaSourceName}_${audio.id}_$generation"

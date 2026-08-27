@@ -22,5 +22,6 @@ class PlatformMediaSourceTest {
     ) : MediaSource {
         override val state = MutableStateFlow<SnapshotState>(SnapshotState.Idle)
         override val snapshot = MutableStateFlow<Snapshot?>(null)
+        override val contentState = MutableStateFlow(MediaContentState())
     }
 }

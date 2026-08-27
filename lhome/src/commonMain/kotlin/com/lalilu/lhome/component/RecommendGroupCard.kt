@@ -27,6 +27,7 @@ import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.domain.model.LArtist
+import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 
@@ -38,6 +39,7 @@ fun RecommendGroupCard(
     onClick: (Any, SharedMap) -> Unit = { _, _ -> },
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val coverData = rememberMediaCoverRequest(group)
     val title = remember(group) {
         when (group) {
             is LAudio -> group.title.ifBlank { "元素" }
@@ -101,7 +103,7 @@ fun RecommendGroupCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .fillMaxHeight(0.55f),
-                    model = group,
+                    model = coverData,
                     contentScale = ContentScale.Crop,
                     contentDescription = null
                 )

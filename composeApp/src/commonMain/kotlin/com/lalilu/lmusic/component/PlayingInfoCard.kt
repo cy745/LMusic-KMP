@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.lalilu.RemixIcon
 import com.lalilu.animated
+import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.lmedia.domain.model.LAudio
 import org.jetbrains.compose.resources.vectorResource
 
@@ -71,6 +72,7 @@ fun PlayingInfoCard(
             label = ""
         ) { playing ->
             val progress = remember(playing) { mutableStateOf(0f) }
+            val coverData = rememberMediaCoverRequest(playing)
             val bgColor = MaterialTheme.colorScheme.primaryContainer
             val progressValue = remember {
                 derivedStateOf {
@@ -99,7 +101,7 @@ fun PlayingInfoCard(
                     modifier = Modifier
                         .fillMaxHeight()
                         .aspectRatio(1f),
-                    model = playing,
+                    model = coverData,
                     contentScale = ContentScale.Crop,
                     contentDescription = null
                 )

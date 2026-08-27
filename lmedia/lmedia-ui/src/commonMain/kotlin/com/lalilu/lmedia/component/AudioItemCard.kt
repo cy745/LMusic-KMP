@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.buildSharedMap
+import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 
@@ -49,6 +50,7 @@ fun AudioItemCard(
         prefix = sharedMapPrefix
     )
 ) {
+    val coverData = rememberMediaCoverRequest(imageData)
     val selectionColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
     val bgColor by animateColorAsState(
         targetValue = if (isSelected()) selectionColor else Color.Transparent,
@@ -107,7 +109,7 @@ fun AudioItemCard(
                     onClick = { if (isSelecting()) onSelect() else onPlay() },
                     onLongClick = { onEnterSelect() }
                 ),
-            model = imageData,
+            model = coverData,
             contentScale = ContentScale.Crop,
             contentDescription = "Cover for $title"
         )
