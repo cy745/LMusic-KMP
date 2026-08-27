@@ -54,46 +54,20 @@ fun SnapshotPreviewCard(
                 )
             }
 
-            Card(
-                modifier = Modifier,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
-                )
-            ) {
-                Text(
-                    modifier = Modifier.padding(12.dp),
-                    text = "Albums: ${value.albums.size}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-
-            Card(
-                modifier = Modifier,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
-                )
-            ) {
-                Text(
-                    modifier = Modifier.padding(12.dp),
-                    text = "Artists: ${value.artists.size}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-
-            Card(
-                modifier = Modifier,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
-                )
-            ) {
-                Text(
-                    modifier = Modifier.padding(12.dp),
-                    text = "Genres: ${value.genres.size}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black
-                )
+            if (value.revision > 0L) {
+                Card(
+                    modifier = Modifier,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
+                    )
+                ) {
+                    Text(
+                        modifier = Modifier.padding(12.dp),
+                        text = "Revision: ${value.revision}",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
             }
         }
 

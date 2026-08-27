@@ -6,7 +6,6 @@ import com.lalilu.lhistory.entity.LHistory
 import com.lalilu.lhistory.repository.ILHistoryDatabase
 import com.lalilu.lhistory.repository.LHistoryDao
 import com.lalilu.lmedia.data.database.*
-import com.lalilu.lmedia.data.database.converter.MetadataConverter
 import com.lalilu.lmedia.data.database.converter.StringListConverter
 import com.lalilu.lmedia.data.database.converter.StringMapConverter
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
@@ -38,7 +37,6 @@ import org.koin.core.annotation.Single
 @DaoReturnTypeConverters(PagingSourceDaoReturnTypeConverter::class)
 @TypeConverters(
     StringListConverter::class,
-    MetadataConverter::class,
     StringMapConverter::class
 )
 @ConstructedBy(LMusicDatabaseConstructor::class)

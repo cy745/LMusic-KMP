@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.lalilu.extensions.toState
 import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.domain.model.LArtist
+import com.lalilu.lmedia.domain.model.libraryAlbumId
+import com.lalilu.lmedia.domain.model.libraryArtistIds
 import com.lalilu.lmedia.domain.model.LAudio as DomainAudio
 import com.lalilu.lmedia.domain.repository.AlbumRepository
 import com.lalilu.lmedia.domain.repository.ArtistRepository
@@ -33,17 +35,13 @@ class SongDetailVM(
 
     val albums = flow.mapLatest {
         it ?: return@mapLatest emptyList<LAlbum>()
-        val albumName = it.metadata.album ?: return@mapLatest emptyList<LAlbum>()
-        albumRepository.getAlbum("${com.lalilu.lmedia.domain.model.LAlbum.ID_PREFIX}$albumName").firstOrNull()
+        albumRepository.getAlbum(it.libraryAlbumId()).firstOrNull()
             ?.let { listOf(it) } ?: emptyList()
     }.stateIn(viewModelScope, started = SharingStarted.Lazily, null)
 
     val artists = flow.mapLatest {
         it ?: return@mapLatest emptyList<LArtist>()
-        val artistName = it.metadata.artist ?: return@mapLatest emptyList<LArtist>()
-        val names = artistName.split('/', ';', '、', ',', '，').distinctBy { it }
-        val artistIds = names.map { "${com.lalilu.lmedia.domain.model.LArtist.ID_PREFIX}$it" }
-        artistRepository.getArtists(artistIds).firstOrNull()
+        artistRepository.getArtists(it.libraryArtistIds()).firstOrNull()
             ?.map { it }
             ?: emptyList()
     }.stateIn(viewModelScope, started = SharingStarted.Lazily, null)

@@ -1,31 +1,35 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import com.lalilu.common.ext.io
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lalilu.component.LazyStaggeredGridContent
-import com.lalilu.lmedia.component.SourceCard
-import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.component.SourcePipelineCard
+import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
+import com.lalilu.lmedia.domain.repository.SourceStatus
 import com.lalilu.lmedia.source.subsonic.SubsonicSource
-import kotlinx.coroutines.Dispatchers
+import org.koin.compose.koinInject
 
 fun SubsonicSource.subsonicSourceContent(
     modifier: Modifier = Modifier,
 ) = LazyStaggeredGridContent {
-    val source by remember { source() }.collectAsState(
-        initial = Snapshot.Empty,
-        context = Dispatchers.io
-    )
+    val repository = koinInject<MediaSourceBindingRepository>()
+    val syncState = state.collectAsStateWithLifecycle()
+    val latestSnapshot = snapshot.collectAsStateWithLifecycle()
+    val status = repository.observeSource(name).collectAsStateWithLifecycle(initialValue = null)
 
     return@LazyStaggeredGridContent {
         item(key = this@subsonicSourceContent.name) {
-            SourceCard(
+            SourcePipelineCard(
                 modifier = modifier,
-                state = { source }
+                status = {
+                    status.value ?: SourceStatus(
+                        syncState = syncState.value,
+                        resultRevision = latestSnapshot.value?.revision,
+                        songCount = latestSnapshot.value?.audios?.size ?: 0,
+                    )
+                },
+                snapshot = { latestSnapshot.value },
             )
         }
     }
 }
-

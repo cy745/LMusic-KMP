@@ -5,10 +5,9 @@ import android.content.Context
 import android.provider.MediaStore
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
-import com.lalilu.lmedia.domain.source.Snapshot
-import com.lalilu.lmedia.domain.source.buildSnapshot
+import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.entity.toAudioExtra
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -43,12 +42,12 @@ open class MediaStoreScanner(
         AUDIO_COLUMN_ALBUM_ARTIST
     )
 
-    override suspend fun scan(): Snapshot = withContext(Dispatchers.IO) {
+    override suspend fun scan(): List<LAudio> = withContext(Dispatchers.IO) {
         val cr = context.applicationContext.contentResolver
         val cursor = cr.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection, BASE_SELECTOR, null, BASE_SORT_ORDER
-        ) ?: return@withContext Snapshot.Empty
+        ) ?: return@withContext emptyList()
 
         val audios = cursor.use { c ->
             val idIdx = c.getColumnIndex(MediaStore.Audio.AudioColumns._ID)
@@ -59,6 +58,11 @@ open class MediaStoreScanner(
             val mimeTypeIdx = c.getColumnIndex(MediaStore.Audio.AudioColumns.MIME_TYPE)
             val durationIdx = c.getColumnIndex(MediaStore.Audio.AudioColumns.DURATION)
             val yearIdx = c.getColumnIndex(MediaStore.Audio.AudioColumns.YEAR)
+            val albumIdx = c.getColumnIndex(MediaStore.Audio.AudioColumns.ALBUM)
+            val albumIdIdx = c.getColumnIndex(MediaStore.Audio.AudioColumns.ALBUM_ID)
+            val artistIdx = c.getColumnIndex(MediaStore.Audio.AudioColumns.ARTIST)
+            val artistIdIdx = c.getColumnIndex(MediaStore.Audio.AudioColumns.ARTIST_ID)
+            val albumArtistIdx = c.getColumnIndex(AUDIO_COLUMN_ALBUM_ARTIST)
 
             val list = mutableListOf<LAudio>()
             while (c.moveToNext()) {
@@ -77,11 +81,14 @@ open class MediaStoreScanner(
                 val extras = mutableMapOf<String, String>().apply {
                     put("uri", uri.toString())
                     getStringOrNull(c, sizeIdx)?.let { put("file_size", it) }
-                    getStringOrNull(c, dateAddedIdx)?.let { put("date_added", it) }
-                    getStringOrNull(c, dateModifiedIdx)?.let { put("date_modified", it) }
+                    getStringOrNull(c, dateAddedIdx)?.let { put(LAudioExtraKeys.DateAdded, it) }
+                    getStringOrNull(c, dateModifiedIdx)?.let { put(LAudioExtraKeys.DateModified, it) }
                     getStringOrNull(c, mimeTypeIdx)?.let { put("content_type", it) }
-                    getStringOrNull(c, durationIdx)?.let { put("duration", it) }
-                    getStringOrNull(c, yearIdx)?.let { put("year", it) }
+                    getStringOrNull(c, durationIdx)?.let { put(LAudioExtraKeys.Duration, it) }
+                    getStringOrNull(c, yearIdx)?.let { put(LAudioExtraKeys.Date, it) }
+                    getStringOrNull(c, albumIdx)?.let { put(LAudioExtraKeys.AlbumName, it) }
+                    getStringOrNull(c, artistIdx)?.let { put(LAudioExtraKeys.ArtistName, it) }
+                    getStringOrNull(c, albumArtistIdx)?.let { put(LAudioExtraKeys.AlbumArtist, it) }
                 }
 
                 // Hook for API-level specific extras
@@ -95,35 +102,27 @@ open class MediaStoreScanner(
                             ?: "Unknown"
                         ),
                     subtitle = (
-                        metadata?.title?.takeIf { it.isNotBlank() }
-                            ?: getStringOrNull(c, titleIdx)?.takeIf { it.isNotBlank() }
+                        metadata?.artist?.takeIf { it.isNotBlank() }
+                            ?: getStringOrNull(c, artistIdx)?.takeIf { it.isNotBlank() }
                             ?: "Unknown"
                         ),
                     mediaSourceName = source.name,
-                    metadata = DomainMetadata(
-                        title = metadata?.title,
-                        album = metadata?.album,
-                        artist = metadata?.artist,
-                        albumArtist = metadata?.albumArtist ?: "",
-                        composer = metadata?.composer ?: "",
-                        lyricist = metadata?.lyricist ?: "",
-                        comment = metadata?.comment ?: "",
-                        genre = metadata?.genre ?: "",
-                        track = extras["track"] ?: "",
-                        disc = extras["disc"] ?: "",
-                        date = metadata?.date ?: "",
-                        duration = metadata?.duration ?: 0L,
-                        dateAdded = metadata?.dateAdded ?: 0L,
-                        dateModified = metadata?.dateModified ?: 0L
-                    ),
-                    extra = extras
+                    // Metadata 只在扫描阶段存在，歌曲长期保存统一使用 extra。
+                    extra = metadata?.toAudioExtra(
+                        sourceExtra = extras,
+                        artistId = getStringOrNull(c, artistIdIdx),
+                        albumId = getStringOrNull(c, albumIdIdx),
+                    ) ?: extras.apply {
+                        getStringOrNull(c, artistIdIdx)?.let { put(LAudioExtraKeys.ArtistId, it) }
+                        getStringOrNull(c, albumIdIdx)?.let { put(LAudioExtraKeys.AlbumId, it) }
+                    }
                 )
                 list.add(audio)
             }
             list
         }
 
-        buildSnapshot(audios)
+        audios
     }
 
     /**

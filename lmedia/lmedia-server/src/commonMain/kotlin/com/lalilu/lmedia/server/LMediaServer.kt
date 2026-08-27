@@ -16,7 +16,6 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 
@@ -67,11 +66,11 @@ private fun provideServer(
     serverConfig: RemoteServerConfig,
     config: Application.() -> Unit = {}
 ): EngineServer {
-    suspend fun getAudioById(id: String): LAudio {
-
+    fun getAudioById(id: String): LAudio {
         return mediaSource()
-            ?.source()
-            ?.firstOrNull()?.audios
+            ?.snapshot
+            ?.value
+            ?.audios
             ?.firstOrNull { it.id == id }
             ?: throw IllegalArgumentException("No audio found for id: $id")
     }
@@ -112,7 +111,12 @@ private fun provideServer(
                 }
                 val mediaSource = mediaSource()
                     ?: throw IllegalArgumentException("No media source")
-                call.respond<Snapshot>(mediaSource.source().firstOrNull() ?: Snapshot.Empty)
+                val snapshot = mediaSource.snapshot.value
+                if (snapshot == null) {
+                    call.respond(HttpStatusCode.ServiceUnavailable, "Media source is not ready")
+                    return@get
+                }
+                call.respond(snapshot)
             }
             get("/lyric/{id}") {
                 if (!validateRequest(call)) {
@@ -155,7 +159,8 @@ private fun provideServer(
 
                     when (picture) {
                         is MediaData.Bytes -> call.respondBytes(picture.bytes, ContentType.Image.PNG)
-                        is MediaData.Url -> call.respondText(picture.url, ContentType.Text.Plain)
+                        // URL 代表可由客户端直接访问的资源；使用 HTTP 重定向而不是把 URL 当正文返回。
+                        is MediaData.Url -> call.respondRedirect(picture.url)
                         else -> throw IllegalArgumentException("Invalid Picture type")
                     }
                 } catch (e: Exception) {
@@ -183,7 +188,7 @@ private fun provideServer(
 
                     when (media) {
                         is MediaData.Bytes -> call.respondBytes(media.bytes, ContentType.Audio.MPEG)
-                        is MediaData.Url -> call.respondText(media.url, ContentType.Text.Plain)
+                        is MediaData.Url -> call.respondRedirect(media.url)
                         else -> throw IllegalArgumentException("Invalid Media type")
                     }
                 } catch (e: Exception) {

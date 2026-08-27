@@ -5,9 +5,9 @@ import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
 import androidx.room3.Transaction
+import com.lalilu.lmedia.data.entity.LAudioEntity
 import com.lalilu.lmedia.data.entity.LAlbumEntity
 import com.lalilu.lmedia.data.entity.LArtistEntity
-import com.lalilu.lmedia.data.entity.LAudioEntity
 import com.lalilu.lmedia.data.entity.LGenreEntity
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
@@ -41,97 +41,61 @@ interface LMediaDao {
     @Query("SELECT * FROM l_audio WHERE media_source_name = :source")
     suspend fun getAudioBySource(source: String): List<LAudioEntity>
 
+    @Query("SELECT * FROM l_audio WHERE song_id IN (:ids)")
+    suspend fun getAudioByIds(ids: List<String>): List<LAudioEntity>
+
+    @Query("DELETE FROM cross_ref_audio_x_artist WHERE song_id IN (:songIds)")
+    suspend fun deleteArtistRelationsBySongIds(songIds: List<String>)
+
+    @Query("DELETE FROM cross_ref_audio_x_album WHERE song_id IN (:songIds)")
+    suspend fun deleteAlbumRelationsBySongIds(songIds: List<String>)
+
+    @Query("DELETE FROM cross_ref_audio_x_genre WHERE song_id IN (:songIds)")
+    suspend fun deleteGenreRelationsBySongIds(songIds: List<String>)
+
     @Transaction
     suspend fun insert(snapshot: Snapshot, sourceName: String) {
+        require(snapshot.audios.all { it.mediaSourceName == sourceName }) {
+            "Snapshot contains audio owned by a different source: $sourceName"
+        }
+
+        val batch = MediaLibraryAssembler.assemble(snapshot.audios)
         val audioFromSource = getAudioBySource(sourceName)
-        val audioMap = snapshot.audios.associateBy { it.id }
+        val audioMap = batch.audios.associateBy { it.id }
+
+        if (audioMap.isNotEmpty()) {
+            val conflicts = audioMap.keys
+                .chunked(SQLITE_QUERY_CHUNK_SIZE)
+                .flatMap { getAudioByIds(it) }
+                .filter { it.mediaSourceName != sourceName }
+            require(conflicts.isEmpty()) {
+                "Audio id is already owned by another source: ${conflicts.joinToString { it.id }}"
+            }
+        }
 
         val audioToUpdate = audioFromSource
             .filter { audio -> audioMap[audio.id] == null }
             .map { it.copy(available = false) }
 
-        // Convert domain entities to Room entities
-        val audioEntities = snapshot.audios.map { domain ->
-            LAudioEntity(
-                id = domain.id,
-                title = domain.title,
-                subtitle = domain.subtitle,
-                mediaSourceName = domain.mediaSourceName,
-                metadata = domain.metadata,
-                extra = domain.extra,
-                available = domain.available
-            )
+        insertAudio(batch.audios + audioToUpdate)
+        insertArtist(batch.artists)
+        insertAlbum(batch.albums)
+        insertGenre(batch.genres)
+
+        // 只替换本次仍然存在的歌曲关系；已标记不可用的旧歌曲保留原关系供用户识别。
+        val incomingSongIds = batch.audios.map(LAudioEntity::id)
+        incomingSongIds.chunked(SQLITE_QUERY_CHUNK_SIZE).forEach { songIds ->
+            deleteArtistRelationsBySongIds(songIds)
+            deleteAlbumRelationsBySongIds(songIds)
+            deleteGenreRelationsBySongIds(songIds)
         }
+        insertArtistRelation(batch.artistRelations)
+        insertAlbumRelation(batch.albumRelations)
+        insertGenreRelation(batch.genreRelations)
+    }
 
-        val artistEntities = snapshot.artists.map { domain ->
-            LArtistEntity(
-                id = domain.id,
-                title = domain.title,
-                subtitle = domain.subtitle,
-                extra = domain.extra
-            )
-        }
-
-        val albumEntities = snapshot.albums.map { domain ->
-            LAlbumEntity(
-                id = domain.id,
-                title = domain.title,
-                subtitle = domain.subtitle,
-                extra = domain.extra
-            )
-        }
-
-        val genreEntities = snapshot.genres.map { domain ->
-            LGenreEntity(
-                id = domain.id,
-                title = domain.title,
-                subtitle = domain.subtitle,
-                extra = domain.extra
-            )
-        }
-
-        // Insert all entities
-        insertAudio(audioEntities + audioToUpdate)
-        insertArtist(artistEntities)
-        insertAlbum(albumEntities)
-        insertGenre(genreEntities)
-
-        // Build and insert relations from snapshot.relations map
-        val artistRelations = snapshot.audios.flatMap { song ->
-            val artistIds = snapshot.relations["com.lalilu.lmedia.domain.model.LArtist"]
-                ?.get(song.id) ?: emptyList()
-            artistIds.map { artistId ->
-                CrossRefLAudioXLArtist(
-                    songId = song.id,
-                    artistId = artistId
-                )
-            }
-        }
-
-        val albumRelations = snapshot.audios.flatMap { song ->
-            val albumIds = snapshot.relations["com.lalilu.lmedia.domain.model.LAlbum"]
-                ?.get(song.id) ?: emptyList()
-            albumIds.map { albumId ->
-                CrossRefLAudioXAlbum(
-                    songId = song.id,
-                    albumId = albumId
-                )
-            }
-        }
-
-        val genreRelations = snapshot.audios.flatMap { song ->
-            val genreIds = snapshot.relations["com.lalilu.lmedia.domain.model.LGenre"]
-                ?.get(song.id) ?: emptyList()
-            genreIds.map { genreId ->
-                CrossRefLAudioXGenre(
-                    songId = song.id,
-                    genreId = genreId
-                )
-            }
-        }
-
-        insertArtistRelation(artistRelations)
-        insertAlbumRelation(albumRelations)
-        insertGenreRelation(genreRelations)
+    companion object {
+        /** 为其他 DAO 参数留出空间，避免超过 SQLite 默认的变量上限。 */
+        private const val SQLITE_QUERY_CHUNK_SIZE = 500
     }
 }

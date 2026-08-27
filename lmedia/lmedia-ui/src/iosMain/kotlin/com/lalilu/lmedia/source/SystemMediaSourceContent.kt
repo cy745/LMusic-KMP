@@ -1,33 +1,54 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lalilu.component.LazyStaggeredGridContent
-import com.lalilu.lmedia.component.SourceCard
-import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.component.SourcePipelineCard
+import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
+import com.lalilu.lmedia.domain.repository.SourceStatus
+import org.koin.compose.koinInject
 
 fun MediaLibrarySource.mediaLibrarySourceContent(modifier: Modifier) = LazyStaggeredGridContent {
-    val state by source().collectAsStateWithLifecycle(initialValue = Snapshot.Idle)
+    val repository = koinInject<MediaSourceBindingRepository>()
+    val syncState = state.collectAsStateWithLifecycle()
+    val latestSnapshot = snapshot.collectAsStateWithLifecycle()
+    val status = repository.observeSource(name).collectAsStateWithLifecycle(initialValue = null)
 
     return@LazyStaggeredGridContent {
         item(key = this@mediaLibrarySourceContent.name) {
-            SourceCard(
+            SourcePipelineCard(
                 modifier = modifier,
-                state = { state },
+                status = {
+                    status.value ?: SourceStatus(
+                        syncState = syncState.value,
+                        resultRevision = latestSnapshot.value?.revision,
+                        songCount = latestSnapshot.value?.audios?.size ?: 0,
+                    )
+                },
+                snapshot = { latestSnapshot.value },
             )
         }
     }
 }
 
 fun MusicKitSource.musicKitSourceContent(modifier: Modifier) = LazyStaggeredGridContent {
-    val state by source().collectAsStateWithLifecycle(initialValue = Snapshot.Idle)
+    val repository = koinInject<MediaSourceBindingRepository>()
+    val syncState = state.collectAsStateWithLifecycle()
+    val latestSnapshot = snapshot.collectAsStateWithLifecycle()
+    val status = repository.observeSource(name).collectAsStateWithLifecycle(initialValue = null)
 
     return@LazyStaggeredGridContent {
         item(key = this@musicKitSourceContent.name) {
-            SourceCard(
+            SourcePipelineCard(
                 modifier = modifier,
-                state = { state },
+                status = {
+                    status.value ?: SourceStatus(
+                        syncState = syncState.value,
+                        resultRevision = latestSnapshot.value?.revision,
+                        songCount = latestSnapshot.value?.audios?.size ?: 0,
+                    )
+                },
+                snapshot = { latestSnapshot.value },
             )
         }
     }

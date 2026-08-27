@@ -1,118 +1,20 @@
 package com.lalilu.lmedia.domain.source
 
-import com.lalilu.lmedia.domain.model.*
+import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.serialization.Serializable
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
+/**
+ * 某一个数据源最近一次完整、成功的歌曲结果。
+ *
+ * 运行状态由 [MediaSource.state] 独立表达；歌手、专辑、流派及关系由数据库写入层从 [audios]
+ * 统一重组，因此 Snapshot 不再携带派生实体和临时 Loading/Error 状态。
+ */
 @OptIn(ExperimentalTime::class)
 @Serializable
 data class Snapshot(
     val audios: List<LAudio> = emptyList(),
-    val albums: List<LAlbum> = emptyList(),
-    val artists: List<LArtist> = emptyList(),
-    val folders: List<LFolder> = emptyList(),
-    val genres: List<LGenre> = emptyList(),
-    val state: SnapshotState = SnapshotState.Idle,
-    val relations: Map<String, Map<String, List<String>>> = emptyMap(),
-    val updateTime: Long = Clock.System.now().toEpochMilliseconds()
-) {
-    companion object {
-        val Idle = Snapshot(state = SnapshotState.Idle)
-        val Loading = Snapshot(state = SnapshotState.Loading())
-        val Empty = Snapshot(state = SnapshotState.Empty)
-    }
-}
-
-/**
- * Builds a [Snapshot] from a list of [LAudio], deriving album/artist/genre entities
- * from each audio's [Metadata] fields.
- */
-fun buildSnapshot(audios: List<LAudio>): Snapshot {
-    val list = audios.distinctBy { it.id }
-
-    val albums = list
-        .groupBy { song -> song.metadata.album }
-        .map { (album, songs) ->
-            val name = album.takeIf { !it.isNullOrBlank() } ?: "Unknown"
-            LAlbum(
-                id = "${LAlbum.ID_PREFIX}$name",
-                title = name,
-                subtitle = ""
-            )
-        }
-
-    val artists = list
-        .groupBy { song -> song.metadata.artist }
-        .flatMap { (artist, songs) ->
-            val nameStr = artist.takeIf { !it.isNullOrBlank() } ?: "Unknown"
-            val names = nameStr.split('/', ';', '、', ',', '，')
-                .distinctBy { it }
-
-            names.map { name ->
-                LArtist(
-                    id = "${LArtist.ID_PREFIX}$name",
-                    title = name,
-                    subtitle = artist ?: ""
-                )
-            }
-        }
-
-    val genres = list
-        .groupBy { song -> song.metadata.genre }
-        .map { (genre, songs) ->
-            val name = genre.takeIf { it.isNotBlank() } ?: "Unknown"
-            LGenre(
-                id = "${LGenre.ID_PREFIX}$name",
-                title = name,
-                subtitle = ""
-            )
-        }
-
-    return Snapshot(
-        audios = list,
-        albums = albums,
-        artists = artists,
-        genres = genres,
-        relations = buildRelations(audios = list),
-        state = SnapshotState.Success
-    )
-}
-
-/**
- * Builds a relation map from audio metadata.
- * The map structure: entityType → audioId → listOfRelatedEntityIds
- */
-fun buildRelations(
-    audios: List<LAudio>
-): Map<String, Map<String, List<String>>> {
-    val relations: MutableMap<String, MutableMap<String, MutableList<String>>> = mutableMapOf()
-
-    relations.getOrPut("com.lalilu.lmedia.domain.model.LArtist") { mutableMapOf() }.apply {
-        audios.forEach { audio ->
-            val artistNames = (audio.metadata.artist ?: "Unknown")
-                .split('/', ';', '、', ',', '，')
-                .distinctBy { it }
-            val ids = artistNames.map { "${LArtist.ID_PREFIX}$it" }
-            this[audio.id] = ids.toMutableList()
-        }
-    }
-
-    relations.getOrPut("com.lalilu.lmedia.domain.model.LAlbum") { mutableMapOf() }.apply {
-        audios.forEach { audio ->
-            val albumName = audio.metadata.album ?: "Unknown"
-            this[audio.id] = mutableListOf("${LAlbum.ID_PREFIX}$albumName")
-        }
-    }
-
-    relations.getOrPut("com.lalilu.lmedia.domain.model.LGenre") { mutableMapOf() }.apply {
-        audios.forEach { audio ->
-            val genreName = audio.metadata.genre ?: "Unknown"
-            if (genreName.isNotBlank()) {
-                this[audio.id] = mutableListOf("${LGenre.ID_PREFIX}$genreName")
-            }
-        }
-    }
-
-    return relations
-}
+    val revision: Long = 0L,
+    val updateTime: Long = Clock.System.now().toEpochMilliseconds(),
+)

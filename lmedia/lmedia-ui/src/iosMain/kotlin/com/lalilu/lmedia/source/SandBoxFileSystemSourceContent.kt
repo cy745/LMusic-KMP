@@ -12,8 +12,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.lalilu.common.ext.io
 import com.lalilu.component.LazyStaggeredGridContent
-import com.lalilu.lmedia.component.SourceCard
-import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.component.SourcePipelineCard
+import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
+import com.lalilu.lmedia.domain.repository.SourceStatus
 import com.lalilu.lmedia.lmedia_ui.generated.resources.Res
 import com.lalilu.lmedia.server.SandBoxFileSystemServer
 import com.lalilu.lmedia.source.sandbox.SandboxFileSystemSource
@@ -26,10 +27,14 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import qrcode.QRCode
 import qrcode.color.Colors
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalForeignApi::class)
 fun SandboxFileSystemSource.sandBoxFileSystemSourceContent(modifier: Modifier) = LazyStaggeredGridContent {
-    val state = source().collectAsStateWithLifecycle(initialValue = Snapshot.Loading)
+    val repository = koinInject<MediaSourceBindingRepository>()
+    val syncState = state.collectAsStateWithLifecycle()
+    val latestSnapshot = snapshot.collectAsStateWithLifecycle()
+    val status = repository.observeSource(name).collectAsStateWithLifecycle(initialValue = null)
     val address = remember { mutableStateOf<List<IfAddresses>>(emptyList()) }
     val currentIp = remember { mutableStateOf("") }
     val qrCodeData = remember { mutableStateOf<ByteArray?>(null) }
@@ -72,9 +77,16 @@ fun SandboxFileSystemSource.sandBoxFileSystemSourceContent(modifier: Modifier) =
 
     return@LazyStaggeredGridContent {
         item(key = this@sandBoxFileSystemSourceContent.name) {
-            SourceCard(
+            SourcePipelineCard(
                 modifier = modifier,
-                state = { state.value },
+                status = {
+                    status.value ?: SourceStatus(
+                        syncState = syncState.value,
+                        resultRevision = latestSnapshot.value?.revision,
+                        songCount = latestSnapshot.value?.audios?.size ?: 0,
+                    )
+                },
+                snapshot = { latestSnapshot.value },
                 extraContent = {
                     Column(
                         modifier = Modifier,

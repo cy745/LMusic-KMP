@@ -14,38 +14,40 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lalilu.lmedia.domain.repository.SnapshotCommitState
+import com.lalilu.lmedia.domain.repository.SourceStatus
 import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.source.Configurable
 import com.lalilu.lmedia.source.Declaration
 import com.lalilu.lmedia.source.configOrNullCompat
-import com.lalilu.preview.preview
-import kotlin.time.ExperimentalTime
 
 
-@OptIn(ExperimentalTime::class)
+/**
+ * 独立展示数据源的执行状态、最近一次成功结果与数据库提交状态。
+ * Loading 或 Error 不会遮蔽上一次成功结果，便于区分“正在刷新”与“当前无数据”。
+ */
 @Composable
-fun MediaSource.SourceCard(
+fun MediaSource.SourcePipelineCard(
     modifier: Modifier = Modifier,
-    state: () -> Snapshot = { Snapshot.Idle },
+    status: () -> SourceStatus = { SourceStatus(syncState = state.value) },
+    snapshot: () -> Snapshot? = { this.snapshot.value },
     configForm: @Composable Configurable.() -> Unit = { PropertyComponent() },
-    configActions: @Composable Configurable.(Modifier, () -> List<Declaration.Function<*>>) -> Unit = { modifier, extraFunctions ->
-        FunctionComponent(
-            modifier,
-            extraFunctions
-        )
+    configActions: @Composable Configurable.(Modifier, () -> List<Declaration.Function<*>>) -> Unit = { actionModifier, functions ->
+        FunctionComponent(actionModifier, functions)
     },
     extraMessage: () -> String? = { null },
     extraFunctions: () -> List<Declaration.Function<*>> = { EMPTY_LIST },
-    extraContent: (@Composable () -> Unit)? = null
+    extraContent: (@Composable () -> Unit)? = null,
 ) {
     val cfg = configOrNullCompat
     val title = remember { cfg?.name ?: name }
     val subtitle = remember { cfg?.description ?: "" }
+    val currentStatus = status()
+    val currentSnapshot = snapshot()
 
     BaseSourceCard(
         modifier = modifier,
@@ -53,14 +55,12 @@ fun MediaSource.SourceCard(
         subtitle = subtitle,
         subtitleContent = {
             Column(
-                modifier = Modifier.fillMaxWidth()
-                    .padding(top = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (subtitle.isNotBlank()) {
                     Text(
-                        modifier = Modifier
-                            .alpha(0.6f),
+                        modifier = Modifier.alpha(0.6f),
                         text = subtitle,
                         style = MaterialTheme.typography.labelSmall,
                     )
@@ -68,85 +68,60 @@ fun MediaSource.SourceCard(
 
                 AnimatedVisibility(visible = !extraMessage().isNullOrBlank()) {
                     Text(
-                        modifier = Modifier
-                            .alpha(0.6f),
+                        modifier = Modifier.alpha(0.6f),
                         text = "${extraMessage()}",
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
             }
-        }
+        },
     ) {
-        AnimatedContent(targetState = state()) { stateValue ->
-            when (val snapshotState = stateValue.state) {
-                is SnapshotState.Idle -> Column(
-                    modifier = Modifier.fillMaxWidth()
-                        .padding(top = 12.dp)
+        AnimatedContent(
+            targetState = currentStatus.syncState,
+            contentKey = { it::class },
+        ) { syncState ->
+            when (syncState) {
+                SnapshotState.Idle -> Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 ) {
                     (this as? Configurable)?.configForm()
                 }
 
                 is SnapshotState.Loading -> Column(
-                    modifier = Modifier.padding(vertical = 4.dp)
+                    modifier = Modifier.padding(vertical = 4.dp),
                 ) {
                     LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                        progress = { snapshotState.progress }
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        progress = { syncState.progress },
                     )
-
                     Text(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .alpha(0.3f),
-                        text = snapshotState.message,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).alpha(0.3f),
+                        text = syncState.message,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
 
-                is SnapshotState.Loading -> {
-                    // LoadingDynamic merged into Loading in domain model
-                }
-
-                is SnapshotState.Empty,
-                is SnapshotState.Success -> SnapshotPreviewCard(
-                    modifier = Modifier.padding(top = 4.dp),
-                    snapshot = { stateValue }
-                )
-
-                is SnapshotState.Error -> {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth()
-                                .padding(12.dp)
-                        ) {
-                            Text(
-                                modifier = Modifier,
-                                text = snapshotState.message,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                }
-
-                else -> {}
+                is SnapshotState.Error -> ErrorMessage(syncState.message)
+                SnapshotState.Success -> Unit
             }
         }
 
-        Column(
-            Modifier.padding(top = 8.dp)
-                .fillMaxWidth()
-        ) {
-            (this@SourceCard as? Configurable)
+        currentSnapshot?.let {
+            SnapshotPreviewCard(
+                modifier = Modifier.padding(top = 4.dp),
+                snapshot = { it },
+            )
+        }
+
+        CommitStateMessage(
+            modifier = Modifier.padding(top = 6.dp),
+            state = currentStatus.commitState,
+        )
+
+        Column(Modifier.padding(top = 8.dp).fillMaxWidth()) {
+            (this@SourcePipelineCard as? Configurable)
                 ?.configActions(Modifier, extraFunctions)
         }
 
@@ -154,58 +129,46 @@ fun MediaSource.SourceCard(
     }
 }
 
-@Preview
 @Composable
-private fun SourceCardPreviewDefault() = preview(isDarkMode = true) {
-    Column(
-        modifier = Modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+private fun ErrorMessage(message: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        shape = RoundedCornerShape(8.dp),
     ) {
-        PreviewMediaSource.SourceCard(
-            modifier = Modifier,
-            state = { Snapshot.Idle },
+        Text(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            text = message,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.error,
         )
     }
 }
 
-@Preview
 @Composable
-private fun SourceCardPreviewScanning() = preview(isDarkMode = true) {
-    Column(
-        modifier = Modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        PreviewMediaSource.SourceCard(
-            modifier = Modifier,
-            state = { Snapshot.Loading }
-        )
+private fun CommitStateMessage(
+    modifier: Modifier,
+    state: SnapshotCommitState,
+) {
+    val message = when (state) {
+        SnapshotCommitState.Idle -> null
+        is SnapshotCommitState.Committing -> "正在写入媒体库…"
+        is SnapshotCommitState.Committed -> "已写入媒体库"
+        is SnapshotCommitState.Failed -> "写入媒体库失败：${state.message}"
     }
-}
 
-@Preview
-@Composable
-private fun SourceCardPreviewSuccess() = preview(isDarkMode = true) {
-    Column(
-        modifier = Modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        PreviewMediaSource.SourceCard(
-            modifier = Modifier,
-            state = { Snapshot(state = SnapshotState.Success) }
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun SourceCardPreviewError() = preview(isDarkMode = true) {
-    Column(
-        modifier = Modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        PreviewMediaSource.SourceCard(
-            modifier = Modifier,
-            state = { Snapshot(state = SnapshotState.Error("Test Error")) }
+    AnimatedVisibility(visible = message != null) {
+        Text(
+            modifier = modifier.fillMaxWidth().alpha(0.4f),
+            text = message.orEmpty(),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (state is SnapshotCommitState.Failed) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
         )
     }
 }

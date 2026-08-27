@@ -1,6 +1,8 @@
 package com.lalilu.lmedia.source.mediastore
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.net.Uri
 import android.os.Build
@@ -8,16 +10,23 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import androidx.core.net.toUri
+import androidx.core.content.ContextCompat
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.source.*
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
-import com.lalilu.lmedia.source.*
+import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSourceStateStore
+import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.source.Configurable
+import com.lalilu.lmedia.source.MediaSourceConfig
+import com.lalilu.lmedia.source.Saver
+import com.lalilu.lmedia.source.buildConfig
+import com.lalilu.lmedia.source.range
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.koin.core.annotation.Single
 
 
@@ -30,8 +39,11 @@ class MediaStoreSource(
     override val name: String = "MediaStore"
     override val dataSource: MediaDataSource = this
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val stateFlow = MutableStateFlow(Snapshot.Idle)
-    override fun source(): Flow<Snapshot> = stateFlow
+    private val stateStore = MediaSourceStateStore()
+    override val state: StateFlow<SnapshotState> = stateStore.state
+    override val snapshot: StateFlow<Snapshot?> = stateStore.snapshot
+    private var loadingJob: Job? = null
+    private var initialized = false
 
     private val scanner: Scanner = when {
         Build.VERSION.SDK_INT >= 30 -> Api30MediaStoreScanner(this, context)
@@ -57,35 +69,60 @@ class MediaStoreSource(
         function<Unit>(
             key = "Reset",
             description = "重置",
-            isAvailable = { stateFlow.value.state !is SnapshotState.Loading }
+            isAvailable = { state.value !is SnapshotState.Loading }
         ).onCall {
             Logger.i(tag = name, messageString = "On Reset")
-            stateFlow.value = Snapshot.Idle
+            loadingJob?.cancel()
+            loadingJob = scope.launch { stateStore.reset() }
         }
 
         function<Unit>(
             key = "扫描",
             description = "执行扫描",
-            isAvailable = { stateFlow.value.state !is SnapshotState.Loading }
+            isAvailable = { state.value !is SnapshotState.Loading && hasReadPermission() }
         ).onCall {
-            scope.launch {
-                stateFlow.value = Snapshot.Loading
-                stateFlow.value = scanner.scan()
-            }
+            refresh()
         }
     }
 
-    init {
-        scope.launch { stateFlow.value = scanner.scan() }
-
-        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean, uri: Uri?) {
-                scope.launch { stateFlow.value = scanner.scan() }
-            }
+    private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+            refresh()
         }
+    }
 
+    override fun init() {
+        if (initialized) return
+        initialized = true
         context.applicationContext.contentResolver
             .registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, observer)
+
+        if (hasReadPermission()) refresh()
+    }
+
+    private fun hasReadPermission(): Boolean {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun refresh() {
+        loadingJob?.cancel()
+        loadingJob = scope.launch {
+            val taskId = stateStore.begin()
+            try {
+                stateStore.succeed(taskId, scanner.scan())
+            } catch (cancelled: CancellationException) {
+                stateStore.cancel(taskId)
+                throw cancelled
+            } catch (throwable: Throwable) {
+                Logger.e(tag = name, throwable = throwable, messageString = "Scan failed")
+                stateStore.fail(taskId, throwable.message ?: "Unknown error")
+            }
+        }
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? {

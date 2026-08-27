@@ -12,15 +12,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lalilu.component.LazyStaggeredGridContent
-import com.lalilu.lmedia.component.SourceCard
-import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.component.SourcePipelineCard
+import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
+import com.lalilu.lmedia.domain.repository.SourceStatus
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.source.mediastore.MediaStoreSource
+import org.koin.compose.koinInject
 
 
 fun MediaStoreSource.mediaStoreSourceContent(modifier: Modifier) = LazyStaggeredGridContent {
     val context = LocalContext.current
-    val state = source().collectAsStateWithLifecycle(initialValue = Snapshot.Loading)
+    val repository = koinInject<MediaSourceBindingRepository>()
+    val syncState = state.collectAsStateWithLifecycle()
+    val latestSnapshot = snapshot.collectAsStateWithLifecycle()
+    val status = repository.observeSource(name)
+        .collectAsStateWithLifecycle(initialValue = null)
     val permission = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Manifest.permission.READ_MEDIA_AUDIO
@@ -35,7 +41,10 @@ fun MediaStoreSource.mediaStoreSourceContent(modifier: Modifier) = LazyStaggered
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-        onResult = { success -> granted.value = success }
+        onResult = { success ->
+            granted.value = success
+            if (success) configOrNullCompat?.call<Unit>("扫描")
+        }
     )
 
     val extraFunctions = remember {
@@ -46,7 +55,7 @@ fun MediaStoreSource.mediaStoreSourceContent(modifier: Modifier) = LazyStaggered
                 description = "请求必要权限",
                 parameters = emptyList(),
                 returnType = Unit::class,
-                isAvailable = { state.value.state is SnapshotState.Idle && !granted.value },
+                isAvailable = { syncState.value !is SnapshotState.Loading && !granted.value },
                 callback = { launcher.launch(permission) }
             )
         )
@@ -54,9 +63,16 @@ fun MediaStoreSource.mediaStoreSourceContent(modifier: Modifier) = LazyStaggered
 
     return@LazyStaggeredGridContent {
         item(key = this@mediaStoreSourceContent.name) {
-            SourceCard(
+            SourcePipelineCard(
                 modifier = modifier,
-                state = { state.value },
+                status = {
+                    status.value ?: SourceStatus(
+                        syncState = syncState.value,
+                        resultRevision = latestSnapshot.value?.revision,
+                        songCount = latestSnapshot.value?.audios?.size ?: 0,
+                    )
+                },
+                snapshot = { latestSnapshot.value },
                 extraFunctions = { extraFunctions },
                 extraMessage = msg@{ if (granted.value) "请求权限成功" else "请授权访问媒体文件" }
             )

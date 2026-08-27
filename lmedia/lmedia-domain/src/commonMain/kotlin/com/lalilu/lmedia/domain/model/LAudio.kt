@@ -8,7 +8,6 @@ data class LAudio(
     val title: String = "",
     val subtitle: String = "",
     val mediaSourceName: String = "",
-    val metadata: Metadata = Metadata.EMPTY,
     val extra: Map<String, String>? = null,
     val available: Boolean = true,
 ) {

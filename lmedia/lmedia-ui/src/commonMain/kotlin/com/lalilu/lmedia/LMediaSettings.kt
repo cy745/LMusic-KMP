@@ -12,12 +12,18 @@ import org.koin.core.annotation.Named
 @Factory
 @Named("settings_lmedia_data")
 fun provideLMediaDataSettings(
-    audioRepository: AudioRepository
+    audioRepository: AudioRepository,
+    kv: LMediaKV,
 ) = settingsGroup(
     key = "lmedia_data",
     order = 11,
     title = { "媒体数据库" },
 ) {
+    switch(
+        kv = kv.clearUnavailableAfterSync,
+        title = { "同步后自动清除不可播放元素" },
+        summary = { "每个数据源成功写入后，仅从媒体数据库删除已失效的歌曲" },
+    )
     click(
         key = "lmedia_data.clear_unavailable_items",
         title = { "清除不可播放元素" },

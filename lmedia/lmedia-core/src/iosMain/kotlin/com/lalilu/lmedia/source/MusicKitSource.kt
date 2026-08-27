@@ -1,102 +1,103 @@
 package com.lalilu.lmedia.source
 
 import co.touchlab.kermit.Logger
+import com.lalilu.common.ext.io
 import com.lalilu.lmedia.MusicKitPlayerController
 import com.lalilu.lmedia.MusicKitWrapper
 import com.lalilu.lmedia.SongInfo
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.Metadata
-import com.lalilu.lmedia.domain.source.*
+import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
+import com.lalilu.lmedia.domain.source.MediaFetchOptions
+import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSourceStateStore
+import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.SnapshotState
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readBytes
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.StateFlow
 import org.koin.core.annotation.Single
 import platform.Foundation.NSData
 
-@Single(binds = [MediaSource::class, MediaDataSource::class])
 @OptIn(ExperimentalForeignApi::class)
+@Single(binds = [MediaSource::class, MediaDataSource::class])
 class MusicKitSource : MediaSource, MediaDataSource {
     override val name: String = "MusicKitSource"
     override val dataSource: MediaDataSource = this
 
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val stateStore = MediaSourceStateStore()
+    override val state: StateFlow<SnapshotState> = stateStore.state
+    override val snapshot: StateFlow<Snapshot?> = stateStore.snapshot
+
     /** id → SongInfo 缓存，用于 [getPicture] 和 [getMedia] 按 id 查找完整数据。 */
     private val songStore = mutableMapOf<String, SongInfo>()
 
-    override fun source(): Flow<Snapshot> {
-        val songsFlow = callbackFlow {
+    override fun init() = refresh()
+
+    private fun refresh() {
+        scope.launch {
+            val taskId = stateStore.begin()
             MusicKitWrapper.fetchUserLibrarySongsWithCompletionHandler { songs, error ->
-                launch {
-                    send(songs?.filterIsInstance<SongInfo>() ?: emptyList())
-                }
-            }
-            awaitClose {}
-        }
-
-        return songsFlow.map { songs ->
-            Logger.i(tag = name, messageString = "fetched ${songs.size} songs from MusicKit")
-            songStore.clear()
-
-            val audios = songs.map { song ->
-                val playUrl = song.url()?.absoluteString ?: ""
-                val storeID = song.storeID() ?: ""
-
-                if (storeID.isBlank()) {
-                    Logger.i(tag = name, messageString = "song missing storeID: ${song.title()}")
-                }
-
-                val audio = LAudio(
-                    id = "${LAudio.ID_PREFIX}${song.title()}_${song.artist()}",
-                    title = song.title() ?: "Unknown",
-                    subtitle = song.artist() ?: "Unknown Subs",
-                    mediaSourceName = name,
-                    metadata = Metadata(
-                        title = song.title(),
-                        artist = song.artist(),
-                        album = song.album(),
-                        duration = (song.duration() * 1000).toLong(),
-                    ),
-                    extra = buildMap {
-                        if (storeID.isNotBlank()) put("storeID", storeID)
-                        if (playUrl.isNotBlank()) put("url", playUrl)
+                scope.launch {
+                    if (error != null) {
+                        stateStore.fail(taskId, error.localizedDescription)
+                        return@launch
                     }
-                )
-                songStore[audio.id] = song
-                audio
+
+                    val songInfos = songs?.filterIsInstance<SongInfo>().orEmpty()
+                    Logger.i(tag = name, messageString = "fetched ${songInfos.size} songs from MusicKit")
+                    stateStore.succeed(taskId, mapSongs(songInfos))
+                }
             }
-            Logger.i(tag = name, messageString = "configured MusicKitPlayerController with ${songs.size} songs")
-            val snapshot = buildSnapshot(audios)
-            Logger.i(tag = name, messageString = "snapshot: count=${snapshot.audios?.size} state=${snapshot.state}")
-            snapshot
+        }
+    }
+
+    private fun mapSongs(songs: List<SongInfo>): List<LAudio> {
+        songStore.clear()
+        return songs.map { song ->
+            val title = song.title() ?: "Unknown"
+            val artist = song.artist() ?: "Unknown"
+            val album = song.album()
+            val playUrl = song.url()?.absoluteString.orEmpty()
+            val storeId = song.storeID().orEmpty()
+            val identity = storeId.ifBlank { "${title}_$artist" }
+
+            LAudio(
+                id = "${LAudio.ID_PREFIX}$identity",
+                title = title,
+                subtitle = artist,
+                mediaSourceName = name,
+                extra = buildMap {
+                    if (storeId.isNotBlank()) put("storeID", storeId)
+                    if (playUrl.isNotBlank()) put("url", playUrl)
+                    put(LAudioExtraKeys.ArtistName, artist)
+                    album?.takeIf(String::isNotBlank)
+                        ?.let { put(LAudioExtraKeys.AlbumName, it) }
+                    (song.duration() * 1000).toLong().takeIf { it > 0L }
+                        ?.let { put(LAudioExtraKeys.Duration, it.toString()) }
+                },
+            ).also { songStore[it.id] = song }
         }
     }
 
     override suspend fun getMedia(song: LAudio): MediaData? {
-        val storeID = songStore[song.id]?.storeID()?.takeIf { it.isNotBlank() }
-            ?: song.extra?.get("storeID") as? String
-        if (storeID != null) {
-            // MusicKitEngine 按 mediaSourceName 路由，不需要实际的 MediaData
-            return MediaData.Url("musickit://play/$storeID")
-        }
-        val url = song.extra?.get("url") as? String
-        if (url != null && url.isNotBlank()) return MediaData.Url(url)
+        val storeId = songStore[song.id]?.storeID()?.takeIf { it.isNotBlank() }
+            ?: song.extra?.get("storeID")
+        if (storeId != null) return MediaData.Url("musickit://play/$storeId")
+
+        val url = song.extra?.get("url")
+        if (!url.isNullOrBlank()) return MediaData.Url(url)
         return MediaData.Url("musickit://placeholder")
     }
 
     override suspend fun getLyric(song: LAudio): String? {
-        val storeID = songStore[song.id]?.storeID()?.takeIf { it.isNotBlank() }
+        val storeId = songStore[song.id]?.storeID()?.takeIf { it.isNotBlank() }
             ?: song.extra?.get("storeID")
             ?: return null
-        val controller = MusicKitPlayerController.shared()
-        return controller?.lyricsForStoreID(storeID)
+        return MusicKitPlayerController.shared()?.lyricsForStoreID(storeId)
     }
 
     @Deprecated("Use getPicture(song, options) instead")
@@ -104,30 +105,31 @@ class MusicKitSource : MediaSource, MediaDataSource {
         getPicture(song, MediaFetchOptions.EMPTY)
 
     override suspend fun getPicture(
-        song: LAudio, options: MediaFetchOptions
+        song: LAudio,
+        options: MediaFetchOptions,
     ): MediaData? = withContext(Dispatchers.IO) {
-        val si = songStore[song.id]
-        val storeID = si?.storeID()?.takeIf { it.isNotBlank() }
+        val songInfo = songStore[song.id]
+        val storeId = songInfo?.storeID()?.takeIf { it.isNotBlank() }
             ?: song.extra?.get("storeID")
             ?: return@withContext null
 
-        // 优先使用 Coil 请求的目标尺寸，未指定时用 300 兜底（避免全尺寸 1200 占用内存）
-        val maxW = si?.artwork()?.maxWidth?.toInt() ?: 0
-        val maxH = si?.artwork()?.maxHeight?.toInt() ?: 0
-        val w = if (options.width > 0) options.width.coerceIn(60, maxW.coerceAtLeast(300)) else 300
-        val h = if (options.height > 0) options.height.coerceIn(60, maxH.coerceAtLeast(300)) else 300
+        val maxWidth = songInfo?.artwork()?.maxWidth?.toInt() ?: 0
+        val maxHeight = songInfo?.artwork()?.maxHeight?.toInt() ?: 0
+        val width = if (options.width > 0) {
+            options.width.coerceIn(60, maxWidth.coerceAtLeast(300))
+        } else 300
+        val height = if (options.height > 0) {
+            options.height.coerceIn(60, maxHeight.coerceAtLeast(300))
+        } else 300
 
-        val controller = MusicKitPlayerController.shared()
-        val data = controller?.artworkDataForStoreID(storeID, w.toLong(), h.toLong())
-        if (data != null && data.length > 0uL) {
-            val bytes = data.toByteArray()
-            return@withContext MediaData.Bytes(bytes)
-        }
-        return@withContext null
+        MusicKitPlayerController.shared()
+            ?.artworkDataForStoreID(storeId, width.toLong(), height.toLong())
+            ?.takeIf { it.length > 0uL }
+            ?.toByteArray()
+            ?.let(MediaData::Bytes)
     }
 }
 
-/** NSData → ByteArray */
 @OptIn(ExperimentalForeignApi::class)
 private fun NSData.toByteArray(): ByteArray {
     val size = length.toInt()

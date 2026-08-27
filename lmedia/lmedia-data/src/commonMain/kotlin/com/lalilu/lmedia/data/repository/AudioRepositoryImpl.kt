@@ -20,7 +20,10 @@ class AudioRepositoryImpl(
         audioDao.getAllAudio().mapLatest { list -> list.map { it.toDomain() } }
 
     override fun getAudios(ids: List<String>): Flow<List<LAudio>> =
-        audioDao.getAudios(ids).mapLatest { list -> list.map { it.toDomain() } }
+        audioDao.getAudios(ids).mapLatest { list ->
+            val audioById = list.associateBy { it.id }
+            ids.mapNotNull { id -> audioById[id]?.toDomain() }
+        }
 
     override fun getAudio(id: String): Flow<LAudio?> =
         audioDao.getAudio(id).mapLatest { it?.toDomain() }
