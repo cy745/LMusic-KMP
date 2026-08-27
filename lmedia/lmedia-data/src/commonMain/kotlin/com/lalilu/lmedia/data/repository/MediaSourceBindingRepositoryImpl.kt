@@ -87,7 +87,9 @@ class MediaSourceBindingRepositoryImpl(
                         runCatching {
                             database.mediaDao().insert(snapshot = snapshot, sourceName = source.name)
                             if (kv.clearUnavailableAfterSync.value) {
-                                database.mediaDao().clearUnavailableMedia()
+                                database.mediaDao().clearUnavailableMedia(
+                                    activeSourceNames = platformSource.sources.map { it.name },
+                                )
                             }
                         }.onSuccess {
                             updateStatus(source.name) {

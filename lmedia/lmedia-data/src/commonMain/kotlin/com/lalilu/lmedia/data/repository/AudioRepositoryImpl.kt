@@ -4,6 +4,7 @@ import com.lalilu.lmedia.data.database.ILMediaDatabase
 import com.lalilu.lmedia.data.mapper.toDomain
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapLatest
@@ -12,7 +13,8 @@ import org.koin.core.annotation.Single
 @OptIn(ExperimentalCoroutinesApi::class)
 @Single(binds = [AudioRepository::class])
 class AudioRepositoryImpl(
-    private val database: ILMediaDatabase
+    private val database: ILMediaDatabase,
+    private val platformSource: PlatformMediaSource,
 ) : AudioRepository {
     private val audioDao by lazy { database.audioDao() }
 
@@ -29,6 +31,8 @@ class AudioRepositoryImpl(
         audioDao.getAudio(id).mapLatest { it?.toDomain() }
 
     override suspend fun clearUnavailableAudio() {
-        database.mediaDao().clearUnavailableMedia()
+        database.mediaDao().clearUnavailableMedia(
+            activeSourceNames = platformSource.sources.map { it.name },
+        )
     }
 }

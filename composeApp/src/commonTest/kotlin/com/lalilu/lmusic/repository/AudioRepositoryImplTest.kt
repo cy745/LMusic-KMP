@@ -4,6 +4,7 @@ import com.lalilu.lmedia.data.mapper.toEntity
 import com.lalilu.lmedia.data.repository.AudioRepositoryImpl
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmusic.impl.LMusicDatabase
 import com.lalilu.lmusic.impl.requireDatabase
 import kotlinx.coroutines.flow.first
@@ -23,7 +24,7 @@ class AudioRepositoryImplTest {
 
     @BeforeTest
     fun setup() {
-        repo = AudioRepositoryImpl(db)
+        repo = AudioRepositoryImpl(db, PlatformMediaSource(emptyList()))
     }
 
     @AfterTest

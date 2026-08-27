@@ -286,7 +286,7 @@ class LMediaLMediaDaoTest {
             "clear-source",
         )
 
-        db.mediaDao().clearUnavailableMedia()
+        db.mediaDao().clearUnavailableMedia(listOf("clear-source"))
 
         assertNotNull(audioDao.getAudio("clear-current").firstOrNull())
         assertEquals(null, audioDao.getAudio("clear-shared-missing").firstOrNull())
@@ -322,7 +322,7 @@ class LMediaLMediaDaoTest {
 
         // 模拟旧清理逻辑只删除歌曲、留下交叉表关系的数据库状态。
         audioDao.delete(audio.copy(available = true).toEntity())
-        db.mediaDao().clearUnavailableMedia()
+        db.mediaDao().clearUnavailableMedia(listOf("dangling-source"))
 
         assertTrue(artistDao.getAllArtist().firstOrNull().orEmpty().none {
             it.title == "Dangling Artist"
@@ -332,6 +332,71 @@ class LMediaLMediaDaoTest {
         })
         assertTrue(genreDao.getAllGenre().firstOrNull().orEmpty().none {
             it.title == "Dangling Genre"
+        })
+    }
+
+    @Test
+    fun clearUnavailableRemovesMediaOwnedByRemovedSources() = runTest {
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio(
+                id = "active-source-audio",
+                source = "active-source",
+                artist = "Active Artist",
+                album = "Active Album",
+                genre = "Active Genre",
+            ))),
+            "active-source",
+        )
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio(
+                id = "removed-source-audio",
+                source = "removed-source",
+                artist = "Removed Artist",
+                album = "Removed Album",
+                genre = "Removed Genre",
+            ))),
+            "removed-source",
+        )
+
+        db.mediaDao().clearUnavailableMedia(listOf("active-source"))
+
+        assertNotNull(audioDao.getAudio("active-source-audio").firstOrNull())
+        assertEquals(null, audioDao.getAudio("removed-source-audio").firstOrNull())
+        assertTrue(artistDao.getAllArtist().firstOrNull().orEmpty().none {
+            it.title == "Removed Artist"
+        })
+        assertTrue(albumDao.getAllAlbum().firstOrNull().orEmpty().none {
+            it.title == "Removed Album"
+        })
+        assertTrue(genreDao.getAllGenre().firstOrNull().orEmpty().none {
+            it.title == "Removed Genre"
+        })
+    }
+
+    @Test
+    fun clearUnavailableRemovesAllMediaWhenNoSourcesRemain() = runTest {
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio(
+                id = "last-removed-source-audio",
+                source = "last-removed-source",
+                artist = "Last Removed Artist",
+                album = "Last Removed Album",
+                genre = "Last Removed Genre",
+            ))),
+            "last-removed-source",
+        )
+
+        db.mediaDao().clearUnavailableMedia(emptyList())
+
+        assertEquals(null, audioDao.getAudio("last-removed-source-audio").firstOrNull())
+        assertTrue(artistDao.getAllArtist().firstOrNull().orEmpty().none {
+            it.title == "Last Removed Artist"
+        })
+        assertTrue(albumDao.getAllAlbum().firstOrNull().orEmpty().none {
+            it.title == "Last Removed Album"
+        })
+        assertTrue(genreDao.getAllGenre().firstOrNull().orEmpty().none {
+            it.title == "Last Removed Genre"
         })
     }
 
