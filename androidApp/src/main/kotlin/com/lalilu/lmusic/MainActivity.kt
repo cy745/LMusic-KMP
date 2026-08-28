@@ -19,6 +19,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        if (CrashReportStore.showPendingReport(this)) {
+            finish()
+            return
+        }
+
         FileKit.init(this)
         handleDeepLink(intent)
 

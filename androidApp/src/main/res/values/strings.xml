@@ -1,4 +1,34 @@
 <resources>
     <string name="app_name">LMusic</string>
+    <string name="crash_report_eyebrow">崩溃反馈</string>
+    <string name="crash_report_title">LMusic 遇到了问题</string>
+    <string name="crash_report_shortcut_short_label">最近崩溃</string>
+    <string name="crash_report_shortcut_long_label">查看最近一次崩溃反馈</string>
+    <string name="crash_report_local_only">● 仅保存在本机 · 尚未发送</string>
+    <string name="crash_report_description">应用已安全退出。你可以先检查错误摘要，再决定是否把反馈包发送给开发者。</string>
+    <string name="crash_report_summary_title">发生了什么</string>
+    <string name="crash_report_summary_unknown">LMusic 发生了一个未处理的错误。</string>
+    <string name="crash_report_event_id">事件编号 · %1$s</string>
+    <string name="crash_report_privacy_title">分享前请确认</string>
+    <string name="crash_report_privacy_description">反馈包包含调用栈、设备与版本信息及最近日志，日志中可能出现本地文件路径或媒体名称。</string>
+    <string name="crash_report_details_title">技术详情</string>
+    <string name="crash_report_details_expand">展开</string>
+    <string name="crash_report_details_collapse">收起</string>
+    <string name="crash_report_share">打包并分享反馈</string>
+    <string name="crash_report_share_hint">由你选择发送渠道</string>
+    <string name="crash_report_share_accessibility">打包并分享反馈，由你选择发送渠道</string>
+    <string name="crash_report_copy">复制详情</string>
+    <string name="crash_report_restart">重新打开</string>
+    <string name="crash_report_close">暂不反馈，关闭</string>
+    <string name="crash_report_copied">报错信息已复制</string>
+    <string name="crash_report_share_failed">无法生成反馈包</string>
+    <string name="crash_report_missing">找不到本地报错记录。</string>
+    <string name="crash_report_share_subject">LMusic 崩溃反馈</string>
+    <string name="crash_report_empty_title">暂无崩溃记录</string>
+    <string name="crash_report_empty_description">本机目前没有可以反馈的崩溃记录。</string>
+    <string name="crash_report_empty_card_title">一切运行正常</string>
+    <string name="crash_report_empty_card_description">发生崩溃后，LMusic 会将最近的诊断记录保存在这里，之后可随时通过桌面快捷入口回来反馈。</string>
+    <string name="crash_report_open_app">打开 LMusic</string>
+    <string name="crash_report_close_plain">关闭</string>
     <color name="ic_launcher_background">#FE4141</color>
 </resources>
