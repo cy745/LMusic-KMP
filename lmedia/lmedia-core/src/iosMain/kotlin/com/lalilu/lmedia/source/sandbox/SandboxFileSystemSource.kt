@@ -45,10 +45,12 @@ class SandboxFileSystemSource : MediaSource, MediaDataSource {
 
     fun cancel() {
         loadingJob?.cancel()
+        stateStore.content.unavailable("Cancelled", preserveReady = true)
     }
 
     fun reset() {
         loadingJob?.cancel()
+        stateStore.content.unavailable("Not initialized")
         loadingJob = scope.launch { stateStore.reset() }
     }
 
@@ -56,14 +58,24 @@ class SandboxFileSystemSource : MediaSource, MediaDataSource {
         loadingJob?.cancel()
         loadingJob = scope.launch {
             val taskId = stateStore.begin()
+            stateStore.content.preparing()
             try {
-                stateStore.succeed(taskId, load(taskId))
+                if (stateStore.succeed(taskId, load(taskId)) != null) {
+                    stateStore.content.ready()
+                }
             } catch (cancelled: CancellationException) {
-                stateStore.cancel(taskId)
+                if (stateStore.cancel(taskId)) {
+                    stateStore.content.unavailable("Cancelled", preserveReady = true)
+                }
                 throw cancelled
             } catch (throwable: Throwable) {
                 Logger.e(tag = name, throwable = throwable, messageString = "Scan failed")
-                stateStore.fail(taskId, throwable.message ?: "Unknown error")
+                if (stateStore.fail(taskId, throwable.message ?: "Unknown error")) {
+                    stateStore.content.unavailable(
+                        throwable.message ?: "Unknown error",
+                        preserveReady = true,
+                    )
+                }
             }
         }
     }

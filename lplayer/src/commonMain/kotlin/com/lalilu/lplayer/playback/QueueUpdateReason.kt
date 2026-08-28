@@ -19,4 +19,7 @@ sealed interface QueueUpdateReason {
      * 同步操作触发的队列更新（如多端同步、数据刷新等）。
      */
     data object Sync : QueueUpdateReason
+
+    /** 数据库逐步解析历史 ID 时触发的队列恢复，不应覆盖尚未补全的持久化历史。 */
+    data object HistoryRestore : QueueUpdateReason
 }

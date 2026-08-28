@@ -50,38 +50,54 @@ class JvmFileSystemSource(
         get() = config.value.directoryBookmark
 
     override fun init() {
-        if (filePath.isNotBlank()) refresh()
+        if (filePath.isNotBlank()) {
+            refresh(preserveReady = false)
+        } else {
+            stateStore.content.unavailable("Directory not configured")
+        }
     }
 
     fun selectDirectory(bookmark: String) {
         config.value = config.value.copy(directoryBookmark = bookmark)
         config.save()
-        refresh()
+        refresh(preserveReady = false)
     }
 
     fun cancel() {
         Logger.i(tag = name, messageString = "Cancel requested")
         loadingJob?.cancel()
+        stateStore.content.unavailable("Cancelled", preserveReady = true)
     }
 
     fun reset() {
         Logger.i(tag = name, messageString = "Reset requested")
         loadingJob?.cancel()
+        stateStore.content.unavailable("Directory not configured")
         loadingJob = scope.launch { stateStore.reset() }
     }
 
-    fun refresh() {
+    fun refresh(preserveReady: Boolean = true) {
         loadingJob?.cancel()
         loadingJob = scope.launch {
             val taskId = stateStore.begin()
+            stateStore.content.preparing(preserveReady = preserveReady)
             try {
-                stateStore.succeed(taskId, load(taskId))
+                if (stateStore.succeed(taskId, load(taskId)) != null) {
+                    stateStore.content.ready()
+                }
             } catch (cancelled: CancellationException) {
-                stateStore.cancel(taskId)
+                if (stateStore.cancel(taskId)) {
+                    stateStore.content.unavailable("Cancelled", preserveReady = true)
+                }
                 throw cancelled
             } catch (throwable: Throwable) {
                 Logger.e(tag = name, throwable = throwable, messageString = "Scan failed")
-                stateStore.fail(taskId, throwable.message ?: "Unknown error")
+                if (stateStore.fail(taskId, throwable.message ?: "Unknown error")) {
+                    stateStore.content.unavailable(
+                        throwable.message ?: "Unknown error",
+                        preserveReady = preserveReady,
+                    )
+                }
             }
         }
     }

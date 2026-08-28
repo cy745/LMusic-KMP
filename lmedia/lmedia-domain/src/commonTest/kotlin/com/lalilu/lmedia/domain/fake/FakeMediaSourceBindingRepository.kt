@@ -25,4 +25,6 @@ class FakeMediaSourceBindingRepository : MediaSourceBindingRepository {
     override suspend fun startBinding() {
         // no-op
     }
+
+    override suspend fun retryCommit(sourceName: String): Boolean = false
 }

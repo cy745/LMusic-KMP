@@ -41,16 +41,24 @@ class MusicKitSource : MediaSource, MediaDataSource {
     private fun refresh() {
         scope.launch {
             val taskId = stateStore.begin()
+            stateStore.content.preparing()
             MusicKitWrapper.fetchUserLibrarySongsWithCompletionHandler { songs, error ->
                 scope.launch {
                     if (error != null) {
-                        stateStore.fail(taskId, error.localizedDescription)
+                        if (stateStore.fail(taskId, error.localizedDescription)) {
+                            stateStore.content.unavailable(
+                                error.localizedDescription,
+                                preserveReady = true,
+                            )
+                        }
                         return@launch
                     }
 
                     val songInfos = songs?.filterIsInstance<SongInfo>().orEmpty()
                     Logger.i(tag = name, messageString = "fetched ${songInfos.size} songs from MusicKit")
-                    stateStore.succeed(taskId, mapSongs(songInfos))
+                    if (stateStore.succeed(taskId, mapSongs(songInfos)) != null) {
+                        stateStore.content.ready()
+                    }
                 }
             }
         }

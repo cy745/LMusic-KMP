@@ -9,16 +9,16 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.domain.source.PlatformMediaSource
-import com.lalilu.lmedia.domain.model.LAudio as DomainAudio
-import com.lalilu.lmedia.domain.repository.AudioRepository
-import org.koin.mp.KoinPlatform
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.resolveMediaData
 import io.ktor.http.decodeURLPart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import org.koin.mp.KoinPlatform
 
 @SuppressLint("UnsafeOptInUsageError")
 class LMediaDataSource(
@@ -57,12 +57,8 @@ class LMediaDataSource(
         val domainItem = id?.let { runBlocking(Dispatchers.IO) { audioRepo.getAudio(id).first() } }
             ?: return defaultDataSource.open(dataSpec)
 
-        val source = platformMediaSource.sources
-            .firstOrNull { domainItem.mediaSourceName == it.name }
-            ?: throw Exception("No source item found for ${domainItem.mediaSourceName}")
-
         val data = runBlocking(Dispatchers.io) {
-            source.dataSource.getMedia(domainItem)
+            platformMediaSource.resolveMediaData(domainItem)
         }
 
         return when (data) {
@@ -109,4 +105,3 @@ class LMediaDataSource(
 
     override fun getUri(): Uri? = readingUri
 }
-

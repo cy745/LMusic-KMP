@@ -14,10 +14,12 @@ import kotlinx.coroutines.sync.withLock
  * 替代的迟到结果。数据源仍然决定何时开始扫描、怎样读取数据以及如何响应配置变化。
  */
 class MediaSourceStateStore {
+    /** 与扫描状态分离的内容读取状态；具体转换时机由数据源决定。 */
+    val content = MediaContentStateStore()
+
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow<SnapshotState>(SnapshotState.Idle)
     private val mutableSnapshot = MutableStateFlow<Snapshot?>(null)
-    private val mutableContentState = MutableStateFlow(MediaContentState())
 
     private var nextTaskId = 0L
     private var activeTaskId: Long? = null
@@ -25,7 +27,7 @@ class MediaSourceStateStore {
 
     val state: StateFlow<SnapshotState> = mutableState.asStateFlow()
     val snapshot: StateFlow<Snapshot?> = mutableSnapshot.asStateFlow()
-    val contentState: StateFlow<MediaContentState> = mutableContentState.asStateFlow()
+    val contentState: StateFlow<MediaContentState> = content.state
 
     suspend fun begin(
         message: String = "Loading...",
@@ -34,9 +36,6 @@ class MediaSourceStateStore {
         nextTaskId += 1
         activeTaskId = nextTaskId
         mutableState.value = SnapshotState.Loading(message, progress.coerceIn(0f, 1f))
-        mutableContentState.value = mutableContentState.value.copy(
-            availability = MediaContentAvailability.Preparing,
-        )
         nextTaskId
     }
 
@@ -65,10 +64,6 @@ class MediaSourceStateStore {
         ).also {
             mutableSnapshot.value = it
             mutableState.value = SnapshotState.Success
-            mutableContentState.value = MediaContentState(
-                availability = MediaContentAvailability.Ready,
-                generation = currentRevision,
-            )
         }
     }
 
@@ -76,9 +71,6 @@ class MediaSourceStateStore {
         if (taskId != activeTaskId) return@withLock false
         activeTaskId = null
         mutableState.value = SnapshotState.Error(message)
-        mutableContentState.value = mutableContentState.value.copy(
-            availability = MediaContentAvailability.Unavailable(message),
-        )
         true
     }
 
@@ -90,13 +82,6 @@ class MediaSourceStateStore {
         } else {
             SnapshotState.Idle
         }
-        mutableContentState.value = mutableContentState.value.copy(
-            availability = if (mutableSnapshot.value != null) {
-                MediaContentAvailability.Ready
-            } else {
-                MediaContentAvailability.Unavailable("Cancelled")
-            },
-        )
         true
     }
 
@@ -104,12 +89,5 @@ class MediaSourceStateStore {
     suspend fun reset() = mutex.withLock {
         activeTaskId = null
         mutableState.value = SnapshotState.Idle
-        mutableContentState.value = mutableContentState.value.copy(
-            availability = if (mutableSnapshot.value != null) {
-                MediaContentAvailability.Ready
-            } else {
-                MediaContentAvailability.Unavailable("Not initialized")
-            },
-        )
     }
 }

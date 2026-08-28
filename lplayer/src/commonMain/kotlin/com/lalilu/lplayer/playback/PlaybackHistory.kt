@@ -3,8 +3,13 @@ package com.lalilu.lplayer.playback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.isActive
 import org.koin.core.annotation.Single
@@ -34,7 +39,10 @@ interface PlaybackHistory {
      * 在当前 [CoroutineScope] 中启动播放状态录制。
      * 自动监听 `isPlaying` 和 `queue.expandedItems`，将状态持久化到 [historyStorage]。
      */
-    fun CoroutineScope.startRecording(playback: Playback)
+    fun CoroutineScope.startRecording(
+        playback: Playback,
+        restoreState: StateFlow<HistoryRestoreState>? = null,
+    )
 
     /**
      * 队列恢复完成后的生命周期回调。
@@ -64,25 +72,77 @@ class PlaybackHistoryImpl(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override fun CoroutineScope.startRecording(playback: Playback) {
+    override fun CoroutineScope.startRecording(
+        playback: Playback,
+        restoreState: StateFlow<HistoryRestoreState>?,
+    ) {
         // 监听队列变化 → 持久化 playlist 信息
-        playback.queue.expandedItems
-            .onEach { state ->
-                historyStorage.savePlayId(state.currentItem()?.id ?: "")
-                historyStorage.savePlaylistIds(state.list.map { it.id })
+        val queuePersistence = restoreState?.let { state ->
+            combine(playback.queue.expandedItems, state) { queue, restore ->
+                queue to (restore as? HistoryRestoreState.Pending)
+            }
+        } ?: playback.queue.expandedItems.map { queue -> queue to null }
+
+        queuePersistence
+            .onEach { (state, restore) ->
+                val persistence = historyQueuePersistence(state, restore)
+                persistence.currentId?.let(historyStorage::savePlayId)
+                persistence.playlistIds?.let(historyStorage::savePlaylistIds)
             }
             .launchIn(this)
+
+        // 缺失的历史 current 已回退，或用户在部分队列中主动改选时，旧 position 不再属于新歌曲。
+        restoreState
+            ?.map { state ->
+                state is HistoryRestoreState.Pending &&
+                    state.currentRestored &&
+                    state.currentId == null
+            }
+            ?.distinctUntilChanged()
+            ?.filter { it }
+            ?.onEach { historyStorage.savePosition(0L) }
+            ?.launchIn(this)
 
         // 监听播放状态 → 持久化 position
         // 使用 transformLatest 确保前一个 position 循环在状态切换时自动取消
         playback.isPlaying
             .transformLatest<Boolean, Unit> { isPlaying ->
                 while (isActive) {
-                    historyStorage.savePosition(playback.currentPosition())
+                    if (canPersistPlaybackPosition(restoreState?.value)) {
+                        historyStorage.savePosition(playback.currentPosition())
+                    }
                     if (!isPlaying) break
                     delay(1000.milliseconds)
                 }
             }
             .launchIn(this)
     }
+}
+
+internal data class HistoryQueuePersistence(
+    /** null 表示本次保留已持久化的历史 currentId。 */
+    val currentId: String?,
+    /** null 表示本次保留包含未解析 ID 的完整历史列表。 */
+    val playlistIds: List<String>?,
+)
+
+/** 历史 current/position 尚未真正应用到播放器时，保留上一次持久化的位置。 */
+internal fun canPersistPlaybackPosition(restoreState: HistoryRestoreState?): Boolean =
+    (restoreState as? HistoryRestoreState.Pending)?.currentRestored != false
+
+internal fun historyQueuePersistence(
+    state: QueueState,
+    restore: HistoryRestoreState.Pending?,
+): HistoryQueuePersistence {
+    val queueIds = state.list.map { it.id }
+    val isRestoringPartialQueue = restore != null && queueIds == restore.resolvedIds
+    val shouldPreserveCurrent = restore != null &&
+        isRestoringPartialQueue &&
+        restore.currentId != null &&
+        restore.currentId !in restore.resolvedIds
+
+    return HistoryQueuePersistence(
+        currentId = if (shouldPreserveCurrent) null else state.currentItem()?.id.orEmpty(),
+        playlistIds = if (isRestoringPartialQueue) null else queueIds,
+    )
 }

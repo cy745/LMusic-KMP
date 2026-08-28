@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -21,6 +22,7 @@ import com.lalilu.lmedia.domain.repository.SourceStatus
 import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 /** 公共卡片向来源专用 UI 暴露的只读流水线状态。 */
@@ -46,6 +48,7 @@ fun MediaSource.SourcePipelineCard(
     content: @Composable ColumnScope.(SourcePipelineUiState) -> Unit = {},
 ) {
     val repository = koinInject<MediaSourceBindingRepository>()
+    val scope = rememberCoroutineScope()
     val syncState = state.collectAsStateWithLifecycle()
     val latestSnapshot = snapshot.collectAsStateWithLifecycle()
     val sourceStatus = repository.observeSource(name)
@@ -98,6 +101,7 @@ fun MediaSource.SourcePipelineCard(
         CommitStateMessage(
             modifier = Modifier.padding(top = 8.dp),
             state = uiState.commitState,
+            onRetry = { scope.launch { repository.retryCommit(name) } },
         )
 
         content(uiState)
@@ -344,6 +348,7 @@ private fun ErrorMessage(message: String) {
 private fun CommitStateMessage(
     modifier: Modifier,
     state: SnapshotCommitState,
+    onRetry: () -> Unit,
 ) {
     val message = when (state) {
         SnapshotCommitState.Idle,
@@ -354,17 +359,28 @@ private fun CommitStateMessage(
     }
 
     AnimatedVisibility(visible = message != null) {
-        Text(
+        Row(
             modifier = modifier.fillMaxWidth(),
-            text = message.orEmpty(),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (state is SnapshotCommitState.Failed) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-        )
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                modifier = Modifier.weight(1f),
+                text = message.orEmpty(),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (state is SnapshotCommitState.Failed) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            if (state is SnapshotCommitState.Failed) {
+                TextButton(onClick = onRetry) {
+                    Text("重试")
+                }
+            }
+        }
     }
 }

@@ -2,12 +2,12 @@ package com.lalilu.lmedia.data.repository
 
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.common.ext.io
+import com.lalilu.lmedia.data.database.AudioLibraryCounts
 import com.lalilu.lmedia.data.database.ILMediaDatabase
 import com.lalilu.lmedia.domain.repository.MediaLibrarySummary
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.repository.SnapshotCommitState
 import com.lalilu.lmedia.domain.repository.SourceStatus
-import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.SnapshotState
 import kotlinx.coroutines.CoroutineScope
@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.launchIn
@@ -43,13 +44,17 @@ class MediaSourceBindingRepositoryImpl(
     private val scope = CoroutineScope(Dispatchers.io + SupervisorJob())
     private val startMutex = Mutex()
     private var started = false
+    private val committers = mutableMapOf<String, SourceSnapshotCommitter>()
     private val mutableStates = MutableStateFlow(
         platformSource.sources.associate { it.name to SourceStatus() }
     )
 
     override val states: StateFlow<Map<String, SourceStatus>> = mutableStates.asStateFlow()
-    override val summary: StateFlow<MediaLibrarySummary> = states
-        .map(::buildSummary)
+    override val summary: StateFlow<MediaLibrarySummary> = combine(
+        states,
+        database.audioDao().observeLibraryCounts(),
+        ::buildSummary,
+    )
         .stateIn(scope, SharingStarted.Eagerly, MediaLibrarySummary())
 
     init {
@@ -66,6 +71,21 @@ class MediaSourceBindingRepositoryImpl(
             started = true
 
             platformSource.sources.forEach { source ->
+                val committer = SourceSnapshotCommitter(
+                    commit = { snapshot ->
+                        database.mediaDao().insert(snapshot = snapshot, sourceName = source.name)
+                        if (kv.clearUnavailableAfterSync.value) {
+                            database.mediaDao().clearUnavailableMedia(
+                                activeSourceNames = platformSource.sources.map { it.name },
+                            )
+                        }
+                    },
+                    onStateChanged = { commitState ->
+                        updateStatus(source.name) { it.copy(commitState = commitState) }
+                    },
+                )
+                committers[source.name] = committer
+
                 source.state
                     .onEach { syncState ->
                         updateStatus(source.name) { it.copy(syncState = syncState) }
@@ -80,35 +100,18 @@ class MediaSourceBindingRepositoryImpl(
                             it.copy(
                                 resultRevision = snapshot.revision,
                                 songCount = snapshot.audios.size,
-                                commitState = SnapshotCommitState.Committing(snapshot.revision),
                             )
                         }
-
-                        runCatching {
-                            database.mediaDao().insert(snapshot = snapshot, sourceName = source.name)
-                            if (kv.clearUnavailableAfterSync.value) {
-                                database.mediaDao().clearUnavailableMedia(
-                                    activeSourceNames = platformSource.sources.map { it.name },
-                                )
-                            }
-                        }.onSuccess {
-                            updateStatus(source.name) {
-                                it.copy(commitState = SnapshotCommitState.Committed(snapshot.revision))
-                            }
-                        }.onFailure { throwable ->
-                            updateStatus(source.name) {
-                                it.copy(
-                                    commitState = SnapshotCommitState.Failed(
-                                        revision = snapshot.revision,
-                                        message = throwable.message ?: "Unknown database error",
-                                    )
-                                )
-                            }
-                        }
+                        committer.submit(snapshot)
                     }
                     .launchIn(scope)
             }
         }
+    }
+
+    override suspend fun retryCommit(sourceName: String): Boolean {
+        startBinding()
+        return committers[sourceName]?.retry() ?: false
     }
 
     private fun updateStatus(name: String, transform: (SourceStatus) -> SourceStatus) {
@@ -117,7 +120,10 @@ class MediaSourceBindingRepositoryImpl(
         }
     }
 
-    private fun buildSummary(statuses: Map<String, SourceStatus>): MediaLibrarySummary {
+    private fun buildSummary(
+        statuses: Map<String, SourceStatus>,
+        counts: AudioLibraryCounts,
+    ): MediaLibrarySummary {
         val refreshing = statuses.filterValues { it.syncState is SnapshotState.Loading }.keys
         val syncFailures = statuses.mapNotNull { (name, status) ->
             (status.syncState as? SnapshotState.Error)?.message?.let { name to it }
@@ -128,13 +134,14 @@ class MediaSourceBindingRepositoryImpl(
 
         return MediaLibrarySummary(
             refreshingSources = refreshing,
-            failedSources = syncFailures + commitFailures,
+            syncFailures = syncFailures,
             committingSources = statuses.filterValues {
                 it.commitState is SnapshotCommitState.Committing
             }.keys,
-            committedSongCount = statuses.values.sumOf { status ->
-                if (status.commitState is SnapshotCommitState.Committed) status.songCount else 0
-            },
+            commitFailures = commitFailures,
+            databaseSongCount = counts.total,
+            availableSongCount = counts.available,
+            unavailableSongCount = counts.unavailable,
         )
     }
 }
