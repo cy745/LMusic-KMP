@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        tools:targetApi="25">
+    <shortcut
+            android:shortcutId="latest_crash_report"
+            android:enabled="true"
+            android:icon="@drawable/ic_shortcut_crash_report"
+            android:shortcutShortLabel="@string/crash_report_shortcut_short_label"
+            android:shortcutLongLabel="@string/crash_report_shortcut_long_label">
+        <intent
+                android:action="com.lalilu.lmusic.action.OPEN_LATEST_CRASH_REPORT"
+                android:targetPackage="com.lalilu.lmusic.kmp"
+                android:targetClass="com.lalilu.lmusic.CrashReportActivity"/>
+    </shortcut>
+</shortcuts>

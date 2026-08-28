@@ -15,6 +15,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        if (CrashReportStore.showPendingReport(this)) {
+            finish()
+            return
+        }
+
         FileKit.init(this)
 
         // 配置变化会携带原 Intent 重建 Activity；仅在首次创建时消费，避免重复执行外部命令。
