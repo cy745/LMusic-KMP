@@ -86,6 +86,7 @@ jbx-navigationevent-compose = { module = "org.jetbrains.androidx.navigationevent
 krouter-core = { module = "io.github.cy745.KRouter:core", version.ref = "krouter" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentry" }
+sentry-java = { module = "io.sentry:sentry", version.ref = "sentry" }
 kotlin-logging = { module = "io.github.oshai:kotlin-logging", version = "7.0.3" }
 human-readable = { module = "nl.jacobras:Human-Readable", version.ref = "human-readable" }
 xmlutil-core = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlutil" }
