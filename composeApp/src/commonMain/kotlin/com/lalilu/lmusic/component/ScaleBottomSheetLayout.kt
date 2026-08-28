@@ -1,7 +1,7 @@
 package com.lalilu.lmusic.component
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.AbsoluteRoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
@@ -25,7 +25,11 @@ import com.lalilu.component.ModalBottomSheetValue
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.navigation.LocalModalBottomSheetState
 import com.lalilu.navigation.SheetExpandInterceptor
+import com.lalilu.lmusic.settings.DisplayCornerSettingsStore
+import com.lalilu.lmusic.settings.rememberSystemDisplayCornerRadii
+import com.lalilu.lmusic.settings.resolveDisplayCornerRadii
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 
 @Composable
@@ -40,6 +44,34 @@ fun ScaleBottomSheetLayout(
     val scope = rememberCoroutineScope()
     val navigatorBar = WindowInsets.navigationBars.asPaddingValues()
     val ime = WindowInsets.ime.asPaddingValues()
+    val systemCornerRadii = rememberSystemDisplayCornerRadii()
+    val cornerRadii = resolveDisplayCornerRadii(
+        settings = DisplayCornerSettingsStore.settings.value,
+        systemRadii = systemCornerRadii,
+    )
+    val isSheetMoving by remember(bottomSheetState) {
+        derivedStateOf {
+            val state = bottomSheetState.anchoredDraggableState
+            val currentAnchor = state.anchors.positionOf(state.currentValue)
+            val isAwayFromCurrentAnchor = !state.offset.isNaN() &&
+                !currentAnchor.isNaN() &&
+                abs(state.offset - currentAnchor) > 0.5f
+
+            // 手指拖动、松手后的回弹、预见性返回和程序化过渡都可能改变 offset。
+            // 只要布局尚未停稳就保留圆角，避免松手后页面仍在移动而圆角提前消失。
+            isAwayFromCurrentAnchor || state.isAnimationRunning
+        }
+    }
+    val topLeftRadius = if (isSheetMoving) cornerRadii.topLeftDp.dp else 0.dp
+    val topRightRadius = if (isSheetMoving) cornerRadii.topRightDp.dp else 0.dp
+    val playerShape = remember(topLeftRadius, topRightRadius) {
+        AbsoluteRoundedCornerShape(
+            topLeft = topLeftRadius,
+            topRight = topRightRadius,
+            bottomRight = 0.dp,
+            bottomLeft = 0.dp,
+        )
+    }
 
     // 注册"路由跳转后展开底栏"回调：AppRouter 末尾的 SheetExpandInterceptor
     // 在真实跳转时调用。拦截器无法访问 CompositionLocal，只能通过该全局
@@ -96,7 +128,7 @@ fun ScaleBottomSheetLayout(
                                 scaleX = scaleValue.value
                                 scaleY = scaleX
                             }
-                            .clip(RoundedCornerShape(32.dp)),
+                            .clip(playerShape),
                         content = {
                             playerContent.invoke {
                                 // 在PlayerContent完成组合后注册BackHandler，确保顺序正确
