@@ -1,86 +1,112 @@
 package com.lalilu.lmedia.source
 
+import co.touchlab.kermit.Logger
+import com.lalilu.common.ext.io
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.Metadata
+import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
-import com.lalilu.lmedia.domain.source.MediaSource as DomainMediaSource
+import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSourceStateStore
 import com.lalilu.lmedia.domain.source.Snapshot
-import com.lalilu.lmedia.domain.source.buildSnapshot
+import com.lalilu.lmedia.domain.source.SnapshotState
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.mapLatest
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.StateFlow
 import org.koin.core.annotation.Single
 import platform.Foundation.NSURL
-import platform.MediaPlayer.MPMediaItem
-import platform.MediaPlayer.MPMediaLibrary
-import platform.MediaPlayer.MPMediaLibraryAuthorizationStatusAuthorized
-import platform.MediaPlayer.MPMediaLibraryAuthorizationStatusNotDetermined
-import platform.MediaPlayer.MPMediaQuery
+import platform.MediaPlayer.*
 
-@Single(binds = [com.lalilu.lmedia.domain.source.MediaSource::class, MediaDataSource::class])
 @OptIn(ExperimentalForeignApi::class)
-class MediaLibrarySource : DomainMediaSource, MediaDataSource {
+@Single(binds = [MediaSource::class, MediaDataSource::class])
+class MediaLibrarySource : MediaSource, MediaDataSource {
     override val name: String = "MediaLibrarySource"
     override val dataSource: MediaDataSource = this
 
-    private val authorized = MutableStateFlow(false)
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val stateStore = MediaSourceStateStore()
+    override val state: StateFlow<SnapshotState> = stateStore.state
+    override val snapshot: StateFlow<Snapshot?> = stateStore.snapshot
+    override val contentState = stateStore.contentState
+    private var loadingJob: Job? = null
 
-    init {
-        val status = MPMediaLibrary.authorizationStatus()
-        if (status == MPMediaLibraryAuthorizationStatusAuthorized) {
-            authorized.value = true
-        } else if (status == MPMediaLibraryAuthorizationStatusNotDetermined) {
-            MPMediaLibrary.requestAuthorization { newStatus ->
-                if (newStatus == MPMediaLibraryAuthorizationStatusAuthorized) {
-                    authorized.value = true
+    override fun init() {
+        when (MPMediaLibrary.authorizationStatus()) {
+            MPMediaLibraryAuthorizationStatusAuthorized -> refresh()
+            MPMediaLibraryAuthorizationStatusNotDetermined -> {
+                MPMediaLibrary.requestAuthorization { newStatus ->
+                    if (newStatus == MPMediaLibraryAuthorizationStatusAuthorized) {
+                        refresh()
+                    } else {
+                        scope.launch { stateStore.failNewTask("Media library permission denied") }
+                    }
                 }
             }
+
+            else -> scope.launch { stateStore.failNewTask("Media library permission denied") }
         }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    override fun source(): Flow<Snapshot> {
-        return authorized.mapLatest { result ->
-            if (!result) return@mapLatest Snapshot.Empty
-
-            val items = withContext(Dispatchers.Main) {
-                MPMediaQuery.songsQuery().items()
-            }?.filterIsInstance<MPMediaItem>()
-                ?.filter { it.assetURL != null }
-                ?: return@mapLatest Snapshot.Empty
-
-            val songs = items.map { item ->
-                val urlStr: String = (item.assetURL as NSURL).let { it.absoluteString.toString() }
-
-                LAudio(
-                    id = "${LAudio.ID_PREFIX}${item.persistentID}",
-                    title = item.title ?: "Unknown",
-                    subtitle = item.artist ?: "Unknown Subs",
-                    mediaSourceName = name,
-                    metadata = Metadata(
-                        title = item.title,
-                        artist = item.artist,
-                        album = item.albumTitle,
-                        genre = item.genre ?: "",
-                        track = item.albumTrackNumber.toString(),
-                        disc = item.discNumber.toString(),
-                        duration = (item.playbackDuration * 1000).toLong(),
-                    ),
-                    extra = mapOf("assetURL" to urlStr)
-                )
+    private fun refresh() {
+        loadingJob?.cancel()
+        loadingJob = scope.launch {
+            val taskId = stateStore.begin()
+            try {
+                stateStore.succeed(taskId, load())
+            } catch (cancelled: CancellationException) {
+                stateStore.cancel(taskId)
+                throw cancelled
+            } catch (throwable: Throwable) {
+                Logger.e(tag = name, throwable = throwable, messageString = "Media library scan failed")
+                stateStore.fail(taskId, throwable.message ?: "Unknown error")
             }
-
-            return@mapLatest buildSnapshot(songs)
         }
     }
 
-    override suspend fun getMedia(song: LAudio): MediaData? {
-        val url = song.extra?.get("assetURL") ?: return null
-        return MediaData.Url(url)
+    private suspend fun load(): List<LAudio> {
+        val items = withContext(Dispatchers.Main) {
+            MPMediaQuery.songsQuery().items()
+        }?.filterIsInstance<MPMediaItem>()
+            ?.filter { it.assetURL != null }
+            .orEmpty()
+
+        return items.map { item ->
+            val url = (item.assetURL as NSURL).absoluteString.toString()
+            val artist = item.artist?.takeIf(String::isNotBlank) ?: "Unknown"
+            LAudio(
+                id = "${LAudio.ID_PREFIX}${item.persistentID}",
+                title = item.title ?: "Unknown",
+                subtitle = artist,
+                mediaSourceName = name,
+                extra = buildMap {
+                    put("assetURL", url)
+                    put("sourceId", item.persistentID.toString())
+                    item.artistPersistentID.takeIf { it > 0uL }
+                        ?.let { put(LAudioExtraKeys.ArtistId, it.toString()) }
+                    put(LAudioExtraKeys.ArtistName, artist)
+                    item.albumPersistentID.takeIf { it > 0uL }
+                        ?.let { put(LAudioExtraKeys.AlbumId, it.toString()) }
+                    item.albumTitle?.takeIf(String::isNotBlank)
+                        ?.let { put(LAudioExtraKeys.AlbumName, it) }
+                    item.albumArtist?.takeIf(String::isNotBlank)
+                        ?.let { put(LAudioExtraKeys.AlbumArtist, it) }
+                    item.genre?.takeIf(String::isNotBlank)
+                        ?.let { put(LAudioExtraKeys.Genre, it) }
+                    item.albumTrackNumber.takeIf { it > 0u }
+                        ?.let { put(LAudioExtraKeys.Track, it.toString()) }
+                    item.discNumber.takeIf { it > 0u }
+                        ?.let { put(LAudioExtraKeys.Disc, it.toString()) }
+                    (item.playbackDuration * 1000).toLong().takeIf { it > 0L }
+                        ?.let { put(LAudioExtraKeys.Duration, it.toString()) }
+                },
+            )
+        }
+    }
+
+    override suspend fun getMedia(song: LAudio): MediaData? =
+        song.extra?.get("assetURL")?.let(MediaData::Url)
+
+    private suspend fun MediaSourceStateStore.failNewTask(message: String) {
+        fail(begin(), message)
     }
 }

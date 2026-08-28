@@ -35,7 +35,13 @@ import com.lalilu.preview.preview
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.domain.model.LArtist
-import com.lalilu.lmedia.domain.model.Metadata as DomainMetadata
+import com.lalilu.lmedia.domain.model.LAudioExtraKeys
+import com.lalilu.lmedia.domain.model.albumArtist
+import com.lalilu.lmedia.domain.model.albumName
+import com.lalilu.lmedia.domain.model.artistName
+import com.lalilu.lmedia.domain.model.duration
+import com.lalilu.lmedia.domain.model.genre
+import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.slotContent
 import kotlinx.serialization.Serializable
 import org.koin.compose.viewmodel.koinViewModel
@@ -96,14 +102,23 @@ fun SongDetailScreenContent(
     sharedMap: Map<String, String> = emptyMap(),
 ) = SharedContext(sharedMap = sharedMap) {
     val context = LocalPlatformContext.current
-    val coverData = remember(song) {
+    val coverModel = rememberMediaCoverRequest(song)
+    val coverData = remember(coverModel, coverCacheKey) {
         ImageRequest.Builder(context)
             .placeholderMemoryCacheKey(coverCacheKey)
-            .data(song)
+            .data(coverModel)
             .build()
     }
     val songsInfo = remember(song) {
-        val baseInfo = (song?.extra ?: emptyMap()) + (song?.metadata?.toMap() ?: emptyMap())
+        val baseInfo = buildMap {
+            song?.extra?.let(::putAll)
+            song?.artistName?.let { put(LAudioExtraKeys.ArtistName, it) }
+            song?.albumName?.let { put(LAudioExtraKeys.AlbumName, it) }
+            song?.albumArtist?.let { put(LAudioExtraKeys.AlbumArtist, it) }
+            song?.genre?.let { put(LAudioExtraKeys.Genre, it) }
+            song?.duration?.takeIf { it > 0L }
+                ?.let { put(LAudioExtraKeys.Duration, it.toString()) }
+        }
         val withSource = song?.mediaSourceName?.takeIf { it.isNotBlank() }
             ?.let { baseInfo + ("数据源" to it) }
             ?: baseInfo
@@ -228,22 +243,11 @@ private fun SongDetailScreenContentPreview() = preview {
         id = "id",
         title = "ライアーメイデン (feat. りぃふ)",
         subtitle = "ヤバス/りぃふ",
-        extra = mapOf(),
-        metadata = DomainMetadata(
-            title = "ライアーメイデン (feat. りぃふ)",
-            album = "ヤバス/りぃふ",
-            artist = "artist",
-            albumArtist = "albumArtist",
-            composer = "composer",
-            lyricist = "",
-            comment = "",
-            genre = "",
-            track = "",
-            disc = "",
-            date = "",
-            duration = 0,
-            dateAdded = 0,
-            dateModified = 0
+        extra = mapOf(
+            LAudioExtraKeys.AlbumName to "ヤバス/りぃふ",
+            LAudioExtraKeys.ArtistName to "artist",
+            LAudioExtraKeys.AlbumArtist to "albumArtist",
+            LAudioExtraKeys.Composer to "composer",
         ),
         mediaSourceName = ""
     )

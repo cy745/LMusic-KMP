@@ -2,6 +2,7 @@ package com.lalilu.lmedia.source.mediastore
 
 import android.content.Context
 import android.provider.MediaStore
+import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.source.MediaSource
 
 open class Api21MediaStoreScanner(
@@ -16,6 +17,6 @@ open class Api21MediaStoreScanner(
 
     override fun onExtras(cursor: android.database.Cursor, extras: MutableMap<String, String>) {
         val trackIdx = cursor.getColumnIndex(MediaStore.Audio.AudioColumns.TRACK)
-        getStringOrNull(cursor, trackIdx)?.let { extras["track"] = it }
+        getStringOrNull(cursor, trackIdx)?.let { extras[LAudioExtraKeys.Track] = it }
     }
 }

@@ -8,8 +8,10 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
@@ -217,6 +219,7 @@ object SheetExpandInterceptor : NavInterceptor {
 object AppRouter {
     private val logger = Logger.withTag("AppRouter")
     private val sharedFlow = MutableSharedFlow<NavIntent>()
+    private val isBound = MutableStateFlow(false)
     private var handler: NavHandler = DefaultHandler
     private val interceptors = mutableListOf<NavInterceptor>(
         DefaultTooFastJumpingInterceptor,
@@ -245,17 +248,22 @@ object AppRouter {
 
         // 处理 NavIntent 驱动的跳转
         launch {
-            sharedFlow.collect { intent ->
-                interceptors
-                    .fold(intent) { temp, interceptor ->
-                        val result = interceptor.intercept(backStack, temp)
-                        if (result != temp) {
-                            logger.i { "⛔ Interceptor ${interceptor.name} intercepted: $temp → $result" }
+            isBound.value = true
+            try {
+                sharedFlow.collect { intent ->
+                    interceptors
+                        .fold(intent) { temp, interceptor ->
+                            val result = interceptor.intercept(backStack, temp)
+                            if (result != temp) {
+                                logger.i { "⛔ Interceptor ${interceptor.name} intercepted: $temp → $result" }
+                            }
+                            result
                         }
-                        result
-                    }
-                    .let { handler.handle(backStack, it) }
-                onHandler()
+                        .let { handler.handle(backStack, it) }
+                    onHandler()
+                }
+            } finally {
+                isBound.value = false
             }
         }
     }
@@ -271,6 +279,8 @@ object AppRouter {
                 is NavIntent.None -> "⏭️ NONE"
             }
         }
+        // 冷启动 Deep Link 可能早于首帧导航栈绑定；等待绑定后再发送，避免 SharedFlow 丢事件。
+        isBound.first { it }
         sharedFlow.emit(intent)
     }
 

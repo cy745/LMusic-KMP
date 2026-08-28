@@ -102,6 +102,9 @@ if (upxEnabled) {
 dependencies {
     implementation(project(":composeApp"))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.kermit)
+    implementation(libs.sentry.android)
     implementation(libs.androidx.startup.runtime)
     implementation(libs.koin.androidx.startup)
     implementation(libs.filekit.core)

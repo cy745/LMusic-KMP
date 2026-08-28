@@ -24,6 +24,7 @@ import coil3.compose.AsyncImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.rememberSharedMap
+import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 
@@ -48,6 +49,7 @@ fun RecommendCard(
         )
     ) {
         val interactionSource = remember { MutableInteractionSource() }
+        val coverData = rememberMediaCoverRequest(imageData)
 
         Column(
             modifier = modifier
@@ -74,7 +76,7 @@ fun RecommendCard(
                     )
                     .background(MaterialTheme.colorScheme.onBackground.copy(0.15f)),
                 contentScale = ContentScale.Crop,
-                model = imageData,
+                model = coverData,
                 contentDescription = null
             )
             Text(

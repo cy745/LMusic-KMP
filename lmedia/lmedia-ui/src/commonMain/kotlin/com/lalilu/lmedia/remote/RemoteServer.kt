@@ -30,7 +30,10 @@ class RemoteServer(
             Logger.e(TAG, throwable)
         }
 
-    val config by lazy { kv.obtain<RemoteServerConfig>(CONFIG_KEY, RemoteServerConfig.Empty) }
+    val config by lazy {
+        kv.obtain<RemoteServerConfig>(CONFIG_KEY, RemoteServerConfig.Empty)
+            .apply { disableAutoSave() }
+    }
     val running by lazy { mutableStateOf(false) }
     private var server: LMediaServer? = null
 

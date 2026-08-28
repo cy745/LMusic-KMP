@@ -1,6 +1,7 @@
 package com.lalilu.lmusic
 
 import android.app.Application
+import android.content.Context
 import android.os.Build
 import coil3.SingletonImageLoader
 import coil3.gif.AnimatedImageDecoder
@@ -19,6 +20,11 @@ import org.koin.dsl.KoinConfiguration
 
 @OptIn(KoinExperimentalAPI::class)
 class MainApplication : Application(), KoinStartup {
+
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(base)
+        OfflineSentryReporter.install(this)
+    }
 
     override fun onKoinStartup(): KoinConfiguration = KoinConfiguration {
         // 传入context到settings

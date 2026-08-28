@@ -28,6 +28,7 @@ import com.lalilu.lalbum.viewmodel.AlbumDetailEvent
 import com.lalilu.lmedia.component.AudioItemCard
 import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.duration
 import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
 import com.lalilu.lplayer.action.PlayerAction
@@ -149,7 +150,7 @@ internal fun AlbumDetailScreenContent(
 
                         if (songs.itemList.isNotEmpty()) {
                             val tips = remember(songs) {
-                                val sumDuration = songs.itemList.sumOf { song -> song.metadata.duration }
+                                val sumDuration = songs.itemList.sumOf(LAudio::duration)
                                     .toDuration(DurationUnit.MILLISECONDS)
                                 val sumDurationStr = HumanReadable.duration(sumDuration)
                                 "共 ${songs.itemList.size} 首歌曲 · 总时长 $sumDurationStr"

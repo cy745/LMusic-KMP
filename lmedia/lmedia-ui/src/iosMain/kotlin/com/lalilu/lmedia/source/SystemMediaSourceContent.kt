@@ -1,33 +1,28 @@
 package com.lalilu.lmedia.source
 
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lalilu.component.LazyStaggeredGridContent
-import com.lalilu.lmedia.component.SourceCard
-import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.component.SourcePipelineCard
 
 fun MediaLibrarySource.mediaLibrarySourceContent(modifier: Modifier) = LazyStaggeredGridContent {
-    val state by source().collectAsStateWithLifecycle(initialValue = Snapshot.Idle)
-
     return@LazyStaggeredGridContent {
         item(key = this@mediaLibrarySourceContent.name) {
-            SourceCard(
+            SourcePipelineCard(
                 modifier = modifier,
-                state = { state },
+                title = "系统媒体库",
+                description = "读取系统媒体资料库中的音频",
             )
         }
     }
 }
 
 fun MusicKitSource.musicKitSourceContent(modifier: Modifier) = LazyStaggeredGridContent {
-    val state by source().collectAsStateWithLifecycle(initialValue = Snapshot.Idle)
-
     return@LazyStaggeredGridContent {
         item(key = this@musicKitSourceContent.name) {
-            SourceCard(
+            SourcePipelineCard(
                 modifier = modifier,
-                state = { state },
+                title = "MusicKit",
+                description = "读取 Apple Music 媒体资料库",
             )
         }
     }

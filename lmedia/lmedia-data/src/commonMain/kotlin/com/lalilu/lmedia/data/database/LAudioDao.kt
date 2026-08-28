@@ -46,7 +46,4 @@ interface LAudioDao {
             ids.mapNotNull { map[it]?.audio }
         }
 
-    @Transaction
-    @Query("DELETE FROM l_audio WHERE available = false;")
-    suspend fun clearUnavailableAudio()
 }

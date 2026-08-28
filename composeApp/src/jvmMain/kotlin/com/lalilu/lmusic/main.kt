@@ -14,7 +14,19 @@ import org.jetbrains.skiko.hostOs
 import org.koin.core.context.startKoin
 
 @OptIn(InternalComposeUiApi::class)
-fun main() {
+fun main(args: Array<String>) {
+    val crashReportRequest = DesktopCrashReporter.parseRequest(args)
+    if (crashReportRequest != null) {
+        DesktopCrashReporter.show(crashReportRequest)
+        return
+    }
+
+    DesktopCrashReportStore.latestReportId(onlyUnviewed = true)?.let { reportId ->
+        DesktopCrashReporter.show(DesktopCrashReportRequest(reportId))
+        return
+    }
+    DesktopOfflineSentryReporter.install()
+
     FileKit.init(appId = "LMusic")
     startKoin { koinSetup() }
     platformSetupCoil()

@@ -7,10 +7,15 @@ import com.github.ajalt.clikt.parameters.arguments.default
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
+import com.lalilu.common.kv.testing.InMemoryKVSaver
+import com.lalilu.lmedia.LMediaKV
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.server.LMediaServer
 import com.lalilu.lmedia.server.entity.RemoteServerConfig
 import com.lalilu.lmedia.source.JvmFileSystemSource
 import kotlinx.serialization.json.Json
+import org.koin.core.context.startKoin
+import org.koin.dsl.module
 
 suspend fun main(args: Array<String>) {
     LMediaServerCommand.main(args)
@@ -28,8 +33,12 @@ object LMediaServerCommand : SuspendingCliktCommand() {
         echo("Hello World!: $path listen on $port")
 
         val json = Json { ignoreUnknownKeys = true }
-        val jvmSource = JvmFileSystemSource()
-        jvmSource.config.update { setter -> setter("file_path", path) }
+        startKoin { modules(module { single { json } }) }
+
+        val jvmSource = JvmFileSystemSource(
+            kv = LMediaKV(InMemoryKVSaver()),
+        )
+        jvmSource.selectDirectory(path)
 
         val server = LMediaServer(
             config = RemoteServerConfig(

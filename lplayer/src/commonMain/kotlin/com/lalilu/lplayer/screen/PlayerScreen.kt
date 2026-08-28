@@ -5,9 +5,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -18,12 +18,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.util.lerp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import co.touchlab.kermit.Logger
@@ -39,6 +39,7 @@ import com.lalilu.krouter.annotation.Destination
 import com.lalilu.llyricview.LyricLayout
 import com.lalilu.llyricview.LyricSettings
 import com.lalilu.llyricview.provideLyricSettingsQuick
+import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.*
@@ -46,15 +47,15 @@ import com.lalilu.lplayer.extensions.PlayMode
 import com.lalilu.lplayer.lplayer.generated.resources.Res
 import com.lalilu.lplayer.lplayer.generated.resources.player_screen_title
 import com.lalilu.lplayer.viewmodel.PlayerViewModel
-import com.lalilu.navigation.*
 import com.lalilu.lsettings.SettingsScreenContent
+import com.lalilu.navigation.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.vectorResource
 import org.koin.compose.koinInject
-import org.koin.core.qualifier.named
 import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.qualifier.named
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.pow
@@ -84,6 +85,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
 
         val isPlaying = vm.isPlaying.collectAsState()
         val currentItem = vm.currentItem.collectAsState(null)
+        val currentCover = rememberMediaCoverRequest(currentItem.value)
         val currentTime = vm.currentTime
         val isLyricScrollEnable = remember { mutableStateOf(false) }
 
@@ -334,7 +336,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
                             },
                         blurProgress = { middleToMaxProgress.value },
                         onColorPairFetched = { bgColor, cColor -> seedColor.value = bgColor },
-                        imageData = { currentItem.value ?: "" }
+                        imageData = { currentCover ?: "" }
                     )
 
                     LyricLayout(

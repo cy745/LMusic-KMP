@@ -1,16 +1,16 @@
 package com.lalilu.lmedia.entity
 
+import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import kotlinx.serialization.Serializable
 
 /**
- * Re-export of [com.lalilu.lmedia.domain.model.Metadata] for JNI compatibility.
+ * Taglib 扫描阶段使用的 JNI 中转对象。
  *
- * The native lib-decoder-flac library references
+ * native lib-decoder-flac library references
  * "com.lalilu.lmedia.entity.Metadata" directly via JNI calls.
  * Removing this class causes ClassNotFoundException at runtime.
  *
- * TODO: Rebuild native libraries to reference
- *       com.lalilu.lmedia.domain.model.Metadata directly, then delete this file.
+ * 扫描完成后应立即通过 [toAudioExtra] 写入 LAudio.extra，不应让该类型进入领域模型或数据库。
  */
 @Serializable
 data class Metadata(
@@ -32,32 +32,39 @@ data class Metadata(
     companion object {
         val EMPTY = Metadata()
     }
-
-    fun toMap(): Map<String, String> {
-        return mapOf(
-            "title" to (title ?: ""),
-            "album" to (album ?: ""),
-            "artist" to (artist ?: ""),
-            "albumArtist" to albumArtist,
-            "composer" to composer,
-            "lyricist" to lyricist,
-            "comment" to comment,
-            "genre" to genre,
-            "track" to track,
-            "disc" to disc,
-            "date" to date,
-            "duration" to duration.toString(),
-            "dateAdded" to dateAdded.toString(),
-            "dateModified" to dateModified.toString()
-        )
-    }
 }
 
-/** Convert domain Metadata → entity Metadata (JNI-compatible). */
-fun com.lalilu.lmedia.domain.model.Metadata.toEntityMetadata() = Metadata(
-    title = this.title, album = this.album, artist = this.artist,
-    albumArtist = this.albumArtist, composer = this.composer, lyricist = this.lyricist,
-    comment = this.comment, genre = this.genre, track = this.track,
-    disc = this.disc, date = this.date, duration = this.duration,
-    dateAdded = this.dateAdded, dateModified = this.dateModified
-)
+/**
+ * 将 Taglib/JNI 返回的临时 Metadata 转换为歌曲长期保存的稀疏 extra。
+ * 空字符串和 0 不写入，数据源自己的 uri、path 等字段通过 [sourceExtra] 一并保留。
+ */
+fun Metadata.toAudioExtra(
+    sourceExtra: Map<String, String> = emptyMap(),
+    artistId: String? = null,
+    albumId: String? = null,
+): Map<String, String> = buildMap {
+    putAll(sourceExtra)
+    putIfNotBlank(LAudioExtraKeys.ArtistId, artistId)
+    putIfNotBlank(LAudioExtraKeys.ArtistName, artist)
+    putIfNotBlank(LAudioExtraKeys.AlbumId, albumId)
+    putIfNotBlank(LAudioExtraKeys.AlbumName, album)
+    putIfNotBlank(LAudioExtraKeys.AlbumArtist, albumArtist)
+    putIfNotBlank(LAudioExtraKeys.Genre, genre)
+    putIfNotBlank(LAudioExtraKeys.Composer, composer)
+    putIfNotBlank(LAudioExtraKeys.Lyricist, lyricist)
+    putIfNotBlank(LAudioExtraKeys.Comment, comment)
+    putIfNotBlank(LAudioExtraKeys.Track, track)
+    putIfNotBlank(LAudioExtraKeys.Disc, disc)
+    putIfNotBlank(LAudioExtraKeys.Date, date)
+    putIfPositive(LAudioExtraKeys.Duration, duration)
+    putIfPositive(LAudioExtraKeys.DateAdded, dateAdded)
+    putIfPositive(LAudioExtraKeys.DateModified, dateModified)
+}
+
+private fun MutableMap<String, String>.putIfNotBlank(key: String, value: String?) {
+    value?.takeIf { it.isNotBlank() }?.let { put(key, it) }
+}
+
+private fun MutableMap<String, String>.putIfPositive(key: String, value: Long) {
+    value.takeIf { it > 0L }?.let { put(key, it.toString()) }
+}

@@ -2,6 +2,7 @@ package com.lalilu.lmedia.source.mediastore
 
 import android.content.Context
 import android.provider.MediaStore
+import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.source.MediaSource
 
 open class Api30MediaStoreScanner(
@@ -20,10 +21,10 @@ open class Api30MediaStoreScanner(
 
         // CD_TRACK_NUMBER is the non-deprecated replacement for TRACK on API 30+
         val trackIdx = cursor.getColumnIndex(MediaStore.Audio.AudioColumns.CD_TRACK_NUMBER)
-        getStringOrNull(cursor, trackIdx)?.let { extras["track"] = it }
+        getStringOrNull(cursor, trackIdx)?.let { extras[LAudioExtraKeys.Track] = it }
 
         val discIdx = cursor.getColumnIndex(MediaStore.Audio.AudioColumns.DISC_NUMBER)
-        getStringOrNull(cursor, discIdx)?.let { extras["disc"] = it }
+        getStringOrNull(cursor, discIdx)?.let { extras[LAudioExtraKeys.Disc] = it }
 
         val bitrateIdx = cursor.getColumnIndex(MediaStore.Audio.AudioColumns.BITRATE)
         getStringOrNull(cursor, bitrateIdx)?.let { extras["bitrate"] = it }

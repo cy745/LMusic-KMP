@@ -1,33 +1,32 @@
 package com.lalilu.lplayer.playback
 
-import com.lalilu.common.ext.io
 import com.lalilu.lmedia.domain.model.LAudio
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class PlayableQueueImpl(
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.io + SupervisorJob())
-) : PlayableQueue {
+class PlayableQueueImpl : PlayableQueue {
     private val _rawQueue = MutableStateFlow(QueueState())
+    private val updateMutex = Mutex()
 
-    override val expandedItems: StateFlow<QueueState> = _rawQueue
-        .stateIn(scope = scope, started = SharingStarted.Lazily, initialValue = QueueState())
+    // _rawQueue 本身已经是热 StateFlow；直接暴露只读视图，确保首次订阅前的更新也能被 stateSnapshot 读取。
+    override val expandedItems: StateFlow<QueueState> = _rawQueue.asStateFlow()
 
     override suspend fun update(
         updateReason: QueueUpdateReason,
-        block: QueueUpdateRequest.() -> Unit
-    ) {
-        val request = QueueUpdateRequest(_rawQueue.value)
-        request.block()
-        _rawQueue.emit(request.build(updateReason))
+        predicate: (QueueState) -> Boolean,
+        block: QueueUpdateRequest.() -> Unit,
+    ) = updateMutex.withLock {
+        val current = _rawQueue.value
+        if (!predicate(current)) return@withLock
+
+        val request = QueueUpdateRequest(current).apply(block)
+        _rawQueue.value = request.build(updateReason)
     }
 
     override fun previousOf(target: LAudio): LAudio? {

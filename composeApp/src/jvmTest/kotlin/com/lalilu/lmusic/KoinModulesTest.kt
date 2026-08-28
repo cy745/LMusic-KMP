@@ -1,6 +1,7 @@
 package com.lalilu.lmusic
 
 import com.lalilu.common.kv.KVSaver
+import com.lalilu.lmedia.LMediaKV
 import com.russhwolf.settings.ObservableSettings
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.observable.makeObservable
@@ -24,7 +25,7 @@ class KoinModulesTest {
             override fun <T> readData(key: String, defaultValue: T?, clazz: kotlin.reflect.KClass<*>): T = defaultValue as T
             override fun <T> saveData(key: String, value: T?, clazz: kotlin.reflect.KClass<*>) {}
         } }
-        single<com.lalilu.lmedia.source.Saver> { com.lalilu.lmedia.source.Saver.Empty }
+        single { LMediaKV(get()) }
     }
 
     /** Providers needing Android Context / Koin Scope / platform APIs.
@@ -34,6 +35,7 @@ class KoinModulesTest {
      *  - LPlayerModule, LMediaModule → PlatformMediaSource needs Koin Scope
      *  - LMediaDataModule → LMedia needs PlatformMediaSource
      *  - LMediaUiModule → RemoteServer needs PlatformMediaSource
+     *  - LFontModule → FontManager needs FileKit platform initialization
      *  - LHistoryModule → may need Android-specific deps
      *  Feature modules (LHome, LAlbum...) depend on data interfaces from
      *  LMediaDataModule, so they pass only when tested together on-device.
@@ -49,6 +51,8 @@ class KoinModulesTest {
         "LAlbumModuleProvider",
         "LArtistModuleProvider",
         "LPlaylistModuleProvider",
+        "LSearchModuleProvider",
+        "LFontModuleProvider",
         "LMediaDomainModuleProvider",
     )
 

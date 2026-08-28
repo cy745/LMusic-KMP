@@ -1,22 +1,17 @@
 package com.lalilu.lmedia.component
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.lalilu.lmedia.domain.source.Snapshot
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -25,96 +20,52 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
+/** 面向用户的紧凑结果摘要；revision 等内部字段不再占用卡片的主要视觉层级。 */
 @OptIn(ExperimentalTime::class)
 @Composable
 fun SnapshotPreviewCard(
+    snapshot: Snapshot,
     modifier: Modifier = Modifier,
-    snapshot: () -> Snapshot
 ) {
-    val value = snapshot()
+    val timeText = remember(snapshot.updateTime) {
+        val updateTime = snapshot.updateTime
+        val instant = Instant.fromEpochMilliseconds(updateTime)
+        if (Clock.System.now().toEpochMilliseconds() - updateTime > 3600 * 1000) {
+            instant.toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+        } else {
+            HumanReadable.timeAgo(instant)
+        }
+    }
 
-    Column(modifier = modifier) {
-        FlowRow(
-            modifier = Modifier
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Card(
-                modifier = Modifier,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
-                )
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    modifier = Modifier.padding(12.dp),
-                    text = "Songs: ${value.audios.size}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black
+                    text = "${snapshot.audios.size} 首歌曲",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "最近一次成功结果",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-
-            Card(
-                modifier = Modifier,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
-                )
-            ) {
-                Text(
-                    modifier = Modifier.padding(12.dp),
-                    text = "Albums: ${value.albums.size}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-
-            Card(
-                modifier = Modifier,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
-                )
-            ) {
-                Text(
-                    modifier = Modifier.padding(12.dp),
-                    text = "Artists: ${value.artists.size}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-
-            Card(
-                modifier = Modifier,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(0.5f)
-                )
-            ) {
-                Text(
-                    modifier = Modifier.padding(12.dp),
-                    text = "Genres: ${value.genres.size}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
+            Text(
+                text = timeText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-
-        val timeAgo = remember(value) {
-            val updateTime = value.updateTime
-            val instant = Instant.fromEpochMilliseconds(updateTime)
-            if (Clock.System.now().toEpochMilliseconds() - updateTime > 3600 * 1000) {
-                return@remember "最近更新：" + instant.toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
-            }
-            "最近更新：${HumanReadable.timeAgo(instant)}"
-        }
-
-        Text(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .alpha(0.3f),
-            text = timeAgo,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.labelSmall,
-        )
     }
 }

@@ -82,6 +82,19 @@ jobs:
         with:
           name: LMusic-snapshot-android
           path: ${{ github.workspace }}/androidApp/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      # mapping.txt 必须与生成它的 APK 一一对应；提交 SHA 放在 Artifact 名称中，
+      # 便于收到离线崩溃反馈后找到正确的映射文件。
+      # mapping 仅保留在 CI Artifact 中，不进入面向用户的 Snapshot Release。
+      - name: Upload R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: LMusic-android-mapping-${{ github.sha }}
+          path: ${{ github.workspace }}/androidApp/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 9
 
   build-windows:
     name: Windows
@@ -302,6 +315,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: snapshot-artifacts
+          pattern: LMusic-snapshot-*
           merge-multiple: true
 
       - name: Show downloaded artifacts

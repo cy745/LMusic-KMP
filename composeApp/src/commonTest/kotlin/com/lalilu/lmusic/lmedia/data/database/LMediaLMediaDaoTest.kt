@@ -1,18 +1,16 @@
 package com.lalilu.lmusic.lmedia.data.database
 
-import com.lalilu.lmedia.data.entity.LAlbumEntity
-import com.lalilu.lmedia.data.entity.LArtistEntity
-import com.lalilu.lmedia.data.entity.LAudioEntity
-import com.lalilu.lmedia.data.entity.LGenreEntity
+import com.lalilu.lmedia.data.mapper.toEntity
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.Metadata
-import com.lalilu.lmedia.domain.source.buildSnapshot
+import com.lalilu.lmedia.domain.model.LAudioExtraKeys
+import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmusic.impl.LMusicDatabase
 import com.lalilu.lmusic.impl.requireDatabase
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -26,30 +24,26 @@ class LMediaLMediaDaoTest {
 
     @Test
     fun testInsertSnapshot() = runTest {
-        val snapshot = buildSnapshot(listOf(
+        val snapshot = Snapshot(listOf(
             LAudio(
                 id = "song-1", title = "夜的第七章", subtitle = "",
-                metadata = Metadata(artist = "周杰伦", album = "依然范特西", genre = "流行"),
+                extra = audioExtra("周杰伦", "依然范特西", "流行"),
                 mediaSourceName = "local"
             ),
             LAudio(
                 id = "song-2", title = "告白气球", subtitle = "",
-                metadata = Metadata(artist = "周杰伦", album = "周杰伦的床边故事", genre = "流行"),
+                extra = audioExtra("周杰伦", "周杰伦的床边故事", "流行"),
                 mediaSourceName = "local"
             ),
             LAudio(
                 id = "song-3", title = "稻香", subtitle = "",
-                metadata = Metadata(artist = "周杰伦", album = "依然范特西", genre = "流行"),
+                extra = audioExtra("周杰伦", "依然范特西", "流行"),
                 mediaSourceName = "local"
             )
         ))
 
         assertEquals(3, snapshot.audios.size)
-        assertEquals(2, snapshot.albums.size)
-        assertTrue(snapshot.artists.size >= 1)
-        assertEquals(1, snapshot.genres.size)
-
-        db.mediaDao().insert(snapshot, "")
+        db.mediaDao().insert(snapshot, "local")
 
         val allAudios = audioDao.getAllAudio().firstOrNull()
         assertNotNull(allAudios)
@@ -70,17 +64,15 @@ class LMediaLMediaDaoTest {
 
     @Test
     fun testMultipleArtistsFromAudio() = runTest {
-        val snapshot = buildSnapshot(listOf(
+        val snapshot = Snapshot(listOf(
             LAudio(
                 id = "song-multi", title = "夜曲", subtitle = "",
-                metadata = Metadata(artist = "周杰伦/方文山", album = "十一月的萧邦", genre = "流行"),
+                extra = audioExtra("周杰伦/方文山", "十一月的萧邦", "流行"),
                 mediaSourceName = "local"
             )
         ))
 
-        assertEquals(2, snapshot.artists.size)
-
-        db.mediaDao().insert(snapshot, "")
+        db.mediaDao().insert(snapshot, "local")
 
         val allArtists = artistDao.getAllArtist().firstOrNull()
         assertNotNull(allArtists)
@@ -89,19 +81,16 @@ class LMediaLMediaDaoTest {
 
     @Test
     fun testMultipleAlbums() = runTest {
-        val snapshot = buildSnapshot(listOf(
+        val snapshot = Snapshot(listOf(
             LAudio(id = "song-a", title = "歌曲A", subtitle = "",
-                metadata = Metadata(artist = "artist-a", album = "专辑A", genre = "流行"),
+                extra = audioExtra("artist-a", "专辑A", "流行"),
                 mediaSourceName = "local"),
             LAudio(id = "song-b", title = "歌曲B", subtitle = "",
-                metadata = Metadata(artist = "artist-b", album = "专辑B", genre = "摇滚"),
+                extra = audioExtra("artist-b", "专辑B", "摇滚"),
                 mediaSourceName = "local")
         ))
 
-        assertEquals(2, snapshot.albums.size)
-        assertEquals(2, snapshot.genres.size)
-
-        db.mediaDao().insert(snapshot, "")
+        db.mediaDao().insert(snapshot, "local")
 
         val allAlbums = albumDao.getAllAlbum().firstOrNull()
         assertNotNull(allAlbums)
@@ -114,16 +103,16 @@ class LMediaLMediaDaoTest {
 
     @Test
     fun testAudioRelationsThroughMediaDao() = runTest {
-        val snapshot = buildSnapshot(listOf(
+        val snapshot = Snapshot(listOf(
             LAudio(id = "song-rel-1", title = "关联歌曲1", subtitle = "",
-                metadata = Metadata(artist = "ArtistX", album = "AlbumX", genre = "Pop"),
+                extra = audioExtra("ArtistX", "AlbumX", "Pop"),
                 mediaSourceName = "local"),
             LAudio(id = "song-rel-2", title = "关联歌曲2", subtitle = "",
-                metadata = Metadata(artist = "ArtistX", album = "AlbumX", genre = "Pop"),
+                extra = audioExtra("ArtistX", "AlbumX", "Pop"),
                 mediaSourceName = "local")
         ))
 
-        db.mediaDao().insert(snapshot, "")
+        db.mediaDao().insert(snapshot, "local")
 
         // Verify album→audio relations via DAO query (use full entity IDs with prefix)
         val audiosByAlbum = albumDao.getAudiosByAlbum("album_AlbumX").firstOrNull()
@@ -140,21 +129,19 @@ class LMediaLMediaDaoTest {
 
     @Test
     fun testGenreRelations() = runTest {
-        val snapshot = buildSnapshot(listOf(
+        val snapshot = Snapshot(listOf(
             LAudio(id = "song-genre-1", title = "歌曲1", subtitle = "",
-                metadata = Metadata(artist = "A", album = "Album1", genre = "Rock"),
+                extra = audioExtra("A", "Album1", "Rock"),
                 mediaSourceName = "local"),
             LAudio(id = "song-genre-2", title = "歌曲2", subtitle = "",
-                metadata = Metadata(artist = "B", album = "Album2", genre = "Jazz"),
+                extra = audioExtra("B", "Album2", "Jazz"),
                 mediaSourceName = "local"),
             LAudio(id = "song-genre-3", title = "歌曲3", subtitle = "",
-                metadata = Metadata(artist = "C", album = "Album3", genre = "Rock"),
+                extra = audioExtra("C", "Album3", "Rock"),
                 mediaSourceName = "local")
         ))
 
-        assertEquals(2, snapshot.genres.size)
-
-        db.mediaDao().insert(snapshot, "")
+        db.mediaDao().insert(snapshot, "local")
 
         // Verify the cross_ref has entries via getAudiosByGenre
         val audiosByRock = genreDao.getAudiosByGenre("genre_Rock").firstOrNull()
@@ -164,16 +151,16 @@ class LMediaLMediaDaoTest {
 
     @Test
     fun testGetAudiosByArtist() = runTest {
-        val snapshot = buildSnapshot(listOf(
+        val snapshot = Snapshot(listOf(
             LAudio(id = "song-artist-1", title = "歌曲1", subtitle = "",
-                metadata = Metadata(artist = "ArtistY", album = "Album1", genre = "Pop"),
+                extra = audioExtra("ArtistY", "Album1", "Pop"),
                 mediaSourceName = "local"),
             LAudio(id = "song-artist-2", title = "歌曲2", subtitle = "",
-                metadata = Metadata(artist = "ArtistY", album = "Album2", genre = "Pop"),
+                extra = audioExtra("ArtistY", "Album2", "Pop"),
                 mediaSourceName = "local")
         ))
 
-        db.mediaDao().insert(snapshot, "")
+        db.mediaDao().insert(snapshot, "local")
 
         val audios = artistDao.getAudiosByArtist("artist_ArtistY").firstOrNull()
         assertNotNull(audios)
@@ -182,16 +169,16 @@ class LMediaLMediaDaoTest {
 
     @Test
     fun testGetAudiosByAlbum() = runTest {
-        val snapshot = buildSnapshot(listOf(
+        val snapshot = Snapshot(listOf(
             LAudio(id = "song-album-1", title = "歌曲1", subtitle = "",
-                metadata = Metadata(artist = "A", album = "AlbumX", genre = "Pop"),
+                extra = audioExtra("A", "AlbumX", "Pop"),
                 mediaSourceName = "local"),
             LAudio(id = "song-album-2", title = "歌曲2", subtitle = "",
-                metadata = Metadata(artist = "B", album = "AlbumX", genre = "Pop"),
+                extra = audioExtra("B", "AlbumX", "Pop"),
                 mediaSourceName = "local")
         ))
 
-        db.mediaDao().insert(snapshot, "")
+        db.mediaDao().insert(snapshot, "local")
 
         val audios = albumDao.getAudiosByAlbum("album_AlbumX").firstOrNull()
         assertNotNull(audios)
@@ -200,19 +187,240 @@ class LMediaLMediaDaoTest {
 
     @Test
     fun testGetAudiosByGenre() = runTest {
-        val snapshot = buildSnapshot(listOf(
+        val snapshot = Snapshot(listOf(
             LAudio(id = "song-g-1", title = "歌曲1", subtitle = "",
-                metadata = Metadata(artist = "A", album = "Album1", genre = "Electronic"),
+                extra = audioExtra("A", "Album1", "Electronic"),
                 mediaSourceName = "local"),
             LAudio(id = "song-g-2", title = "歌曲2", subtitle = "",
-                metadata = Metadata(artist = "B", album = "Album2", genre = "Electronic"),
+                extra = audioExtra("B", "Album2", "Electronic"),
                 mediaSourceName = "local")
         ))
 
-        db.mediaDao().insert(snapshot, "")
+        db.mediaDao().insert(snapshot, "local")
 
         val audios = genreDao.getAudiosByGenre("genre_Electronic").firstOrNull()
         assertNotNull(audios)
         assertEquals(2, audios.size)
     }
+
+    @Test
+    fun missingAudioIsMarkedUnavailableOnlyInsideCommittedSource() = runTest {
+        db.mediaDao().insert(
+            Snapshot(listOf(
+                sourceAudio("available-a-1", "source-a"),
+                sourceAudio("available-a-2", "source-a"),
+            )),
+            "source-a",
+        )
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio("available-b-1", "source-b"))),
+            "source-b",
+        )
+
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio("available-a-1", "source-a"))),
+            "source-a",
+        )
+
+        assertEquals(true, audioDao.getAudio("available-a-1").firstOrNull()?.available)
+        assertEquals(false, audioDao.getAudio("available-a-2").firstOrNull()?.available)
+        assertEquals(true, audioDao.getAudio("available-b-1").firstOrNull()?.available)
+    }
+
+    @Test
+    fun audioIdCannotBeTakenOverByAnotherSource() = runTest {
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio("source-collision", "source-owner"))),
+            "source-owner",
+        )
+
+        assertFailsWith<IllegalArgumentException> {
+            db.mediaDao().insert(
+                Snapshot(listOf(sourceAudio("source-collision", "source-other"))),
+                "source-other",
+            )
+        }
+
+        assertEquals(
+            "source-owner",
+            audioDao.getAudio("source-collision").firstOrNull()?.mediaSourceName,
+        )
+    }
+
+    @Test
+    fun clearUnavailableRemovesOrphanRelationsAndDerivedEntities() = runTest {
+        db.mediaDao().insert(
+            Snapshot(listOf(
+                sourceAudio(
+                    id = "clear-current",
+                    source = "clear-source",
+                    artist = "Shared Artist",
+                    album = "Shared Album",
+                    genre = "Shared Genre",
+                ),
+                sourceAudio(
+                    id = "clear-shared-missing",
+                    source = "clear-source",
+                    artist = "Shared Artist",
+                    album = "Shared Album",
+                    genre = "Shared Genre",
+                ),
+                sourceAudio(
+                    id = "clear-orphan-missing",
+                    source = "clear-source",
+                    artist = "Orphan Artist",
+                    album = "Orphan Album",
+                    genre = "Orphan Genre",
+                ),
+            )),
+            "clear-source",
+        )
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio(
+                id = "clear-current",
+                source = "clear-source",
+                artist = "Shared Artist",
+                album = "Shared Album",
+                genre = "Shared Genre",
+            ))),
+            "clear-source",
+        )
+
+        db.mediaDao().clearUnavailableMedia(listOf("clear-source"))
+
+        assertNotNull(audioDao.getAudio("clear-current").firstOrNull())
+        assertEquals(null, audioDao.getAudio("clear-shared-missing").firstOrNull())
+        assertEquals(null, audioDao.getAudio("clear-orphan-missing").firstOrNull())
+
+        val artists = artistDao.getAllArtist().firstOrNull().orEmpty()
+        val albums = albumDao.getAllAlbum().firstOrNull().orEmpty()
+        val genres = genreDao.getAllGenre().firstOrNull().orEmpty()
+        assertTrue(artists.any { it.title == "Shared Artist" })
+        assertTrue(albums.any { it.title == "Shared Album" })
+        assertTrue(genres.any { it.title == "Shared Genre" })
+        assertTrue(artists.none { it.title == "Orphan Artist" })
+        assertTrue(albums.none { it.title == "Orphan Album" })
+        assertTrue(genres.none { it.title == "Orphan Genre" })
+
+        val current = audioDao.getAudioWithRelations("clear-current").firstOrNull()
+        assertNotNull(current)
+        assertEquals(listOf("Shared Artist"), current.artists.map { it.title })
+        assertEquals(listOf("Shared Album"), current.albums.map { it.title })
+        assertEquals(listOf("Shared Genre"), current.genres.map { it.title })
+    }
+
+    @Test
+    fun clearUnavailableAlsoRepairsPreviouslyDanglingRelations() = runTest {
+        val audio = sourceAudio(
+            id = "dangling-audio",
+            source = "dangling-source",
+            artist = "Dangling Artist",
+            album = "Dangling Album",
+            genre = "Dangling Genre",
+        )
+        db.mediaDao().insert(Snapshot(listOf(audio)), "dangling-source")
+
+        // 模拟旧清理逻辑只删除歌曲、留下交叉表关系的数据库状态。
+        audioDao.delete(audio.copy(available = true).toEntity())
+        db.mediaDao().clearUnavailableMedia(listOf("dangling-source"))
+
+        assertTrue(artistDao.getAllArtist().firstOrNull().orEmpty().none {
+            it.title == "Dangling Artist"
+        })
+        assertTrue(albumDao.getAllAlbum().firstOrNull().orEmpty().none {
+            it.title == "Dangling Album"
+        })
+        assertTrue(genreDao.getAllGenre().firstOrNull().orEmpty().none {
+            it.title == "Dangling Genre"
+        })
+    }
+
+    @Test
+    fun clearUnavailableRemovesMediaOwnedByRemovedSources() = runTest {
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio(
+                id = "active-source-audio",
+                source = "active-source",
+                artist = "Active Artist",
+                album = "Active Album",
+                genre = "Active Genre",
+            ))),
+            "active-source",
+        )
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio(
+                id = "removed-source-audio",
+                source = "removed-source",
+                artist = "Removed Artist",
+                album = "Removed Album",
+                genre = "Removed Genre",
+            ))),
+            "removed-source",
+        )
+
+        db.mediaDao().clearUnavailableMedia(listOf("active-source"))
+
+        assertNotNull(audioDao.getAudio("active-source-audio").firstOrNull())
+        assertEquals(null, audioDao.getAudio("removed-source-audio").firstOrNull())
+        assertTrue(artistDao.getAllArtist().firstOrNull().orEmpty().none {
+            it.title == "Removed Artist"
+        })
+        assertTrue(albumDao.getAllAlbum().firstOrNull().orEmpty().none {
+            it.title == "Removed Album"
+        })
+        assertTrue(genreDao.getAllGenre().firstOrNull().orEmpty().none {
+            it.title == "Removed Genre"
+        })
+    }
+
+    @Test
+    fun clearUnavailableRemovesAllMediaWhenNoSourcesRemain() = runTest {
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio(
+                id = "last-removed-source-audio",
+                source = "last-removed-source",
+                artist = "Last Removed Artist",
+                album = "Last Removed Album",
+                genre = "Last Removed Genre",
+            ))),
+            "last-removed-source",
+        )
+
+        db.mediaDao().clearUnavailableMedia(emptyList())
+
+        assertEquals(null, audioDao.getAudio("last-removed-source-audio").firstOrNull())
+        assertTrue(artistDao.getAllArtist().firstOrNull().orEmpty().none {
+            it.title == "Last Removed Artist"
+        })
+        assertTrue(albumDao.getAllAlbum().firstOrNull().orEmpty().none {
+            it.title == "Last Removed Album"
+        })
+        assertTrue(genreDao.getAllGenre().firstOrNull().orEmpty().none {
+            it.title == "Last Removed Genre"
+        })
+    }
+
+    private fun audioExtra(
+        artist: String,
+        album: String,
+        genre: String,
+    ): Map<String, String> = mapOf(
+        LAudioExtraKeys.ArtistName to artist,
+        LAudioExtraKeys.AlbumName to album,
+        LAudioExtraKeys.Genre to genre,
+    )
+
+    private fun sourceAudio(
+        id: String,
+        source: String,
+        artist: String = "Artist",
+        album: String = "Album",
+        genre: String = "Genre",
+    ) = LAudio(
+        id = id,
+        title = id,
+        subtitle = artist,
+        mediaSourceName = source,
+        extra = audioExtra(artist, album, genre),
+    )
 }

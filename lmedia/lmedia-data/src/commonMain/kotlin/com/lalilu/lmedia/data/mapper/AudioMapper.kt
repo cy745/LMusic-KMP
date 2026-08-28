@@ -8,9 +8,8 @@ fun LAudioEntity.toDomain(): LAudio = LAudio(
     title = title,
     subtitle = subtitle,
     mediaSourceName = mediaSourceName,
-    metadata = metadata,
     extra = extra,
-    available = available
+    available = available,
 )
 
 fun LAudio.toEntity(): LAudioEntity = LAudioEntity(
@@ -18,7 +17,6 @@ fun LAudio.toEntity(): LAudioEntity = LAudioEntity(
     title = title,
     subtitle = subtitle,
     mediaSourceName = mediaSourceName,
-    metadata = metadata,
     extra = extra,
-    available = available
+    available = available,
 )

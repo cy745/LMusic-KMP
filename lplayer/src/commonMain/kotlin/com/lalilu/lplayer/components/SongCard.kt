@@ -18,6 +18,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.buildSharedMap
@@ -47,6 +48,7 @@ fun SongCard(
     )
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val coverData = rememberMediaCoverRequest(imageData)
 
     Row(
         modifier = modifier
@@ -78,7 +80,7 @@ fun SongCard(
                         },
                         onClick = onClick
                     ),
-                model = imageData,
+                model = coverData,
                 contentScale = ContentScale.Crop,
                 contentDescription = "Song Card Image"
             )

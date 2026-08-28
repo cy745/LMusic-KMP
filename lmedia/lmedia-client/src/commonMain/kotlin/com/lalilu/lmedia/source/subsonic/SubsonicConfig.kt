@@ -16,14 +16,17 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class SubsonicConfig(
-    val url: String = "http://192.168.3.6:4533/rest/",
-    val username: String = "qiu745",
+    val url: String = "",
+    val username: String = "",
     val salt: String = "",
     val token: String = "",
     val client: String = "LMusic",
     val version: String = "6.1.4",
     val format: String = "json",
 ) {
+    val isConfigured: Boolean
+        get() = url.isNotBlank() && username.isNotBlank() && salt.isNotBlank() && token.isNotBlank()
+
     companion object {
         val Empty = SubsonicConfig()
     }

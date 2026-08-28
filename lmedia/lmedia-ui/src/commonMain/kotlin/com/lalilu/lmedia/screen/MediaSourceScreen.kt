@@ -4,6 +4,7 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -67,11 +68,11 @@ object MediaSourceScreen : Screen, ScreenInfoFactory {
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalItemSpacing = 16.dp
         ) {
-            item {
+            item(span = StaggeredGridItemSpan.FullLine) {
                 NavigatorHeader(
                     modifier = Modifier.fillMaxWidth(),
                     title = "媒体数据源",
-                    subTitle = "自由添加媒体数据源",
+                    subTitle = "管理媒体来源、同步状态与局域网共享",
                     paddingValues = PaddingValues(top = 16.dp, bottom = 16.dp, start = 4.dp, end = 4.dp)
                 )
             }

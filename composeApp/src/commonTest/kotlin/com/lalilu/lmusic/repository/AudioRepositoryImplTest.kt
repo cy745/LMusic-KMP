@@ -1,13 +1,10 @@
 package com.lalilu.lmusic.repository
 
-import com.lalilu.lmedia.data.database.ILMediaDatabase
-import com.lalilu.lmedia.data.entity.LAudioEntity
-import com.lalilu.lmedia.data.mapper.toDomain
 import com.lalilu.lmedia.data.mapper.toEntity
 import com.lalilu.lmedia.data.repository.AudioRepositoryImpl
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.Metadata
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmusic.impl.LMusicDatabase
 import com.lalilu.lmusic.impl.requireDatabase
 import kotlinx.coroutines.flow.first
@@ -27,7 +24,7 @@ class AudioRepositoryImplTest {
 
     @BeforeTest
     fun setup() {
-        repo = AudioRepositoryImpl(db)
+        repo = AudioRepositoryImpl(db, PlatformMediaSource(emptyList()))
     }
 
     @AfterTest
@@ -54,7 +51,6 @@ class AudioRepositoryImplTest {
             title = "Repository Test Song",
             subtitle = "Test Artist",
             mediaSourceName = "test_source",
-            metadata = Metadata(title = "Meta"),
             extra = mapOf("track" to "1"),
             available = true
         )
@@ -100,6 +96,17 @@ class AudioRepositoryImplTest {
         assertEquals(2, result.size)
         assertTrue(result.any { it.id == "repo_filter_1" })
         assertTrue(result.any { it.id == "repo_filter_3" })
+    }
+
+    @Test
+    fun `getAudios with ids preserves requested order`() = runTest {
+        val first = LAudio(id = "repo_order_1", title = "First", mediaSourceName = "test")
+        val second = LAudio(id = "repo_order_2", title = "Second", mediaSourceName = "test")
+        db.audioDao().insertAll(listOf(first.toEntity(), second.toEntity()))
+
+        val result = repo.getAudios(listOf(second.id, first.id)).first()
+
+        assertEquals(listOf(second.id, first.id), result.map(LAudio::id))
     }
 
     @Test

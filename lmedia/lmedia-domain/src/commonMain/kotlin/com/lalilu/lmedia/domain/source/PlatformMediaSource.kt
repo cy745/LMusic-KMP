@@ -10,6 +10,17 @@ import org.koin.core.scope.Scope
 data class PlatformMediaSource(
     val sources: List<MediaSource>
 ) {
+    init {
+        val duplicatedNames = sources
+            .groupingBy(MediaSource::name)
+            .eachCount()
+            .filterValues { it > 1 }
+            .keys
+        require(duplicatedNames.isEmpty()) {
+            "MediaSource names must be unique: ${duplicatedNames.joinToString()}"
+        }
+    }
+
     companion object {
         fun provide(vararg source: MediaSource): PlatformMediaSource {
             return PlatformMediaSource(source.toList())
@@ -20,6 +31,8 @@ data class PlatformMediaSource(
 @Single
 context(scope: Scope)
 fun providePlatformMediaSource(): PlatformMediaSource {
-    return PlatformMediaSource(scope.getAll())
+    return PlatformMediaSource(
+        scope.getAll<MediaSource>()
+    )
         .apply { sources.forEach { it.init() } }
 }

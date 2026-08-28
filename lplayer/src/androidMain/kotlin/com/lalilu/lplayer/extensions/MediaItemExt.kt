@@ -10,6 +10,12 @@ import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LFolder
 import com.lalilu.lmedia.domain.model.LGenre
+import com.lalilu.lmedia.domain.model.albumArtist
+import com.lalilu.lmedia.domain.model.albumName
+import com.lalilu.lmedia.domain.model.artistName
+import com.lalilu.lmedia.domain.model.duration
+import com.lalilu.lmedia.domain.model.libraryAlbumId
+import com.lalilu.lmedia.domain.model.libraryArtistIds
 import android.net.Uri
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.repository.AlbumRepository
@@ -34,11 +40,11 @@ fun LAudio.toMediaItem(): MediaItem {
             MediaMetadata.Builder()
                 .setTitle(title)
                 .setDisplayTitle(subtitle)
-                .setArtist(metadata.artist)
-                .setSubtitle(metadata.artist)
-                .setAlbumTitle(metadata.album)
-                .setAlbumArtist(metadata.albumArtist)
-                .setDurationMs(metadata.duration)
+                .setArtist(artistName)
+                .setSubtitle(artistName)
+                .setAlbumTitle(albumName)
+                .setAlbumArtist(albumArtist)
+                .setDurationMs(duration)
                 .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
                 .setIsPlayable(true)
                 .setIsBrowsable(true)
@@ -168,18 +174,14 @@ object MMedia {
             "album" -> {
                 audioRepo.getAudios().first()
                     .filter { audio ->
-                        audio.metadata.album?.let { albumName ->
-                            parentId == "${com.lalilu.lmedia.domain.model.LAlbum.ID_PREFIX}$albumName"
-                        } ?: false
+                        parentId == audio.libraryAlbumId()
                     }
                     .mapNotNull { it.toMediaItem() }
             }
             "artist" -> {
                 audioRepo.getAudios().first()
                     .filter { audio ->
-                        audio.metadata.artist?.split('/', ';', '、', ',', '，')?.any {
-                            parentId == "${com.lalilu.lmedia.domain.model.LArtist.ID_PREFIX}$it"
-                        } ?: false
+                        parentId in audio.libraryArtistIds()
                     }
                     .mapNotNull { it.toMediaItem() }
             }
