@@ -10,9 +10,10 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -39,7 +40,7 @@ sealed class NavIntent(
         override val params: NavParams = emptyMap()
     ) : NavIntent(screen, params)
 
-    data class PopUtil(
+    data class PopUntil(
         override val screen: Screen,
         override val params: NavParams = emptyMap()
     ) : NavIntent(screen, params)
@@ -162,10 +163,12 @@ val DefaultHandler = NavHandler { backstack, intent ->
             backstack.add(intent.screen)
         }
 
-        is NavIntent.PopUtil -> {
-            // TODO screen的比较需要确认是否正确
-            while (backstack.lastOrNull() != intent.screen) {
-                backstack.removeLastOrNull()
+        is NavIntent.PopUntil -> {
+            val targetIndex = backstack.indexOfLast { it.key == intent.screen.key }
+            if (targetIndex >= 0) {
+                repeat(backstack.lastIndex - targetIndex) {
+                    backstack.removeLastOrNull()
+                }
             }
         }
 
@@ -220,6 +223,7 @@ object AppRouter {
     private val logger = Logger.withTag("AppRouter")
     private val sharedFlow = MutableSharedFlow<NavIntent>()
     private val isBound = MutableStateFlow(false)
+    private val _backStack = MutableStateFlow<List<Screen>>(emptyList())
     private var handler: NavHandler = DefaultHandler
     private val interceptors = mutableListOf<NavInterceptor>(
         DefaultTooFastJumpingInterceptor,
@@ -232,16 +236,32 @@ object AppRouter {
     /** 路由意图热流：供其他组件监听实际发生的跳转（如弹窗自动关闭）。 */
     val intents: SharedFlow<NavIntent> get() = sharedFlow
 
+    /**
+     * 当前导航栈的只读快照。外部只能观察，所有修改仍需通过 [intent] 或 [route] 完成。
+     */
+    val backStack: StateFlow<List<Screen>> = _backStack.asStateFlow()
+
+    /** 当前栈顶页面；返回导航栈中的原始条目，供组合期注册信息按实例匹配。 */
+    val currentScreen: Screen? get() = _backStack.value.lastOrNull()
+
+    /** 等待导航栈完成绑定，适用于冷启动阶段收到的外部命令。 */
+    suspend fun awaitBound() = isBound.first { it }
+
     suspend fun bind(
         backStack: NavBackStack<Screen>,
         onHandler: () -> Unit = {}
     ): Unit = coroutineScope {
+        // 在开放外部路由消费前同步发布初始栈，避免冷启动 Deep Link 已等到绑定完成，
+        // 却因为 snapshotFlow 的首轮收集尚未调度而短暂读到空栈。
+        _backStack.value = backStack.toList()
+
         // 监听所有栈变化（包括系统返回键、手势返回等）
         launch {
             snapshotFlow { backStack.toList() }
-                .map { it.map { s -> s.key } }
                 .distinctUntilChanged()
-                .collect { keys ->
+                .collect { screens ->
+                    _backStack.value = screens
+                    val keys = screens.map { it.key }
                     logger.i { "📚 Stack [${keys.size}] ${keys.joinToString(" → \n")}" }
                 }
         }
@@ -264,6 +284,7 @@ object AppRouter {
                 }
             } finally {
                 isBound.value = false
+                _backStack.value = emptyList()
             }
         }
     }
@@ -275,12 +296,12 @@ object AppRouter {
                 is NavIntent.Jump -> "🔀 JUMP  ${intent.screen.key}"
                 is NavIntent.Replace -> "🔄 REPLACE ${intent.screen.key}"
                 is NavIntent.Pop -> "⬅️ POP"
-                is NavIntent.PopUtil -> "⬅️ POP_UTIL ${intent.screen.key}"
+                is NavIntent.PopUntil -> "⬅️ POP_UNTIL ${intent.screen.key}"
                 is NavIntent.None -> "⏭️ NONE"
             }
         }
-        // 冷启动 Deep Link 可能早于首帧导航栈绑定；等待绑定后再发送，避免 SharedFlow 丢事件。
-        isBound.first { it }
+        // 调用方可能早于首帧导航栈绑定；等待绑定后再发送，避免 SharedFlow 丢事件。
+        awaitBound()
         sharedFlow.emit(intent)
     }
 
@@ -310,6 +331,7 @@ object AppRouter {
         fun jump() = requestResult()?.let { intent(NavIntent.Jump(it, params)) }
         fun push() = requestResult()?.let { intent(NavIntent.Push(it, params)) }
         fun replace() = requestResult()?.let { intent(NavIntent.Replace(it, params)) }
+        fun popUntil() = requestResult()?.let { intent(NavIntent.PopUntil(it, params)) }
         fun get() = requestResult()
 
 

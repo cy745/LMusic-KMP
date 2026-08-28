@@ -61,6 +61,18 @@ sealed class ScreenAction {
     data class Dynamic(
         val content: @Composable (ActionContext) -> Unit
     ) : ScreenAction()
+
+    /**
+     * 仅供 `lmusic://screen_action/<key>` 触发的隐藏操作，不参与 SmartBar 渲染。
+     *
+     * 实例由当前页面的 [ScreenActionFactory.provideScreenActions] 在组合期间提供，因此回调捕获的是
+     * 当前导航条目真实使用的 ViewModel。页面不在栈顶或已经退出组合时不会执行。
+     */
+    @Stable
+    data class DeepLink(
+        val key: String,
+        val onAction: (ActionContext) -> Unit = {},
+    ) : ScreenAction()
 }
 
 
@@ -79,3 +91,7 @@ interface ScreenActionFactory {
         return emptyList()
     }
 }
+
+/** 为现有可见操作复用同一个回调，额外声明一个不会显示在 SmartBar 中的 Deep Link 入口。 */
+fun ScreenAction.Static.deepLink(key: String): ScreenAction.DeepLink =
+    ScreenAction.DeepLink(key = key, onAction = onAction)

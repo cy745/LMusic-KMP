@@ -30,6 +30,7 @@ import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenActionFactory
+import com.lalilu.navigation.deepLink
 import com.lalilu.packed.CoverTitleHeader
 import com.lalilu.preview.preview
 import com.lalilu.lmedia.domain.model.LAudio
@@ -62,15 +63,19 @@ data class SongDetailScreen(
         val vm = koinViewModel<SongDetailVM>(parameters = { parametersOf(mediaId) })
 
         return remember {
+            val nextAction = ScreenAction.Static(
+                title = { "下一首" },
+                onAction = { PlayerAction.SkipToNext.action() }
+            )
+            val playAction = ScreenAction.Static(
+                title = { "播放" },
+                onAction = { PlayerAction.PlayById(mediaId).action() }
+            )
             listOf(
-                ScreenAction.Static(
-                    title = { "下一首" },
-                    onAction = { PlayerAction.SkipToNext.action() }
-                ),
-                ScreenAction.Static(
-                    title = { "播放" },
-                    onAction = { PlayerAction.PlayById(mediaId).action() }
-                ),
+                nextAction,
+                playAction,
+                nextAction.deepLink("next"),
+                playAction.deepLink("play"),
             )
         }
     }

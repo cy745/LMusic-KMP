@@ -65,6 +65,8 @@ internal fun ActionItem(
     action: ScreenAction
 ) {
     when (action) {
+        is ScreenAction.DeepLink -> Unit
+
         is ScreenAction.Dynamic -> {
             action.content(actionContext)
         }

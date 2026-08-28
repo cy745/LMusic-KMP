@@ -53,27 +53,29 @@ data class PlaylistAddToScreen(
         val scope = rememberCoroutineScope()
 
         return remember {
-            listOf(
-                ScreenAction.Static(
-                    title = { stringResource(Res.string.playlist_action_add_to_playlist) },
-                    icon = { RemixIcon.System.checkLine },
-                    color = { Color(0xFF008521) },
-                    onAction = { context ->
-                        context.onDismiss()
+            val confirmAction = ScreenAction.Static(
+                title = { stringResource(Res.string.playlist_action_add_to_playlist) },
+                icon = { RemixIcon.System.checkLine },
+                color = { Color(0xFF008521) },
+                onAction = { context ->
+                    context.onDismiss()
 
-                        val playlistIds = selector.selected()
-                            .map { it.id }
-                        selector.clear()
+                    val playlistIds = selector.selected()
+                        .map { it.id }
+                    selector.clear()
 
-                        scope.launch {
-                            playlistRepo.addMediaIdsToPlaylists(
-                                mediaIds = mediaIds,
-                                playlistIds = playlistIds
-                            )
-                            GlobalToaster?.show("已将媒体添加到歌单成功")
-                        }
+                    scope.launch {
+                        playlistRepo.addMediaIdsToPlaylists(
+                            mediaIds = mediaIds,
+                            playlistIds = playlistIds
+                        )
+                        GlobalToaster?.show("已将媒体添加到歌单成功")
                     }
-                )
+                }
+            )
+            listOf(
+                confirmAction,
+                confirmAction.deepLink("confirm"),
             )
         }
     }

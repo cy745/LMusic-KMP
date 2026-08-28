@@ -96,7 +96,7 @@ data class PlaylistEditVM(
                 playlistRepo.removeById(actualId)
 
                 KRouter.route<Screen>("/pages/playlist")
-                    ?.let { AppRouter.intent(NavIntent.PopUtil(it)) }
+                    ?.let { AppRouter.intent(NavIntent.PopUntil(it)) }
             }
 
             else -> {}

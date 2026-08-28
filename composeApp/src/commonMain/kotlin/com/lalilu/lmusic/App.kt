@@ -61,21 +61,11 @@ import org.koin.compose.koinInject
     ExperimentalLookaheadAnimationVisualDebugApi::class
 )
 @Composable
-fun App(
-    externalNavigationRequest: ExternalNavigationRequest? = null,
-) = ScreenModeHandler {
+fun App() = ScreenModeHandler {
     ComposeFoundationFlags.isSkipItemPlacementAnimationFixEnabled = false
 
     // 构建导航栈
     val backStack = backStackHandler()
-    LaunchedEffect(externalNavigationRequest?.id) {
-        externalNavigationRequest?.let { request ->
-            AppRouter.route(request.route)
-                .withParams(request.params)
-                .withSingleTop()
-                .push()
-        }
-    }
     val sidebarItems = remember {
         listOf(
             NavSidebarItem.NavSection(
