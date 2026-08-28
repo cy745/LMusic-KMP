@@ -7,9 +7,26 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapLatest
 
+data class AudioLibraryCounts(
+    @ColumnInfo("total_count") val total: Int,
+    @ColumnInfo("available_count") val available: Int,
+    @ColumnInfo("unavailable_count") val unavailable: Int,
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @Dao
 interface LAudioDao {
+    @Query(
+        """
+        SELECT
+            COUNT(*) AS total_count,
+            COUNT(CASE WHEN available = 1 THEN 1 END) AS available_count,
+            COUNT(CASE WHEN available = 0 THEN 1 END) AS unavailable_count
+        FROM l_audio
+        """
+    )
+    fun observeLibraryCounts(): Flow<AudioLibraryCounts>
+
     @Insert
     suspend fun insert(audio: LAudioEntity)
 

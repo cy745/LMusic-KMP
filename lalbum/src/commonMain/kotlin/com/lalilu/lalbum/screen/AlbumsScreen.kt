@@ -48,32 +48,38 @@ data class AlbumsScreen(
         val state by vm.state
 
         return remember {
+            val toggleTitleAction = ScreenAction.Static(
+                title = { if (state.showText) "隐藏专辑名" else "显示专辑名" },
+                color = { Color(0xFF6E4AC3) },
+                icon = { if (state.showText) RemixIcon.Editor.text else RemixIcon.Editor.formatClear },
+                onAction = { vm.intent(AlbumsAction.ToggleShowText) }
+            )
+            val sortAction = ScreenAction.Static(
+                title = { "排序" },
+                icon = { RemixIcon.Editor.sortDesc },
+                color = { Color(0xFF1793FF) },
+                onAction = { vm.intent(AlbumsAction.ToggleSortPanel) }
+            )
+            val searchAction = ScreenAction.Static(
+                title = { "搜索" },
+                subTitle = {
+                    val keyword = state.searchKeyWord
+                    if (keyword.isNotBlank()) "搜索中： $keyword" else null
+                },
+                icon = { RemixIcon.System.search2Line },
+                color = { Color(0xFF8BC34A) },
+                dotColor = {
+                    if (state.searchKeyWord.isNotBlank()) Color.Red else null
+                },
+                onAction = { vm.intent(AlbumsAction.ToggleSearcherPanel) }
+            )
             listOf(
-                ScreenAction.Static(
-                    title = { if (state.showText) "隐藏专辑名" else "显示专辑名" },
-                    color = { Color(0xFF6E4AC3) },
-                    icon = { if (state.showText) RemixIcon.Editor.text else RemixIcon.Editor.formatClear },
-                    onAction = { vm.intent(AlbumsAction.ToggleShowText) }
-                ),
-                ScreenAction.Static(
-                    title = { "排序" },
-                    icon = { RemixIcon.Editor.sortDesc },
-                    color = { Color(0xFF1793FF) },
-                    onAction = { vm.intent(AlbumsAction.ToggleSortPanel) }
-                ),
-                ScreenAction.Static(
-                    title = { "搜索" },
-                    subTitle = {
-                        val keyword = state.searchKeyWord
-                        if (keyword.isNotBlank()) "搜索中： $keyword" else null
-                    },
-                    icon = { RemixIcon.System.search2Line },
-                    color = { Color(0xFF8BC34A) },
-                    dotColor = {
-                        if (state.searchKeyWord.isNotBlank()) Color.Red else null
-                    },
-                    onAction = { vm.intent(AlbumsAction.ToggleSearcherPanel) }
-                ),
+                toggleTitleAction,
+                sortAction,
+                searchAction,
+                toggleTitleAction.deepLink("toggle_title"),
+                sortAction.deepLink("sort"),
+                searchAction.deepLink("search"),
             )
         }
     }

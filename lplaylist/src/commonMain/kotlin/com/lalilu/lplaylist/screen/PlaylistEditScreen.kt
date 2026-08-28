@@ -37,23 +37,27 @@ data class PlaylistEditScreen(
         )
 
         return remember {
-            listOfNotNull(
-                if (vm.playlist.value != null) {
-                    ScreenAction.Static(
-                        title = { "删除歌单" },
-                        icon = { RemixIcon.System.deleteBinLine },
-                        longClick = { true },
-                        color = { Color(0xFFF5381D) },
-                        onAction = { vm.intent(PlaylistEditAction.Delete) }
-                    )
-                } else null,
+            val deleteAction = if (vm.playlist.value != null) {
                 ScreenAction.Static(
-                    title = { if (vm.playlist.value == null) "创建歌单" else "更新歌单" },
-                    icon = { RemixIcon.Design.editBoxFill },
+                    title = { "删除歌单" },
+                    icon = { RemixIcon.System.deleteBinLine },
                     longClick = { true },
-                    color = { Color(0xFF0074FF) },
-                    onAction = { vm.intent(PlaylistEditAction.Confirm) }
-                ),
+                    color = { Color(0xFFF5381D) },
+                    onAction = { vm.intent(PlaylistEditAction.Delete) }
+                )
+            } else null
+            val confirmAction = ScreenAction.Static(
+                title = { if (vm.playlist.value == null) "创建歌单" else "更新歌单" },
+                icon = { RemixIcon.Design.editBoxFill },
+                longClick = { true },
+                color = { Color(0xFF0074FF) },
+                onAction = { vm.intent(PlaylistEditAction.Confirm) }
+            )
+            listOfNotNull(
+                deleteAction,
+                confirmAction,
+                deleteAction?.deepLink("delete"),
+                confirmAction.deepLink("confirm"),
             )
         }
     }

@@ -48,8 +48,7 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
 
                 <data
-                        android:scheme="lmusic"
-                        android:host="navigate"/>
+                        android:scheme="lmusic"/>
             </intent-filter>
             <meta-data
                     android:name="android.app.shortcuts"

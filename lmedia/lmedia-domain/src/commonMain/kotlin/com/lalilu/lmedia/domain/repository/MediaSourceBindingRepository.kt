@@ -12,6 +12,9 @@ interface MediaSourceBindingRepository {
     fun getSources(): PlatformMediaSource
     fun observeSource(name: String): Flow<SourceStatus?>
     suspend fun startBinding()
+
+    /** 重新提交该数据源最近一次完整成功结果；没有可重试结果时返回 false。 */
+    suspend fun retryCommit(sourceName: String): Boolean
 }
 
 sealed interface SnapshotCommitState {
@@ -30,7 +33,10 @@ data class SourceStatus(
 
 data class MediaLibrarySummary(
     val refreshingSources: Set<String> = emptySet(),
-    val failedSources: Map<String, String> = emptyMap(),
+    val syncFailures: Map<String, String> = emptyMap(),
     val committingSources: Set<String> = emptySet(),
-    val committedSongCount: Int = 0,
+    val commitFailures: Map<String, String> = emptyMap(),
+    val databaseSongCount: Int = 0,
+    val availableSongCount: Int = 0,
+    val unavailableSongCount: Int = 0,
 )

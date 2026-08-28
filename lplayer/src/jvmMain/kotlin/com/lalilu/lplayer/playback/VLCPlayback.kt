@@ -5,6 +5,7 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.resolveMediaData
 import com.lalilu.lplayer.NativeExtractor
 import com.lalilu.lplayer.menu.MacOSMenu
 import com.lalilu.lplayer.notification.MacOSNotification
@@ -56,10 +57,7 @@ class VLCPlayback(
     }
 
     private suspend fun playItem(item: LAudio, start: Boolean) {
-        val source = platformMediaSource.sources.firstOrNull { item.mediaSourceName == it.name }
-            ?: throw Exception("No source item found for ${item.mediaSourceName}")
-
-        when (val data = source.dataSource.getMedia(item)) {
+        when (val data = platformMediaSource.resolveMediaData(item)) {
             is MediaData.Url -> {
                 logger.i(tag = "VLCPlayback", messageString = "prepared with url: ${data.url}")
                 player.media().prepare(data.url)
@@ -70,12 +68,6 @@ class VLCPlayback(
                 player.media().prepare(ByteArrayCallbackMedia.obtain(data.bytes))
             }
 
-            null -> {
-                val path = item.extra?.get("uri")
-                    ?: throw Exception("No media data or uri for ${item.id}")
-                logger.i(tag = "VLCPlayback", messageString = "prepared with path: $path")
-                player.media().prepare(path)
-            }
         }
         lastRecordTime = -1
         if (start) {

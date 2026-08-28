@@ -58,7 +58,11 @@ class SubsonicSource(
     private var activeConfig: SubsonicConfig = config.value
 
     override fun init() {
-        if (activeConfig.isConfigured) connectStored(isInitialize = true)
+        if (activeConfig.isConfigured) {
+            connectStored(isInitialize = true)
+        } else {
+            stateStore.content.unavailable("Server not configured")
+        }
     }
 
     fun connect(url: String, username: String, password: String): Result<Unit> = runCatching {
@@ -99,6 +103,7 @@ class SubsonicSource(
         loadingJob?.cancel()
         loadingJob = launch {
             val taskId = stateStore.begin(if (isInitialize) "Restoring connection..." else "Connecting...")
+            stateStore.content.preparing(preserveReady = false)
             client?.close()
             client = null
             subsonicApi = null
@@ -112,16 +117,25 @@ class SubsonicSource(
 
                 // 连接成功后直接在同一任务内发布完整结果。
                 val api = subsonicApi ?: error("API not initialized")
-                stateStore.succeed(taskId, getSongs(api))
+                if (stateStore.succeed(taskId, getSongs(api)) != null) {
+                    stateStore.content.ready()
+                }
             } catch (cancelled: CancellationException) {
-                stateStore.cancel(taskId)
+                if (stateStore.cancel(taskId)) {
+                    stateStore.content.unavailable("Cancelled", preserveReady = true)
+                }
                 throw cancelled
             } catch (throwable: Throwable) {
                 logger.e(messageString = "连接失败: ${throwable.message}", throwable = throwable)
                 if (isInitialize) {
-                    stateStore.reset()
+                    if (stateStore.fail(taskId, throwable.message ?: "Connection failed")) {
+                        stateStore.reset()
+                        stateStore.content.unavailable(throwable.message ?: "Connection failed")
+                    }
                 } else {
-                    stateStore.fail(taskId, "[$name]${throwable.message}")
+                    if (stateStore.fail(taskId, "[$name]${throwable.message}")) {
+                        stateStore.content.unavailable(throwable.message ?: "Connection failed")
+                    }
                 }
             }
         }
@@ -129,6 +143,7 @@ class SubsonicSource(
 
     fun cancel() {
         loadingJob?.cancel()
+        stateStore.content.unavailable("Cancelled", preserveReady = true)
         logger.i(messageString = "Cancel requested")
     }
 
@@ -137,6 +152,7 @@ class SubsonicSource(
         client = null
         subsonicApi = null
         loadingJob?.cancel()
+        stateStore.content.unavailable("Authentication cleared")
         loadingJob = launch { stateStore.reset() }
 
         // 重置配置（保留 url 和 username，清除认证信息）
@@ -150,15 +166,25 @@ class SubsonicSource(
         loadingJob?.cancel()
         loadingJob = launch {
             val taskId = stateStore.begin()
+            stateStore.content.preparing()
             try {
                 val api = subsonicApi ?: throw IllegalStateException("Not connected")
-                stateStore.succeed(taskId, getSongs(api))
+                if (stateStore.succeed(taskId, getSongs(api)) != null) {
+                    stateStore.content.ready()
+                }
             } catch (cancelled: CancellationException) {
-                stateStore.cancel(taskId)
+                if (stateStore.cancel(taskId)) {
+                    stateStore.content.unavailable("Cancelled", preserveReady = true)
+                }
                 throw cancelled
             } catch (throwable: Throwable) {
                 logger.e(messageString = "加载数据失败: ${throwable.message}", throwable = throwable)
-                stateStore.fail(taskId, "[$name]${throwable.message}")
+                if (stateStore.fail(taskId, "[$name]${throwable.message}")) {
+                    stateStore.content.unavailable(
+                        throwable.message ?: "Loading failed",
+                        preserveReady = true,
+                    )
+                }
             }
         }
     }

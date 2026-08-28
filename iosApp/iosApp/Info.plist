@@ -6,6 +6,17 @@
 	<string>LMusic</string>
 	<key>CFBundleDisplayName</key>
 	<string>LMusic</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.lalilu.lmusic.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>lmusic</string>
+			</array>
+		</dict>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

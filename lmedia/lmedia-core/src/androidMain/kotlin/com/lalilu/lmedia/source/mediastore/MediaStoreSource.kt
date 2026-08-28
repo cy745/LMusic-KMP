@@ -67,7 +67,11 @@ class MediaStoreSource(
         context.applicationContext.contentResolver
             .registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, observer)
 
-        if (hasReadPermission()) refresh()
+        if (hasReadPermission()) {
+            refresh()
+        } else {
+            stateStore.content.unavailable("Media permission denied")
+        }
     }
 
     private fun hasReadPermission(): Boolean {
@@ -87,11 +91,13 @@ class MediaStoreSource(
 
     fun cancel() {
         loadingJob?.cancel()
+        stateStore.content.unavailable("Cancelled", preserveReady = true)
     }
 
     fun reset() {
         Logger.i(tag = name, messageString = "Reset requested")
         loadingJob?.cancel()
+        stateStore.content.unavailable("Not initialized")
         loadingJob = scope.launch { stateStore.reset() }
     }
 
@@ -99,15 +105,25 @@ class MediaStoreSource(
         loadingJob?.cancel()
         loadingJob = scope.launch {
             val taskId = stateStore.begin()
+            stateStore.content.preparing()
             try {
                 val minDurationMillis = config.value.minDurationSeconds * 1000L
-                stateStore.succeed(taskId, scanner.scan(minDurationMillis))
+                if (stateStore.succeed(taskId, scanner.scan(minDurationMillis)) != null) {
+                    stateStore.content.ready()
+                }
             } catch (cancelled: CancellationException) {
-                stateStore.cancel(taskId)
+                if (stateStore.cancel(taskId)) {
+                    stateStore.content.unavailable("Cancelled", preserveReady = true)
+                }
                 throw cancelled
             } catch (throwable: Throwable) {
                 Logger.e(tag = name, throwable = throwable, messageString = "Scan failed")
-                stateStore.fail(taskId, throwable.message ?: "Unknown error")
+                if (stateStore.fail(taskId, throwable.message ?: "Unknown error")) {
+                    stateStore.content.unavailable(
+                        throwable.message ?: "Unknown error",
+                        preserveReady = true,
+                    )
+                }
             }
         }
     }

@@ -4,8 +4,10 @@ import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.resolveMediaData
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import org.koin.mp.KoinPlatform
@@ -42,6 +44,9 @@ abstract class AbstractPlayback(
 
     private val _platformMediaSource: PlatformMediaSource by lazy {
         KoinPlatform.getKoin().get<PlatformMediaSource>()
+    }
+    private val mediaSourceBindingRepository: MediaSourceBindingRepository by lazy {
+        KoinPlatform.getKoin().get<MediaSourceBindingRepository>()
     }
 
     /** 平台媒体源聚合体，子类可通过 override（如 by inject()）提供特定实现。 */
@@ -84,16 +89,21 @@ abstract class AbstractPlayback(
 
         // 自动恢复历史队列
         val snapshot = restoreFromHistory()
-        if (snapshot != null) {
-            launch {
-                val items = resolveMedia(snapshot.ids)
-                queue.update { replaceAll(items, snapshot.index) }
-                onQueueRestored(snapshot)
-            }
+        val restorer = snapshot?.let {
+            HistoryQueueRestorer(
+                snapshot = it,
+                repository = audioRepository,
+                restoreSettled = mediaSourceBindingRepository.observeHistoryRestoreSettled(),
+            )
         }
+        restorer?.start(
+            scope = this,
+            queue = queue,
+            onCurrentResolved = ::onQueueRestored,
+        )
 
         // 自动录制播放状态 — 此时所有属性均已初始化
-        startRecording(this)
+        startRecording(this, restorer?.state)
 
         // ── Engine 事件绑定 ──
         // 给每个 Engine 绑定 onEvent 回调，将离散事件转为 Playback 方法调用
@@ -135,11 +145,7 @@ abstract class AbstractPlayback(
      * 消除三平台 [playItem] 中反复出现的 MediaSource 查找 + getMedia 调用。
      */
     protected suspend fun resolveMediaData(audio: LAudio): MediaData {
-        val source = platformMediaSource.sources
-            .firstOrNull { audio.mediaSourceName == it.name }
-            ?: throw Exception("MediaSource '${audio.mediaSourceName}' not found for ${audio.id}")
-        return source.dataSource.getMedia(audio)
-            ?: throw Exception("MediaData unavailable for ${audio.id}")
+        return platformMediaSource.resolveMediaData(audio)
     }
 
     /**

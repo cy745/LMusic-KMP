@@ -53,6 +53,7 @@ import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenBarFactory
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
+import com.lalilu.navigation.deepLink
 import com.lalilu.navigation.smartbar.CancellableScreenBarPanel
 import com.lalilu.navigation.smartbar.NavigatorHeader
 import com.lalilu.extensions.ItemSelector
@@ -86,36 +87,40 @@ data object FontsScreen : Screen, ScreenInfoFactory, ScreenActionFactory, Screen
         val scope = rememberCoroutineScope()
 
         return remember {
-            listOf(
-                ScreenAction.Static(
-                    title = { "导入" },
-                    icon = { RemixIcon.System.addLine },
-                    color = { Color(0xFF009673) },
-                    onAction = {
-                        scope.launch {
-                            val file = FileKit.openFilePicker(
-                                type = FileKitType.File("ttf", "otf", "woff2"),
-                                title = "选择字体文件"
-                            ) ?: return@launch
+            val importAction = ScreenAction.Static(
+                title = { "导入" },
+                icon = { RemixIcon.System.addLine },
+                color = { Color(0xFF009673) },
+                onAction = {
+                    scope.launch {
+                        val file = FileKit.openFilePicker(
+                            type = FileKitType.File("ttf", "otf", "woff2"),
+                            title = "选择字体文件"
+                        ) ?: return@launch
 
-                            try {
-                                vm.fontManager.importFont(file.readBytes(), file.name)
-                            } catch (e: Exception) {
-                                Logger.e(
-                                    tag = "FontsScreen",
-                                    messageString = "导入字体失败: ${file.name}",
-                                    throwable = e
-                                )
-                            }
+                        try {
+                            vm.fontManager.importFont(file.readBytes(), file.name)
+                        } catch (e: Exception) {
+                            Logger.e(
+                                tag = "FontsScreen",
+                                messageString = "导入字体失败: ${file.name}",
+                                throwable = e
+                            )
                         }
                     }
-                ),
-                ScreenAction.Static(
-                    title = { "选择" },
-                    icon = { RemixIcon.Design.editBoxLine },
-                    color = { Color(0xFF009673) },
-                    onAction = { vm.selector.isSelecting.value = true }
-                )
+                }
+            )
+            val selectAction = ScreenAction.Static(
+                title = { "选择" },
+                icon = { RemixIcon.Design.editBoxLine },
+                color = { Color(0xFF009673) },
+                onAction = { vm.selector.isSelecting.value = true }
+            )
+            listOf(
+                importAction,
+                selectAction,
+                importAction.deepLink("import"),
+                selectAction.deepLink("select"),
             )
         }
     }

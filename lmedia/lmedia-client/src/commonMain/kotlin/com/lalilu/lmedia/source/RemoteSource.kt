@@ -64,7 +64,11 @@ class RemoteSource(
     private var activeConfig: RemoteSourceConfig = config.value
 
     override fun init() {
-        if (activeConfig.isConfigured) loadData(isInitialize = true)
+        if (activeConfig.isConfigured) {
+            loadData(isInitialize = true, preserveReady = false)
+        } else {
+            stateStore.content.unavailable("Server not configured")
+        }
     }
 
     /**
@@ -97,7 +101,7 @@ class RemoteSource(
         config.save()
         activeConfig = config.value
         recreateHttpClient()
-        loadData()
+        loadData(preserveReady = false)
     }
 
     fun retry(): Result<Unit> = runCatching {
@@ -107,11 +111,13 @@ class RemoteSource(
 
     fun cancel() {
         loadingJob?.cancel()
+        stateStore.content.unavailable("Cancelled", preserveReady = true)
     }
 
     fun reset() {
         closeClient()
         loadingJob?.cancel()
+        stateStore.content.unavailable("Authentication cleared")
         loadingJob = launch { stateStore.reset() }
         config.value = activeConfig.copy(salt = "", token = "")
         config.save()
@@ -138,10 +144,14 @@ class RemoteSource(
         client = null
     }
 
-    private fun loadData(isInitialize: Boolean = false) {
+    private fun loadData(
+        isInitialize: Boolean = false,
+        preserveReady: Boolean = true,
+    ) {
         loadingJob?.cancel()
         loadingJob = launch {
             val taskId = stateStore.begin(if (isInitialize) "Restoring connection..." else "Loading...")
+            stateStore.content.preparing(preserveReady = preserveReady)
             try {
                 val result = requireClient()
                     .get("/source") { appendAuthentication() }
@@ -156,16 +166,28 @@ class RemoteSource(
                         extra = audio.extra.orEmpty() + (EXTRA_REMOTE_ID to remoteId),
                     )
                 }
-                stateStore.succeed(taskId, audios)
+                if (stateStore.succeed(taskId, audios) != null) {
+                    stateStore.content.ready()
+                }
             } catch (cancelled: CancellationException) {
-                stateStore.cancel(taskId)
+                if (stateStore.cancel(taskId)) {
+                    stateStore.content.unavailable("Cancelled", preserveReady = true)
+                }
                 throw cancelled
             } catch (throwable: Throwable) {
                 Logger.e(tag = TAG, messageString = throwable.message.orEmpty(), throwable = throwable)
                 if (isInitialize) {
-                    stateStore.reset()
+                    if (stateStore.fail(taskId, throwable.message ?: "Connection failed")) {
+                        stateStore.reset()
+                        stateStore.content.unavailable(throwable.message ?: "Connection failed")
+                    }
                 } else {
-                    stateStore.fail(taskId, "[$name]${throwable.message}")
+                    if (stateStore.fail(taskId, "[$name]${throwable.message}")) {
+                        stateStore.content.unavailable(
+                            throwable.message ?: "Connection failed",
+                            preserveReady = preserveReady,
+                        )
+                    }
                 }
             }
         }

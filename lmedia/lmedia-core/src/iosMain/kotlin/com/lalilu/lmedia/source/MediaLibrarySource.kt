@@ -34,16 +34,21 @@ class MediaLibrarySource : MediaSource, MediaDataSource {
         when (MPMediaLibrary.authorizationStatus()) {
             MPMediaLibraryAuthorizationStatusAuthorized -> refresh()
             MPMediaLibraryAuthorizationStatusNotDetermined -> {
+                stateStore.content.preparing(preserveReady = false)
                 MPMediaLibrary.requestAuthorization { newStatus ->
                     if (newStatus == MPMediaLibraryAuthorizationStatusAuthorized) {
                         refresh()
                     } else {
+                        stateStore.content.unavailable("Media library permission denied")
                         scope.launch { stateStore.failNewTask("Media library permission denied") }
                     }
                 }
             }
 
-            else -> scope.launch { stateStore.failNewTask("Media library permission denied") }
+            else -> {
+                stateStore.content.unavailable("Media library permission denied")
+                scope.launch { stateStore.failNewTask("Media library permission denied") }
+            }
         }
     }
 
@@ -51,14 +56,24 @@ class MediaLibrarySource : MediaSource, MediaDataSource {
         loadingJob?.cancel()
         loadingJob = scope.launch {
             val taskId = stateStore.begin()
+            stateStore.content.preparing()
             try {
-                stateStore.succeed(taskId, load())
+                if (stateStore.succeed(taskId, load()) != null) {
+                    stateStore.content.ready()
+                }
             } catch (cancelled: CancellationException) {
-                stateStore.cancel(taskId)
+                if (stateStore.cancel(taskId)) {
+                    stateStore.content.unavailable("Cancelled", preserveReady = true)
+                }
                 throw cancelled
             } catch (throwable: Throwable) {
                 Logger.e(tag = name, throwable = throwable, messageString = "Media library scan failed")
-                stateStore.fail(taskId, throwable.message ?: "Unknown error")
+                if (stateStore.fail(taskId, throwable.message ?: "Unknown error")) {
+                    stateStore.content.unavailable(
+                        throwable.message ?: "Unknown error",
+                        preserveReady = true,
+                    )
+                }
             }
         }
     }

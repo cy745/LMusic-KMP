@@ -43,45 +43,53 @@ data class PlaylistDetailScreen(
         val state by vm.state
 
         return remember {
+            val sortAction = ScreenAction.Static(
+                title = { "排序" },
+                icon = { RemixIcon.Editor.sortDesc },
+                color = { Color(0xFF1793FF) },
+                onAction = { vm.intent(PlaylistDetailAction.ToggleSortPanel) }
+            )
+            val selectAction = ScreenAction.Static(
+                title = { "选择" },
+                icon = { RemixIcon.Design.editBoxLine },
+                color = { Color(0xFF009673) },
+                onAction = {
+                    vm.selector.isSelecting.value = true
+                    DialogWrapper.dismiss()
+                }
+            )
+            val searchAction = ScreenAction.Static(
+                title = { "搜索" },
+                subTitle = {
+                    val keyword = state.searchKeyWord
+                    if (keyword.isNotBlank()) "搜索中： $keyword" else null
+                },
+                icon = { RemixIcon.System.menuSearchLine },
+                color = { Color(0xFF8BC34A) },
+                dotColor = {
+                    val keyword = state.searchKeyWord
+                    if (keyword.isNotBlank()) Color.Red else null
+                },
+                onAction = {
+                    vm.intent(PlaylistDetailAction.ToggleSearcherPanel)
+                    DialogWrapper.dismiss()
+                }
+            )
+            val locateAction = ScreenAction.Static(
+                title = { "定位当前播放歌曲" },
+                icon = { RemixIcon.Design.focus3Line },
+                color = { Color(0xFF8700FF) },
+                onAction = { vm.intent(PlaylistDetailAction.LocaleToPlayingItem) }
+            )
             listOf(
-                ScreenAction.Static(
-                    title = { "排序" },
-                    icon = { RemixIcon.Editor.sortDesc },
-                    color = { Color(0xFF1793FF) },
-                    onAction = { vm.intent(PlaylistDetailAction.ToggleSortPanel) }
-                ),
-                ScreenAction.Static(
-                    title = { "选择" },
-                    icon = { RemixIcon.Design.editBoxLine },
-                    color = { Color(0xFF009673) },
-                    onAction = {
-                        vm.selector.isSelecting.value = true
-                        DialogWrapper.dismiss()
-                    }
-                ),
-                ScreenAction.Static(
-                    title = { "搜索" },
-                    subTitle = {
-                        val keyword = state.searchKeyWord
-                        if (keyword.isNotBlank()) "搜索中： $keyword" else null
-                    },
-                    icon = { RemixIcon.System.menuSearchLine },
-                    color = { Color(0xFF8BC34A) },
-                    dotColor = {
-                        val keyword = state.searchKeyWord
-                        if (keyword.isNotBlank()) Color.Red else null
-                    },
-                    onAction = {
-                        vm.intent(PlaylistDetailAction.ToggleSearcherPanel)
-                        DialogWrapper.dismiss()
-                    }
-                ),
-                ScreenAction.Static(
-                    title = { "定位当前播放歌曲" },
-                    icon = { RemixIcon.Design.focus3Line },
-                    color = { Color(0xFF8700FF) },
-                    onAction = { vm.intent(PlaylistDetailAction.LocaleToPlayingItem) }
-                ),
+                sortAction,
+                selectAction,
+                searchAction,
+                locateAction,
+                sortAction.deepLink("sort"),
+                selectAction.deepLink("select"),
+                searchAction.deepLink("search"),
+                locateAction.deepLink("locate_playing"),
             )
         }
     }

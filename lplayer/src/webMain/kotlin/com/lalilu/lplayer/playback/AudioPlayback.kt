@@ -1,10 +1,11 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
-import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.source.MediaData
+import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.resolveMediaData
 import com.lalilu.lplayer.notification.BrowserMediaSessionHelper
 import com.lalilu.lplayer.playback.PlaybackEngine
 import io.github.vinceglb.filekit.utils.toJsArray
@@ -42,13 +43,9 @@ class AudioPlayback(
     }
 
     private suspend fun playItem(item: LAudio, start: Boolean) {
-        val source = platformMediaSource.sources
-            .firstOrNull { item.mediaSourceName == it.name }
-            ?: throw Exception("No source item found for ${item.mediaSourceName}")
-
         player.pause()
 
-        when (val data = source.dataSource.getMedia(item)) {
+        when (val data = platformMediaSource.resolveMediaData(item)) {
             is MediaData.Url -> {
                 Logger.i(tag = TAG, messageString = "prepared with url: ${data.url}")
                 player.src = data.url
@@ -63,9 +60,6 @@ class AudioPlayback(
                 player.load()
             }
 
-            else -> {
-                throw Exception("Unsupported data type: data: $data")
-            }
         }
 
         if (start) {
