@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.entity
+package com.lalilu.lmedia.domain.source
 
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LAudioExtraKeys
