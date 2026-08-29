@@ -18,6 +18,8 @@ import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
@@ -32,6 +34,9 @@ class SubsonicSource(
 
     companion object {
         private const val TAG = "SubsonicSource"
+
+        /** 专辑详情请求的并发上限：避免瞬时打满服务器导致部分请求失败。 */
+        internal const val MAX_ALBUM_CONCURRENCY = 8
     }
 
     override val coroutineContext: CoroutineContext =
@@ -257,9 +262,30 @@ class SubsonicSource(
         }
 
         // 保留专辑上下文，以便把源端 albumId / artistId 写入每首歌的 extra。
+        // 逐专辑容错 + 并发限流：瞬时打满服务器可能导致部分专辑请求返回非 JSON 响应
+        // （如网关 502/504 页面），单个专辑失败不应拖垮整个同步。
+        val albumSemaphore = Semaphore(MAX_ALBUM_CONCURRENCY)
         val albumDetails = albums.map { album ->
-            async { api.getAlbum(album.id).response.album }
-        }.awaitAll()
+            async {
+                albumSemaphore.withPermit {
+                    try {
+                        api.getAlbum(album.id).response.album
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (throwable: Throwable) {
+                        logger.w(
+                            messageString = "跳过专辑 ${album.id}（${album.name}）：${throwable.message}",
+                            throwable = throwable,
+                        )
+                        null
+                    }
+                }
+            }
+        }.awaitAll().filterNotNull()
+
+        check(albumDetails.isNotEmpty() || albums.isEmpty()) {
+            "所有专辑请求均失败（共 ${albums.size} 个）"
+        }
 
         return albumDetails.flatMap { album ->
             album.song.map { song ->

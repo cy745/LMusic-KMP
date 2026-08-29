@@ -44,7 +44,16 @@ private val SharedModule = module {
     @OptIn(ExperimentalSettingsApi::class)
     single<ObservableSettings> { Settings().makeObservable() }
     single<Settings> { get<ObservableSettings>() }
-    single<Json> { Json { ignoreUnknownKeys = true } }
+    // coerceInputValues / explicitNulls = false：容忍远端返回的 null 字段
+    // （部分 Subsonic 服务器对缺省字段返回 null，而不是省略 key），
+    // 避免整次同步因单个字段形态差异反序列化失败。
+    single<Json> {
+        Json {
+            ignoreUnknownKeys = true
+            coerceInputValues = true
+            explicitNulls = false
+        }
+    }
 
     single<PlaybackHistory> { PlaybackHistoryImpl(historyStorage = get()) }
     single<HistoryStorage> { HistoryStorageImpl() }
