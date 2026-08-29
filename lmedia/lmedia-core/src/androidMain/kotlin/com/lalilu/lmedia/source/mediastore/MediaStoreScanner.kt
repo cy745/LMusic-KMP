@@ -7,7 +7,7 @@ import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.source.MediaSource
-import com.lalilu.lmedia.entity.toAudioExtra
+import com.lalilu.lmedia.domain.model.toAudioExtra
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext

@@ -1,16 +1,18 @@
-package com.lalilu.lmedia.entity
+package com.lalilu.lmedia.domain.model
 
-import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import kotlinx.serialization.Serializable
 
 /**
- * Taglib 扫描阶段使用的 JNI 中转对象。
+ * 音轨元数据（Taglib 扫描阶段的中转 DTO）。
  *
- * native lib-decoder-flac library references
- * "com.lalilu.lmedia.entity.Metadata" directly via JNI calls.
- * Removing this class causes ClassNotFoundException at runtime.
+ * 由平台 Taglib 实现（Android/JVM 的 JNI 绑定、iOS 的 C-Interop）在扫描时生成，
+ * 扫描完成后应立即通过 [toAudioExtra] 写入 [LAudio.extra] 落地为稀疏字段，
+ * 该类型本身不持久化、不进入数据库。
  *
- * 扫描完成后应立即通过 [toAudioExtra] 写入 LAudio.extra，不应让该类型进入领域模型或数据库。
+ * ⚠️ 包名/构造器签名是 JNI 侧契约的一部分：移动或改签名必须同步
+ * taglib fork 的 `bindings/jni/taglib_jni.h`（TAGLIB_JNI_METADATA_CLASS /
+ * TAGLIB_JNI_METADATA_CTOR_SIG），否则 `System.loadLibrary` 会因签名不匹配
+ * 在启动期直接失败。
  */
 @Serializable
 data class Metadata(
@@ -35,7 +37,7 @@ data class Metadata(
 }
 
 /**
- * 将 Taglib/JNI 返回的临时 Metadata 转换为歌曲长期保存的稀疏 extra。
+ * 将扫描阶段产生的临时 [Metadata] 转换为歌曲长期保存的稀疏 extra。
  * 空字符串和 0 不写入，数据源自己的 uri、path 等字段通过 [sourceExtra] 一并保留。
  */
 fun Metadata.toAudioExtra(

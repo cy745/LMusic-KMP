@@ -17,7 +17,7 @@ import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.MediaSourceStateStore
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
-import com.lalilu.lmedia.entity.toAudioExtra
+import com.lalilu.lmedia.domain.model.toAudioExtra
 import com.lalilu.lmedia.source.FileSystemSourceConfig
 import com.lalilu.lmedia.task.FileScannerTask
 import io.github.vinceglb.filekit.*

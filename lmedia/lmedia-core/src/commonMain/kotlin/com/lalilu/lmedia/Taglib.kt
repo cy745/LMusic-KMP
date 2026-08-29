@@ -1,6 +1,6 @@
 package com.lalilu.lmedia
 
-import com.lalilu.lmedia.entity.Metadata
+import com.lalilu.lmedia.domain.model.Metadata
 
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 expect object Taglib {

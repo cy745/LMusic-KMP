@@ -3,7 +3,7 @@ package com.lalilu.lmedia
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.lalilu.lmedia.entity.Metadata
+import com.lalilu.lmedia.domain.model.Metadata
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.await
