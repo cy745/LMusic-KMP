@@ -76,13 +76,14 @@ android {
 }
 
 /**
- * UPX 二次压缩（默认开启）：在 AGP strip 之后对 .so 执行 upx --android-shlib --lzma。
- * 顺序关键：必须先 strip 再 UPX（UPX 压缩后再 strip 会破坏压缩结构）。
- * 已实测：UPX 保持输入文件的 p_align（16KB 输入 → 16KB 输出，段偏移重排满足一致性），
- *         不影响其他 .so 的 16KB 对齐。
- * 关闭：-Plalilu.upx.enabled=false
+ * UPX 二次压缩（默认关闭，2026-08-29 起）：
+ * 真机 A/B 实证（相同 TagLib 2.3.1 构建，仅 UPX 开关差异）：
+ *   未压缩版在用户设备（Xiaomi 2602BRT18C / MIUI Android 16）正常；
+ *   UPX 压缩版（CI 环境自带 upx）在真实媒体库+真实设备上稳定 SIGABRT
+ *   （dlopen/异常路径与 UPX stub 布局/执行权限不兼容，模拟器无法复现）。
+ * 需要使用方显式开启：-Plalilu.upx.enabled=true
  */
-val upxEnabled = providers.gradleProperty("lalilu.upx.enabled").orNull != "false"
+val upxEnabled = providers.gradleProperty("lalilu.upx.enabled").orNull == "true"
 if (upxEnabled) {
     // strip 任务在 variant 创建后注册，用 matching 延迟查找
     tasks.matching { it.name == "stripReleaseDebugSymbols" }.configureEach {
