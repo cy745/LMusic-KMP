@@ -15,6 +15,8 @@ import io.ktor.client.*
 import io.ktor.client.plugins.api.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.http.Url
+import io.ktor.http.authority
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +39,28 @@ class SubsonicSource(
 
         /** 专辑详情请求的并发上限：避免瞬时打满服务器导致部分请求失败。 */
         internal const val MAX_ALBUM_CONCURRENCY = 8
+
+        /**
+         * 规范化 Subsonic API 地址：
+         * - 补协议（缺省 http://）、确保以 / 结尾
+         * - 若路径为空（用户只填了 http://host:port 或 http://host:port/），
+         *   自动补齐标准 Subsonic API 根 /rest/。否则 ping 会命中服务器根路径的
+         *   健康检查端点（返回 text/plain "."），触发 ktor 反序列化报错
+         *   「Expected response body of the type ...」（真机用户实测）。
+         * - 已有路径（如 /rest/、/api/）保持原样，不猜测。
+         */
+        internal fun normalizeApiUrl(raw: String): String {
+            var trimmed = raw.trim()
+            if (trimmed.isBlank()) return trimmed
+            if ("://" !in trimmed) trimmed = "http://$trimmed"
+            if (!trimmed.endsWith('/')) trimmed = "$trimmed/"
+            val parsed = runCatching { Url(trimmed) }.getOrNull() ?: return trimmed
+            return if (parsed.encodedPath.trimEnd('/').isEmpty()) {
+                "${parsed.protocol.name}://${parsed.authority}/rest/"
+            } else {
+                trimmed
+            }
+        }
     }
 
     override val coroutineContext: CoroutineContext =
@@ -72,9 +96,8 @@ class SubsonicSource(
 
     fun connect(url: String, username: String, password: String): Result<Unit> = runCatching {
         val current = activeConfig
-        val trimmedUrl = url.trim()
-        require(trimmedUrl.isNotBlank() && username.isNotBlank()) { "请填写完整的服务器地址和用户名" }
-        val normalizedUrl = if (trimmedUrl.endsWith('/')) trimmedUrl else "$trimmedUrl/"
+        val normalizedUrl = normalizeApiUrl(url)
+        require(normalizedUrl.isNotBlank() && username.isNotBlank()) { "请填写完整的服务器地址和用户名" }
 
         val canReuseAuthentication = password.isBlank() &&
             normalizedUrl == current.url &&
@@ -115,6 +138,15 @@ class SubsonicSource(
 
             try {
                 require(activeConfig.isConfigured) { "配置参数错误" }
+
+                // 自动修正已保存的根路径地址（缺 /rest/ 自动补齐），
+                // 修复后用户无需重新输入密码/服务器地址。
+                val normalized = normalizeApiUrl(activeConfig.url)
+                if (normalized != activeConfig.url) {
+                    activeConfig = activeConfig.copy(url = normalized)
+                    config.value = activeConfig
+                    config.save()
+                }
 
                 recreateClient(activeConfig)
 
@@ -244,7 +276,15 @@ class SubsonicSource(
         val api = subsonicApi ?: throw IllegalStateException("API not initialized")
 
         val pingResp = runCatching { api.ping().response }
-            .getOrElse { throw Exception("Ping failed: ${it.message}") }
+            .getOrElse {
+                throw Exception(
+                    if (it.message?.contains("Expected response body", ignoreCase = true) == true) {
+                        "服务器响应无法解析：请确认 Subsonic API 地址以 /rest/ 结尾（例如 http://主机:端口/rest/）"
+                    } else {
+                        "Ping failed: ${it.message}"
+                    }
+                )
+            }
 
         if (pingResp.isError) {
             throw Exception("Ping error: ${pingResp.error?.message}")

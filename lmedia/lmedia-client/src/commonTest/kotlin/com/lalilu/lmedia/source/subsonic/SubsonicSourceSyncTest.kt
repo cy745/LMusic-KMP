@@ -215,4 +215,18 @@ class SubsonicSourceSyncTest {
         val api = apiWith(albumList = emptyList(), albumResults = { error("should not be called") })
         assertEquals(emptyList(), with(source) { getSongs(api) })
     }
+
+    @Test
+    fun `api url normalization appends rest to root paths`() {
+        // 用户只填主机/端口（缺 /rest/）时自动补齐标准 API 根
+        assertEquals("http://192.168.3.6:4533/rest/", SubsonicSource.normalizeApiUrl("http://192.168.3.6:4533"))
+        assertEquals("http://192.168.3.6:4533/rest/", SubsonicSource.normalizeApiUrl("http://192.168.3.6:4533/"))
+        assertEquals("http://192.168.3.6:4533/rest/", SubsonicSource.normalizeApiUrl("192.168.3.6:4533"))
+        assertEquals("http://host:8080/rest/", SubsonicSource.normalizeApiUrl(" http://host:8080 "))
+
+        // 已带路径的地址保持原样（不做猜测）
+        assertEquals("https://music.example.com/rest/", SubsonicSource.normalizeApiUrl("https://music.example.com/rest"))
+        assertEquals("http://host:8080/api/", SubsonicSource.normalizeApiUrl("http://host:8080/api"))
+        assertEquals("http://host:8080/rest/", SubsonicSource.normalizeApiUrl("http://host:8080/rest/"))
+    }
 }
