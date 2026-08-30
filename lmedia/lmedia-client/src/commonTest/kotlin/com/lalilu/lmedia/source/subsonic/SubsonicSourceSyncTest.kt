@@ -10,6 +10,15 @@ import com.lalilu.lmedia.source.subsonic.entity.GetArtistInfo2Response
 import com.lalilu.lmedia.source.subsonic.entity.GetArtistResponse
 import com.lalilu.lmedia.source.subsonic.entity.GetArtistsResponse
 import com.lalilu.lmedia.source.subsonic.entity.GetLyricByIdResponse
+import de.jensklingenberg.ktorfit.ktorfit
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.koin.core.context.startKoin
@@ -216,6 +225,24 @@ class SubsonicSourceSyncTest {
         assertEquals(emptyList(), with(source) { getSongs(api) })
     }
 
+    /** 用 MockEngine 构造与产品一致的 ktorfit API，记录每次请求的路径。 */
+    private fun mockSubsonicApi(normalizedBaseUrl: String): Pair<SubsonicApi, () -> List<String>> {
+        val paths = mutableListOf<String>()
+        val engine = MockEngine { request ->
+            paths += request.url.encodedPath
+            respond(
+                content = """{"subsonic-response":{"status":"ok","version":"1.16.1","type":"navidrome","serverVersion":"0.58.0","openSubsonic":true}}""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+        val client = HttpClient(engine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        }
+        val api = ktorfit { httpClient(client); baseUrl(normalizedBaseUrl) }.createSubsonicApi()
+        return api to { paths.toList() }
+    }
+
     @Test
     fun `api url normalization appends rest to root paths`() {
         // 用户只填主机/端口（缺 /rest/）时自动补齐标准 API 根
@@ -224,9 +251,54 @@ class SubsonicSourceSyncTest {
         assertEquals("http://192.168.3.6:4533/rest/", SubsonicSource.normalizeApiUrl("192.168.3.6:4533"))
         assertEquals("http://host:8080/rest/", SubsonicSource.normalizeApiUrl(" http://host:8080 "))
 
-        // 已带路径的地址保持原样（不做猜测）
+        // 无端口、无协议、IP/域名、IPv6、带凭据、多斜杠等根路径形态
+        assertEquals("http://192.168.3.6/rest/", SubsonicSource.normalizeApiUrl("192.168.3.6"))
+        assertEquals("http://music.example.com/rest/", SubsonicSource.normalizeApiUrl("music.example.com"))
+        assertEquals("http://[::1]:4533/rest/", SubsonicSource.normalizeApiUrl("http://[::1]:4533"))
+        assertEquals("http://user:pass@host:8080/rest/", SubsonicSource.normalizeApiUrl("http://user:pass@host:8080"))
+        assertEquals("http://host:8080/rest/", SubsonicSource.normalizeApiUrl("http://host:8080////"))
+    }
+
+    @Test
+    fun `api url normalization keeps explicit paths unchanged`() {
+        // 已带路径的地址保持原样（不做猜测，兼容反代/自定义路径）
         assertEquals("https://music.example.com/rest/", SubsonicSource.normalizeApiUrl("https://music.example.com/rest"))
+        assertEquals("https://music.example.com/rest/", SubsonicSource.normalizeApiUrl("https://music.example.com/rest/"))
         assertEquals("http://host:8080/api/", SubsonicSource.normalizeApiUrl("http://host:8080/api"))
-        assertEquals("http://host:8080/rest/", SubsonicSource.normalizeApiUrl("http://host:8080/rest/"))
+        assertEquals("http://host:8080/api/", SubsonicSource.normalizeApiUrl("http://host:8080/api/"))
+        assertEquals("http://host:8080/sub/music/", SubsonicSource.normalizeApiUrl("http://host:8080/sub/music"))
+    }
+
+    @Test
+    fun `api url normalization is safe for blank and malformed inputs`() {
+        assertEquals("", SubsonicSource.normalizeApiUrl(""))
+        assertEquals("", SubsonicSource.normalizeApiUrl("   "))
+        // 非法输入不抛异常：原样返回（带基础修正），由请求层给出可读错误
+        val malformed = SubsonicSource.normalizeApiUrl("://bad input")
+        assertTrue(malformed.isNotEmpty())
+        assertEquals("http://host:8080/rest/", SubsonicSource.normalizeApiUrl("http://host:8080"))
+    }
+
+    @Test
+    fun `requests hit the correct endpoint after url normalization`() = runBlocking {
+        // 用户只填根地址（真机复现场景）→ 实际请求 /rest/ping
+        val (api1, paths1) = mockSubsonicApi(SubsonicSource.normalizeApiUrl("http://192.168.3.6:4533"))
+        api1.ping()
+        assertEquals("/rest/ping", paths1().single())
+
+        // 无协议输入 → 同样修正
+        val (api2, paths2) = mockSubsonicApi(SubsonicSource.normalizeApiUrl("192.168.3.6:4533"))
+        api2.ping()
+        assertEquals("/rest/ping", paths2().single())
+
+        // 已带 /rest/ → 原样命中
+        val (api3, paths3) = mockSubsonicApi(SubsonicSource.normalizeApiUrl("http://192.168.3.6:4533/rest/"))
+        api3.ping()
+        assertEquals("/rest/ping", paths3().single())
+
+        // 自定义路径 → 尊重输入（不求 /rest/）
+        val (api4, paths4) = mockSubsonicApi(SubsonicSource.normalizeApiUrl("http://host:8080/api"))
+        api4.ping()
+        assertEquals("/api/ping", paths4().single())
     }
 }
