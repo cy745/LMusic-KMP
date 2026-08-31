@@ -14,7 +14,7 @@ actual fun BlurBackground(
     modifier: Modifier,
     imageData: () -> Any,
     onColorPairFetched: (bgColor: Color, contentColor: Color) -> Unit,
-    blurProgress: () -> Float
+    blurProgress: () -> Float,
 ) {
     DefaultBlurBackground(modifier, imageData, onColorPairFetched, blurProgress)
 }
