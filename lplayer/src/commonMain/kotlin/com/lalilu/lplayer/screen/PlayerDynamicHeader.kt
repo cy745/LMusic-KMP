@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
@@ -47,11 +48,15 @@ internal fun PlayerDynamicHeader(
             { value -> -2f * (value - 0.5f).pow(2) + 0.5f }
         }
 
-        BlurBackground(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .graphicsLayer {
+        val cover = coverData()
+        if (cover == null) {
+            Spacer(modifier = Modifier.fillMaxSize())
+        } else {
+            BlurBackground(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .graphicsLayer {
                     val middleToMax = state.middleToMaxProgress.value
                     val minToMiddle = state.minToMiddleProgress.value
                     val minOffset = lerp(-size.width / 2f, 0f, decelerate(minToMiddle))
@@ -72,11 +77,12 @@ internal fun PlayerDynamicHeader(
                     alpha = state.minToMiddleProgress.value
                     scaleX = coverScale
                     scaleY = coverScale
-                },
-            blurProgress = { state.middleToMaxProgress.value },
-            onColorPairFetched = { color, _ -> onSeedColorChanged(color) },
-            imageData = { coverData() ?: "" },
-        )
+                    },
+                blurProgress = { state.middleToMaxProgress.value },
+                onColorPairFetched = { color, _ -> onSeedColorChanged(color) },
+                imageData = { cover },
+            )
+        }
 
         LyricLayout(
             modifier = Modifier

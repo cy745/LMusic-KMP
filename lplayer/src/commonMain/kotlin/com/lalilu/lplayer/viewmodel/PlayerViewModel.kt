@@ -28,7 +28,6 @@ class PlayerViewModel(
 ) : ViewModel(), LifecycleEventObserver {
     val isPlaying = LPlayer.instance.isPlaying
     val currentItem = LPlayer.instance.queue.currentItemFlow()
-    val currentTime = mutableStateOf(0L)
     val lyricItems = mutableStateOf<List<LyricItem>>(emptyList())
 
     val currentQueue = LPlayer.instance.queue.expandedItems

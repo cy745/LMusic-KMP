@@ -33,6 +33,7 @@ import kotlinx.coroutines.withContext
 fun PlaylistLayout(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
+    contentPadding: PaddingValues = PaddingValues(bottom = 200.dp),
     forceRefresh: () -> Boolean = { false },
     items: Flow<List<LAudio>>
 ) {
@@ -87,7 +88,7 @@ fun PlaylistLayout(
         state = listState,
         modifier = modifier.fillMaxSize()
             .clipToBounds(),
-        contentPadding = PaddingValues(bottom = 200.dp),
+        contentPadding = contentPadding,
         overscrollEffect = null
     ) {
         itemsIndexed(

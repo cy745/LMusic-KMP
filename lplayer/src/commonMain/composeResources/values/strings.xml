@@ -17,4 +17,13 @@
   -->
 <resources>
     <string name="player_screen_title">Player</string>
+    <string name="player_pane_lyrics">Lyrics</string>
+    <string name="player_pane_queue">Queue</string>
+    <string name="player_action_previous">Previous</string>
+    <string name="player_action_play">Play</string>
+    <string name="player_action_pause">Pause</string>
+    <string name="player_action_next">Next</string>
+    <string name="player_mode_list_recycle">Loop all</string>
+    <string name="player_mode_repeat_one">Repeat one</string>
+    <string name="player_mode_shuffle">Shuffle</string>
 </resources>
