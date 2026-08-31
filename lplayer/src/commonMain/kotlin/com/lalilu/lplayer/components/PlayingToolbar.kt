@@ -24,6 +24,7 @@ fun PlayingToolbar(
     isUserTouchEnable: () -> Boolean = { false },
     isExtraVisible: () -> Boolean = { true },
     contentColor: () -> Color,
+    contentPadding: PaddingValues = PaddingValues(start = 25.dp, end = 20.dp),
     onClick: () -> Unit = {},
     fixContent: @Composable RowScope.() -> Unit = {},
     extraContent: @Composable AnimatedVisibilityScope.() -> Unit = {}
@@ -78,7 +79,7 @@ fun PlayingToolbar(
             }
             .fillMaxWidth()
             .wrapContentHeight()
-            .padding(start = 25.dp, end = 20.dp),
+            .padding(contentPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         PlayingHeader(

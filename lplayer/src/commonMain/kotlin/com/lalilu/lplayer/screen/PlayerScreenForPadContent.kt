@@ -31,10 +31,6 @@ import com.lalilu.lplayer.components.BlurBackground
 import com.lalilu.lplayer.components.rememberSeekbarPositionState
 import kotlinx.coroutines.flow.Flow
 
-internal enum class PadPlayerPane {
-    Lyrics,
-    Queue,
-}
 
 @Composable
 internal fun PlayerScreenForPadContent(
@@ -48,8 +44,6 @@ internal fun PlayerScreenForPadContent(
     queue: Flow<List<LAudio>>,
 ) {
     val seedColor = LocalSeedColor.current
-    val selectedPaneIndex = rememberSaveable { mutableIntStateOf(0) }
-    val selectedPane = PadPlayerPane.entries[selectedPaneIndex.intValue]
     val playlistState = rememberLazyListState()
     val positionState = rememberSeekbarPositionState(currentTime.longValue.toFloat())
 
@@ -57,62 +51,43 @@ internal fun PlayerScreenForPadContent(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
     ) {
         PadPlayerBackground(
             coverData = coverData,
             onSeedColorChanged = { seedColor.value = it },
         )
 
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(vertical = 12.dp),
+                .widthIn(max = 1400.dp)
+                .padding(start = 32.dp, end = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            PlayerToolbarContent(
-                modifier = Modifier.fillMaxWidth(),
-                title = { currentItem.value?.title ?: "LMusic" },
-                subtitle = { currentItem.value?.subtitle ?: "....." },
-                contentColor = { Color.White },
-                isPlaying = { isPlaying.value },
-                isUserTouchEnabled = { true },
-                showExtraActions = { true },
+            PadNowPlayingPanel(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(0.9f),
+                coverData = coverData,
+                currentItem = currentItem,
+                currentTime = currentTime,
+                duration = duration,
+                isPlaying = isPlaying,
+                positionState = positionState,
             )
 
-            Row(
+            PadContentPanel(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .widthIn(max = 1400.dp)
-                    .align(Alignment.CenterHorizontally)
-                    .padding(horizontal = 32.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(28.dp),
-            ) {
-                PadNowPlayingPanel(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .weight(0.9f),
-                    coverData = coverData,
-                    currentTime = currentTime,
-                    duration = duration,
-                    isPlaying = isPlaying,
-                    positionState = positionState,
-                )
-
-                PadContentPanel(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .weight(1.1f),
-                    selectedPane = selectedPane,
-                    onPaneSelected = { selectedPaneIndex.intValue = it.ordinal },
-                    currentTime = {
-                        positionState.positionFor(currentTime.longValue.toFloat()).toLong()
-                    },
-                    lyricEntry = lyricEntry,
-                    queue = queue,
-                    playlistState = playlistState,
-                )
-            }
+                    .fillMaxHeight()
+                    .weight(1.1f),
+                currentTime = {
+                    positionState.positionFor(currentTime.longValue.toFloat()).toLong()
+                },
+                lyricEntry = lyricEntry,
+                queue = queue,
+                playlistState = playlistState,
+            )
         }
     }
 }
