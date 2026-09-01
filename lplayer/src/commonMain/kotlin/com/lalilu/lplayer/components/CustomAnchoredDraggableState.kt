@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -44,6 +45,7 @@ class CustomAnchoredDraggableState(
     private val overScroller: OverScroller,
     private val initAnchor: () -> DragAnchor,
     private val onStateChange: (DragAnchor, DragAnchor) -> Unit = { _, _ -> },
+    private val onSettleTargetSelected: (DragAnchor) -> Unit = {},
 ) : ScrollableState {
     private val animation by lazy { Animatable(0f, Float.VectorConverter) }
     private val dragThreshold = 120
@@ -233,6 +235,7 @@ class CustomAnchoredDraggableState(
         val targetPosition = calcSnapByTargetPosition(
             targetPosition = overScroller.finalPosition.toInt()
         )
+        getAnchorByPosition(targetPosition)?.let(onSettleTargetSelected)
 
         doAnimateTo(
             offset = targetPosition.toFloat(),
@@ -240,6 +243,23 @@ class CustomAnchoredDraggableState(
         )
 
         return velocityLeft
+    }
+
+    /**
+     * 在拖动组件之外的页面级协程中完成自动贴边。
+     *
+     * 适用于松手后拖动组件自身可能立刻离开组合的场景，避免组件协程随节点移除而取消，
+     * 导致贴边动画停在当前位置。
+     */
+    fun flingAsync(velocityY: Float) {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { fling(velocityY) }
+    }
+
+    private fun getAnchorByPosition(position: Int): DragAnchor? = when (position) {
+        minPosition -> DragAnchor.Min
+        middlePosition -> DragAnchor.Middle
+        maxPosition -> DragAnchor.Max
+        else -> null
     }
 
     fun calcSnapByTargetPosition(targetPosition: Int): Int {
@@ -269,6 +289,7 @@ class CustomAnchoredDraggableState(
 
     fun animateToState(newState: DragAnchor = stateValue) {
         val targetPosition = getSnapPositionByState(newState)
+        getAnchorByPosition(targetPosition)?.let(onSettleTargetSelected)
         scope.launch { doAnimateTo(targetPosition.toFloat()) }
     }
 
@@ -297,22 +318,28 @@ class CustomAnchoredDraggableState(
 
 @Composable
 fun rememberCustomAnchoredDraggableState(
-    onStateChange: (DragAnchor, DragAnchor) -> Unit = { _, _ -> }
+    onStateChange: (DragAnchor, DragAnchor) -> Unit = { _, _ -> },
+    onSettleTargetSelected: (DragAnchor) -> Unit = {},
 ): CustomAnchoredDraggableState {
     var initAnchor by rememberSaveable(saver = DragAnchor.Saver) { mutableStateOf(DragAnchor.Middle) }
     val flingSpec = rememberSplineBasedDecay<Float>()
     val overScroller = remember { OverScroller(flingSpec) }
     val scope = rememberCoroutineScope()
+    val currentOnStateChange = rememberUpdatedState(onStateChange)
+    val currentOnSettleTargetSelected = rememberUpdatedState(onSettleTargetSelected)
 
-    return remember {
+    return remember(scope, overScroller) {
         CustomAnchoredDraggableState(
             scope = scope,
             overScroller = overScroller,
             initAnchor = { initAnchor },
             onStateChange = { oldState, newState ->
                 initAnchor = newState
-                onStateChange(oldState, newState)
-            }
+                currentOnStateChange.value(oldState, newState)
+            },
+            onSettleTargetSelected = { target ->
+                currentOnSettleTargetSelected.value(target)
+            },
         )
     }
 }

@@ -2,6 +2,7 @@ package com.lalilu.llyricview
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -34,6 +35,7 @@ import com.lalilu.llyricview.impl.LyricContentNormal
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import org.koin.compose.koinInject
 import org.koin.core.qualifier.named
@@ -46,6 +48,8 @@ fun LyricLayout(
     currentTime: () -> Long = { 0L },
     lyricEntry: State<List<LyricItem>> = remember { mutableStateOf(emptyList()) },
     screenConstraints: Constraints,
+    prepareForDisplay: Boolean = false,
+    onDisplayReadyChanged: (Boolean) -> Unit = {},
     isUserClickEnable: () -> Boolean = { false },
     isUserScrollEnable: () -> Boolean = { false },
     onPositionReset: () -> Unit = {},
@@ -55,12 +59,14 @@ fun LyricLayout(
     val density = LocalDensity.current
     val settings: KVItem<LyricSettings> = koinInject(named("LyricSettings"))
     val textMeasurer = rememberTextMeasurer()
+    val currentOnDisplayReadyChanged = rememberUpdatedState(onDisplayReadyChanged)
+    var isDisplayReady by remember { mutableStateOf(!prepareForDisplay) }
     val isUserScrolling = remember { mutableStateOf(isUserScrollEnable()) }
         .also { it.value = isUserScrollEnable() }
     val recorder = remember { ItemRecorder() }
     val scroller = rememberLazyListAnimateScroller(
         listState = listState,
-        enableScrollAnimation = { !isUserScrolling.value },
+        enableScrollAnimation = { isDisplayReady && !isUserScrolling.value },
         keys = { recorder.list().filterNotNull() }
     )
 
@@ -90,12 +96,55 @@ fun LyricLayout(
         }
     )
 
+    DisposableEffect(prepareForDisplay) {
+        onDispose {
+            if (prepareForDisplay) {
+                currentOnDisplayReadyChanged.value(false)
+            }
+        }
+    }
+
+    LaunchedEffect(prepareForDisplay) {
+        if (!prepareForDisplay) {
+            isDisplayReady = true
+            currentOnDisplayReadyChanged.value(true)
+            return@LaunchedEffect
+        }
+
+        isDisplayReady = false
+        currentOnDisplayReadyChanged.value(false)
+
+        val lyrics = lyricEntry.value
+        val targetIndex = currentItemIndex.value
+            .takeIf { it != Int.MAX_VALUE && lyrics.isNotEmpty() }
+            ?.coerceIn(lyrics.indices)
+
+        if (targetIndex != null) {
+            val targetKey = lyrics[targetIndex].key
+
+            // 列表在透明的准备阶段先瞬间移动到当前歌词附近，再根据首次测量的真实位置做校正。
+            // 对外标记准备完成之前不会显示，因此用户看不到旧位置到新位置的跳变。
+            listState.scrollToItem(targetIndex)
+            val targetItem = snapshotFlow {
+                listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == targetKey }
+            }.first { it != null }
+
+            targetItem?.offset
+                ?.takeIf { it != 0 }
+                ?.let { listState.scrollBy(it.toFloat()) }
+        }
+
+        isDisplayReady = true
+        currentOnDisplayReadyChanged.value(true)
+    }
+
     LaunchedEffect(Unit) {
-        snapshotFlow { currentItem.value }
-            .collectLatest {
-                it ?: return@collectLatest
+        snapshotFlow { currentItem.value to isDisplayReady }
+            .collectLatest { (item, ready) ->
+                if (!ready) return@collectLatest
+                item ?: return@collectLatest
                 scroller.animateTo(
-                    key = it.key,
+                    key = item.key,
                     animationSpec = spring(
                         dampingRatio = settings.value.scrollSpringDampingRatio,
                         stiffness = settings.value.scrollSpringStiffness,

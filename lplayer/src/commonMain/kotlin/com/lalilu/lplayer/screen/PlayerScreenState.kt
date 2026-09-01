@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -30,6 +31,11 @@ import kotlinx.coroutines.launch
 internal class PlayerScreenState(
     val draggable: CustomAnchoredDraggableState,
     val lyricScrollEnabled: MutableState<Boolean>,
+    val lyricGestureInProgress: MutableState<Boolean>,
+    val lyricInputUnlocked: MutableState<Boolean>,
+    val lyricPreparationRequested: MutableState<Boolean>,
+    val lyricDisplayReady: MutableState<Boolean>,
+    val lyricListState: LazyListState,
     val playlistState: LazyListState,
     val seekbarPositionState: SeekbarPositionState,
     val middleToMaxProgress: State<Float>,
@@ -43,14 +49,29 @@ internal fun rememberPlayerScreenState(
 ): PlayerScreenState {
     val haptic = LocalHapticFeedback.current
     val lyricScrollEnabled = remember { mutableStateOf(false) }
-    val draggable = rememberCustomAnchoredDraggableState { oldState, newState ->
-        if (newState == DragAnchor.MiddleXMax && oldState != DragAnchor.MiddleXMax) {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        }
-        if (newState != DragAnchor.Max) {
-            lyricScrollEnabled.value = false
-        }
-    }
+    val lyricGestureInProgress = remember { mutableStateOf(false) }
+    val lyricInputUnlocked = rememberSaveable { mutableStateOf(false) }
+    val lyricPreparationRequested = remember { mutableStateOf(false) }
+    val lyricDisplayReady = remember { mutableStateOf(false) }
+    val draggable = rememberCustomAnchoredDraggableState(
+        onStateChange = { oldState, newState ->
+            if (newState == DragAnchor.MiddleXMax && oldState != DragAnchor.MiddleXMax) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
+            if (newState != DragAnchor.Max) {
+                lyricScrollEnabled.value = false
+            }
+            if (newState == DragAnchor.Middle) {
+                lyricInputUnlocked.value = false
+            }
+        },
+        onSettleTargetSelected = { target ->
+            if (target == DragAnchor.Max) {
+                lyricInputUnlocked.value = true
+            }
+        },
+    )
+    val lyricListState = rememberLazyListState()
     val playlistState = rememberLazyListState()
     val seekbarPositionState = rememberSeekbarPositionState(initialPlaybackPosition())
 
@@ -85,6 +106,11 @@ internal fun rememberPlayerScreenState(
     return remember(
         draggable,
         lyricScrollEnabled,
+        lyricGestureInProgress,
+        lyricInputUnlocked,
+        lyricPreparationRequested,
+        lyricDisplayReady,
+        lyricListState,
         playlistState,
         seekbarPositionState,
         middleToMaxProgress,
@@ -94,6 +120,11 @@ internal fun rememberPlayerScreenState(
         PlayerScreenState(
             draggable = draggable,
             lyricScrollEnabled = lyricScrollEnabled,
+            lyricGestureInProgress = lyricGestureInProgress,
+            lyricInputUnlocked = lyricInputUnlocked,
+            lyricPreparationRequested = lyricPreparationRequested,
+            lyricDisplayReady = lyricDisplayReady,
+            lyricListState = lyricListState,
             playlistState = playlistState,
             seekbarPositionState = seekbarPositionState,
             middleToMaxProgress = middleToMaxProgress,

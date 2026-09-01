@@ -23,6 +23,7 @@ import kotlin.math.roundToInt
 fun NestedScrollBaseLayout(
     draggable: CustomAnchoredDraggableState,
     isLyricScrollEnable: MutableState<Boolean>,
+    isLyricGestureInProgress: MutableState<Boolean>,
     toolbarContent: @Composable () -> Unit = {},
     dynamicHeaderContent: @Composable (Modifier) -> Unit = { },
     playlistContent: @Composable (Modifier) -> Unit = {},
@@ -44,6 +45,10 @@ fun NestedScrollBaseLayout(
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 // 取消正在进行的动画事件
                 draggable.tryCancel()
+
+                if (source == NestedScrollSource.UserInput) {
+                    isLyricGestureInProgress.value = true
+                }
 
                 if (
                     !isLyricScrollEnable.value
@@ -81,17 +86,24 @@ fun NestedScrollBaseLayout(
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 if (!isLyricScrollEnable.value) {
-                    draggable.fling(available.y)
-                    return available
+                    return try {
+                        draggable.fling(available.y)
+                        available
+                    } finally {
+                        isLyricGestureInProgress.value = false
+                    }
                 }
 
                 return super.onPreFling(available)
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                draggable.fling(0f)
-
-                return super.onPostFling(consumed, available)
+                return try {
+                    draggable.fling(0f)
+                    super.onPostFling(consumed, available)
+                } finally {
+                    isLyricGestureInProgress.value = false
+                }
             }
         }
     }

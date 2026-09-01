@@ -3,13 +3,7 @@ package com.lalilu.lplayer.screen
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableLongState
@@ -29,7 +23,6 @@ import com.lalilu.lplayer.components.NestedScrollBaseLayout
 import com.lalilu.lplayer.components.PlaylistLayout
 import com.lalilu.navigation.LocalModalBottomSheetState
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
 
 @Composable
 internal fun PlayerScreenContent(
@@ -52,6 +45,7 @@ internal fun PlayerScreenContent(
     NestedScrollBaseLayout(
         draggable = state.draggable,
         isLyricScrollEnable = state.lyricScrollEnabled,
+        isLyricGestureInProgress = state.lyricGestureInProgress,
         toolbarContent = {
             Column(
                 modifier = Modifier
@@ -66,8 +60,8 @@ internal fun PlayerScreenContent(
                             middleToMax,
                         )
                         alpha = (
-                            1.25f * (middleToMax + state.middleToMinProgress.value) - 0.25f
-                            ).coerceAtLeast(0f)
+                                1.25f * (middleToMax + state.middleToMinProgress.value) - 0.25f
+                                ).coerceAtLeast(0f)
                     },
             ) {
                 PlayerToolbarContent(
@@ -78,7 +72,7 @@ internal fun PlayerScreenContent(
                     isPlaying = { isPlaying.value },
                     isUserTouchEnabled = {
                         state.draggable.state.value == DragAnchor.Min ||
-                            state.draggable.state.value == DragAnchor.Max
+                                state.draggable.state.value == DragAnchor.Max
                     },
                     showExtraActions = { state.draggable.state.value == DragAnchor.Max },
                 )
@@ -126,11 +120,7 @@ internal fun PlayerScreenContent(
                     duration = duration,
                     positionState = state.seekbarPositionState,
                     animateColor = { backgroundColor.value },
-                    onDispatchDragOffset = { deltaY ->
-                        scope.launch {
-                            bottomSheetState.anchoredDraggableState.dispatchRawDelta(deltaY)
-                        }
-                    },
+                    onDispatchDragOffset = { deltaY -> bottomSheetState.anchoredDraggableState.dispatchRawDelta(deltaY) },
                     onDragStop = { result ->
                         if (result == 0) {
                             bottomSheetState.anchoredDraggableState.settle(0f)
