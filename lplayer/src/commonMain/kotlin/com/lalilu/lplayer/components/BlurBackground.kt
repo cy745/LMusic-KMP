@@ -147,7 +147,7 @@ fun DefaultBlurBackground(
                 modifier = Modifier
                     .fillMaxSize()
                     .scaleBlur(
-                        scale = 0.5f,
+                        scale = 0.4f,
                         radius = (blur.value * 50f).roundToInt().dp,
                     )
                     .drawWithContent {
