@@ -6,7 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -57,7 +58,8 @@ class BlurBackgroundViewModel : ViewModel() {
 
     suspend fun loadImage(
         context: PlatformContext,
-        imageData: Any
+        imageData: Any,
+        size: Int = 1200
     ) = withContext(Dispatchers.Unconfined) {
         val paletteFetch = async(Dispatchers.io) {
             val request = ImageRequest.Builder(context)
@@ -84,7 +86,7 @@ class BlurBackgroundViewModel : ViewModel() {
         val coverFetch = async(Dispatchers.io) {
             val request = ImageRequest.Builder(context)
                 .data(imageData)
-                .size(1200)
+                .size(size)
                 .build()
 
             ensureActive()
@@ -114,20 +116,22 @@ fun DefaultBlurBackground(
     val context = LocalPlatformContext.current
     val blur = rememberUpdatedState(blurProgress())
     val vm = viewModel { BlurBackgroundViewModel() }
+    val windowInfo = LocalWindowInfo.current
 
-    LaunchedEffect(Unit) {
-        vm.bgColorState
-            .onEach { onColorPairFetched(it ?: Color.DarkGray, Color.White) }
-            .launchIn(this)
-    }
+    BoxWithConstraints(modifier = modifier.clipToBounds()) {
+        LaunchedEffect(Unit) {
+            vm.bgColorState
+                .onEach { onColorPairFetched(it ?: Color.DarkGray, Color.White) }
+                .launchIn(this)
+        }
 
-    LaunchedEffect(imageData()) {
-        // loadImage 是结构化挂起任务：连续切歌时 LaunchedEffect 会取消上一张尚未完成的
-        // 解码和首帧准备，不再让过期任务继续争用 CPU，或反过来覆盖最新歌曲。
-        vm.loadImage(context, imageData())
-    }
+        LaunchedEffect(imageData()) {
+            // loadImage 是结构化挂起任务：连续切歌时 LaunchedEffect 会取消上一张尚未完成的
+            // 解码和首帧准备，不再让过期任务继续争用 CPU，或反过来覆盖最新歌曲。
+            val size = constraints.maxWidth.coerceAtMost(windowInfo.containerSize.width)
+            vm.loadImage(context = context, imageData = imageData(), size = size)
+        }
 
-    Box(modifier = modifier.clipToBounds()) {
         AnimatedContent(
             label = "",
             modifier = Modifier.fillMaxSize(),

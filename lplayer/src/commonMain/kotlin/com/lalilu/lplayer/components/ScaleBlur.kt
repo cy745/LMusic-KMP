@@ -39,11 +39,9 @@ fun Modifier.scaleBlur(
         "scaleBlur 的 scale 必须在 (0, 1] 范围内，当前值为 $scale"
     }
 
-    if (scale == 1f) {
-        return if (radius <= 0.dp) this else {
-            blur(radius = radius, edgeTreatment = BlurredEdgeTreatment.Unbounded)
-        }
-    }
+    if (radius <= 0.dp) return this
+
+    if (scale == 1f) return blur(radius = radius, edgeTreatment = BlurredEdgeTreatment.Rectangle)
 
     return composed {
         val currentRadius = rememberUpdatedState(radius)
@@ -79,7 +77,7 @@ fun Modifier.scaleBlur(
                             BlurEffect(
                                 radiusX = radiusPx * contentScaleX,
                                 radiusY = radiusPx * contentScaleY,
-                                edgeTreatment = TileMode.Decal,
+                                edgeTreatment = TileMode.Clamp,
                             )
                         } else {
                             null
