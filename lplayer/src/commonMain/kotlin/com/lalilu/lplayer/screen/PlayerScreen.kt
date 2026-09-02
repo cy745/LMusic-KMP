@@ -53,9 +53,6 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
             isPlaying = isPlaying.value,
             playbackKey = currentItem.value?.id,
         )
-        val state = rememberPlayerScreenState {
-            currentTime.longValue.toFloat()
-        }
         val backgroundColor = animateColorAsState(
             targetValue = MaterialTheme.colorScheme.primaryContainer,
             animationSpec = spring(stiffness = Spring.StiffnessLow),
@@ -63,7 +60,6 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
         )
 
         PlayerScreenContent(
-            state = state,
             currentItem = currentItem,
             currentCover = { currentCover },
             currentTime = currentTime,

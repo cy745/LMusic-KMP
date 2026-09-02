@@ -8,7 +8,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.State
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,14 +22,14 @@ import androidx.compose.ui.util.lerp
 import com.lalilu.llyric.LyricItem
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.components.DragAnchor
-import com.lalilu.lplayer.components.NestedScrollBaseLayout
+import com.lalilu.lplayer.components.PlayerScaffold
 import com.lalilu.lplayer.components.PlaylistLayout
+import com.lalilu.lplayer.components.rememberSeekbarPositionState
 import com.lalilu.navigation.LocalModalBottomSheetState
 import kotlinx.coroutines.flow.Flow
 
 @Composable
 internal fun PlayerScreenContent(
-    state: PlayerScreenState,
     currentItem: State<LAudio?>,
     currentCover: () -> Any?,
     currentTime: MutableLongState,
@@ -40,12 +43,12 @@ internal fun PlayerScreenContent(
     val density = LocalDensity.current
     val navigationBar = WindowInsets.navigationBars
     val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-    val scope = rememberCoroutineScope()
+    val timeline = rememberSeekbarPositionState {
+        currentTime.longValue.toFloat()
+    }
+    var isManuallyScrollingLyrics by remember { mutableStateOf(false) }
 
-    NestedScrollBaseLayout(
-        draggable = state.draggable,
-        isLyricScrollEnable = state.lyricScrollEnabled,
-        isLyricGestureInProgress = state.lyricGestureInProgress,
+    PlayerScaffold(
         toolbarContent = {
             Column(
                 modifier = Modifier
@@ -53,15 +56,14 @@ internal fun PlayerScreenContent(
                     .statusBarsPadding()
                     .padding(bottom = 10.dp)
                     .graphicsLayer {
-                        val middleToMax = state.middleToMaxProgress.value
+                        val middleToMax = middleToMaxProgress
                         translationY = lerp(
                             0f,
                             -navigationBar.getBottom(density).toFloat() + 10.dp.toPx(),
                             middleToMax,
                         )
-                        alpha = (
-                                1.25f * (middleToMax + state.middleToMinProgress.value) - 0.25f
-                                ).coerceAtLeast(0f)
+                        alpha = (1.25f * (middleToMax + middleToMinProgress) - 0.25f)
+                            .coerceAtLeast(0f)
                     },
             ) {
                 PlayerToolbarContent(
@@ -71,34 +73,33 @@ internal fun PlayerScreenContent(
                     contentColor = { contentColor },
                     isPlaying = { isPlaying.value },
                     isUserTouchEnabled = {
-                        state.draggable.state.value == DragAnchor.Min ||
-                                state.draggable.state.value == DragAnchor.Max
+                        currentAnchor == DragAnchor.Min || currentAnchor == DragAnchor.Max
                     },
-                    showExtraActions = { state.draggable.state.value == DragAnchor.Max },
+                    showExtraActions = { currentAnchor == DragAnchor.Max },
                 )
             }
         },
-        dynamicHeaderContent = { headerModifier ->
+        dynamicHeaderContent = {
             PlayerDynamicHeader(
-                modifier = headerModifier,
-                state = state,
+                scaffold = this,
+                timeline = timeline,
                 backgroundColor = backgroundColor,
                 coverData = currentCover,
                 currentTime = { currentTime.longValue },
                 lyricEntry = lyricEntry,
                 onSeedColorChanged = onSeedColorChanged,
+                onManualLyricsScrollingChanged = { isManuallyScrollingLyrics = it },
             )
         },
         playlistContent = { playlistModifier ->
             PlaylistLayout(
                 modifier = playlistModifier,
-                listState = state.playlistState,
                 items = queue,
             )
         },
-        overlayContent = {
+        overlayContent = { _ ->
             val controlsProgress = animateFloatAsState(
-                targetValue = if (!state.lyricScrollEnabled.value) 1f else 0f,
+                targetValue = if (!isManuallyScrollingLyrics) 1f else 0f,
                 animationSpec = spring(stiffness = Spring.StiffnessLow),
                 label = "PlayerControlsVisibility",
             )
@@ -118,7 +119,7 @@ internal fun PlayerScreenContent(
                         .padding(bottom = 100.dp),
                     currentTime = currentTime,
                     duration = duration,
-                    positionState = state.seekbarPositionState,
+                    positionState = timeline,
                     animateColor = { backgroundColor.value },
                     onDispatchDragOffset = { deltaY -> bottomSheetState.anchoredDraggableState.dispatchRawDelta(deltaY) },
                     onDragStop = { result ->

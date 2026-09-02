@@ -45,7 +45,9 @@ internal fun PlayerScreenForPadContent(
 ) {
     val seedColor = LocalSeedColor.current
     val playlistState = rememberLazyListState()
-    val positionState = rememberSeekbarPositionState(currentTime.longValue.toFloat())
+    val positionState = rememberSeekbarPositionState {
+        currentTime.longValue.toFloat()
+    }
 
     Box(
         modifier = modifier

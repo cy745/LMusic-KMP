@@ -174,3 +174,16 @@ fun rememberSeekbarPositionState(
 ): SeekbarPositionState = remember {
     SeekbarPositionState(initialPosition = initialPosition)
 }
+
+/**
+ * 在状态首次创建时才读取初始位置。
+ *
+ * 适用于初始值来自逐帧更新的 Compose State 的场景，避免调用方为了传入一个只使用一次的
+ * 数值，持续订阅该 State 并随每一帧重组。
+ */
+@Composable
+fun rememberSeekbarPositionState(
+    initialPosition: () -> Float,
+): SeekbarPositionState = remember {
+    SeekbarPositionState(initialPosition = initialPosition())
+}

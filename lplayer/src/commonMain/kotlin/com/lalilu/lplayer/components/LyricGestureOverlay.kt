@@ -16,18 +16,16 @@ import androidx.compose.ui.Modifier
  */
 @Composable
 fun LyricGestureOverlay(
-    draggable: CustomAnchoredDraggableState,
     modifier: Modifier = Modifier,
     onGestureStarted: () -> Unit = {},
-    onGestureProgress: () -> Unit = {},
-    onGestureStopped: () -> Unit = {},
+    onDrag: (delta: Float) -> Unit,
+    onGestureStopped: (velocity: Float) -> Unit,
 ) {
     val currentOnGestureStarted = rememberUpdatedState(onGestureStarted)
-    val currentOnGestureProgress = rememberUpdatedState(onGestureProgress)
+    val currentOnDrag = rememberUpdatedState(onDrag)
     val currentOnGestureStopped = rememberUpdatedState(onGestureStopped)
     val dragState = rememberDraggableState { delta ->
-        draggable.dispatchRawDelta(delta)
-        currentOnGestureProgress.value()
+        currentOnDrag.value(delta)
     }
 
     Spacer(
@@ -36,15 +34,10 @@ fun LyricGestureOverlay(
                 state = dragState,
                 orientation = Orientation.Vertical,
                 onDragStarted = {
-                    draggable.tryCancel()
                     currentOnGestureStarted.value()
                 },
                 onDragStopped = { velocity ->
-                    try {
-                        draggable.flingAsync(velocity)
-                    } finally {
-                        currentOnGestureStopped.value()
-                    }
+                    currentOnGestureStopped.value(velocity)
                 },
             )
     )
