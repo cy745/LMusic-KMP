@@ -49,7 +49,7 @@ import org.koin.core.annotation.Named
  * 歌词方向 / 歌词样式 / 翻译样式 / 其他（偏移、滚动参数、开关、字体入口），
  * 直接平铺展示，不再使用 accordion 折叠。
  *
- * **不再通过 `@Factory` + `@Named` 自动注册进主设置页**（避免 17 项设置
+ * **不再通过 `@Factory` + `@Named` 自动注册进主设置页**（避免完整设置
  * 全部堆积到主设置页）；主设置页只保留 [provideLyricSettingsEntry] 的
  * click 入口，点击后跳转到子页。播放页弹窗使用 [provideLyricSettingsQuick]。
  *
@@ -272,6 +272,15 @@ fun provideLyricSettings(
                 onValueChange = { kv.updateAndPersist { copy(blurEffectEnable = it) } }
             )
             switch(
+                key = "lyric_reduced_transition",
+                title = { "使用轻量歌词过渡" },
+                summary = { "关闭整页模糊，切歌时仅使用淡入淡出，适合性能较弱的设备" },
+                value = kv.settings.value.reducedTransitionEnabled,
+                onValueChange = {
+                    kv.updateAndPersist { copy(reducedTransitionEnabled = it) }
+                }
+            )
+            switch(
                 key = "lyric_translation_visible",
                 title = { "显示翻译" },
                 value = kv.settings.value.translationVisible,
@@ -302,7 +311,7 @@ fun provideLyricSettings(
 
 /**
  * 主设置页的歌词入口组：只暴露一个 click 入口，点击后跳转到歌词设置子页
- * `/settings/lyric`。17 项完整设置由子页承载，不再堆积到主设置页。
+ * `/settings/lyric`。完整设置由子页承载，不再堆积到主设置页。
  */
 @Factory
 @Named("settings_lyric")

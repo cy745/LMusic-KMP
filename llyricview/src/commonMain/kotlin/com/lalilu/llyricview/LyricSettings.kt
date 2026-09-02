@@ -55,6 +55,7 @@ data class LyricSettings(
 
     // 特殊效果开关
     val blurEffectEnable: Boolean = true,
+    val reducedTransitionEnabled: Boolean = false,
     val translationVisible: Boolean = true,
     val onlyCurrentTranslationVisible: Boolean = false,
 

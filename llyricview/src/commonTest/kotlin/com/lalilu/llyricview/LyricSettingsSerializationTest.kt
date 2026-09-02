@@ -67,6 +67,7 @@ class LyricSettingsSerializationTest {
         translationLineHeight = 34.sp,
         translationFontWeight = FontWeight.SemiBold.weight,
         blurEffectEnable = false,
+        reducedTransitionEnabled = true,
         translationVisible = false,
         onlyCurrentTranslationVisible = true,
         scrollSpringStiffness = 130f,

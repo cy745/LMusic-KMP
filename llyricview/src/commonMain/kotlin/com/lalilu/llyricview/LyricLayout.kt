@@ -13,6 +13,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -28,7 +30,6 @@ import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.findPlayingIndex
 import com.lalilu.llyricview.impl.LyricContentNormal
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
@@ -42,8 +43,9 @@ private data class LyricPageKey(
     val isReady: Boolean,
 )
 
-private const val LyricFadeOutDurationMillis = 120
-private const val LyricFadeInDurationMillis = 220
+private const val ReducedLyricFadeOutDurationMillis = 120
+private const val ReducedLyricFadeInDurationMillis = 220
+private val LyricTransitionMaxBlur = 25.dp
 
 private val LyricContent.pageKey: LyricPageKey
     get() = LyricPageKey(
@@ -59,8 +61,9 @@ private class LyricPageHistory {
 /**
  * 以完整歌词文档为单位切换内容。
  *
- * 旧页面会先完整淡出，然后新页面才开始淡入，两份歌词不会同时可见。新歌词页面拥有
+ * 新旧页面在淡入淡出的同时从模糊状态过渡，以整份歌词作为视觉切换单位。每份歌词都拥有
  * 独立的列表、位置缓存和滚动任务；旧页面退出时被冻结，因此它的跟随动画不会继续作用到新歌词上。
+ * 用户启用轻量过渡后，只执行顺序淡出、淡入，不再创建整页模糊效果。
  */
 @Composable
 fun LyricLayout(
@@ -77,7 +80,9 @@ fun LyricLayout(
     onItemClick: (LyricItem) -> Unit = {},
     onItemLongClick: (LyricItem) -> Unit = {},
 ) {
+    val settings: KVItem<LyricSettings> = koinInject(named("LyricSettings"))
     val content = lyricContent.value
+    val reducedTransitionEnabled = settings.value.reducedTransitionEnabled
     val transition = updateTransition(
         targetState = content,
         label = "LyricContentTransition",
@@ -103,48 +108,78 @@ fun LyricLayout(
         contentAlignment = Alignment.TopStart,
         contentKey = LyricContent::pageKey,
         transitionSpec = {
-            // 非首次显示时，淡入必须等待旧歌词完整淡出，避免两份歌词交叉叠加。
-            val enterDelay = if (initialState is LyricContent.Loading) {
-                0
+            if (reducedTransitionEnabled) {
+                // 轻量方案让旧页面先完整淡出，再显示新页面，避免同时绘制两份歌词。
+                val enterDelay = if (initialState is LyricContent.Loading) {
+                    0
+                } else {
+                    ReducedLyricFadeOutDurationMillis
+                }
+                fadeIn(
+                    animationSpec = tween(
+                        durationMillis = ReducedLyricFadeInDurationMillis,
+                        delayMillis = enterDelay,
+                        easing = LinearOutSlowInEasing,
+                    )
+                ) togetherWith fadeOut(
+                    animationSpec = tween(
+                        durationMillis = ReducedLyricFadeOutDurationMillis,
+                        easing = FastOutLinearInEasing,
+                    )
+                )
             } else {
-                LyricFadeOutDurationMillis
+                (fadeIn(spring(stiffness = Spring.StiffnessLow)) togetherWith
+                        fadeOut(spring(stiffness = Spring.StiffnessLow))) using
+                        SizeTransform(clip = false) { _, _ -> snap() }
             }
-            (fadeIn(
-                animationSpec = tween(
-                    durationMillis = LyricFadeInDurationMillis,
-                    delayMillis = enterDelay,
-                    easing = LinearOutSlowInEasing,
-                )
-            ) togetherWith fadeOut(
-                animationSpec = tween(
-                    durationMillis = LyricFadeOutDurationMillis,
-                    easing = FastOutLinearInEasing,
-                )
-            ))
         },
     ) { pageContent ->
         val isTargetPage = pageContent.pageKey == transition.targetState.pageKey
         val positionSynchronized = pageContent.key == sampledPlaybackKey()
-
-        when (pageContent) {
-            is LyricContent.Loading -> Spacer(modifier = Modifier.fillMaxSize())
-            is LyricContent.Ready -> LyricPage(
-                modifier = Modifier.fillMaxSize(),
-                content = pageContent,
-                active = isTargetPage,
-                startFromBeginning = startsFromBeginning,
-                positionSynchronized = positionSynchronized,
-                followEnabled = isTargetPage && positionSynchronized && !transition.isRunning,
-                interactive = isTargetPage && positionSynchronized && !transition.isRunning,
-                currentTime = currentTime,
-                sampledPlaybackKey = sampledPlaybackKey,
-                screenConstraints = screenConstraints,
-                isUserClickEnable = isUserClickEnable,
-                isUserScrollEnable = isUserScrollEnable,
-                onPositionReset = onPositionReset,
-                onItemClick = onItemClick,
-                onItemLongClick = onItemLongClick,
+        val transitionEffectModifier = if (reducedTransitionEnabled) {
+            Modifier
+        } else {
+            val blurRadius = this.transition.animateDp(
+                transitionSpec = { spring(stiffness = Spring.StiffnessLow) },
+                label = "LyricContentBlur",
+            ) { state ->
+                when (state) {
+                    EnterExitState.Visible -> 0.dp
+                    EnterExitState.PreEnter -> LyricTransitionMaxBlur
+                    EnterExitState.PostExit -> LyricTransitionMaxBlur
+                }
+            }.value
+            Modifier.blur(
+                radius = blurRadius,
+                edgeTreatment = BlurredEdgeTreatment.Unbounded,
             )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(transitionEffectModifier),
+        ) {
+            when (pageContent) {
+                is LyricContent.Loading -> Spacer(modifier = Modifier.fillMaxSize())
+                is LyricContent.Ready -> LyricPage(
+                    modifier = Modifier.fillMaxSize(),
+                    content = pageContent,
+                    active = isTargetPage,
+                    startFromBeginning = startsFromBeginning,
+                    positionSynchronized = positionSynchronized,
+                    followEnabled = isTargetPage && positionSynchronized && !transition.isRunning,
+                    interactive = isTargetPage && positionSynchronized && !transition.isRunning,
+                    currentTime = currentTime,
+                    sampledPlaybackKey = sampledPlaybackKey,
+                    screenConstraints = screenConstraints,
+                    isUserClickEnable = isUserClickEnable,
+                    isUserScrollEnable = isUserScrollEnable,
+                    onPositionReset = onPositionReset,
+                    onItemClick = onItemClick,
+                    onItemLongClick = onItemLongClick,
+                )
+            }
         }
     }
 }

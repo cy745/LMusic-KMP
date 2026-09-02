@@ -35,7 +35,7 @@ import org.koin.compose.koinInject
  *
  * ## 架构定位
  *
- * - 完整 17 项歌词设置不再注册进主设置页（避免堆积），由本子页承载；
+ * - 完整歌词设置不再注册进主设置页（避免堆积），由本子页承载；
  *   主设置页只保留 [provideLyricSettingsEntry] 的 click 入口跳转过来。
  * - 页面结构（Screen class / 路由 / ScreenInfo）由本模块自行构建，
  *   渲染委托给 lsettings 的 [SettingsSubpageContent] 模版。
