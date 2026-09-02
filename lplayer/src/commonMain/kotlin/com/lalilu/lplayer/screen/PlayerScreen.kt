@@ -49,7 +49,7 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
         val currentItem = vm.currentItem.collectAsState(null)
         val currentCover = rememberMediaCoverRequest(currentItem.value)
         val duration = LPlayer.instance.currentDuration.collectAsState(0L)
-        val currentTime = rememberPlaybackPositionState(
+        val playbackPosition = rememberPlaybackPositionState(
             isPlaying = isPlaying.value,
             playbackKey = currentItem.value?.id,
         )
@@ -62,10 +62,11 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
         PlayerScreenContent(
             currentItem = currentItem,
             currentCover = { currentCover },
-            currentTime = currentTime,
+            currentTime = playbackPosition.position,
+            sampledPlaybackKey = { playbackPosition.sampledPlaybackKey },
             duration = duration,
             isPlaying = isPlaying,
-            lyricEntry = vm.lyricItems,
+            lyricContent = vm.lyricContent,
             queue = vm.currentQueue,
             backgroundColor = backgroundColor,
             onSeedColorChanged = { seedColor.value = it },

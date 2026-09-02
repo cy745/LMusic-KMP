@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
-import com.lalilu.llyric.LyricItem
+import com.lalilu.llyricview.LyricContent
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.components.DragAnchor
 import com.lalilu.lplayer.components.PlayerScaffold
@@ -33,9 +33,10 @@ internal fun PlayerScreenContent(
     currentItem: State<LAudio?>,
     currentCover: () -> Any?,
     currentTime: MutableLongState,
+    sampledPlaybackKey: () -> Any?,
     duration: State<Long>,
     isPlaying: State<Boolean>,
-    lyricEntry: State<List<LyricItem>>,
+    lyricContent: State<LyricContent>,
     queue: Flow<List<LAudio>>,
     backgroundColor: State<Color>,
     onSeedColorChanged: (Color) -> Unit,
@@ -86,7 +87,8 @@ internal fun PlayerScreenContent(
                 backgroundColor = backgroundColor,
                 coverData = currentCover,
                 currentTime = { currentTime.longValue },
-                lyricEntry = lyricEntry,
+                sampledPlaybackKey = sampledPlaybackKey,
+                lyricContent = lyricContent,
                 onSeedColorChanged = onSeedColorChanged,
                 onManualLyricsScrollingChanged = { isManuallyScrollingLyrics = it },
             )

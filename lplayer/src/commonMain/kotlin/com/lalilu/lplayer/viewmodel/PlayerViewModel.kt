@@ -5,6 +5,7 @@ import androidx.lifecycle.*
 import com.lalilu.common.ext.io
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.LyricUtils
+import com.lalilu.llyricview.LyricContent
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.awaitContentReady
@@ -15,7 +16,6 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
@@ -28,29 +28,36 @@ class PlayerViewModel(
 ) : ViewModel(), LifecycleEventObserver {
     val isPlaying = LPlayer.instance.isPlaying
     val currentItem = LPlayer.instance.queue.currentItemFlow()
-    val lyricItems = mutableStateOf<List<LyricItem>>(emptyList())
+    val lyricContent = mutableStateOf<LyricContent>(LyricContent.Loading(null))
 
     val currentQueue = LPlayer.instance.queue.expandedItems
         .mapLatest { it.rearrange() }
 
     init {
         currentItem
-            .onEach { lyricItems.value = emptyList() }
             .flatMapLatest { audio ->
                 val source = audio?.let { song ->
                     platformSource.sources.firstOrNull { it.name == song.mediaSourceName }
                 }
                 if (audio == null || source == null) {
-                    flowOf(null)
+                    flowOf(
+                        LyricContent.Ready(key = audio?.id, items = emptyList()),
+                    )
                 } else {
                     source.contentState
                         .filter { it.isReady }
-                        // generation 每次成功加载都会变化，因此同一首歌曲也会再次触发歌词读取。
-                        .map { audio }
+                        // 新歌词加载完成前保留旧文档；LyricLayout 会在 position 的媒体身份改变后
+                        // 冻结旧页面，加载完成后再直接执行两份完整歌词之间的过渡。
+                        .mapLatest { contentState ->
+                            LyricContent.Ready(
+                                key = audio.id,
+                                generation = contentState.generation,
+                                items = retrieveLyric(audio),
+                            )
+                        }
                 }
             }
-            .mapLatest(::retrieveLyric)
-            .onEach { lyricItems.value = it }
+            .onEach { lyricContent.value = it }
             .launchIn(viewModelScope)
     }
 

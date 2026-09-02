@@ -1,10 +1,9 @@
 package com.lalilu.llyricview
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,27 +23,53 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lalilu.common.kv.KVItem
 import com.lalilu.extensions.ClassicBackHandler
-import com.lalilu.extensions.ItemRecorder
 import com.lalilu.extensions.rememberLazyListAnimateScroller
-import com.lalilu.extensions.startRecord
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.findPlayingIndex
 import com.lalilu.llyricview.impl.LyricContentNormal
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.isActive
 import org.koin.compose.koinInject
 import org.koin.core.qualifier.named
 
-@OptIn(FlowPreview::class)
+private data class LyricPageKey(
+    val mediaKey: String?,
+    val generation: Long,
+    val isReady: Boolean,
+)
+
+private const val LyricFadeOutDurationMillis = 120
+private const val LyricFadeInDurationMillis = 220
+
+private val LyricContent.pageKey: LyricPageKey
+    get() = LyricPageKey(
+        mediaKey = key,
+        generation = generation,
+        isReady = this is LyricContent.Ready,
+    )
+
+private class LyricPageHistory {
+    var lastReadyMediaKey: String? = null
+}
+
+/**
+ * 以完整歌词文档为单位切换内容。
+ *
+ * 旧页面会先完整淡出，然后新页面才开始淡入，两份歌词不会同时可见。新歌词页面拥有
+ * 独立的列表、位置缓存和滚动任务；旧页面退出时被冻结，因此它的跟随动画不会继续作用到新歌词上。
+ */
 @Composable
 fun LyricLayout(
     modifier: Modifier = Modifier,
-    listState: LazyListState = rememberLazyListState(),
     currentTime: () -> Long = { 0L },
-    lyricEntry: State<List<LyricItem>> = remember { mutableStateOf(emptyList()) },
+    lyricContent: State<LyricContent> = remember {
+        mutableStateOf(LyricContent.Ready(key = null, items = emptyList()))
+    },
+    sampledPlaybackKey: () -> Any? = { lyricContent.value.key },
     screenConstraints: Constraints,
     isUserClickEnable: () -> Boolean = { false },
     isUserScrollEnable: () -> Boolean = { false },
@@ -52,55 +77,194 @@ fun LyricLayout(
     onItemClick: (LyricItem) -> Unit = {},
     onItemLongClick: (LyricItem) -> Unit = {},
 ) {
+    val content = lyricContent.value
+    val transition = updateTransition(
+        targetState = content,
+        label = "LyricContentTransition",
+    )
+    val pageHistory = remember { LyricPageHistory() }
+    val startsFromBeginning = content is LyricContent.Ready &&
+            content.key != null &&
+            pageHistory.lastReadyMediaKey != null &&
+            pageHistory.lastReadyMediaKey != content.key
+
+    SideEffect {
+        if (content is LyricContent.Ready && content.key != null) {
+            pageHistory.lastReadyMediaKey = content.key
+        }
+    }
+
+    LaunchedEffect(content.key, content.generation) {
+        if (isUserScrollEnable()) onPositionReset()
+    }
+
+    transition.AnimatedContent(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopStart,
+        contentKey = LyricContent::pageKey,
+        transitionSpec = {
+            // 非首次显示时，淡入必须等待旧歌词完整淡出，避免两份歌词交叉叠加。
+            val enterDelay = if (initialState is LyricContent.Loading) {
+                0
+            } else {
+                LyricFadeOutDurationMillis
+            }
+            (fadeIn(
+                animationSpec = tween(
+                    durationMillis = LyricFadeInDurationMillis,
+                    delayMillis = enterDelay,
+                    easing = LinearOutSlowInEasing,
+                )
+            ) togetherWith fadeOut(
+                animationSpec = tween(
+                    durationMillis = LyricFadeOutDurationMillis,
+                    easing = FastOutLinearInEasing,
+                )
+            ))
+        },
+    ) { pageContent ->
+        val isTargetPage = pageContent.pageKey == transition.targetState.pageKey
+        val positionSynchronized = pageContent.key == sampledPlaybackKey()
+
+        when (pageContent) {
+            is LyricContent.Loading -> Spacer(modifier = Modifier.fillMaxSize())
+            is LyricContent.Ready -> LyricPage(
+                modifier = Modifier.fillMaxSize(),
+                content = pageContent,
+                active = isTargetPage,
+                startFromBeginning = startsFromBeginning,
+                positionSynchronized = positionSynchronized,
+                followEnabled = isTargetPage && positionSynchronized && !transition.isRunning,
+                interactive = isTargetPage && positionSynchronized && !transition.isRunning,
+                currentTime = currentTime,
+                sampledPlaybackKey = sampledPlaybackKey,
+                screenConstraints = screenConstraints,
+                isUserClickEnable = isUserClickEnable,
+                isUserScrollEnable = isUserScrollEnable,
+                onPositionReset = onPositionReset,
+                onItemClick = onItemClick,
+                onItemLongClick = onItemLongClick,
+            )
+        }
+    }
+}
+
+@OptIn(FlowPreview::class)
+@Composable
+private fun LyricPage(
+    content: LyricContent.Ready,
+    active: Boolean,
+    startFromBeginning: Boolean,
+    positionSynchronized: Boolean,
+    followEnabled: Boolean,
+    interactive: Boolean,
+    currentTime: () -> Long,
+    sampledPlaybackKey: () -> Any?,
+    screenConstraints: Constraints,
+    isUserClickEnable: () -> Boolean,
+    isUserScrollEnable: () -> Boolean,
+    onPositionReset: () -> Unit,
+    onItemClick: (LyricItem) -> Unit,
+    onItemLongClick: (LyricItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val density = LocalDensity.current
     val settings: KVItem<LyricSettings> = koinInject(named("LyricSettings"))
     val textMeasurer = rememberTextMeasurer()
-    val isUserScrolling = remember { mutableStateOf(isUserScrollEnable()) }
-        .also { it.value = isUserScrollEnable() }
-    val recorder = remember { ItemRecorder() }
-    val scroller = rememberLazyListAnimateScroller(
-        listState = listState,
-        enableScrollAnimation = { !isUserScrolling.value },
-        keys = { recorder.list().filterNotNull() }
-    )
-
-    val currentItemIndex = remember {
-        derivedStateOf {
-            val time = currentTime() + settings.value.timeOffset
-            val lyricEntryList = lyricEntry.value
-
-            lyricEntryList.findPlayingIndex(time)
+    val currentActive by rememberUpdatedState(active)
+    val latestCurrentTime by rememberUpdatedState(currentTime)
+    val latestSampledPlaybackKey by rememberUpdatedState(sampledPlaybackKey)
+    val startsFromBeginning = remember(content.key, content.generation) {
+        startFromBeginning
+    }
+    var preparedForFollowing by remember(content.key, content.generation) {
+        mutableStateOf(false)
+    }
+    var frozenTime by remember(content.key, content.generation) {
+        mutableLongStateOf(if (startsFromBeginning) 0L else latestCurrentTime())
+    }
+    val displayTime = remember {
+        {
+            if (
+                currentActive &&
+                latestSampledPlaybackKey() == content.key &&
+                preparedForFollowing
+            ) {
+                latestCurrentTime()
+            } else {
+                frozenTime
+            }
         }
     }
-
-    val currentItem: State<LyricItem?> = remember {
+    val initialItemIndex = remember(content.key, content.generation) {
+        if (startsFromBeginning || !positionSynchronized) {
+            0
+        } else {
+            content.items
+                .findPlayingIndex(latestCurrentTime() + settings.value.timeOffset)
+                .takeUnless { it == Int.MAX_VALUE }
+                ?.coerceIn(content.items.indices)
+                ?: 0
+        }
+    }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = initialItemIndex,
+    )
+    val itemKeys = remember(content.key, content.generation) {
+        content.items.map(LyricItem::key)
+    }
+    val scroller = rememberLazyListAnimateScroller(
+        listState = listState,
+        enableScrollAnimation = {
+            followEnabled && preparedForFollowing && !isUserScrollEnable()
+        },
+        keys = { itemKeys },
+    )
+    val currentItemIndex = remember(content.key, content.generation) {
+        derivedStateOf {
+            val time = displayTime() + settings.value.timeOffset
+            content.items.findPlayingIndex(time)
+        }
+    }
+    val currentItem: State<LyricItem?> = remember(content.key, content.generation) {
         derivedStateOf {
             currentItemIndex.value
                 .takeIf { it != Int.MAX_VALUE }
-                ?.let { lyricEntry.value[it] }
+                ?.let(content.items::getOrNull)
         }
     }
+    val canInteract = interactive && preparedForFollowing
 
-    ClassicBackHandler(
-        enabled = isUserScrolling.value,
-        onBack = {
-            isUserScrolling.value = false
-            currentItem.value?.key?.let(scroller::animateTo)
-            onPositionReset()
+    LaunchedEffect(active, positionSynchronized, preparedForFollowing) {
+        if (!active || !positionSynchronized || !preparedForFollowing) {
+            return@LaunchedEffect
         }
-    )
-
-    LaunchedEffect(Unit) {
-        val (initialLyrics, initialIndex) = snapshotFlow {
-            lyricEntry.value to currentItemIndex.value
-        }.first { (lyrics, index) ->
-            lyrics.isNotEmpty() && index != Int.MAX_VALUE
+        snapshotFlow {
+            if (latestSampledPlaybackKey() == content.key) latestCurrentTime() else null
         }
-        val targetIndex = initialIndex.coerceIn(initialLyrics.indices)
+            .filterNotNull()
+            .collect { frozenTime = it }
+    }
 
+    LaunchedEffect(followEnabled, startsFromBeginning) {
+        if (!followEnabled) return@LaunchedEffect
+
+        val targetIndex = if (startsFromBeginning) {
+            0
+        } else {
+            content.items
+                .findPlayingIndex(latestCurrentTime() + settings.value.timeOffset)
+                .takeUnless { it == Int.MAX_VALUE }
+                ?.coerceIn(content.items.indices)
+                ?: 0
+        }
         listState.scrollToItem(targetIndex)
+        withFrameNanos { }
+        preparedForFollowing = true
+    }
 
-        // 完成恢复后才开始收集播放位置，避免恢复任务和自动跟随同时滚动同一个列表。
+    LaunchedEffect(followEnabled, preparedForFollowing) {
+        if (!followEnabled || !preparedForFollowing) return@LaunchedEffect
         snapshotFlow { currentItem.value }
             .collectLatest { item ->
                 item ?: return@collectLatest
@@ -109,96 +273,111 @@ fun LyricLayout(
                     animationSpec = spring(
                         dampingRatio = settings.value.scrollSpringDampingRatio,
                         stiffness = settings.value.scrollSpringStiffness,
-                        visibilityThreshold = 0.001f
+                        visibilityThreshold = 0.001f,
                     )
                 )
             }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(active, preparedForFollowing) {
+        if (!active || !preparedForFollowing) return@LaunchedEffect
         snapshotFlow { listState.isScrollInProgress to isUserScrollEnable() }
             .debounce(5000)
-            .collectLatest { pair ->
-                val (isDragging, isScrolling) = pair
+            .collectLatest { (isDragging, isScrolling) ->
                 if (!isActive || isDragging || !isScrolling) return@collectLatest
 
-                isUserScrolling.value = false
                 currentItem.value?.key?.let(scroller::animateTo)
                 onPositionReset()
             }
     }
 
-    val context = remember {
+    ClassicBackHandler(
+        enabled = active && preparedForFollowing && isUserScrollEnable(),
+        onBack = {
+            currentItem.value?.key?.let(scroller::animateTo)
+            onPositionReset()
+        },
+    )
+
+    val context = remember(
+        content.key,
+        content.generation,
+        screenConstraints,
+        textMeasurer,
+    ) {
         LyricContext(
-            currentTime = { currentTime() + settings.value.timeOffset },
+            currentTime = { displayTime() + settings.value.timeOffset },
             currentIndex = { currentItemIndex.value },
-            isUserScrolling = { isUserScrolling.value },
+            isUserScrolling = isUserScrollEnable,
             screenConstraints = screenConstraints,
             textMeasurer = textMeasurer,
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier) {
         val heightSplit = remember(screenConstraints) {
             density.run { screenConstraints.maxHeight.toDp() / 3f }
         }
 
         LazyColumn(
             state = listState,
-            modifier = modifier
-                .fillMaxSize(),
-//                .edgeTransparent(top = heightSplit, bottom = heightSplit),
-            userScrollEnabled = true,
+            modifier = Modifier.fillMaxSize(),
+            userScrollEnabled = canInteract,
             contentPadding = PaddingValues(
                 top = heightSplit,
-                bottom = heightSplit * 2f
-            )
+                bottom = heightSplit * 2f,
+            ),
         ) {
-            startRecord(recorder) {
-                if (lyricEntry.value.isEmpty()) {
-                    item(key = "EMPTY_TIPS") {
-                        val item = remember {
-                            LyricItem.NormalLyric(
-                                key = "0",
-                                content = "暂无歌词",
-                                time = 0L
-                            )
-                        }
+            if (content.items.isEmpty()) {
+                item(key = "EMPTY_TIPS") {
+                    val item = remember {
+                        LyricItem.NormalLyric(
+                            key = "0",
+                            content = "暂无歌词",
+                            time = 0L,
+                        )
+                    }
 
-                        LyricContentNormal(
-                            lyric = item,
-                            index = context.currentIndex(),
-                            modifier = Modifier,
-                            settings = settings.value,
-                            context = context,
-                            onLongClick = { if (isUserClickEnable()) onItemLongClick(item) },
-                            onClick = { }
-                        )
-                    }
-                } else {
-                    itemsIndexed(
-                        items = lyricEntry.value,
-                        key = { _, item -> item.key },
-                        contentType = { _, _ -> LyricItem::class }
-                    ) { index, item ->
-                        LyricItemLayout.get(item)?.content(
-                            item = item,
-                            index = index,
-                            modifier = Modifier,
-                            settings = settings.value,
-                            context = context,
-                            onLongClick = { if (isUserClickEnable()) onItemLongClick(item) },
-                            onClick = { if (isUserClickEnable()) onItemClick(item) }
-                        )
-                    }
+                    LyricContentNormal(
+                        lyric = item,
+                        index = context.currentIndex(),
+                        modifier = Modifier,
+                        settings = settings.value,
+                        context = context,
+                        onLongClick = {
+                            if (canInteract && isUserClickEnable()) onItemLongClick(item)
+                        },
+                        onClick = {},
+                    )
+                }
+            } else {
+                itemsIndexed(
+                    items = content.items,
+                    key = { _, item -> item.key },
+                    // 不同歌词类型的组合结构不同，只在同类型之间复用 slot。
+                    contentType = { _, item -> item::class },
+                ) { index, item ->
+                    LyricItemLayout.get(item)?.content(
+                        item = item,
+                        index = index,
+                        modifier = Modifier,
+                        settings = settings.value,
+                        context = context,
+                        onLongClick = {
+                            if (canInteract && isUserClickEnable()) onItemLongClick(item)
+                        },
+                        onClick = {
+                            if (canInteract && isUserClickEnable()) onItemClick(item)
+                        },
+                    )
                 }
             }
         }
 
-        val contentColor = remember { Color(0xFFFFFFFF) }
+        val contentColor = remember { Color.White }
         val colors = ButtonDefaults.textButtonColors(
             containerColor = contentColor.copy(alpha = 0.15f),
-            contentColor = contentColor
+            contentColor = contentColor,
         )
 
         AnimatedVisibility(
@@ -208,17 +387,16 @@ fun LyricLayout(
                 .fillMaxWidth(),
             enter = fadeIn() + slideIn { IntOffset(0, 100) },
             exit = fadeOut() + slideOut { IntOffset(0, 100) },
-            visible = isUserScrolling.value
+            visible = active && preparedForFollowing && isUserScrollEnable(),
         ) {
             TextButton(
                 modifier = Modifier.wrapContentWidth(),
                 shape = RoundedCornerShape(8.dp),
                 colors = colors,
                 onClick = {
-                    isUserScrolling.value = false
                     currentItem.value?.key?.let(scroller::animateTo)
                     onPositionReset()
-                }
+                },
             ) {
                 Text(
                     text = "退出歌词滚动模式",

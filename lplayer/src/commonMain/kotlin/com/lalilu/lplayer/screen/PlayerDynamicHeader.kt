@@ -8,7 +8,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.util.lerp
-import com.lalilu.llyric.LyricItem
+import com.lalilu.llyricview.LyricContent
 import com.lalilu.lplayer.components.BlurBackground
 import com.lalilu.lplayer.components.PlayerScaffoldScope
 import com.lalilu.lplayer.components.SeekbarPositionState
@@ -22,7 +22,8 @@ internal fun PlayerDynamicHeader(
     backgroundColor: State<Color>,
     coverData: () -> Any?,
     currentTime: () -> Long,
-    lyricEntry: State<List<LyricItem>>,
+    sampledPlaybackKey: () -> Any?,
+    lyricContent: State<LyricContent>,
     onSeedColorChanged: (Color) -> Unit,
     onManualLyricsScrollingChanged: (Boolean) -> Unit,
 ) {
@@ -79,7 +80,8 @@ internal fun PlayerDynamicHeader(
             scaffold = scaffold,
             timeline = timeline,
             currentTime = currentTime,
-            lyricEntry = lyricEntry,
+            sampledPlaybackKey = sampledPlaybackKey,
+            lyricContent = lyricContent,
             screenConstraints = constraints,
             onManualScrollingChanged = onManualLyricsScrollingChanged,
         )

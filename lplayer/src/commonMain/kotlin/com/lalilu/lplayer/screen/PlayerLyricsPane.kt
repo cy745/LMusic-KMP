@@ -2,8 +2,6 @@ package com.lalilu.lplayer.screen
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.ReusableContent
@@ -29,7 +27,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Velocity
-import com.lalilu.llyric.LyricItem
+import com.lalilu.llyricview.LyricContent
 import com.lalilu.llyricview.LyricLayout
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.DragAnchor
@@ -52,7 +50,8 @@ internal fun PlayerLyricsPane(
     scaffold: PlayerScaffoldScope,
     timeline: SeekbarPositionState,
     currentTime: () -> Long,
-    lyricEntry: State<List<LyricItem>>,
+    sampledPlaybackKey: () -> Any?,
+    lyricContent: State<LyricContent>,
     screenConstraints: Constraints,
     onManualScrollingChanged: (Boolean) -> Unit,
 ) {
@@ -113,12 +112,12 @@ internal fun PlayerLyricsPane(
                         if (inputBlocked) Modifier.clearAndSetSemantics { }
                         else Modifier,
                     ),
-                listState = state.listState,
                 currentTime = {
                     timeline.positionFor(currentTime().toFloat()).toLong()
                 },
+                sampledPlaybackKey = sampledPlaybackKey,
                 screenConstraints = screenConstraints,
-                lyricEntry = lyricEntry,
+                lyricContent = lyricContent,
                 isUserClickEnable = { true },
                 isUserScrollEnable = {
                     state.isManualScrolling(scaffold.currentAnchor)
@@ -159,9 +158,7 @@ private enum class LyricsInteractionMode {
 
 /** 歌词区域自己的交互状态机，不向播放页泄露可变实现状态。 */
 @Stable
-private class PlayerLyricsPaneState(
-    val listState: LazyListState,
-) {
+private class PlayerLyricsPaneState {
     private var interactionMode by mutableStateOf(LyricsInteractionMode.FollowPlayback)
 
     var gestureInProgress by mutableStateOf(false)
@@ -203,8 +200,7 @@ private class PlayerLyricsPaneState(
 
 @Composable
 private fun rememberPlayerLyricsPaneState(): PlayerLyricsPaneState {
-    val listState = rememberLazyListState()
-    return remember(listState) { PlayerLyricsPaneState(listState) }
+    return remember { PlayerLyricsPaneState() }
 }
 
 @Composable

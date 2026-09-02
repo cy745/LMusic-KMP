@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
@@ -18,7 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
-import com.lalilu.llyric.LyricItem
+import com.lalilu.llyricview.LyricContent
 import com.lalilu.llyricview.LyricLayout
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.action.PlayerAction
@@ -39,7 +38,8 @@ private enum class PadDrawerAnchor {
 internal fun PadContentPanel(
     modifier: Modifier,
     currentTime: () -> Long,
-    lyricEntry: State<List<LyricItem>>,
+    sampledPlaybackKey: () -> Any?,
+    lyricContent: State<LyricContent>,
     queue: Flow<List<LAudio>>,
     playlistState: LazyListState,
 ) {
@@ -79,7 +79,8 @@ internal fun PadContentPanel(
                     },
                 constraints = constraints,
                 currentTime = currentTime,
-                lyricEntry = lyricEntry,
+                sampledPlaybackKey = sampledPlaybackKey,
+                lyricContent = lyricContent,
             )
 
             Spacer(
@@ -114,14 +115,16 @@ internal fun PadContentPanel(
 internal fun LyricPanel(
     modifier: Modifier = Modifier,
     currentTime: () -> Long,
+    sampledPlaybackKey: () -> Any?,
     constraints: Constraints,
-    lyricEntry: State<List<LyricItem>>,
+    lyricContent: State<LyricContent>,
 ) {
     LyricLayout(
         modifier = modifier.fillMaxSize(),
         currentTime = currentTime,
+        sampledPlaybackKey = sampledPlaybackKey,
         screenConstraints = constraints,
-        lyricEntry = lyricEntry,
+        lyricContent = lyricContent,
         isUserClickEnable = { true },
         isUserScrollEnable = { false },
         onItemClick = { PlayerAction.SeekTo(it.time).action() },
