@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lalilu.common.kv.KVItem
 import com.lalilu.extensions.ClassicBackHandler
+import com.lalilu.extensions.fadeEdge
 import com.lalilu.extensions.rememberLazyListAnimateScroller
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.findPlayingIndex
@@ -36,6 +37,8 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.isActive
 import org.koin.compose.koinInject
 import org.koin.core.qualifier.named
+import kotlin.math.PI
+import kotlin.math.cos
 
 private data class LyricPageKey(
     val mediaKey: String?,
@@ -46,6 +49,9 @@ private data class LyricPageKey(
 private const val ReducedLyricFadeOutDurationMillis = 120
 private const val ReducedLyricFadeInDurationMillis = 220
 private val LyricTransitionMaxBlur = 25.dp
+private val LyricFadeEdgeEasing = Easing { fraction ->
+    (cos((fraction + 1f) * PI) / 2.0 + 0.5).toFloat()
+}
 
 private val LyricContent.pageKey: LyricPageKey
     get() = LyricPageKey(
@@ -356,7 +362,13 @@ private fun LyricPage(
 
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .fadeEdge(
+                    top = heightSplit,
+                    bottom = heightSplit,
+                    easing = LyricFadeEdgeEasing,
+                ),
             userScrollEnabled = canInteract,
             contentPadding = PaddingValues(
                 top = heightSplit,
