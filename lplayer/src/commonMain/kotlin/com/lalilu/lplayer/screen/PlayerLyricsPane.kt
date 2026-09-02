@@ -43,7 +43,7 @@ import kotlin.math.pow
 /**
  * 播放页歌词区域。
  *
- * 组件内部完整拥有歌词列表位置、预热、显示就绪、手势生命周期和手动浏览模式。外部只提供
+ * 组件内部完整拥有歌词列表位置、预热、手势生命周期和手动浏览模式。外部只提供
  * 播放时间与 Scaffold 的布局能力，并接收“正在手动浏览”的结果来联动控制条显隐。
  */
 @Composable
@@ -62,6 +62,7 @@ internal fun PlayerLyricsPane(
         lyricsState = state,
     )
     val currentAnchor = scaffold.currentAnchor
+    val isManualScrolling = state.isManualScrolling(currentAnchor)
     val currentOnManualScrollingChanged = rememberUpdatedState(onManualScrollingChanged)
     val shouldComposeLyrics by remember(scaffold, state) {
         derivedStateOf {
@@ -82,7 +83,7 @@ internal fun PlayerLyricsPane(
 
     SideEffect {
         state.onAnchorChanged(currentAnchor)
-        currentOnManualScrollingChanged.value(state.isManualScrolling(currentAnchor))
+        currentOnManualScrollingChanged.value(isManualScrolling)
     }
     DisposableEffect(Unit) {
         onDispose { currentOnManualScrollingChanged.value(false) }
@@ -106,7 +107,7 @@ internal fun PlayerLyricsPane(
                         val gestureEmphasis = arcTranslation(middleToMax) * 600f
 
                         translationY = gestureEmphasis + layoutCompensation
-                        alpha = if (state.displayReady) lyricAlpha else 0f
+                        alpha = lyricAlpha
                     }
                     .then(
                         if (inputBlocked) Modifier.clearAndSetSemantics { }
@@ -118,8 +119,6 @@ internal fun PlayerLyricsPane(
                 },
                 screenConstraints = screenConstraints,
                 lyricEntry = lyricEntry,
-                prepareForDisplay = true,
-                onDisplayReadyChanged = state::onDisplayReadyChanged,
                 isUserClickEnable = { true },
                 isUserScrollEnable = {
                     state.isManualScrolling(scaffold.currentAnchor)
@@ -169,8 +168,6 @@ private class PlayerLyricsPaneState(
         private set
     var preparationRequested by mutableStateOf(false)
         private set
-    var displayReady by mutableStateOf(false)
-        private set
 
     fun isManualScrolling(anchor: DragAnchor): Boolean =
         interactionMode == LyricsInteractionMode.ManualScrolling && anchor == DragAnchor.Max
@@ -201,10 +198,6 @@ private class PlayerLyricsPaneState(
 
     fun finishPreparation() {
         preparationRequested = false
-    }
-
-    fun onDisplayReadyChanged(ready: Boolean) {
-        displayReady = ready
     }
 }
 
