@@ -12,6 +12,10 @@
             android:name="android.permission.WRITE_EXTERNAL_STORAGE"
             android:maxSdkVersion="29" tools:ignore="ScopedStorage"/>
 
+    <queries>
+        <package android:name="com.lonx.lyrico"/>
+    </queries>
+
     <application
             android:allowBackup="true"
             android:dataExtractionRules="@xml/data_extraction_rules"

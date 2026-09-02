@@ -146,7 +146,7 @@ fun SongDetailScreenContent(
                 title = song?.title ?: "Unknown",
                 subtitle = song?.subtitle,
                 extraContent = {
-                    val tagContents = listOf("music_tags", "lddc_tags")
+                    val tagContents = listOf("music_tags", "lyrico_tags", "lddc_tags")
                         .mapNotNull { key -> slotContent(key)?.let { key to it } }
                         .toMap()
 
@@ -156,11 +156,9 @@ fun SongDetailScreenContent(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            tagContents.forEach { (key, content) ->
+                            tagContents.forEach { (_, content) ->
                                 content.ApplyContent(modifier = Modifier) {
-                                    if (key == "music_tags") {
-                                        "song" composableT { song }
-                                    }
+                                    "song" composableT { song }
                                 }
                             }
                         }
