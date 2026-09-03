@@ -15,9 +15,11 @@ struct ContentView: View {
         ComposeView()
             .ignoresSafeArea(.all) // Compose has own keyboard handler
             .onOpenURL { url in
-                _ = DeepLinkHandler.shared.handle(rawUrl: url.absoluteString)
+                if url.scheme?.lowercased() == "lmusic" {
+                    _ = DeepLinkHandler.shared.handle(rawUrl: url.absoluteString)
+                } else {
+                    IosExternalFileHandler.shared.handle(url: url)
+                }
             }
     }
 }
-
-

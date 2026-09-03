@@ -164,8 +164,15 @@ class MPlayerPlayback(
 
     override suspend fun skipTo(index: Int, start: Boolean) {
         if (index == -1) return
-        val target = queue.stateSnapshot().list.getOrNull(index)
+        val queueSnapshot = queue.stateSnapshot()
+        val target = queueSnapshot.list.getOrNull(index)
         val targetReady = target?.let(::isContentReady) != false
+
+        // Queue changes are normally mirrored to Media3 by a Flow collector. A caller can update
+        // the app queue and immediately skip to a newly inserted index before that collector runs,
+        // in which case Media3 would seek to the item that previously occupied the index. Make the
+        // mirror deterministic before resolving the index in the platform player.
+        diffUpdateMediaItems(queueSnapshot.list)
 
         runWithBrowser {
             seekTo(index, 0)

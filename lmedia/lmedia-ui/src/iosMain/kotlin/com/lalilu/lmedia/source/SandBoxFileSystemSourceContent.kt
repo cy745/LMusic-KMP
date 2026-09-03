@@ -18,10 +18,12 @@ import com.lalilu.lmedia.component.SourceActionStyle
 import com.lalilu.lmedia.component.SourceInfoPanel
 import com.lalilu.lmedia.component.SourcePipelineCard
 import com.lalilu.lmedia.lmedia_ui.generated.resources.Res
+import com.lalilu.lmedia.screen.SANDBOX_MEDIA_SOURCE_ROUTE
 import com.lalilu.lmedia.server.SandBoxFileSystemServer
 import com.lalilu.lmedia.source.sandbox.SandboxFileSystemSource
 import com.lalilu.lmedia.util.IfAddresses
 import com.lalilu.lmedia.util.IfaddrsInteractor
+import com.lalilu.navigation.AppRouter
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -90,6 +92,12 @@ fun SandboxFileSystemSource.sandBoxFileSystemSourceContent(modifier: Modifier) =
                         title = if (uiState.isLoading) "停止扫描" else "重新扫描 Documents",
                         style = SourceActionStyle.Primary,
                         onClick = { if (uiState.isLoading) cancel() else refresh() },
+                    )
+                    SourceActionButton(
+                        title = "编辑文件",
+                        style = SourceActionStyle.Secondary,
+                        enabled = !uiState.isLoading,
+                        onClick = { AppRouter.route(SANDBOX_MEDIA_SOURCE_ROUTE).push() },
                     )
                 }
 

@@ -19,6 +19,9 @@ import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.domain.model.toAudioExtra
 import com.lalilu.lmedia.source.FileSystemSourceConfig
+import com.lalilu.lmedia.source.external.ExternalMediaMatch
+import com.lalilu.lmedia.source.external.ExternalMediaMatchBasis
+import com.lalilu.lmedia.source.external.ExternalMediaMatcher
 import com.lalilu.lmedia.task.FileScannerTask
 import io.github.vinceglb.filekit.*
 import kotlinx.coroutines.*
@@ -35,7 +38,7 @@ import java.io.FileNotFoundException
 class AndroidFileSystemSource(
     private val context: Application,
     kv: LMediaKV,
-) : MediaSource, MediaDataSource {
+) : MediaSource, MediaDataSource, ExternalMediaMatcher {
     override val name: String = "AndroidFileSystemSource"
     override val dataSource: MediaDataSource = this
 
@@ -170,6 +173,21 @@ class AndroidFileSystemSource(
                 }
             }
         }.awaitAll().filterNotNull()
+    }
+
+    override suspend fun matchExternalMedia(
+        file: PlatformFile,
+        candidates: List<LAudio>,
+    ): ExternalMediaMatch? {
+        val locator = when (val androidFile = file.androidFile) {
+            is AndroidFile.FileWrapper -> androidFile.file.toUri().toString()
+            is AndroidFile.UriWrapper -> androidFile.uri.toString()
+        }
+        val audio = candidates.firstOrNull {
+            it.mediaSourceName == name && it.extra?.get("uri") == locator
+        } ?: snapshot.value?.audios?.firstOrNull { it.extra?.get("uri") == locator }
+            ?: return null
+        return ExternalMediaMatch(audio, ExternalMediaMatchBasis.SourceLocator)
     }
 
     override suspend fun getLyric(song: LAudio): String? = withContext(Dispatchers.io) {

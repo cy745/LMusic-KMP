@@ -49,9 +49,13 @@ kotlin {
     setupKoin()
 
     sourceSets {
-        val androidAndDesktop by creating {
+        val nonWebMain by creating {
             dependsOn(commonMain.get())
         }
+        val androidAndDesktop by creating {
+            dependsOn(nonWebMain)
+        }
+        nativeMain.get().dependsOn(nonWebMain)
 
         commonMain.dependencies {
             api(project(":lmedia:lmedia-domain"))
@@ -70,6 +74,7 @@ kotlin {
             api(libs.ktor.server.content.negotiation)
             api(libs.ktorfit)
             api(kotlincrypto.hash.md)
+            api(kotlincrypto.hash.sha2)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
