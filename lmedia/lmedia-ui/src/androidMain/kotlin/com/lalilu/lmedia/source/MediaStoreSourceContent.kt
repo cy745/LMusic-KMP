@@ -6,7 +6,6 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -67,37 +66,33 @@ fun MediaStoreSource.mediaStoreSourceContent(modifier: Modifier) = LazyStaggered
                         onClick = { launcher.launch(permission) },
                     )
                 } else {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f),
-                        shape = RoundedCornerShape(12.dp),
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                     ) {
-                        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("忽略过短音频", style = MaterialTheme.typography.titleSmall)
-                                    Text(
-                                        "过滤铃声、提示音等短文件",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("忽略过短音频", style = MaterialTheme.typography.titleSmall)
                                 Text(
-                                    "${minDuration.toInt()} 秒",
-                                    style = MaterialTheme.typography.labelLarge,
+                                    "过滤铃声、提示音等短文件",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
                                 )
                             }
-                            Slider(
-                                value = minDuration,
-                                onValueChange = { minDuration = it },
-                                onValueChangeFinished = { updateMinDuration(minDuration.toInt()) },
-                                valueRange = 0f..60f,
-                                steps = 59,
+                            Text(
+                                "${minDuration.toInt()} 秒",
+                                style = MaterialTheme.typography.labelLarge,
                             )
                         }
+                        Slider(
+                            value = minDuration,
+                            onValueChange = { minDuration = it },
+                            onValueChangeFinished = { updateMinDuration(minDuration.toInt()) },
+                            valueRange = 0f..60f,
+                            steps = 59,
+                        )
                     }
 
                     FlowRow(

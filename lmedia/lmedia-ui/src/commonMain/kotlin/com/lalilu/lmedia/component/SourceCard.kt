@@ -3,7 +3,9 @@ package com.lalilu.lmedia.component
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -11,6 +13,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -25,7 +29,7 @@ import com.lalilu.lmedia.domain.source.SnapshotState
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
-/** 公共卡片向来源专用 UI 暴露的只读流水线状态。 */
+/** 公共来源区块向来源专用 UI 暴露的只读流水线状态。 */
 data class SourcePipelineUiState(
     val syncState: SnapshotState,
     val snapshot: Snapshot?,
@@ -36,7 +40,7 @@ data class SourcePipelineUiState(
 }
 
 /**
- * 数据源卡片的稳定骨架：只负责来源身份、加载状态、最近结果与数据库写入状态。
+ * 数据源区块的稳定骨架：只负责来源身份、加载状态、最近结果与数据库写入状态。
  * 目录选择、账号配置等差异化交互由 [content] 自行组织，避免公共层再次演变成配置 DSL。
  */
 @Composable
@@ -93,7 +97,7 @@ fun MediaSource.SourcePipelineCard(
 
         uiState.snapshot?.let { snapshot ->
             SnapshotPreviewCard(
-                modifier = Modifier.padding(top = 12.dp),
+                modifier = Modifier.padding(top = 14.dp),
                 snapshot = snapshot,
             )
         }
@@ -123,43 +127,72 @@ fun SourceActionButton(
     style: SourceActionStyle = SourceActionStyle.Secondary,
     onClick: () -> Unit,
 ) {
+    val compactShape = RoundedCornerShape(6.dp)
+    val contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+
     when (style) {
-        SourceActionStyle.Primary -> FilledTonalButton(
+        SourceActionStyle.Primary -> OutlinedButton(
             modifier = modifier,
             enabled = enabled,
+            shape = compactShape,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.055f),
+                contentColor = MaterialTheme.colorScheme.primary,
+            ),
+            contentPadding = contentPadding,
             onClick = onClick,
-            content = { Text(title) },
+            content = { SourceActionLabel(title) },
         )
 
         SourceActionStyle.Secondary -> OutlinedButton(
             modifier = modifier,
             enabled = enabled,
+            shape = compactShape,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            contentPadding = contentPadding,
             onClick = onClick,
-            content = { Text(title) },
+            content = { SourceActionLabel(title) },
         )
 
         SourceActionStyle.Quiet -> TextButton(
             modifier = modifier,
             enabled = enabled,
+            shape = compactShape,
+            contentPadding = contentPadding,
             onClick = onClick,
-            content = { Text(title) },
+            content = { SourceActionLabel(title) },
         )
 
         SourceActionStyle.Danger -> TextButton(
             modifier = modifier,
             enabled = enabled,
+            shape = compactShape,
+            contentPadding = contentPadding,
             onClick = onClick,
             colors = ButtonDefaults.textButtonColors(
                 contentColor = MaterialTheme.colorScheme.error,
             ),
-            content = { Text(title) },
+            content = { SourceActionLabel(title) },
         )
     }
 }
 
+@Composable
+private fun SourceActionLabel(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+    )
+}
+
 /**
- * 数据源配置表单统一使用更柔和的填充和圆角，避免 Material 默认的小圆角、重描边
- * 与外层数据源卡片产生割裂感。
+ * 数据源配置表单只保留底部细线，用字号、透明度和留白表达输入层级。
  */
 @Composable
 fun SourceTextField(
@@ -172,9 +205,7 @@ fun SourceTextField(
     isError: Boolean = false,
     visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
-    val containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
-
-    OutlinedTextField(
+    TextField(
         modifier = modifier.fillMaxWidth(),
         value = value,
         onValueChange = onValueChange,
@@ -184,13 +215,14 @@ fun SourceTextField(
         isError = isError,
         visualTransformation = visualTransformation,
         singleLine = true,
-        shape = RoundedCornerShape(14.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = containerColor,
-            unfocusedContainerColor = containerColor,
-            errorContainerColor = containerColor,
-            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f),
+        shape = RectangleShape,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            disabledContainerColor = Color.Transparent,
+            errorContainerColor = Color.Transparent,
+            focusedIndicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f),
+            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f),
         ),
     )
 }
@@ -204,42 +236,33 @@ fun SourceInfoPanel(
     supportingText: String? = null,
     emphasized: Boolean = false,
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = if (emphasized) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f)
-        },
-        border = BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-        ),
+    Column(
+        modifier = modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (emphasized) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f)
+            },
+        )
+        Text(
+            text = value,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        supportingText?.takeIf(String::isNotBlank)?.let {
             Text(
-                text = label,
+                text = it,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
             )
-            Text(
-                text = value,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            supportingText?.takeIf(String::isNotBlank)?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                )
-            }
         }
     }
 }
@@ -258,7 +281,11 @@ fun SourceSectionHeader(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Black,
+            )
             Text(
                 text = summary,
                 maxLines = 1,
@@ -280,24 +307,26 @@ private fun SourceStatusBadge(
     commitState: SnapshotCommitState,
     idleLabel: String,
 ) {
-    val (label, colors) = when {
-        syncState is SnapshotState.Loading -> "同步中" to MaterialTheme.colorScheme.tertiaryContainer
-        commitState is SnapshotCommitState.Committing -> "写入中" to MaterialTheme.colorScheme.tertiaryContainer
-        syncState is SnapshotState.Error -> "同步失败" to MaterialTheme.colorScheme.errorContainer
-        commitState is SnapshotCommitState.Failed -> "写入失败" to MaterialTheme.colorScheme.errorContainer
-        snapshot != null -> "已就绪" to MaterialTheme.colorScheme.primaryContainer
-        else -> idleLabel to MaterialTheme.colorScheme.surfaceContainerHighest
+    val (label, color) = when {
+        syncState is SnapshotState.Loading -> "同步中" to MaterialTheme.colorScheme.primary
+        commitState is SnapshotCommitState.Committing -> "写入中" to MaterialTheme.colorScheme.primary
+        syncState is SnapshotState.Error -> "同步失败" to MaterialTheme.colorScheme.error
+        commitState is SnapshotCommitState.Failed -> "写入失败" to MaterialTheme.colorScheme.error
+        snapshot != null -> "已就绪" to Color(0xFF009673)
+        else -> idleLabel to MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
     }
 
-    Surface(
-        color = colors,
-        shape = RoundedCornerShape(100.dp),
+    Row(
+        modifier = Modifier.padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        Box(modifier = Modifier.size(6.dp).background(color, CircleShape))
         Text(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             text = label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
+            color = color,
         )
     }
 }
@@ -321,26 +350,23 @@ private fun LoadingMessage(state: SnapshotState.Loading) {
 
 @Composable
 private fun ErrorMessage(message: String) {
-    Surface(
+    Column(
         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        shape = RoundedCornerShape(12.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = "同步没有完成",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                modifier = Modifier.padding(top = 3.dp),
-                text = message,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
+        Text(
+            text = "同步没有完成",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.error,
+        )
+        Text(
+            text = message,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

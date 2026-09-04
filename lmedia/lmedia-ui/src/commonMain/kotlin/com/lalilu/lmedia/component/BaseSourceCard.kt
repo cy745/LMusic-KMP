@@ -1,16 +1,17 @@
 package com.lalilu.lmedia.component
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -22,20 +23,19 @@ fun BaseSourceCard(
     actionContent: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit = {}
 ) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f),
-        )
-    ) {
+    val accentColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+
+    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
         Column(
-            modifier = Modifier
-                .padding(horizontal = 18.dp)
-                .padding(top = 18.dp, bottom = 16.dp)
+            modifier = modifier
                 .fillMaxWidth()
+                .drawBehind {
+                    drawRect(
+                        color = accentColor,
+                        size = Size(width = 2.dp.toPx(), height = size.height),
+                    )
+                }
+                .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -46,6 +46,7 @@ fun BaseSourceCard(
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
 
@@ -67,9 +68,9 @@ fun DefaultSubtitleContent(
 ) {
     Text(
         modifier = modifier
-            .alpha(0.6f)
-            .padding(top = 4.dp),
+            .alpha(0.56f)
+            .padding(top = 5.dp),
         text = subtitle,
-        style = MaterialTheme.typography.labelSmall,
+        style = MaterialTheme.typography.bodySmall,
     )
 }

@@ -32,13 +32,13 @@ fun AndroidFileSystemSource.androidFileSystemSourceContent(modifier: Modifier) =
                 description = "直接扫描所选目录，封面与歌词均从原始文件读取",
                 idleLabel = if (directory.isBlank()) "未选择目录" else "待扫描",
             ) { uiState ->
-                SourceInfoPanel(
-                    modifier = Modifier.padding(top = 14.dp),
-                    label = "当前扫描目录",
-                    value = directory.ifBlank { "尚未选择音乐文件夹" },
-                    supportingText = if (directory.isBlank()) "选择后会立即进行第一次扫描" else null,
-                    emphasized = directory.isBlank(),
-                )
+                if (directory.isNotBlank()) {
+                    SourceInfoPanel(
+                        modifier = Modifier.padding(top = 14.dp),
+                        label = "当前扫描目录",
+                        value = directory,
+                    )
+                }
 
                 FlowRow(
                     modifier = Modifier.fillMaxWidth().padding(top = 10.dp),

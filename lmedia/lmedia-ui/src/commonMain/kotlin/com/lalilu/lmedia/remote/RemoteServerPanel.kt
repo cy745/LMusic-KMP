@@ -1,13 +1,11 @@
 package com.lalilu.lmedia.remote
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -61,25 +59,25 @@ fun RemoteServerPanel(
             )
         },
     ) {
-        SourceInfoPanel(
-            modifier = Modifier.padding(top = 14.dp),
-            label = if (appliedConfig.enable) "共享服务" else "当前已关闭",
-            value = when {
-                remoteServer.running.value -> "正在端口 ${appliedConfig.port} 上运行"
-                appliedConfig.enable -> "正在启动服务…"
-                else -> "开启后，其他设备可以连接到这台设备"
-            },
-            supportingText = if (appliedConfig.enable && appliedConfig.sourceName.isNotBlank()) {
-                val sourceName = sources.sources
-                    .firstOrNull { it.name == appliedConfig.sourceName }
-                    ?.displayName()
-                    ?: appliedConfig.sourceName
-                "当前共享：$sourceName"
-            } else {
-                null
-            },
-            emphasized = remoteServer.running.value,
-        )
+        if (appliedConfig.enable) {
+            SourceInfoPanel(
+                modifier = Modifier.padding(top = 14.dp),
+                label = "共享服务",
+                value = if (remoteServer.running.value) {
+                    "正在端口 ${appliedConfig.port} 上运行"
+                } else {
+                    "正在启动服务…"
+                },
+                supportingText = appliedConfig.sourceName.takeIf(String::isNotBlank)?.let {
+                    val sourceName = sources.sources
+                        .firstOrNull { it.name == appliedConfig.sourceName }
+                        ?.displayName()
+                        ?: appliedConfig.sourceName
+                    "当前共享：$sourceName"
+                },
+                emphasized = remoteServer.running.value,
+            )
+        }
 
         AnimatedVisibility(visible = appliedConfig.enable) {
             Column(
@@ -142,58 +140,37 @@ private fun SharedSourceOption(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
     val indicatorColor = if (selected) {
         MaterialTheme.colorScheme.primary
     } else {
         MaterialTheme.colorScheme.outline
     }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.38f)
-        },
-        contentColor = contentColor,
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (selected) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
-            },
-        ),
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Box(
+            modifier = Modifier.size(18.dp)
+                .border(1.5.dp, indicatorColor, CircleShape)
+                .padding(4.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                modifier = Modifier.size(18.dp)
-                    .border(1.5.dp, indicatorColor, CircleShape)
-                    .padding(4.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (selected) {
-                    Box(
-                        modifier = Modifier.fillMaxSize()
-                            .background(indicatorColor, CircleShape),
-                    )
-                }
+            if (selected) {
+                Box(
+                    modifier = Modifier.fillMaxSize()
+                        .background(indicatorColor, CircleShape),
+                )
             }
-            Text(
-                text = source.displayName(),
-                style = MaterialTheme.typography.bodyMedium,
-            )
         }
+        Text(
+            text = source.displayName(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) indicatorColor else MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 

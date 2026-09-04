@@ -50,6 +50,13 @@ object MediaSourceScreen : Screen, ScreenInfoFactory {
             windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND) -> 2
             else -> 1
         }
+        val horizontalPadding = when (column) {
+            1 -> 16.dp
+            2 -> 28.dp
+            else -> 40.dp
+        }
+        val columnSpacing = if (column == 1) 0.dp else 40.dp
+        val itemSpacing = if (column == 1) 28.dp else 36.dp
         val statusBar = WindowInsets.statusBars.asPaddingValues()
         val navigationBar = WindowInsets.navigationBars.asPaddingValues()
         val smartBarHeight = PassThroughHelper.getValue(
@@ -64,14 +71,14 @@ object MediaSourceScreen : Screen, ScreenInfoFactory {
         LazyVerticalStaggeredGrid(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
+                start = horizontalPadding,
+                end = horizontalPadding,
                 top = statusBar.calculateTopPadding() + 16.dp,
                 bottom = smartBarHeight() + 16.dp
             ),
             columns = StaggeredGridCells.Fixed(column),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalItemSpacing = 16.dp
+            horizontalArrangement = Arrangement.spacedBy(columnSpacing),
+            verticalItemSpacing = itemSpacing
         ) {
             item(span = StaggeredGridItemSpan.FullLine) {
                 NavigatorHeader(

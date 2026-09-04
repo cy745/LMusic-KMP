@@ -2,7 +2,6 @@ package com.lalilu.lmedia.source
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -16,7 +15,7 @@ fun RemoteSource.remoteSourceContent(modifier: Modifier) = LazyStaggeredGridCont
     val appliedConfig by config.flow().collectAsState(initial = config.value)
     var password by rememberSaveable { mutableStateOf("") }
     var formError by rememberSaveable { mutableStateOf<String?>(null) }
-    var editing by rememberSaveable { mutableStateOf(!appliedConfig.isConfigured) }
+    var editing by rememberSaveable { mutableStateOf(false) }
 
     return@LazyStaggeredGridContent {
         item(key = this@remoteSourceContent.name) {
@@ -27,7 +26,7 @@ fun RemoteSource.remoteSourceContent(modifier: Modifier) = LazyStaggeredGridCont
                 idleLabel = if (appliedConfig.isConfigured) "待连接" else "未配置",
             ) { uiState ->
                 val configured = appliedConfig.isConfigured
-                val showForm = !configured || editing
+                val showForm = editing
 
                 LaunchedEffect(uiState.syncState) {
                     if (uiState.syncState is SnapshotState.Error) editing = true
@@ -94,60 +93,65 @@ fun RemoteSource.remoteSourceContent(modifier: Modifier) = LazyStaggeredGridCont
                                     }
                                 },
                             )
-                            if (configured) {
-                                SourceActionButton(
-                                    title = "放弃修改",
-                                    style = SourceActionStyle.Quiet,
-                                    enabled = !uiState.isLoading,
-                                    onClick = {
-                                        config.update()
-                                        password = ""
-                                        formError = null
-                                        editing = false
-                                    },
-                                )
-                            }
+                            SourceActionButton(
+                                title = if (configured) "放弃修改" else "取消",
+                                style = SourceActionStyle.Quiet,
+                                enabled = !uiState.isLoading,
+                                onClick = {
+                                    config.update()
+                                    password = ""
+                                    formError = null
+                                    editing = false
+                                },
+                            )
                         }
                     }
                 }
 
                 if (!showForm) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(top = 14.dp),
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                    )
                     FlowRow(
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        SourceActionButton(
-                            title = if (uiState.isLoading) "取消" else "刷新远程媒体库",
-                            style = SourceActionStyle.Primary,
-                            onClick = {
-                                if (uiState.isLoading) cancel()
-                                else refresh().onFailure { formError = it.message ?: "刷新失败" }
-                            },
-                        )
-                        SourceActionButton(
-                            title = "修改连接",
-                            enabled = !uiState.isLoading,
-                            onClick = {
-                                config.update()
-                                editing = true
-                            },
-                        )
-                        SourceActionButton(
-                            title = "清除认证",
-                            enabled = !uiState.isLoading,
-                            style = SourceActionStyle.Quiet,
-                            onClick = {
-                                reset()
-                                password = ""
-                                formError = null
-                                editing = true
-                            },
-                        )
+                        if (configured) {
+                            SourceActionButton(
+                                title = if (uiState.isLoading) "取消" else "刷新远程媒体库",
+                                style = SourceActionStyle.Primary,
+                                onClick = {
+                                    if (uiState.isLoading) cancel()
+                                    else refresh().onFailure { formError = it.message ?: "刷新失败" }
+                                },
+                            )
+                            SourceActionButton(
+                                title = "修改连接",
+                                enabled = !uiState.isLoading,
+                                onClick = {
+                                    config.update()
+                                    editing = true
+                                },
+                            )
+                            SourceActionButton(
+                                title = "清除认证",
+                                enabled = !uiState.isLoading,
+                                style = SourceActionStyle.Quiet,
+                                onClick = {
+                                    reset()
+                                    password = ""
+                                    formError = null
+                                    editing = true
+                                },
+                            )
+                        } else {
+                            SourceActionButton(
+                                title = "配置连接",
+                                style = SourceActionStyle.Primary,
+                                onClick = {
+                                    config.update()
+                                    editing = true
+                                },
+                            )
+                        }
                     }
                 }
             }
