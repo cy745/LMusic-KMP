@@ -11,7 +11,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.navigationevent.NavigationEventInfo
@@ -25,6 +24,7 @@ import com.lalilu.component.ModalBottomSheetValue
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.navigation.LocalModalBottomSheetState
 import com.lalilu.navigation.SheetExpandInterceptor
+import com.lalilu.navigation.smartbar.SmartBarContentHeight
 import com.lalilu.lmusic.settings.DisplayCornerSettingsStore
 import com.lalilu.lmusic.settings.rememberSystemDisplayCornerRadii
 import com.lalilu.lmusic.settings.resolveDisplayCornerRadii
@@ -43,7 +43,10 @@ fun ScaleBottomSheetLayout(
 ) {
     val scope = rememberCoroutineScope()
     val navigatorBar = WindowInsets.navigationBars.asPaddingValues()
-    val ime = WindowInsets.ime.asPaddingValues()
+    val smartBarHeight = { SmartBarContentHeight + navigatorBar.calculateBottomPadding() }
+    val navigationBarPadding = PaddingValues(
+        bottom = navigatorBar.calculateBottomPadding()
+    )
     val systemCornerRadii = rememberSystemDisplayCornerRadii()
     val cornerRadii = resolveDisplayCornerRadii(
         settings = DisplayCornerSettingsStore.settings.value,
@@ -92,12 +95,19 @@ fun ScaleBottomSheetLayout(
             sheetContent = {
                 Box(modifier = Modifier) {
                     PassThroughHelper.Passthrough(
-                        "SmartBarHeight" to {
-                            72.dp + ime.calculateBottomPadding()
-                                .coerceAtLeast(navigatorBar.calculateBottomPadding())
-                        }
+                        "SmartBarHeight" to smartBarHeight
                     ) {
-                        mainContent.invoke()
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                // 页面仍可绘制到 SmartBar 下方；其列表通过 SmartBarHeight
+                                // 留出滚动末端。这里只从 IME 避让量中扣除系统导航栏高度，
+                                // SmartBar 本体仍由 IME 避让，避免列表末项停在 SmartBar 后方。
+                                .consumeWindowInsets(navigationBarPadding)
+                                .imePadding()
+                        ) {
+                            mainContent.invoke()
+                        }
                     }
 
                     smartBarContent.invoke(

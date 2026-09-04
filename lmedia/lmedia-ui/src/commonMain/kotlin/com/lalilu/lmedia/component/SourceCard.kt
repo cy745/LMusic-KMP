@@ -8,13 +8,18 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,6 +33,9 @@ import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+
+internal val LocalSourceTextFieldRelocator =
+    staticCompositionLocalOf<suspend (Rect, Float) -> Unit> { { _, _ -> } }
 
 /** 公共来源区块向来源专用 UI 暴露的只读流水线状态。 */
 data class SourcePipelineUiState(
@@ -205,8 +213,27 @@ fun SourceTextField(
     isError: Boolean = false,
     visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
+    val imeBottomPadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    val relocate = LocalSourceTextFieldRelocator.current
+    var isFocused by remember { mutableStateOf(false) }
+    var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+    LaunchedEffect(isFocused, imeBottomPadding, relocate) {
+        if (isFocused && imeBottomPadding > 0.dp) {
+            coordinates?.takeIf(LayoutCoordinates::isAttached)?.let {
+                relocate(
+                    it.boundsInRoot(),
+                    it.findRootCoordinates().size.height.toFloat(),
+                )
+            }
+        }
+    }
+
     TextField(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { coordinates = it }
+            .onFocusChanged { isFocused = it.isFocused },
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },

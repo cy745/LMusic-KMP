@@ -33,6 +33,8 @@ import com.lalilu.navigation.*
 import com.lalilu.navigation.NavIntent.Push
 import kotlinx.coroutines.flow.filterNotNull
 
+val SmartBarContentHeight = 72.dp
+
 
 /**
  * 智能导航栏密封类，用于区分不同类型的导航栏
@@ -151,7 +153,7 @@ fun NavigationSmartBar(
                 modifier = Modifier
                     .navigationBarsPadding()
                     .imePadding()
-                    .height(72.dp)
+                    .height(SmartBarContentHeight)
                     .fillMaxWidth()
             )
             return@AnimatedContent
@@ -164,7 +166,7 @@ fun NavigationSmartBar(
                 .background(color = MaterialTheme.colorScheme.background.copy(0.9f))
                 .navigationBarsPadding()
                 .imePadding()
-                .height(72.dp)
+                .height(SmartBarContentHeight)
         ) {
             when (item) {
                 is NavigationBarType.NormalBar -> item.barComponent.content()

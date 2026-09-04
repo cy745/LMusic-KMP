@@ -19,6 +19,7 @@ import com.lalilu.component.rememberBottomSheetScaffoldState
 import com.lalilu.extensions.ClassicBackHandler
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.lmusic.component.impl.PlayingInfoCardImpl
+import com.lalilu.navigation.smartbar.SmartBarContentHeight
 import kotlinx.coroutines.launch
 
 @Composable
@@ -32,7 +33,10 @@ fun PlayerBottomSheetScaffold(
 ) {
     val scope = rememberCoroutineScope()
     val navigatorBar = WindowInsets.navigationBars.asPaddingValues()
-    val ime = WindowInsets.ime.asPaddingValues()
+    val smartBarHeight = { SmartBarContentHeight + navigatorBar.calculateBottomPadding() }
+    val navigationBarPadding = PaddingValues(
+        bottom = navigatorBar.calculateBottomPadding()
+    )
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(bottomSheetState)
 
     BottomSheetScaffold(
@@ -48,12 +52,19 @@ fun PlayerBottomSheetScaffold(
         content = { paddingValues ->
             Box(modifier = Modifier.fillMaxSize()) {
                 PassThroughHelper.Passthrough(
-                    "SmartBarHeight" to {
-                        72.dp + ime.calculateBottomPadding()
-                            .coerceAtLeast(navigatorBar.calculateBottomPadding())
-                    }
+                    "SmartBarHeight" to smartBarHeight
                 ) {
-                    mainContent.invoke(paddingValues)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            // 页面仍可绘制到 SmartBar 下方；其列表通过 SmartBarHeight
+                            // 留出滚动末端。这里只从 IME 避让量中扣除系统导航栏高度，
+                            // SmartBar 本体仍由 IME 避让，避免列表末项停在 SmartBar 后方。
+                            .consumeWindowInsets(navigationBarPadding)
+                            .imePadding()
+                    ) {
+                        mainContent.invoke(paddingValues)
+                    }
                 }
 
                 Row(
@@ -83,7 +94,7 @@ fun PlayerBottomSheetScaffold(
                                 onDragStopped = { bottomSheetState.anchoredDraggableState.settle(it) }
                             )
                             .navigationBarsPadding()
-                            .height(72.dp),
+                            .height(SmartBarContentHeight),
                         onClick = { scope.launch { bottomSheetState.expand() } },
                     )
 
