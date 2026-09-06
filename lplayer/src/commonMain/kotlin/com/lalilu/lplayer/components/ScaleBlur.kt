@@ -11,6 +11,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.unit.Dp
@@ -70,31 +72,70 @@ fun Modifier.scaleBlur(
                     val contentScaleY = layerSize.height / size.height
                     val radiusPx = currentRadius.value.toPx().coerceAtLeast(0f)
 
+                    // 3σ 边缘外扩：Skia 的 BlurEffect 会在记录区域外采样（Clamp 语义），
+                    // 若内容紧贴 layer 边界，外采样会命中透明区域，形成边缘暗带，
+                    // 在 radius 动态变化时表现为上下边缘闪烁（iOS 上尤其明显）。
+                    // 内容按 expanded 尺寸放大绘制铺满整个层（无透明边缘），
+                    // 模糊后整体平移对齐，超出的外扩部分由外层 clipToBounds 裁回。
+                    val sigmaX = radiusPx * contentScaleX
+                    val sigmaY = radiusPx * contentScaleY
+                    val padX = ceil(sigmaX * 3f).toInt().coerceAtMost(256)
+                    val padY = ceil(sigmaY * 3f).toInt().coerceAtMost(256)
+                    val expandedSize = IntSize(
+                        width = layerSize.width + padX * 2,
+                        height = layerSize.height + padY * 2,
+                    )
+                    val drawScaleX = expandedSize.width / size.width
+                    val drawScaleY = expandedSize.height / size.height
+
                     layer.apply {
                         scaleX = 1f / contentScaleX
                         scaleY = 1f / contentScaleY
                         renderEffect = if (radiusPx > 0f) {
                             BlurEffect(
-                                radiusX = radiusPx * contentScaleX,
-                                radiusY = radiusPx * contentScaleY,
+                                radiusX = sigmaX,
+                                radiusY = sigmaY,
                                 edgeTreatment = TileMode.Clamp,
                             )
                         } else {
                             null
                         }
 
-                        record(size = layerSize) {
+                        record(size = expandedSize) {
+                            // 1) 外扩层：内容按 expanded 尺寸放大铺满整个层，
+                            //    仅用于让 blur 采样落在有效内容上（显示时被裁掉）。
                             scale(
-                                scaleX = contentScaleX,
-                                scaleY = contentScaleY,
+                                scaleX = drawScaleX,
+                                scaleY = drawScaleY,
                                 pivot = Offset.Zero,
                             ) {
                                 this@onDrawWithContent.drawContent()
                             }
+                            // 2) 内容层：原始比例、居中绘制，与显示尺寸一一对应，
+                            //    覆盖在放大层之上——显示区域内容既不放大也不裁切。
+                            translate(padX.toFloat(), padY.toFloat()) {
+                                scale(
+                                    scaleX = contentScaleX,
+                                    scaleY = contentScaleY,
+                                    pivot = Offset.Zero,
+                                ) {
+                                    this@onDrawWithContent.drawContent()
+                                }
+                            }
                         }
                     }
 
-                    drawLayer(layer)
+                    // expanded 层中央与原始内容区域对齐：绘制时反向平移外扩差值。
+                    val offsetX = (expandedSize.width - layerSize.width) / 2f / contentScaleX
+                    val offsetY = (expandedSize.height - layerSize.height) / 2f / contentScaleY
+                    withTransform({
+                        translate(
+                            left = -offsetX,
+                            top = -offsetY,
+                        )
+                    }) {
+                        drawLayer(layer)
+                    }
                 }
             }
         }
