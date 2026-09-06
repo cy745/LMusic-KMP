@@ -29,7 +29,9 @@ class LAudioFetcher(
 
         val mediaSource = source(audio.mediaSourceName)
             ?: throw IllegalArgumentException("MediaSource not found")
-        mediaSource.awaitContentReady()
+        // 内容就绪有限等待：Ready 立即通过；超时/不可用不再阻塞封面读取，
+        // 继续交给数据源按自身能力返回结果（取不到则由上层显示占位）。
+        runCatching { mediaSource.requireContentReady(timeoutMillis = 5_000) }
         val source = mediaSource.dataSource
 
         // Coil 3 Size.width/height 是 Dimension 类型，

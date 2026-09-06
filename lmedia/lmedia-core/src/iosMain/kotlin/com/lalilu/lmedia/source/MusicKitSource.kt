@@ -14,6 +14,7 @@ import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.MediaSourceStateStore
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.domain.source.requireContentReady
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readBytes
 import kotlinx.coroutines.*
@@ -56,9 +57,11 @@ class MusicKitSource : MediaSource, MediaDataSource {
 
                     val songInfos = songs?.filterIsInstance<SongInfo>().orEmpty()
                     Logger.i(tag = name, messageString = "fetched ${songInfos.size} songs from MusicKit")
-                    if (stateStore.succeed(taskId, mapSongs(songInfos)) != null) {
-                        stateStore.content.ready()
-                    }
+                    // succeed 仅在任务仍为当前任务时发布快照（被更新任务取代则不发布）；
+                    // 但 Swift 侧 songCache 已重新配置成功，内容读取能力已就绪，
+                    // 必须无条件 ready()，否则封面/歌词可能永远等不到就绪或 generation 不递增。
+                    stateStore.succeed(taskId, mapSongs(songInfos))
+                    stateStore.content.ready()
                 }
             }
         }
@@ -122,20 +125,38 @@ class MusicKitSource : MediaSource, MediaDataSource {
             ?: song.extra?.get("storeID")
             ?: return@withContext null
 
-        val maxWidth = songInfo?.artwork()?.maxWidth?.toInt() ?: 0
-        val maxHeight = songInfo?.artwork()?.maxHeight?.toInt() ?: 0
-        val width = if (options.width > 0) {
-            options.width.coerceIn(60, maxWidth.coerceAtLeast(300))
-        } else 300
-        val height = if (options.height > 0) {
-            options.height.coerceIn(60, maxHeight.coerceAtLeast(300))
-        } else 300
+        // 封面分辨率：Apple Music CDN（mzstatic）支持按需放大，
+        // artwork.maximumWidth 仅是 Apple 报告的源图尺寸（常见 600，部分为 0），
+        // 若以此钳制会导致大封面（播放页）模糊。统一按目标/高清请求，
+        // Coil 解码时会按显示尺寸缩放，内存可控。
+        val size = when {
+            options.width > 0 || options.height > 0 ->
+                maxOf(options.width, options.height).coerceIn(200, 3000)
+            else -> 1200
+        }
+        val width = size
+        val height = size
 
         MusicKitPlayerController.shared()
             ?.artworkDataForStoreID(storeId, width.toLong(), height.toLong())
             ?.takeIf { it.length > 0uL }
             ?.toByteArray()
             ?.let(MediaData::Bytes)
+            ?.let { return@withContext it }
+
+        // 兜底：内容未就绪（App 重启后 fetch 尚未完成、Swift 侧 songCache 未配置时
+        // 首查必然 miss）。等待数据源内容就绪（fetch 成功并重新配置 songCache）后重试；
+        // 授权失败/网络失败（Unavailable）或超时则返回 null，由上层显示占位。
+        runCatching { requireContentReady(timeoutMillis = 15_000) }
+            .getOrNull()
+            ?.takeIf { it.isReady }
+            ?.let {
+                MusicKitPlayerController.shared()
+                    ?.artworkDataForStoreID(storeId, width.toLong(), height.toLong())
+                    ?.takeIf { it.length > 0uL }
+                    ?.toByteArray()
+                    ?.let(MediaData::Bytes)
+            }
     }
 }
 
