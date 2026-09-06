@@ -1,4 +1,0 @@
-package = com.lalilu.taglib
-
-libraryPaths = src/nativeInterop/taglib/lib
-staticLibraries = libtag.a libtag_c.a

@@ -31,6 +31,9 @@ kotlin {
     setupMultiplatform(
         setupIosTarget = {
             forEach {
+                // iOS 真机与模拟器的 TagLib 静态库是不同 Mach-O 平台（device/simulator），
+                // 同架构名无法用 lipo 合并成一份 fat 库，必须按 target 选择各自变体。
+                val isSimulator = it.name == "iosSimulatorArm64"
                 it.compilations.getByName<KotlinNativeCompilation>("main") {
                     val musicKitWrapper by cinterops.creating
                     musicKitWrapper.apply {
@@ -39,7 +42,12 @@ kotlin {
 
                     val taglib by cinterops.creating
                     taglib.apply {
-                        definitionFile.set(file("src/nativeInterop/taglib/Taglib.def"))
+                        definitionFile.set(
+                            file(
+                                if (isSimulator) "src/nativeInterop/taglib/ios-simulator/TaglibSimulator.def"
+                                else "src/nativeInterop/taglib/ios-device/TaglibDevice.def"
+                            )
+                        )
                         headers(file("src/nativeInterop/taglib/include/taglib/tag_c.h"))
                     }
                 }
