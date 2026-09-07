@@ -2,7 +2,8 @@ package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaSource
-import com.lalilu.lmedia.domain.source.awaitContentReady
+import com.lalilu.lmedia.domain.source.MediaContentUnavailableException
+import com.lalilu.lmedia.domain.source.awaitContentReadyOrThrow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -44,13 +45,18 @@ internal class ContentReadyPreparationCoordinator(
 
         val requestJob = scope.launch(start = CoroutineStart.LAZY) {
             try {
-                source.awaitContentReady()
+                source.awaitContentReadyOrThrow()
                 val shouldPlay = synchronized(lock) {
                     if (requestGeneration != generation || audioId != audio.id) return@launch
                     this@ContentReadyPreparationCoordinator.playWhenReady
                 }
 
                 onReady(audio, shouldPlay)
+            } catch (_: MediaContentUnavailableException) {
+                val isCurrent = synchronized(lock) {
+                    requestGeneration == generation && audioId == audio.id
+                }
+                if (isCurrent) onSourceMissing(audio)
             } finally {
                 synchronized(lock) {
                     if (requestGeneration == generation) {

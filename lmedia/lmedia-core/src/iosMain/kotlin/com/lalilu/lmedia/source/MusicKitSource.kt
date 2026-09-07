@@ -33,37 +33,74 @@ class MusicKitSource : MediaSource, MediaDataSource {
     override val state: StateFlow<SnapshotState> = stateStore.state
     override val snapshot: StateFlow<Snapshot?> = stateStore.snapshot
     override val contentState = stateStore.contentState
+    private var loadingJob: Job? = null
 
     /** id → SongInfo 缓存，用于 [getPicture] 和 [getMedia] 按 id 查找完整数据。 */
     private val songStore = mutableMapOf<String, SongInfo>()
+    private var activationGeneration = 0L
 
-    override fun init() = refresh()
+    override fun init() {
+        activationGeneration += 1
+        refresh(activationGeneration)
+    }
 
-    private fun refresh() {
-        scope.launch {
-            val taskId = stateStore.begin()
-            stateStore.content.preparing()
-            MusicKitWrapper.fetchUserLibrarySongsWithCompletionHandler { songs, error ->
-                scope.launch {
-                    if (error != null) {
-                        if (stateStore.fail(taskId, error.localizedDescription)) {
-                            stateStore.content.unavailable(
-                                error.localizedDescription,
-                                preserveReady = true,
-                            )
-                        }
-                        return@launch
-                    }
+    override suspend fun deactivate() {
+        activationGeneration += 1
+        loadingJob?.cancelAndJoin()
+        loadingJob = null
+        songStore.clear()
+        stateStore.reset()
+        stateStore.content.unavailable("Source disabled")
+    }
 
-                    val songInfos = songs?.filterIsInstance<SongInfo>().orEmpty()
-                    Logger.i(tag = name, messageString = "fetched ${songInfos.size} songs from MusicKit")
-                    // succeed 仅在任务仍为当前任务时发布快照（被更新任务取代则不发布）；
-                    // 但 Swift 侧 songCache 已重新配置成功，内容读取能力已就绪，
-                    // 必须无条件 ready()，否则封面/歌词可能永远等不到就绪或 generation 不递增。
-                    stateStore.succeed(taskId, mapSongs(songInfos))
+    private fun refresh(generation: Long) {
+        if (generation != activationGeneration) return
+        val taskId = stateStore.tryBegin() ?: return
+        loadingJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                yield()
+                if (generation != activationGeneration || !stateStore.isActive(taskId)) {
+                    stateStore.cancel(taskId)
+                    return@launch
+                }
+                stateStore.content.preparing()
+                val songInfos = fetchSongs()
+                ensureActive()
+                if (generation != activationGeneration || !stateStore.isActive(taskId)) {
+                    return@launch
+                }
+                Logger.i(tag = name, messageString = "fetched ${songInfos.size} songs from MusicKit")
+                if (stateStore.succeed(taskId, mapSongs(songInfos)) != null) {
                     stateStore.content.ready()
                 }
+            } catch (cancelled: CancellationException) {
+                if (stateStore.cancel(taskId)) {
+                    stateStore.content.unavailable("Cancelled", preserveReady = true)
+                }
+                throw cancelled
+            } catch (throwable: Throwable) {
+                val message = throwable.message ?: "MusicKit loading failed"
+                if (stateStore.fail(taskId, message)) {
+                    stateStore.content.unavailable(message, preserveReady = true)
+                }
             }
+        }
+    }
+
+    /** 把 Swift completion handler 纳入 loadingJob，使停用时的 cancelAndJoin 能真正等待请求终止。 */
+    private suspend fun fetchSongs(): List<SongInfo> {
+        val result = CompletableDeferred<List<SongInfo>>()
+        MusicKitWrapper.fetchUserLibrarySongsWithCompletionHandler { songs, error ->
+            if (error != null) {
+                result.completeExceptionally(IllegalStateException(error.localizedDescription))
+            } else {
+                result.complete(songs?.filterIsInstance<SongInfo>().orEmpty())
+            }
+        }
+        return try {
+            result.await()
+        } finally {
+            result.cancel()
         }
     }
 

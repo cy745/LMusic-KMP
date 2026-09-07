@@ -15,6 +15,9 @@ interface MediaSourceBindingRepository {
 
     /** 重新提交该数据源最近一次完整成功结果；没有可重试结果时返回 false。 */
     suspend fun retryCommit(sourceName: String): Boolean
+
+    /** 启用或停用数据源；停用后该来源的数据库歌曲会被标记为不可用。 */
+    suspend fun setSourceEnabled(sourceName: String, enabled: Boolean): Boolean
 }
 
 sealed interface SnapshotCommitState {
@@ -25,6 +28,9 @@ sealed interface SnapshotCommitState {
 }
 
 data class SourceStatus(
+    val enabled: Boolean = true,
+    val enablementChanging: Boolean = false,
+    val enablementError: String? = null,
     val syncState: SnapshotState = SnapshotState.Idle,
     val resultRevision: Long? = null,
     val songCount: Int = 0,

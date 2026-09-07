@@ -71,6 +71,14 @@ class RemoteSource(
         }
     }
 
+    override suspend fun deactivate() {
+        loadingJob?.cancelAndJoin()
+        loadingJob = null
+        closeClient()
+        stateStore.reset()
+        stateStore.content.unavailable("Source disabled")
+    }
+
     /**
      * 保存连接配置并发起连接。密码为空时，仅在服务器地址未变化的情况下复用既有认证信息；
      * 切换服务器且不填写密码则按无密码服务连接。
@@ -148,11 +156,14 @@ class RemoteSource(
         isInitialize: Boolean = false,
         preserveReady: Boolean = true,
     ) {
-        loadingJob?.cancel()
-        loadingJob = launch {
-            val taskId = stateStore.begin(if (isInitialize) "Restoring connection..." else "Loading...")
-            stateStore.content.preparing(preserveReady = preserveReady)
+        val taskId = stateStore.tryBegin(
+            if (isInitialize) "Restoring connection..." else "Loading..."
+        ) ?: return
+        loadingJob = launch(start = CoroutineStart.UNDISPATCHED) {
             try {
+                yield()
+                if (!stateStore.isActive(taskId)) return@launch
+                stateStore.content.preparing(preserveReady = preserveReady)
                 val result = requireClient()
                     .get("/source") { appendAuthentication() }
                     .body<Snapshot>()

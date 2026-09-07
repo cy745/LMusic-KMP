@@ -14,13 +14,16 @@ import kotlinx.coroutines.sync.withLock
 internal class SourceSnapshotCommitter(
     private val commit: suspend (Snapshot) -> Unit,
     private val onStateChanged: (SnapshotCommitState) -> Unit,
+    acceptingSnapshots: Boolean = true,
 ) {
     private val mutex = Mutex()
     private var latestSnapshot: Snapshot? = null
     private var committedRevision: Long? = null
     private var state: SnapshotCommitState = SnapshotCommitState.Idle
+    private var acceptingSnapshots: Boolean = acceptingSnapshots
 
     suspend fun submit(snapshot: Snapshot): Boolean = mutex.withLock {
+        if (!acceptingSnapshots) return@withLock false
         val latestRevision = latestSnapshot?.revision
         if (latestRevision != null && snapshot.revision <= latestRevision) {
             return@withLock committedRevision == snapshot.revision
@@ -31,9 +34,31 @@ internal class SourceSnapshotCommitter(
     }
 
     suspend fun retry(): Boolean = mutex.withLock {
+        if (!acceptingSnapshots) return@withLock false
         val snapshot = latestSnapshot ?: return@withLock false
         if (committedRevision == snapshot.revision) return@withLock true
         commitLocked(snapshot)
+    }
+
+    suspend fun activate() = mutex.withLock {
+        acceptingSnapshots = true
+        latestSnapshot = null
+        committedRevision = null
+        publish(SnapshotCommitState.Idle)
+    }
+
+    /**
+     * 与快照提交共用同一把锁，保证停用清理一定发生在已开始的提交之后，且晚到的结果不会重新入库。
+     */
+    suspend fun deactivate(cleanup: suspend () -> Unit) = mutex.withLock {
+        acceptingSnapshots = false
+        latestSnapshot = null
+        committedRevision = null
+        try {
+            cleanup()
+        } finally {
+            publish(SnapshotCommitState.Idle)
+        }
     }
 
     private suspend fun commitLocked(snapshot: Snapshot): Boolean {

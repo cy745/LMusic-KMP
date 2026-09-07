@@ -21,6 +21,7 @@ import com.lalilu.extensions.LocalToaster
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.source.sandbox.SandboxMediaSource
@@ -46,12 +47,23 @@ data object SandboxMediaSourceScreen : Screen, ScreenInfoFactory {
     @Composable
     override fun Content() {
         val platformSource = koinInject<PlatformMediaSource>()
+        val bindingRepository = koinInject<MediaSourceBindingRepository>()
         val source = remember(platformSource.sources) {
             platformSource.sources.filterIsInstance<SandboxMediaSource>().singleOrNull()
         }
 
         if (source == null) {
             SandboxMediaSourceUnavailableContent()
+            return
+        }
+
+        val sourceStatus by bindingRepository.observeSource(source.name)
+            .collectAsStateWithLifecycle(initialValue = null)
+        if (sourceStatus?.enabled == false || !platformSource.isEnabled(source)) {
+            SandboxMediaSourceUnavailableContent(
+                subtitle = "Sandbox 数据源已停用",
+                message = "请先返回媒体数据源页面启用 Sandbox，然后再浏览或编辑导入文件。",
+            )
             return
         }
 
@@ -318,7 +330,10 @@ private fun SandboxFileCard(
 }
 
 @Composable
-private fun SandboxMediaSourceUnavailableContent() {
+private fun SandboxMediaSourceUnavailableContent(
+    subtitle: String = "当前平台未提供 Sandbox 媒体源",
+    message: String = "Sandbox 媒体源当前不可用，请返回媒体源页面检查配置。",
+) {
     val statusBar = WindowInsets.statusBars.asPaddingValues()
     val navigationBar = WindowInsets.navigationBars.asPaddingValues()
     val smartBarHeight = PassThroughHelper.getValue(
@@ -336,13 +351,13 @@ private fun SandboxMediaSourceUnavailableContent() {
             NavigatorHeader(
                 modifier = Modifier.fillMaxWidth(),
                 title = "Sandbox 文件",
-                subTitle = "当前平台未提供 Sandbox 媒体源",
+                subTitle = subtitle,
             )
         }
         item {
             SandboxMessageCard(
                 title = "无法打开",
-                message = "Sandbox 媒体源当前不可用，请返回媒体源页面检查配置。",
+                message = message,
                 isError = true,
             )
         }

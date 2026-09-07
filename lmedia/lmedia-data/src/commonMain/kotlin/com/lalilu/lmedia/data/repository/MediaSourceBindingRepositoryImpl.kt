@@ -12,6 +12,7 @@ import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.SnapshotState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.koin.core.annotation.Single
@@ -45,8 +47,11 @@ class MediaSourceBindingRepositoryImpl(
     private val startMutex = Mutex()
     private var started = false
     private val committers = mutableMapOf<String, SourceSnapshotCommitter>()
+    private val sourceMutexes = platformSource.sources.associate { it.name to Mutex() }
     private val mutableStates = MutableStateFlow(
-        platformSource.sources.associate { it.name to SourceStatus() }
+        platformSource.sources.associate { source ->
+            source.name to SourceStatus(enabled = platformSource.isEnabled(source))
+        }
     )
 
     override val states: StateFlow<Map<String, SourceStatus>> = mutableStates.asStateFlow()
@@ -71,18 +76,20 @@ class MediaSourceBindingRepositoryImpl(
             started = true
 
             platformSource.sources.forEach { source ->
+                val enabled = platformSource.isEnabled(source)
                 val committer = SourceSnapshotCommitter(
                     commit = { snapshot ->
                         database.mediaDao().insert(snapshot = snapshot, sourceName = source.name)
                         if (kv.clearUnavailableAfterSync.value) {
                             database.mediaDao().clearUnavailableMedia(
-                                activeSourceNames = platformSource.sources.map { it.name },
+                                activeSourceNames = platformSource.enabledSources.map { it.name },
                             )
                         }
                     },
                     onStateChanged = { commitState ->
                         updateStatus(source.name) { it.copy(commitState = commitState) }
                     },
+                    acceptingSnapshots = enabled,
                 )
                 committers[source.name] = committer
 
@@ -96,6 +103,7 @@ class MediaSourceBindingRepositoryImpl(
                     .filterNotNull()
                     .distinctUntilChangedBy { it.revision }
                     .onEach { snapshot ->
+                        if (!platformSource.isEnabled(source)) return@onEach
                         updateStatus(source.name) {
                             it.copy(
                                 resultRevision = snapshot.revision,
@@ -105,13 +113,109 @@ class MediaSourceBindingRepositoryImpl(
                         committer.submit(snapshot)
                     }
                     .launchIn(scope)
+
+                try {
+                    if (enabled) {
+                        source.init()
+                    } else {
+                        source.deactivate()
+                        database.mediaDao().markAudiosFromSourceUnavailable(source.name)
+                        if (kv.clearUnavailableAfterSync.value) {
+                            database.mediaDao().clearUnavailableMedia(
+                                activeSourceNames = platformSource.enabledSources.map { it.name },
+                            )
+                        }
+                    }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (throwable: Throwable) {
+                    updateStatus(source.name) {
+                        it.copy(enablementError = throwable.message ?: "数据源初始化失败")
+                    }
+                }
             }
         }
     }
 
     override suspend fun retryCommit(sourceName: String): Boolean {
         startBinding()
+        if (!platformSource.isEnabled(sourceName)) return false
         return committers[sourceName]?.retry() ?: false
+    }
+
+    override suspend fun setSourceEnabled(sourceName: String, enabled: Boolean): Boolean {
+        startBinding()
+        val source = platformSource.sources.firstOrNull { it.name == sourceName } ?: return false
+        val committer = committers[sourceName] ?: return false
+        val sourceMutex = sourceMutexes[sourceName] ?: return false
+
+        return withContext(NonCancellable) {
+            sourceMutex.withLock {
+                val previousError = states.value[sourceName]?.enablementError
+                updateStatus(sourceName) {
+                    it.copy(enablementChanging = true, enablementError = null)
+                }
+
+                try {
+                    if (!needsEnablementReconciliation(
+                            currentEnabled = platformSource.isEnabled(source),
+                            targetEnabled = enabled,
+                            previousError = previousError,
+                        )
+                    ) {
+                        updateStatus(sourceName) { it.copy(enablementChanging = false) }
+                        return@withLock true
+                    }
+
+                    if (enabled) {
+                        committer.activate()
+                        if (!platformSource.isEnabled(source)) {
+                            platformSource.setEnabled(sourceName, true)
+                        }
+                        updateStatus(sourceName) {
+                            it.copy(enabled = true)
+                        }
+                        source.init()
+                        updateStatus(sourceName) { it.copy(enablementChanging = false) }
+                    } else {
+                        if (platformSource.isEnabled(source)) {
+                            platformSource.setEnabled(sourceName, false)
+                        }
+                        updateStatus(sourceName) { it.copy(enabled = false) }
+                        committer.deactivate {
+                            var deactivationFailure: Throwable? = null
+                            try {
+                                source.deactivate()
+                            } catch (throwable: Throwable) {
+                                deactivationFailure = throwable
+                            }
+
+                            database.mediaDao().markAudiosFromSourceUnavailable(sourceName)
+                            if (kv.clearUnavailableAfterSync.value) {
+                                database.mediaDao().clearUnavailableMedia(
+                                    activeSourceNames = platformSource.enabledSources.map { it.name },
+                                )
+                            }
+                            deactivationFailure?.let { throw it }
+                        }
+                        updateStatus(sourceName) { it.copy(enablementChanging = false) }
+                    }
+                    true
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    updateStatus(sourceName) { it.copy(enablementChanging = false) }
+                    throw cancelled
+                } catch (throwable: Throwable) {
+                    updateStatus(sourceName) {
+                        it.copy(
+                            enabled = platformSource.isEnabled(source),
+                            enablementChanging = false,
+                            enablementError = throwable.message ?: "数据源状态切换失败",
+                        )
+                    }
+                    false
+                }
+            }
+        }
     }
 
     private fun updateStatus(name: String, transform: (SourceStatus) -> SourceStatus) {
@@ -145,3 +249,12 @@ class MediaSourceBindingRepositoryImpl(
         )
     }
 }
+
+/**
+ * 用户意图已经持久化、但初始化或清理失败时，开关值会与目标值相同；此时仍必须重跑副作用。
+ */
+internal fun needsEnablementReconciliation(
+    currentEnabled: Boolean,
+    targetEnabled: Boolean,
+    previousError: String?,
+): Boolean = currentEnabled != targetEnabled || previousError != null

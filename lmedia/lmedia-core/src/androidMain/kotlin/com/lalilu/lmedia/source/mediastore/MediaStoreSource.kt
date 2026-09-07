@@ -82,6 +82,17 @@ class MediaStoreSource(
         }
     }
 
+    override suspend fun deactivate() {
+        initialized = false
+        runCatching {
+            context.applicationContext.contentResolver.unregisterContentObserver(observer)
+        }
+        loadingJob?.cancelAndJoin()
+        loadingJob = null
+        stateStore.reset()
+        stateStore.content.unavailable("Source disabled")
+    }
+
     private fun hasReadPermission(): Boolean {
         val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Manifest.permission.READ_MEDIA_AUDIO
@@ -110,11 +121,13 @@ class MediaStoreSource(
     }
 
     fun refresh() {
-        loadingJob?.cancel()
-        loadingJob = scope.launch {
-            val taskId = stateStore.begin()
-            stateStore.content.preparing()
+        if (!initialized) return
+        val taskId = stateStore.tryBegin() ?: return
+        loadingJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
+                yield()
+                if (!stateStore.isActive(taskId)) return@launch
+                stateStore.content.preparing()
                 val minDurationMillis = config.value.minDurationSeconds * 1000L
                 if (stateStore.succeed(taskId, scanner.scan(minDurationMillis)) != null) {
                     stateStore.content.ready()

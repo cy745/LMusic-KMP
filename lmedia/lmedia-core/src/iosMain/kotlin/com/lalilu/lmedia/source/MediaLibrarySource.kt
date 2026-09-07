@@ -29,35 +29,48 @@ class MediaLibrarySource : MediaSource, MediaDataSource {
     override val snapshot: StateFlow<Snapshot?> = stateStore.snapshot
     override val contentState = stateStore.contentState
     private var loadingJob: Job? = null
+    private var activationGeneration = 0L
 
     override fun init() {
+        activationGeneration += 1
+        val generation = activationGeneration
         when (MPMediaLibrary.authorizationStatus()) {
-            MPMediaLibraryAuthorizationStatusAuthorized -> refresh()
+            MPMediaLibraryAuthorizationStatusAuthorized -> refresh(generation)
             MPMediaLibraryAuthorizationStatusNotDetermined -> {
                 stateStore.content.preparing(preserveReady = false)
                 MPMediaLibrary.requestAuthorization { newStatus ->
+                    if (generation != activationGeneration) return@requestAuthorization
                     if (newStatus == MPMediaLibraryAuthorizationStatusAuthorized) {
-                        refresh()
+                        refresh(generation)
                     } else {
-                        stateStore.content.unavailable("Media library permission denied")
-                        scope.launch { stateStore.failNewTask("Media library permission denied") }
+                        publishPermissionDenied(generation)
                     }
                 }
             }
 
-            else -> {
-                stateStore.content.unavailable("Media library permission denied")
-                scope.launch { stateStore.failNewTask("Media library permission denied") }
-            }
+            else -> publishPermissionDenied(generation)
         }
     }
 
-    private fun refresh() {
-        loadingJob?.cancel()
-        loadingJob = scope.launch {
-            val taskId = stateStore.begin()
-            stateStore.content.preparing()
+    override suspend fun deactivate() {
+        activationGeneration += 1
+        loadingJob?.cancelAndJoin()
+        loadingJob = null
+        stateStore.reset()
+        stateStore.content.unavailable("Source disabled")
+    }
+
+    private fun refresh(generation: Long) {
+        if (generation != activationGeneration) return
+        val taskId = stateStore.tryBegin() ?: return
+        loadingJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
+                yield()
+                if (generation != activationGeneration || !stateStore.isActive(taskId)) {
+                    stateStore.cancel(taskId)
+                    return@launch
+                }
+                stateStore.content.preparing()
                 if (stateStore.succeed(taskId, load()) != null) {
                     stateStore.content.ready()
                 }
@@ -120,6 +133,15 @@ class MediaLibrarySource : MediaSource, MediaDataSource {
 
     override suspend fun getMedia(song: LAudio): MediaData? =
         song.extra?.get("assetURL")?.let(MediaData::Url)
+
+    private fun publishPermissionDenied(generation: Long) {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            yield()
+            if (generation != activationGeneration) return@launch
+            stateStore.content.unavailable("Media library permission denied")
+            stateStore.failNewTask("Media library permission denied")
+        }
+    }
 
     private suspend fun MediaSourceStateStore.failNewTask(message: String) {
         fail(begin(), message)

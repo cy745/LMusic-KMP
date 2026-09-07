@@ -374,6 +374,23 @@ class LMediaLMediaDaoTest {
     }
 
     @Test
+    fun disablingSourceOnlyMarksItsOwnMediaUnavailable() = runTest {
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio(id = "enabled-audio", source = "enabled-source"))),
+            "enabled-source",
+        )
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio(id = "disabled-audio", source = "disabled-source"))),
+            "disabled-source",
+        )
+
+        db.mediaDao().markAudiosFromSourceUnavailable("disabled-source")
+
+        assertEquals(true, audioDao.getAudio("enabled-audio").firstOrNull()?.available)
+        assertEquals(false, audioDao.getAudio("disabled-audio").firstOrNull()?.available)
+    }
+
+    @Test
     fun clearUnavailableRemovesAllMediaWhenNoSourcesRemain() = runTest {
         db.mediaDao().insert(
             Snapshot(listOf(sourceAudio(

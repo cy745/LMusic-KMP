@@ -26,5 +26,6 @@ interface MediaSource {
     val contentState: StateFlow<MediaContentState>
 
     fun init() {}
+    suspend fun deactivate() {}
     fun onConfigChange() {}
 }

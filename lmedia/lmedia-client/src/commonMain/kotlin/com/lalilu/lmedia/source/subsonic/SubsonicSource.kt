@@ -94,6 +94,16 @@ class SubsonicSource(
         }
     }
 
+    override suspend fun deactivate() {
+        loadingJob?.cancelAndJoin()
+        loadingJob = null
+        client?.close()
+        client = null
+        subsonicApi = null
+        stateStore.reset()
+        stateStore.content.unavailable("Source disabled")
+    }
+
     fun connect(url: String, username: String, password: String): Result<Unit> = runCatching {
         val current = activeConfig
         val normalizedUrl = normalizeApiUrl(url)
@@ -128,15 +138,17 @@ class SubsonicSource(
     }
 
     private fun connectStored(isInitialize: Boolean = false) {
-        loadingJob?.cancel()
-        loadingJob = launch {
-            val taskId = stateStore.begin(if (isInitialize) "Restoring connection..." else "Connecting...")
-            stateStore.content.preparing(preserveReady = false)
-            client?.close()
-            client = null
-            subsonicApi = null
-
+        val taskId = stateStore.tryBegin(
+            if (isInitialize) "Restoring connection..." else "Connecting..."
+        ) ?: return
+        loadingJob = launch(start = CoroutineStart.UNDISPATCHED) {
             try {
+                yield()
+                if (!stateStore.isActive(taskId)) return@launch
+                stateStore.content.preparing(preserveReady = false)
+                client?.close()
+                client = null
+                subsonicApi = null
                 require(activeConfig.isConfigured) { "配置参数错误" }
 
                 // 自动修正已保存的根路径地址（缺 /rest/ 自动补齐），
@@ -200,11 +212,12 @@ class SubsonicSource(
 
     fun refresh(): Result<Unit> = runCatching {
         require(activeConfig.isConfigured) { "请先填写连接配置" }
-        loadingJob?.cancel()
-        loadingJob = launch {
-            val taskId = stateStore.begin()
-            stateStore.content.preparing()
+        val taskId = stateStore.tryBegin() ?: return@runCatching
+        loadingJob = launch(start = CoroutineStart.UNDISPATCHED) {
             try {
+                yield()
+                if (!stateStore.isActive(taskId)) return@launch
+                stateStore.content.preparing()
                 val api = subsonicApi ?: throw IllegalStateException("Not connected")
                 if (stateStore.succeed(taskId, getSongs(api)) != null) {
                     stateStore.content.ready()

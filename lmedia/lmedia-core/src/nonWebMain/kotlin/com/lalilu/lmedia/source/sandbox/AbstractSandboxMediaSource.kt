@@ -35,6 +35,7 @@ import io.github.vinceglb.filekit.source
 import io.github.vinceglb.filekit.writeString
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -47,6 +48,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import kotlinx.io.Buffer
 import kotlinx.io.buffered
 import kotlinx.io.readByteArray
@@ -81,13 +83,31 @@ abstract class AbstractSandboxMediaSource(
 
     final override fun init() = refresh(preserveReady = false)
 
+    final override suspend fun deactivate() {
+        loadingJob?.cancelAndJoin()
+        loadingJob = null
+        operationMutex.withLock {
+            stateStore.reset()
+            stateStore.content.unavailable("Source disabled")
+        }
+    }
+
     final override fun refresh() = refresh(preserveReady = true)
 
     private fun refresh(preserveReady: Boolean) {
-        loadingJob?.cancel()
-        loadingJob = scope.launch {
-            operationMutex.withLock {
-                publishScan(preserveReady = preserveReady)
+        val taskId = stateStore.tryBegin() ?: return
+        loadingJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                yield()
+                if (!stateStore.isActive(taskId)) return@launch
+                operationMutex.withLock {
+                    publishScan(taskId = taskId, preserveReady = preserveReady)
+                }
+            } catch (cancelled: CancellationException) {
+                if (stateStore.cancel(taskId)) {
+                    stateStore.content.unavailable("Cancelled", preserveReady = true)
+                }
+                throw cancelled
             }
         }
     }
@@ -295,17 +315,13 @@ abstract class AbstractSandboxMediaSource(
         return MediaData.Url(buildPlaybackUrl(PlatformFile(path)))
     }
 
-    private suspend fun publishScan(preserveReady: Boolean) {
-        val taskId = stateStore.begin()
+    private suspend fun publishScan(taskId: Long, preserveReady: Boolean) {
         stateStore.content.preparing(preserveReady)
         try {
             if (stateStore.succeed(taskId, scan()) != null) {
                 stateStore.content.ready()
             }
         } catch (cancelled: CancellationException) {
-            if (stateStore.cancel(taskId)) {
-                stateStore.content.unavailable("Cancelled", preserveReady = true)
-            }
             throw cancelled
         } catch (throwable: Throwable) {
             logger.e(throwable) { "Scan failed" }

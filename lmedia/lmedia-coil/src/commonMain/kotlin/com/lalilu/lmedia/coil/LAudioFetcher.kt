@@ -17,7 +17,7 @@ class LAudioFetcher(
     val audio: LAudio,
     val options: Options,
     val imageLoader: ImageLoader,
-    val source: (String) -> MediaSource?
+    val resolvePicture: suspend (LAudio, MediaFetchOptions) -> MediaData?,
 ) : Fetcher {
     private var actualFetcher: Fetcher? = null
 
@@ -27,20 +27,13 @@ class LAudioFetcher(
             return fetcher.fetch()
         }
 
-        val mediaSource = source(audio.mediaSourceName)
-            ?: throw IllegalArgumentException("MediaSource not found")
-        // 内容就绪有限等待：Ready 立即通过；超时/不可用不再阻塞封面读取，
-        // 继续交给数据源按自身能力返回结果（取不到则由上层显示占位）。
-        runCatching { mediaSource.requireContentReady(timeoutMillis = 5_000) }
-        val source = mediaSource.dataSource
-
         // Coil 3 Size.width/height 是 Dimension 类型，
         // pxOrElse { 0 } 提取像素值，未指定时回退 0
         val fetchOptions = MediaFetchOptions(
             width = options.size.width.pxOrElse { 0 },
             height = options.size.height.pxOrElse { 0 },
         )
-        val pictureData = source.getPicture(audio, fetchOptions) ?: return null
+        val pictureData = resolvePicture(audio, fetchOptions) ?: return null
 
         val data = when (pictureData) {
             is MediaData.Bytes -> pictureData.bytes
@@ -60,7 +53,6 @@ class LAudioFetcher(
 
 class LAudioFetcherFactory : Fetcher.Factory<LAudio>, KoinComponent {
     private val platformMediaSource by inject<PlatformMediaSource>()
-    private val sourceMap by lazy { platformMediaSource.sources.associateBy { it.name } }
 
     override fun create(
         data: LAudio,
@@ -71,7 +63,13 @@ class LAudioFetcherFactory : Fetcher.Factory<LAudio>, KoinComponent {
             audio = data,
             options = options,
             imageLoader = imageLoader,
-            source = { name -> sourceMap[name] }
+            resolvePicture = { audio, fetchOptions ->
+                platformMediaSource.resolvePictureData(
+                    audio = audio,
+                    options = fetchOptions,
+                    timeoutMillis = 5_000L,
+                )
+            },
         )
     }
 }
@@ -92,7 +90,6 @@ class LAudioKeyer : Keyer<LAudio>, KoinComponent {
 
 class MediaCoverRequestFetcherFactory : Fetcher.Factory<MediaCoverRequest>, KoinComponent {
     private val platformMediaSource by inject<PlatformMediaSource>()
-    private val sourceMap by lazy { platformMediaSource.sources.associateBy { it.name } }
 
     override fun create(
         data: MediaCoverRequest,
@@ -102,7 +99,13 @@ class MediaCoverRequestFetcherFactory : Fetcher.Factory<MediaCoverRequest>, Koin
         audio = data.audio,
         options = options,
         imageLoader = imageLoader,
-        source = sourceMap::get,
+        resolvePicture = { audio, fetchOptions ->
+            platformMediaSource.resolvePictureData(
+                audio = audio,
+                options = fetchOptions,
+                timeoutMillis = 5_000L,
+            )
+        },
     )
 }
 

@@ -5,6 +5,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.lmedia.PlatformMediaSource
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.source.MediaData
+import com.lalilu.lmedia.domain.source.resolvePictureData
 import com.lalilu.lplayer.playback.Playback
 import com.lalilu.lplayer.playback.toJsBlob
 import kotlinx.coroutines.CoroutineScope
@@ -65,12 +66,7 @@ object BrowserMediaSessionHelper : CoroutineScope, KoinComponent {
     ) = withContext(Dispatchers.io) {
         item ?: return@withContext
 
-        val source = platformMediaSource.sources
-            .firstOrNull { it.name == item.mediaSourceName }
-            ?.dataSource
-            ?: throw IllegalArgumentException("MediaSource not found")
-
-        val pictureData = source.getPicture(item)
+        val pictureData = platformMediaSource.resolvePictureData(item)
             ?: return@withContext
 
         val url = when (pictureData) {

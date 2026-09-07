@@ -39,6 +39,8 @@ internal val LocalSourceTextFieldRelocator =
 
 /** 公共来源区块向来源专用 UI 暴露的只读流水线状态。 */
 data class SourcePipelineUiState(
+    val enabled: Boolean,
+    val enablementChanging: Boolean,
     val syncState: SnapshotState,
     val snapshot: Snapshot?,
     val commitState: SnapshotCommitState,
@@ -61,17 +63,14 @@ fun MediaSource.SourcePipelineCard(
 ) {
     val repository = koinInject<MediaSourceBindingRepository>()
     val scope = rememberCoroutineScope()
-    val syncState = state.collectAsStateWithLifecycle()
     val latestSnapshot = snapshot.collectAsStateWithLifecycle()
     val sourceStatus = repository.observeSource(name)
-        .collectAsStateWithLifecycle(initialValue = null)
+        .collectAsStateWithLifecycle(initialValue = repository.states.value[name])
     val currentSnapshot = latestSnapshot.value
-    val currentStatus = sourceStatus.value ?: SourceStatus(
-        syncState = syncState.value,
-        resultRevision = currentSnapshot?.revision,
-        songCount = currentSnapshot?.audios?.size ?: 0,
-    )
+    val currentStatus = sourceStatus.value ?: SourceStatus()
     val uiState = SourcePipelineUiState(
+        enabled = currentStatus.enabled,
+        enablementChanging = currentStatus.enablementChanging,
         syncState = currentStatus.syncState,
         snapshot = currentSnapshot,
         commitState = currentStatus.commitState,
@@ -82,14 +81,54 @@ fun MediaSource.SourcePipelineCard(
         title = title,
         subtitle = description,
         actionContent = {
-            SourceStatusBadge(
-                syncState = uiState.syncState,
-                snapshot = uiState.snapshot,
-                commitState = uiState.commitState,
-                idleLabel = idleLabel,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Switch(
+                    checked = uiState.enabled,
+                    enabled = !uiState.enablementChanging,
+                    onCheckedChange = { enabled ->
+                        scope.launch { repository.setSourceEnabled(name, enabled) }
+                    },
+                )
+                SourceStatusBadge(
+                    enabled = uiState.enabled,
+                    enablementChanging = uiState.enablementChanging,
+                    enablementError = currentStatus.enablementError,
+                    syncState = uiState.syncState,
+                    snapshot = uiState.snapshot,
+                    commitState = uiState.commitState,
+                    idleLabel = idleLabel,
+                )
+            }
         },
     ) {
+        if (!uiState.enabled) {
+            Text(
+                modifier = Modifier.padding(top = 12.dp),
+                text = "此数据源已停用。已有歌曲会被标记为不可用；重新启用后将重新同步。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+            )
+            currentStatus.enablementError?.let { message ->
+                EnablementErrorMessage(
+                    message = message,
+                    enabled = !uiState.enablementChanging,
+                    onRetry = {
+                        scope.launch { repository.setSourceEnabled(name, uiState.enabled) }
+                    },
+                )
+            }
+            return@BaseSourceCard
+        }
+
+        currentStatus.enablementError?.let { message ->
+            EnablementErrorMessage(
+                message = message,
+                enabled = !uiState.enablementChanging,
+                onRetry = {
+                    scope.launch { repository.setSourceEnabled(name, uiState.enabled) }
+                },
+            )
+        }
         AnimatedContent(
             targetState = uiState.syncState,
             contentKey = { it::class },
@@ -329,12 +368,18 @@ fun SourceSectionHeader(
 
 @Composable
 private fun SourceStatusBadge(
+    enabled: Boolean,
+    enablementChanging: Boolean,
+    enablementError: String?,
     syncState: SnapshotState,
     snapshot: Snapshot?,
     commitState: SnapshotCommitState,
     idleLabel: String,
 ) {
     val (label, color) = when {
+        enablementChanging -> "切换中" to MaterialTheme.colorScheme.primary
+        enablementError != null -> "切换失败" to MaterialTheme.colorScheme.error
+        !enabled -> "已停用" to MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
         syncState is SnapshotState.Loading -> "同步中" to MaterialTheme.colorScheme.primary
         commitState is SnapshotCommitState.Committing -> "写入中" to MaterialTheme.colorScheme.primary
         syncState is SnapshotState.Error -> "同步失败" to MaterialTheme.colorScheme.error
@@ -393,6 +438,44 @@ private fun ErrorMessage(message: String) {
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun EnablementErrorMessage(
+    message: String,
+    enabled: Boolean,
+    onRetry: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                text = "数据源状态切换没有完成",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Text(
+                text = message,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        SourceActionButton(
+            title = "重试",
+            enabled = enabled,
+            style = SourceActionStyle.Quiet,
+            onClick = onRetry,
         )
     }
 }

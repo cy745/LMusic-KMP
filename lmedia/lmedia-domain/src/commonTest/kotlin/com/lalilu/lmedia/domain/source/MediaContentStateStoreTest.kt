@@ -2,11 +2,13 @@ package com.lalilu.lmedia.domain.source
 
 import kotlinx.coroutines.async
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -51,6 +53,21 @@ class MediaContentStateStoreTest {
         syncStore.content.ready()
 
         assertEquals(1L, waiting.await().generation)
+    }
+
+    @Test
+    fun terminalWaitFailsWhenSourceBecomesUnavailable() = runTest {
+        val syncStore = MediaSourceStateStore()
+        val source = TestMediaSource(syncStore)
+        syncStore.content.preparing(preserveReady = false)
+        supervisorScope {
+            val waiting = async { source.awaitContentReadyOrThrow() }
+            runCurrent()
+
+            syncStore.content.unavailable("disabled")
+
+            assertFailsWith<MediaContentUnavailableException> { waiting.await() }
+        }
     }
 
     private class TestMediaSource(

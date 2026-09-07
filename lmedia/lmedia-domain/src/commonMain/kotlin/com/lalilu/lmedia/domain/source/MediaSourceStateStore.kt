@@ -33,10 +33,36 @@ class MediaSourceStateStore {
         message: String = "Loading...",
         progress: Float = 0f,
     ): Long = mutex.withLock {
+        beginLocked(message = message, progress = progress)
+    }
+
+    /**
+     * 在调用方启动扫描协程前同步占用任务槽位。
+     *
+     * 同一数据源已有活动任务，或状态正在被另一个线程更新时直接返回 null。成功返回时 [state]
+     * 已经是 [SnapshotState.Loading]，因此随后到达的重复刷新不会再创建第二个扫描任务。
+     */
+    fun tryBegin(
+        message: String = "Loading...",
+        progress: Float = 0f,
+    ): Long? {
+        if (!mutex.tryLock()) return null
+        return try {
+            if (activeTaskId != null) null
+            else beginLocked(message = message, progress = progress)
+        } finally {
+            mutex.unlock()
+        }
+    }
+
+    private fun beginLocked(
+        message: String,
+        progress: Float,
+    ): Long {
         nextTaskId += 1
         activeTaskId = nextTaskId
         mutableState.value = SnapshotState.Loading(message, progress.coerceIn(0f, 1f))
-        nextTaskId
+        return nextTaskId
     }
 
     suspend fun updateLoading(
@@ -51,6 +77,11 @@ class MediaSourceStateStore {
             progress = maxOf(previousProgress, progress.coerceIn(0f, 1f)),
         )
         true
+    }
+
+    /** 在扫描协程真正开始工作前确认任务槽位仍归属于它。 */
+    suspend fun isActive(taskId: Long): Boolean = mutex.withLock {
+        activeTaskId == taskId
     }
 
     suspend fun succeed(taskId: Long, audios: List<LAudio>): Snapshot? = mutex.withLock {

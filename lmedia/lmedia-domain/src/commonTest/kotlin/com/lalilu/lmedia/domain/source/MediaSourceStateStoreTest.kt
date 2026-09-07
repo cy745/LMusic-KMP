@@ -1,14 +1,34 @@
 package com.lalilu.lmedia.domain.source
 
 import com.lalilu.lmedia.domain.model.LAudio
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class MediaSourceStateStoreTest {
+    @Test
+    fun tryBeginEntersLoadingSynchronouslyAndRejectsDuplicateTask() = runTest {
+        val store = MediaSourceStateStore()
+
+        val firstTask = store.tryBegin(message = "Scanning")
+        val duplicateTask = store.tryBegin(message = "Duplicate")
+
+        assertEquals(1L, firstTask)
+        assertNull(duplicateTask)
+        assertEquals("Scanning", assertIs<SnapshotState.Loading>(store.state.value).message)
+
+        store.succeed(firstTask!!, listOf(audio("song")))
+        assertEquals(2L, store.tryBegin())
+    }
+
     @Test
     fun staleTaskCannotReplaceNewerResult() = runTest {
         val store = MediaSourceStateStore()
@@ -102,6 +122,50 @@ class MediaSourceStateStoreTest {
         assertEquals(emptyList(), result?.audios)
         assertEquals(1L, result?.revision)
         assertIs<SnapshotState.Success>(store.state.value)
+    }
+
+    @Test
+    fun resetInvalidatesTaskBeforeItsCoroutineStarts() = runTest {
+        val store = MediaSourceStateStore()
+        val task = store.tryBegin()!!
+
+        store.reset()
+
+        assertFalse(store.isActive(task))
+        assertNull(store.succeed(task, listOf(audio("late"))))
+        assertIs<SnapshotState.Idle>(store.state.value)
+    }
+
+    @Test
+    fun activeTaskCanBeCheckedBeforeStartingWork() = runTest {
+        val store = MediaSourceStateStore()
+        val task = store.tryBegin()!!
+
+        assertTrue(store.isActive(task))
+        store.cancel(task)
+        assertFalse(store.isActive(task))
+    }
+
+    @Test
+    fun cancellationBeforeFirstDispatchReleasesReservedTask() = runTest {
+        val store = MediaSourceStateStore()
+        val task = store.tryBegin()!!
+        val worker = launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                yield()
+                if (!store.isActive(task)) return@launch
+                error("work must not start")
+            } catch (cancelled: CancellationException) {
+                store.cancel(task)
+                throw cancelled
+            }
+        }
+
+        worker.cancel()
+        worker.join()
+
+        assertIs<SnapshotState.Idle>(store.state.value)
+        assertEquals(2L, store.tryBegin())
     }
 
     private fun audio(id: String) = LAudio(id = id, mediaSourceName = "test")

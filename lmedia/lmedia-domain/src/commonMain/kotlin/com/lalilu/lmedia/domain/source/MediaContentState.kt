@@ -69,6 +69,19 @@ class MediaContentUnavailableException(message: String) : IllegalStateException(
 suspend fun MediaSource.awaitContentReady(): MediaContentState =
     contentState.first { it.isReady }
 
+/** 等待内容就绪，但把明确不可用视为终态，供播放等不能无限等待的流程使用。 */
+suspend fun MediaSource.awaitContentReadyOrThrow(): MediaContentState =
+    contentState.first { state ->
+        when (val availability = state.availability) {
+            MediaContentAvailability.Ready -> true
+            is MediaContentAvailability.Unavailable -> throw MediaContentUnavailableException(
+                "Media source '$name' is unavailable: ${availability.reason}"
+            )
+            MediaContentAvailability.Preparing,
+            MediaContentAvailability.Uninitialized -> false
+        }
+    }
+
 /** 播放路径使用的有限等待：明确不可用时立即失败，初始化或准备阶段超时后终止。 */
 suspend fun MediaSource.requireContentReady(timeoutMillis: Long = 15_000L): MediaContentState =
     withTimeout(timeoutMillis) {

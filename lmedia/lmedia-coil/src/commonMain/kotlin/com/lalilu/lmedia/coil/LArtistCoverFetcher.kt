@@ -8,8 +8,8 @@ import coil3.request.Options
 import coil3.toUri
 import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.source.MediaData
-import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.resolvePictureData
 import com.lalilu.lmedia.domain.usecase.GetArtistRelatedAudiosUseCase
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -22,15 +22,14 @@ import org.koin.core.component.inject
 class LArtistCoverFetcher(
     private val artist: LArtist,
     private val getRelatedAudios: GetArtistRelatedAudiosUseCase,
-    private val sourceMap: Map<String, MediaSource>,
+    private val platformMediaSource: PlatformMediaSource,
     private val imageLoader: ImageLoader,
     private val options: Options
 ) : Fetcher {
     override suspend fun fetch(): FetchResult? {
         val audios = getRelatedAudios(artist)
         for (audio in audios) {
-            val mediaSource = sourceMap[audio.mediaSourceName] ?: continue
-            val picture = mediaSource.dataSource?.getPicture(audio) ?: continue
+            val picture = platformMediaSource.resolvePictureData(audio) ?: continue
             val data = when (picture) {
                 is MediaData.Bytes -> picture.bytes
                 is MediaData.Url -> picture.url.toUri()
@@ -46,7 +45,6 @@ class LArtistCoverFetcher(
 class LArtistCoverFetcherFactory : Fetcher.Factory<LArtist>, KoinComponent {
     private val getRelatedAudios by inject<GetArtistRelatedAudiosUseCase>()
     private val platformMediaSource by inject<PlatformMediaSource>()
-    private val sourceMap by lazy { platformMediaSource.sources.associateBy { it.name } }
 
     override fun create(
         data: LArtist,
@@ -56,7 +54,7 @@ class LArtistCoverFetcherFactory : Fetcher.Factory<LArtist>, KoinComponent {
         return LArtistCoverFetcher(
             artist = data,
             getRelatedAudios = getRelatedAudios,
-            sourceMap = sourceMap,
+            platformMediaSource = platformMediaSource,
             imageLoader = imageLoader,
             options = options
         )

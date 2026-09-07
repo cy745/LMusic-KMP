@@ -57,6 +57,13 @@ class JvmFileSystemSource(
         }
     }
 
+    override suspend fun deactivate() {
+        loadingJob?.cancelAndJoin()
+        loadingJob = null
+        stateStore.reset()
+        stateStore.content.unavailable("Source disabled")
+    }
+
     fun selectDirectory(bookmark: String) {
         config.value = config.value.copy(directoryBookmark = bookmark)
         config.save()
@@ -77,11 +84,12 @@ class JvmFileSystemSource(
     }
 
     fun refresh(preserveReady: Boolean = true) {
-        loadingJob?.cancel()
-        loadingJob = scope.launch {
-            val taskId = stateStore.begin()
-            stateStore.content.preparing(preserveReady = preserveReady)
+        val taskId = stateStore.tryBegin() ?: return
+        loadingJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
+                yield()
+                if (!stateStore.isActive(taskId)) return@launch
+                stateStore.content.preparing(preserveReady = preserveReady)
                 if (stateStore.succeed(taskId, load(taskId)) != null) {
                     stateStore.content.ready()
                 }

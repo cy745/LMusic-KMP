@@ -23,5 +23,6 @@ sealed interface LyricContent {
         override val key: String?,
         override val generation: Long = 0L,
         val items: List<LyricItem>,
+        val emptyMessage: String = "暂无歌词",
     ) : LyricContent
 }

@@ -32,7 +32,7 @@ class AudioRepositoryImpl(
 
     override suspend fun clearUnavailableAudio() {
         database.mediaDao().clearUnavailableMedia(
-            activeSourceNames = platformSource.sources.map { it.name },
+            activeSourceNames = platformSource.enabledSources.map { it.name },
         )
     }
 }

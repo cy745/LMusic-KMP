@@ -65,9 +65,12 @@ class ExternalAudioOpenCoordinator(
             .filterIsInstance<SandboxMediaSource>()
             .singleOrNull()
             ?: error("Sandbox media source is unavailable")
+        check(platformMediaSource.isEnabled(sandbox)) {
+            "Sandbox 数据源已停用，请先在媒体数据源页面启用"
+        }
 
         var existingMatch: ExternalMediaMatch? = null
-        for (matcher in platformMediaSource.sources.filterIsInstance<ExternalMediaMatcher>()) {
+        for (matcher in platformMediaSource.enabledSources.filterIsInstance<ExternalMediaMatcher>()) {
             if (matcher is SandboxMediaSource) continue
             existingMatch = matcher.matchExternalMedia(file, persistedCandidates)
             if (existingMatch != null) break

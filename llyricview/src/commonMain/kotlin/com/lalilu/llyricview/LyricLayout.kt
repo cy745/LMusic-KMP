@@ -377,10 +377,10 @@ private fun LyricPage(
         ) {
             if (content.items.isEmpty()) {
                 item(key = "EMPTY_TIPS") {
-                    val item = remember {
+                    val item = remember(content.emptyMessage) {
                         LyricItem.NormalLyric(
                             key = "0",
-                            content = "暂无歌词",
+                            content = content.emptyMessage,
                             time = 0L,
                         )
                     }

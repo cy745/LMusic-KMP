@@ -103,6 +103,9 @@ interface LMediaDao {
     @Query("UPDATE l_audio SET available = 0")
     suspend fun markAllAudiosUnavailable()
 
+    @Query("UPDATE l_audio SET available = 0 WHERE media_source_name = :sourceName")
+    suspend fun markAudiosFromSourceUnavailable(sourceName: String)
+
     @Query(
         """
         DELETE FROM l_artist
@@ -180,8 +183,8 @@ interface LMediaDao {
     /**
      * 完整清理不可用的媒体库条目。
      *
-     * [activeSourceNames] 表示当前仍注册的数据源。已移除数据源不会再提交空快照，因此先在这里将其
-     * 历史歌曲标记为不可用。仍在列表中但正在加载或加载失败的数据源不会受影响。
+     * [activeSourceNames] 表示当前启用的数据源。已移除或由用户停用的数据源不会再提交空快照，因此
+     * 先在这里将其历史歌曲标记为不可用。仍启用但正在加载或加载失败的数据源不会受影响。
      *
      * 关系表当前没有声明外键级联，因此必须先移除指向不可用歌曲或已不存在歌曲的悬空关系，再删除
      * 歌曲及失去全部歌曲引用的派生实体。整个过程处于同一事务，不会暴露只清理了一半的中间状态。

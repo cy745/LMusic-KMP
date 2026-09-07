@@ -35,10 +35,11 @@ class LMediaServer(
 
         require(config.port in 1024..65535) { "Invalid server config: [$port] port must be in range [1024, 65535]" }
         require(targetSource != null) { "No source found for name: $sourceName" }
+        require(sources.isEnabled(sourceName)) { "Media source is disabled: $sourceName" }
 
         serverInstance = provideServer(
             port = port,
-            mediaSource = { targetSource },
+            mediaSource = { targetSource.takeIf(sources::isEnabled) },
             serverConfig = config,
             config = { install(ContentNegotiation) { json(json) } }
         )

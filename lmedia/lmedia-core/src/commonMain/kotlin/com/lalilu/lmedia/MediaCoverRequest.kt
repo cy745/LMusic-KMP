@@ -26,7 +26,7 @@ fun rememberMediaCoverRequest(data: Any?): Any? {
         runCatching { KoinPlatform.getKoin().get<PlatformMediaSource>() }.getOrNull()
     }
     val source = remember(platformSource, audio.mediaSourceName) {
-        platformSource?.sources?.firstOrNull { it.name == audio.mediaSourceName }
+        platformSource?.findSource(audio.mediaSourceName)
     }
     val generation = if (source != null) {
         val contentState by source.contentState.collectAsState()

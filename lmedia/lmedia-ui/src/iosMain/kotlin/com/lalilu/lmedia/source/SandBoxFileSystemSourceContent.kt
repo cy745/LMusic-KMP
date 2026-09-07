@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.lalilu.common.ext.io
 import com.lalilu.component.LazyStaggeredGridContent
@@ -17,6 +18,8 @@ import com.lalilu.lmedia.component.SourceActionButton
 import com.lalilu.lmedia.component.SourceActionStyle
 import com.lalilu.lmedia.component.SourceInfoPanel
 import com.lalilu.lmedia.component.SourcePipelineCard
+import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.lmedia_ui.generated.resources.Res
 import com.lalilu.lmedia.screen.SANDBOX_MEDIA_SOURCE_ROUTE
 import com.lalilu.lmedia.server.SandBoxFileSystemServer
@@ -29,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import qrcode.QRCode
 import qrcode.color.Colors
 
@@ -39,8 +43,18 @@ fun SandboxFileSystemSource.sandBoxFileSystemSourceContent(modifier: Modifier) =
     val qrCodeData = remember { mutableStateOf<ByteArray?>(null) }
     val scope = rememberCoroutineScope()
     var networkDetailsExpanded by rememberSaveable { mutableStateOf(false) }
+    val bindingRepository = koinInject<MediaSourceBindingRepository>()
+    val platformSource = koinInject<PlatformMediaSource>()
+    val sourceStatus by bindingRepository.observeSource(name)
+        .collectAsStateWithLifecycle(initialValue = null)
+    val sourceEnabled = sourceStatus?.enabled ?: platformSource.isEnabled(name)
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(sourceEnabled) {
+        SandBoxFileSystemServer.stop()
+        currentIp.value = ""
+        qrCodeData.value = null
+        if (!sourceEnabled) return@LaunchedEffect
+
         delay(2000)
         if (isActive) {
             SandBoxFileSystemServer.start(

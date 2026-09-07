@@ -27,4 +27,6 @@ class FakeMediaSourceBindingRepository : MediaSourceBindingRepository {
     }
 
     override suspend fun retryCommit(sourceName: String): Boolean = false
+
+    override suspend fun setSourceEnabled(sourceName: String, enabled: Boolean): Boolean = false
 }

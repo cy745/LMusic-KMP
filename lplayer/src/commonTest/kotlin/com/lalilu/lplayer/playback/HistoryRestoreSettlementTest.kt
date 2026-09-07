@@ -91,5 +91,6 @@ class HistoryRestoreSettlementTest {
         override fun observeSource(name: String): Flow<SourceStatus?> = states.map { it[name] }
         override suspend fun startBinding() = Unit
         override suspend fun retryCommit(sourceName: String): Boolean = false
+        override suspend fun setSourceEnabled(sourceName: String, enabled: Boolean): Boolean = false
     }
 }

@@ -79,7 +79,7 @@ class MPlayerPlayback(
     private val contentPreparation = ContentReadyPreparationCoordinator(
         scope = this,
         sourceOf = { audio ->
-            platformMediaSource.sources.firstOrNull { it.name == audio.mediaSourceName }
+            platformMediaSource.findEnabledSource(audio.mediaSourceName)
         },
         onReady = { audio, playWhenReady ->
             withContext(Dispatchers.Main) {
@@ -90,7 +90,11 @@ class MPlayerPlayback(
             }
         },
         onSourceMissing = { audio ->
-            _errors.emit(IllegalStateException("MediaSource '${audio.mediaSourceName}' not found"))
+            _errors.emit(
+                IllegalStateException(
+                    "MediaSource '${audio.mediaSourceName}' is missing or disabled"
+                )
+            )
         },
     )
 
@@ -382,8 +386,8 @@ class MPlayerPlayback(
         }
     }
 
-    private fun isContentReady(audio: LAudio): Boolean = platformMediaSource.sources
-        .firstOrNull { it.name == audio.mediaSourceName }
+    private fun isContentReady(audio: LAudio): Boolean = platformMediaSource
+        .findEnabledSource(audio.mediaSourceName)
         ?.contentState
         ?.value
         ?.isReady == true

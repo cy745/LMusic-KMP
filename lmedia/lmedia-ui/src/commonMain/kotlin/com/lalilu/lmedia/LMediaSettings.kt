@@ -21,13 +21,13 @@ fun provideLMediaDataSettings(
 ) {
     switch(
         kv = kv.clearUnavailableAfterSync,
-        title = { "同步后自动清除不可播放元素" },
-        summary = { "每个数据源成功写入后，删除失效或来源已移除的歌曲及无引用的分类信息" },
+        title = { "自动清除不可播放元素" },
+        summary = { "数据源成功同步或被停用后，删除失效歌曲及无引用的分类信息" },
     )
     click(
         key = "lmedia_data.clear_unavailable_items",
         title = { "清除不可播放元素" },
-        summary = { "删除失效或来源已移除的歌曲，并清理无引用的歌手、专辑和流派" },
+        summary = { "删除失效、来源已停用或已移除的歌曲，并清理无引用的歌手、专辑和流派" },
         onClick = { ctx ->
             GlobalScope.launch {
                 audioRepository.clearUnavailableAudio()
