@@ -1,5 +1,6 @@
 package com.lalilu.lplayer.playback
 
+import com.lalilu.lmedia.domain.model.mediaKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -26,7 +27,9 @@ interface PlaybackHistory {
     data class HistorySnapshot(
         val ids: List<String>,
         val index: Int,
-        val position: Long
+        val position: Long,
+        /** Null entries are legacy identities whose source has not yet been resolved. */
+        val sourceNames: List<String?> = List(ids.size) { null },
     )
 
     /**
@@ -60,6 +63,11 @@ class PlaybackHistoryImpl(
 ) : PlaybackHistory {
 
     override fun restoreFromHistory(): PlaybackHistory.HistorySnapshot? {
+        historyStorage.savedQueueIdentity()?.takeIf { it.isValid() }?.let { identity ->
+            return identity.takeIf { it.ids.isNotEmpty() }?.let {
+                PlaybackHistory.HistorySnapshot(it.ids, it.index, historyStorage.savedPosition(), it.sourceNames)
+            }
+        }
         val ids = historyStorage.savedPlaylistIds()
         if (ids.isEmpty()) return null
         val id = historyStorage.savedPlayId()
@@ -88,6 +96,9 @@ class PlaybackHistoryImpl(
                 val persistence = historyQueuePersistence(state, restore)
                 persistence.currentId?.let(historyStorage::savePlayId)
                 persistence.playlistIds?.let(historyStorage::savePlaylistIds)
+                historyStorage.saveQueueIdentity(
+                    historyIdentityForPersistence(state, restore, historyStorage.savedQueueIdentity())
+                )
             }
             .launchIn(this)
 
@@ -109,14 +120,43 @@ class PlaybackHistoryImpl(
             .transformLatest<Boolean, Unit> { isPlaying ->
                 while (isActive) {
                     if (canPersistPlaybackPosition(restoreState?.value)) {
-                        historyStorage.savePosition(playback.currentPosition())
+                        val position = playback.sampleHistoryPosition()
+                        // Sampling can suspend while a newer restore/selection takes over.
+                        if (position != null && canPersistPlaybackPosition(restoreState?.value)) {
+                            historyStorage.savePosition(position)
+                        }
                     }
-                    if (!isPlaying) break
+                    // Paused seeks and deferred history application also change position.
+                    // Keep a low-frequency sampler rather than stopping after the first read.
                     delay(1000.milliseconds)
                 }
             }
             .launchIn(this)
     }
+}
+
+internal fun historyIdentityForPersistence(
+    state: QueueState,
+    restore: HistoryRestoreState.Pending?,
+    saved: HistoryQueueIdentity?,
+): HistoryQueueIdentity {
+    if (restore == null || state.list.map { it.id } != restore.resolvedIds) {
+        return HistoryQueueIdentity(state.list.map { it.id }, state.list.map { it.mediaSourceName }, state.index)
+    }
+    val original = saved?.takeIf { it.ids == restore.originalIds }
+        ?: HistoryQueueIdentity(restore.originalIds, List(restore.originalIds.size) { null }, 0)
+    val slots = PlaybackHistory.HistorySnapshot(original.ids, original.index, 0, original.sourceNames)
+        .resolveQueue(state.list).slots
+    val names = original.sourceNames.mapIndexed { index, name -> name ?: slots[index]?.mediaSourceName }
+    if (!restore.currentRestored) {
+        val index = if (saved != null || restore.currentId == null) original.index
+            else original.ids.indexOf(restore.currentId).coerceAtLeast(0)
+        return original.copy(sourceNames = names, index = index)
+    }
+    val current = state.currentItem()?.mediaKey
+    val occurrence = state.list.take(state.index).count { it.mediaKey == current }
+    val target = slots.indices.filter { slots[it]?.mediaKey == current }.getOrNull(occurrence)
+    return original.copy(sourceNames = names, index = target ?: original.index)
 }
 
 internal data class HistoryQueuePersistence(

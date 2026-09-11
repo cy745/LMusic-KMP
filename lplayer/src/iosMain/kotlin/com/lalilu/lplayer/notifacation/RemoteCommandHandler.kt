@@ -5,7 +5,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.lalilu.lplayer.action.launchPlayerAction
 import platform.MediaPlayer.*
 import kotlin.coroutines.CoroutineContext
 
@@ -21,7 +21,7 @@ object RemoteCommandHandler : CoroutineScope {
         remoteCommandCenter.playCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
             debugLog("playCommand")
             if (!playback.isPlaying.value) {
-                launch { playback.play() }
+                launchPlayerAction { playback.play() }
                 MPRemoteCommandHandlerStatusSuccess
             } else {
                 MPRemoteCommandHandlerStatusCommandFailed
@@ -32,7 +32,7 @@ object RemoteCommandHandler : CoroutineScope {
         remoteCommandCenter.pauseCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
             debugLog("pauseCommand")
             if (playback.isPlaying.value) {
-                launch { playback.pause() }
+                launchPlayerAction { playback.pause() }
                 MPRemoteCommandHandlerStatusSuccess
             } else {
                 MPRemoteCommandHandlerStatusCommandFailed
@@ -41,7 +41,7 @@ object RemoteCommandHandler : CoroutineScope {
 
         remoteCommandCenter.togglePlayPauseCommand.setEnabled(true)
         remoteCommandCenter.togglePlayPauseCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            launch {
+            launchPlayerAction {
                 if (playback.isPlaying.value) playback.pause() else playback.play()
             }
             debugLog("togglePlayPauseCommand")
@@ -71,14 +71,14 @@ object RemoteCommandHandler : CoroutineScope {
         remoteCommandCenter.nextTrackCommand.setEnabled(true)
         remoteCommandCenter.nextTrackCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
             debugLog("nextTrackCommand")
-            launch { playback.skipToNext() }
+            launchPlayerAction { playback.skipToNext() }
             MPRemoteCommandHandlerStatusSuccess
         }
 
         remoteCommandCenter.previousTrackCommand.setEnabled(true)
         remoteCommandCenter.previousTrackCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
             debugLog("previousTrackCommand")
-            launch { playback.skipToPrevious() }
+            launchPlayerAction { playback.skipToPrevious() }
             MPRemoteCommandHandlerStatusSuccess
         }
 
@@ -88,7 +88,7 @@ object RemoteCommandHandler : CoroutineScope {
             val millisecond = seconds.times(1000L)
 
             debugLog("changePlaybackPositionCommand: $millisecond")
-            launch { playback.seekTo(millisecond.toLong()) }
+            launchPlayerAction { playback.seekTo(millisecond.toLong()) }
             MPRemoteCommandHandlerStatusSuccess
         }
     }

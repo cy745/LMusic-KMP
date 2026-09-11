@@ -2,9 +2,9 @@ package com.lalilu.lplayer.notification
 
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
-import com.lalilu.lmedia.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.source.MediaData
+import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.resolvePictureData
 import com.lalilu.lplayer.playback.Playback
 import com.lalilu.lplayer.playback.toJsBlob
@@ -12,7 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
+import com.lalilu.lplayer.action.launchPlayerAction
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -33,20 +33,20 @@ object BrowserMediaSessionHelper : CoroutineScope, KoinComponent {
         val session = mediaSession ?: return
 
         session.setActionHandler("play") {
-            launch { playback.play() }
+            launchPlayerAction { playback.play() }
         }
         session.setActionHandler("pause") {
-            launch { playback.pause() }
+            launchPlayerAction { playback.pause() }
         }
         session.setActionHandler("previoustrack") {
-            launch { playback.skipToPrevious() }
+            launchPlayerAction { playback.skipToPrevious() }
         }
         session.setActionHandler("nexttrack") {
-            launch { playback.skipToNext() }
+            launchPlayerAction { playback.skipToNext() }
         }
 
         playback.queue.currentItemFlow().onEach {
-            val item = it?.item
+            val item = it
             item?.let {
                 createMetadata(
                     it.title,

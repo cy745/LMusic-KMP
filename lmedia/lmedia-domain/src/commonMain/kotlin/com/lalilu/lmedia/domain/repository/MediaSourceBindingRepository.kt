@@ -13,6 +13,9 @@ interface MediaSourceBindingRepository {
     fun observeSource(name: String): Flow<SourceStatus?>
     suspend fun startBinding()
 
+    /** Holds the per-source enablement boundary through commit/rollback; block must not change enablement. */
+    suspend fun <T> withEnabledSource(sourceName: String, block: suspend () -> T): T
+
     /** 重新提交该数据源最近一次完整成功结果；没有可重试结果时返回 false。 */
     suspend fun retryCommit(sourceName: String): Boolean
 

@@ -6,7 +6,7 @@ import com.lalilu.lplayer.playback.Playback
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.lalilu.lplayer.action.launchPlayerAction
 import platform.AVFAudio.*
 import platform.Foundation.*
 import kotlin.coroutines.CoroutineContext
@@ -77,16 +77,16 @@ object AudioSessionHelper : CoroutineScope {
                     when (typeValue) {
                         AVAudioSessionInterruptionTypeBegan -> {
                             if (onInterruptionBegan != null) {
-                                launch { onInterruptionBegan() }
+                                launchPlayerAction { onInterruptionBegan() }
                             } else {
-                                launch { playback.pause() }
+                                launchPlayerAction { playback.pause() }
                             }
                         }
 
                         AVAudioSessionInterruptionTypeEnded -> {
                             val options = userInfo[AVAudioSessionInterruptionOptionKey] as? NSNumber
                             if (options?.unsignedLongValue == AVAudioSessionInterruptionOptionShouldResume) {
-                                launch { playback.play() }
+                                launchPlayerAction { playback.play() }
                             }
                         }
                     }

@@ -24,11 +24,18 @@ import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.*
 import com.lalilu.lplayer.playback.IPlaybackDataTracker
+import com.lalilu.lplayer.playback.PlaybackHistory
+import com.lalilu.lplayer.playback.observeHistoryRestoreSettled
+import com.lalilu.lplayer.playback.resolveQueue
+import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lplayer.service.CustomCommand.SeekToNext
 import com.lalilu.lplayer.service.CustomCommand.SeekToPrevious
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.guava.future
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -160,7 +167,10 @@ private class MPlayerListener(
 }
 
 @OptIn(UnstableApi::class)
-private class MServiceCallback(private val player: Player) : MediaLibrarySession.Callback {
+private class MServiceCallback(private val player: Player) : MediaLibrarySession.Callback, KoinComponent {
+    private val playbackHistory by inject<PlaybackHistory>()
+    private val audioRepository by inject<AudioRepository>()
+    private val sourceBindings by inject<MediaSourceBindingRepository>()
     private val logger = Logger.withTag("MServiceCallback")
 
     override fun onConnect(
@@ -350,16 +360,19 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         }
 
         return CoroutineScope(Dispatchers.IO).future {
-            val history = LPlayerKV.historyPlaylistIds.getData()
-
-            logger.i { "onPlaybackResumption: historySize=${history.size}, history=$history" }
-
-            val items = if (history.isNotEmpty()) history.mapNotNull { mediaId -> MMedia.getItem(mediaId) }
-            else MMedia.getChildren(MMedia.ALL_SONGS)
-
-            logger.i { "onPlaybackResumption: resolvedItems=${items.size}, source=${if (history.isNotEmpty()) "history" else "allSongs"}" }
-
-            MediaSession.MediaItemsWithStartPosition(items, 0, 0L)
+            val snapshot = playbackHistory.restoreFromHistory()
+                ?: return@future MediaSession.MediaItemsWithStartPosition(MMedia.getChildren(MMedia.ALL_SONGS), 0, 0L)
+            sourceBindings.startBinding()
+            val resolution = combine(
+                audioRepository.getAudios(snapshot.ids),
+                sourceBindings.observeHistoryRestoreSettled(snapshot.sourceNames.getOrNull(snapshot.index)),
+            ) { audios, settled -> snapshot.resolveQueue(audios) to settled }
+                .first { (resolved, settled) -> resolved.currentIndex >= 0 || settled }.first
+            MediaSession.MediaItemsWithStartPosition(
+                resolution.items.map { it.toMediaItem() },
+                resolution.currentIndex.coerceAtLeast(0),
+                if (resolution.currentIndex >= 0) snapshot.position.coerceAtLeast(0L) else 0L,
+            )
         }
     }
 }

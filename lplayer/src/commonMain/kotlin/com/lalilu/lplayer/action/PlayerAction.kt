@@ -2,14 +2,17 @@ package com.lalilu.lplayer.action
 
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.model.MediaKey
+import com.lalilu.lmedia.domain.model.mediaKey
+import com.lalilu.lplayer.playback.PlaybackMode
 import kotlinx.coroutines.flow.first
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.PlayMode
-import kotlinx.coroutines.DelicateCoroutinesApi
+import co.touchlab.kermit.Logger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import org.koin.mp.KoinPlatform
 
 sealed class PlayerAction() : Action {
@@ -25,6 +28,7 @@ sealed class PlayerAction() : Action {
     data class SkipToIndex(val index: Int) : PlayerAction()
     data class AddToNext(val id: String) : PlayerAction()
     data class PlayById(val id: String) : PlayerAction()
+    data class PlayByKey(val key: MediaKey) : PlayerAction()
     data class SeekTo(val positionMs: Long) : PlayerAction()
     data class SetPlayMode(val playMode: PlayMode) : PlayerAction()
     data class PauseWhenCompletion(val cancel: Boolean = false) : PlayerAction()
@@ -37,30 +41,50 @@ sealed class PlayerAction() : Action {
 
 expect fun handlePlatformPlayerAction(action: PlayerAction)
 
-@OptIn(DelicateCoroutinesApi::class)
+private val playerActionScope = CoroutineScope(Dispatchers.io + SupervisorJob())
+
 fun defaultPlayerActionHandler(action: PlayerAction) {
-    GlobalScope.launch(Dispatchers.io) {
+    playerActionScope.launchPlayerAction(
+        onFailure = { Logger.e(it) { "Player action failed: $action" } },
+    ) {
         when (action) {
             PlayerAction.Play -> LPlayer.instance.play()
             PlayerAction.Pause -> LPlayer.instance.pause()
-            PlayerAction.PlayOrPause -> LPlayer.instance
-                .apply { if (isPlaying.value) play() else pause() }
+            PlayerAction.PlayOrPause -> LPlayer.instance.togglePlayPause()
 
             PlayerAction.SkipToNext -> LPlayer.instance.skipToNext()
             PlayerAction.SkipToPrevious -> LPlayer.instance.skipToPrevious()
             is PlayerAction.SetPlayMode -> {
                 LPlayerKV.playMode.value = action.playMode.name
+                LPlayer.instance.setPlaybackMode(when (action.playMode) {
+                    PlayMode.ListRecycle -> PlaybackMode.LOOP
+                    PlayMode.RepeatOne -> PlaybackMode.SINGLE_LOOP
+                    PlayMode.Shuffle -> PlaybackMode.SHUFFLE
+                })
             }
 
             is PlayerAction.PauseWhenCompletion -> LPlayer.instance.setPauseWhenCompletion(action.cancel)
             is PlayerAction.SkipToIndex -> LPlayer.instance.skipTo(action.index, true)
             is PlayerAction.SeekTo -> LPlayer.instance.seekTo(action.positionMs)
             is PlayerAction.PlayById -> {
-                // TODO 待重构播放列表逻辑
-                val index = LPlayer.instance.queue.stateSnapshot().list
-                    .indexOfFirst { item -> item.id == action.id }
+                val list = LPlayer.instance.queue.stateSnapshot().list
+                val keys = list.filter { it.id == action.id }.map { it.mediaKey }.distinct()
+                if (keys.size == 1) {
+                    LPlayer.instance.playAudio(list.first { it.mediaKey == keys.single() })
+                }
+            }
 
-                LPlayer.instance.skipTo(index, true)
+            is PlayerAction.PlayByKey -> {
+                LPlayer.instance.queue.stateSnapshot().list
+                    .firstOrNull { it.mediaKey == action.key }
+                    ?.let { LPlayer.instance.playAudio(it) }
+            }
+
+            is PlayerAction.AddToNext -> {
+                val audioRepo: AudioRepository = KoinPlatform.getKoin().get()
+                audioRepo.getAudio(action.id).first()?.let { audio ->
+                    LPlayer.instance.editQueue { addToNext(listOf(audio)) }
+                }
             }
 
             is PlayerAction.UpdateList -> {
@@ -68,14 +92,12 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
                 val audios = audioRepo.getAudios(action.ids).first()
                 LPlayer.instance.updatePlaylist(
                     playlist = audios,
-                    startIndex = action.id?.let { action.ids.indexOf(it) }?.coerceAtLeast(0) ?: 0,
+                    startIndex = action.id?.let { id -> audios.indexOfFirst { it.id == id } }
+                        ?.coerceAtLeast(0) ?: 0,
                     start = action.start
                 )
             }
 
-            else -> {
-
-            }
         }
     }
 }

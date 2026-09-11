@@ -6,7 +6,6 @@ import com.lalilu.extensions.GlobalToaster
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
-import com.lalilu.lmedia.domain.repository.SnapshotCommitState
 import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.source.external.ExternalMediaMatch
@@ -19,15 +18,15 @@ import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.startAccessingSecurityScopedResource
 import io.github.vinceglb.filekit.stopAccessingSecurityScopedResource
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import org.koin.core.annotation.Single
 
 /** Serializes external-open events from platform entry points through matching, import and playback. */
@@ -48,6 +47,11 @@ class ExternalAudioOpenCoordinator(
                 try {
                     notify("正在打开 ${file.name}")
                     openAndPlay(file)
+                } catch (timeout: TimeoutCancellationException) {
+                    logger.e(timeout) { "Timed out opening external audio: ${file.name}" }
+                    notify("打开音频超时，请稍后重试")
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
                 } catch (throwable: Throwable) {
                     logger.e(throwable) { "Failed to open external audio: ${file.name}" }
                     notify(throwable.message?.let { "打开音频失败：$it" } ?: "打开音频失败")
@@ -61,14 +65,6 @@ class ExternalAudioOpenCoordinator(
     private suspend fun openAndPlay(file: PlatformFile) {
         bindingRepository.startBinding()
         val persistedCandidates = audioRepository.getAudios().first()
-        val sandbox = platformMediaSource.sources
-            .filterIsInstance<SandboxMediaSource>()
-            .singleOrNull()
-            ?: error("Sandbox media source is unavailable")
-        check(platformMediaSource.isEnabled(sandbox)) {
-            "Sandbox 数据源已停用，请先在媒体数据源页面启用"
-        }
-
         var existingMatch: ExternalMediaMatch? = null
         for (matcher in platformMediaSource.enabledSources.filterIsInstance<ExternalMediaMatcher>()) {
             if (matcher is SandboxMediaSource) continue
@@ -76,12 +72,21 @@ class ExternalAudioOpenCoordinator(
             if (existingMatch != null) break
         }
 
-        val result = if (existingMatch != null) {
-            logger.i { "Matched ${existingMatch.audio.id} by ${existingMatch.basis}" }
-            existingMatch.audio
-        } else {
+        val matched = existingMatch
+        if (matched != null) {
+            logger.i { "Matched ${matched.audio.id} by ${matched.basis}" }
+            bindingRepository.withEnabledSource(matched.audio.mediaSourceName) {
+                finishOpening(matched.audio)
+            }
+            return
+        }
+        val sandbox = platformMediaSource.sources
+            .filterIsInstance<SandboxMediaSource>()
+            .singleOrNull()
+            ?: error("Sandbox media source is unavailable")
+        bindingRepository.withEnabledSource(sandbox.name) {
             notify("正在导入 ${file.name}")
-            when (val imported = sandbox.import(file, persistedCandidates)) {
+            val result = when (val imported = sandbox.import(file, persistedCandidates)) {
                 is SandboxImportResult.Existing -> imported.audio
                 is SandboxImportResult.Imported -> awaitCommitted(
                     source = sandbox,
@@ -89,9 +94,13 @@ class ExternalAudioOpenCoordinator(
                     revision = imported.snapshotRevision,
                 )
             }
+            finishOpening(result)
         }
+    }
 
+    private suspend fun finishOpening(result: LAudio) {
         val persisted = audioRepository.getAudio(result.id).first()
+            ?.takeIf { it.mediaSourceName == result.mediaSourceName && it.available }
             ?: platformMediaSource.sources.firstOrNull { it.name == result.mediaSourceName }
                 ?.snapshot?.value?.let { current ->
                     current.audios.firstOrNull { it.id == result.id }?.let {
@@ -114,56 +123,19 @@ class ExternalAudioOpenCoordinator(
         source: MediaSource,
         audio: LAudio,
         revision: Long,
-    ): LAudio {
-        val terminal = withTimeout(COMMIT_TIMEOUT_MILLIS) {
-            bindingRepository.observeSource(source.name)
-                .filterNotNull()
-                .first { status ->
-                    when (val state = status.commitState) {
-                        is SnapshotCommitState.Committed -> state.revision == revision
-                        is SnapshotCommitState.Failed -> state.revision == revision
-                        SnapshotCommitState.Idle,
-                        is SnapshotCommitState.Committing -> false
-                    }
-                }
-        }.commitState
-        if (terminal is SnapshotCommitState.Failed) {
-            error("写入媒体库失败：${terminal.message}")
-        }
-        return withTimeout(COMMIT_TIMEOUT_MILLIS) {
-            audioRepository.getAudio(audio.id).filterNotNull().first()
-        }
-    }
+    ): LAudio = awaitExternalAudioCommit(
+        expected = audio,
+        revision = revision,
+        statuses = bindingRepository.observeSource(source.name),
+        persisted = audioRepository.getAudio(audio.id),
+    )
 
     private suspend fun play(audio: LAudio) {
-        val player = LPlayer.instance
-        while (true) {
-            val queue = player.queue.stateSnapshot()
-            val existingIndex = queue.list.indexOfFirst { it.id == audio.id }
-            val targetIndex = when {
-                existingIndex >= 0 -> existingIndex
-                queue.list.isEmpty() -> 0
-                else -> (queue.index + 1).coerceIn(0, queue.list.size)
-            }
-            var applied = false
-            player.queue.update(predicate = { it == queue }) {
-                if (existingIndex < 0) {
-                    if (queue.list.isEmpty()) addToEnd(listOf(audio)) else addToNext(listOf(audio))
-                }
-                switchTo(targetIndex)
-                applied = true
-            }
-            if (!applied) continue
-            player.skipTo(targetIndex, start = true)
-            return
-        }
+        LPlayer.instance.playAudio(audio)
     }
 
     private suspend fun notify(message: String) = withContext(Dispatchers.Main) {
         GlobalToaster?.show(message)
     }
 
-    companion object {
-        private const val COMMIT_TIMEOUT_MILLIS = 30_000L
-    }
 }

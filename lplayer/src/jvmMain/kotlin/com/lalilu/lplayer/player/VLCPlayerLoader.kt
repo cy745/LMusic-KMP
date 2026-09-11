@@ -45,7 +45,11 @@ object VLCPlayerLoader : CoroutineScope, ReadyState by readyStateImpl() {
  * 继承 [BaseNativeDiscoveryStrategy]，指定 libvlc.dylib 和 libvlccore.dylib 的文件名模式，
  * 并在发现后强制预加载 libvlccore（macOS 需要）。
  */
-private class MacOsVlcDiscoverer : BaseNativeDiscoveryStrategy(
+internal class MacOsVlcDiscoverer(
+    private val pluginPathSetter: (String) -> Boolean = {
+        LibC.INSTANCE.setenv("VLC_PLUGIN_PATH", it, 1) == 0
+    },
+) : BaseNativeDiscoveryStrategy(
     arrayOf("libvlc\\.dylib", "libvlccore\\.dylib"),
     arrayOf("%s/plugins")
 ) {
@@ -64,8 +68,9 @@ private class MacOsVlcDiscoverer : BaseNativeDiscoveryStrategy(
     }
 
     override fun setPluginPath(path: String?): Boolean {
-        val pluginsPath = "$path/plugins"
-        return LibC.INSTANCE.setenv("VLC_PLUGIN_PATH", pluginsPath, 1) == 0
+        // BaseNativeDiscoveryStrategy has already expanded "%s/plugins" and
+        // checked the directory. Appending again points VLC at plugins/plugins.
+        return path?.let(pluginPathSetter) ?: false
     }
 }
 

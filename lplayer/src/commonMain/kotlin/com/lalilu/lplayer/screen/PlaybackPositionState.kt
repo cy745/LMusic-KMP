@@ -13,6 +13,7 @@ import androidx.compose.runtime.withFrameMillis
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.lalilu.lplayer.LPlayer
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -59,8 +60,12 @@ internal fun rememberPlaybackPositionState(
     LifecycleResumeEffect(isPlaying, playbackKey) {
         val job = scope.launch {
             state.synchronize(playbackKey, LPlayer.instance.currentPosition())
-            while (isActive && isPlaying) {
-                withFrameMillis {
+            while (isActive) {
+                if (isPlaying) withFrameMillis {
+                    state.updatePosition(LPlayer.instance.currentPosition())
+                } else {
+                    // A paused history restore or seek can finish after the first composition.
+                    delay(200)
                     state.updatePosition(LPlayer.instance.currentPosition())
                 }
             }

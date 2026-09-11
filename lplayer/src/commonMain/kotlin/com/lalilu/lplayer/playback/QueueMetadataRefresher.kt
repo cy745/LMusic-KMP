@@ -2,6 +2,7 @@ package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.model.mediaKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.catch
@@ -24,23 +25,23 @@ internal fun CoroutineScope.startQueueMetadataRefresh(
     queue: PlayableQueue,
     audioRepository: AudioRepository,
 ) = queue.expandedItems
-    .map { state -> state.list.map { it.id } }
+    .map { state -> state.list.map { it.mediaKey } }
     .distinctUntilChanged()
-    .filter(List<String>::isNotEmpty)
+    .filter { it.isNotEmpty() }
     .flatMapLatest { ids ->
-        audioRepository.getAudios(ids).map { audios -> ids to audios }
+        audioRepository.getAudios(ids.map { it.id }).map { audios -> ids to audios }
     }
     .onEach { (observedIds, refreshed) ->
         val current = queue.stateSnapshot()
-        if (current.list.map { it.id } != observedIds) return@onEach
+        if (current.list.map { it.mediaKey } != observedIds) return@onEach
 
-        val refreshedById = refreshed.associateBy { it.id }
-        val updated = current.list.map { old -> refreshedById[old.id] ?: old }
+        val refreshedById = refreshed.associateBy { it.mediaKey }
+        val updated = current.list.map { old -> refreshedById[old.mediaKey] ?: old }
         if (updated == current.list) return@onEach
 
         queue.update(
             updateReason = QueueUpdateReason.Sync,
-            predicate = { state -> state.list.map { it.id } == observedIds },
+            predicate = { state -> state.list.map { it.mediaKey } == observedIds },
         ) {
             // index = -1 会根据原子区间内的当前歌曲重新定位，避免覆盖同时发生的切歌。
             replaceAll(items = updated, index = -1)

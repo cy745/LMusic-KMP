@@ -6,11 +6,13 @@ import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lplayer.helper.*
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,6 +54,7 @@ class AVPlayerEngine : PlaybackEngine {
     private val statusObserver = Observer { keyPath, ofObject, change, context ->
         if (observerContext != context) return@Observer
         val playerItem = ofObject as AVPlayerItem
+        if (playerItem != currentItem) return@Observer
         when (playerItem.status) {
             AVPlayerStatusUnknown -> {
                 logger.i(messageString = "AVPlayerStatusUnknown")
@@ -71,7 +74,7 @@ class AVPlayerEngine : PlaybackEngine {
 
             AVPlayerStatusFailed -> {
                 val err = playerItem.error
-                val errorMsg = err?.localizedDescription ?: "AVPlayerStatusFailed"
+                val errorMsg = err?.description ?: "AVPlayerStatusFailed"
                 logger.i(messageString = errorMsg)
                 _state.update { it.copy(isLoading = false, error = errorMsg) }
             }
@@ -102,6 +105,8 @@ class AVPlayerEngine : PlaybackEngine {
         val url = NSURL.URLWithString(urlStr)
             ?: throw Exception("Invalid URL: $urlStr")
         val playerItem = AVPlayerItem(url)
+        // Registering KVO may synchronously deliver the initial status.
+        currentItem = playerItem
 
         // 监听状态变化
         playerItem.observeFor(
@@ -112,6 +117,7 @@ class AVPlayerEngine : PlaybackEngine {
 
         // 监听播放完成
         AVPlayerItemEventObserver.observe(AVPlayerItemDidPlayToEndTimeNotification, playerItem) {
+            if (currentItem != playerItem) return@observe
             logger.i(messageString = "AVPlayerItemDidPlayToEndTimeNotification")
             onEvent?.invoke(PlaybackEngineEvent.Completion)
         }
@@ -122,7 +128,22 @@ class AVPlayerEngine : PlaybackEngine {
 
         // 启动 position 监听
         AVPlayerPositionObserver.observe(avPlayer) { seconds ->
-            _state.update { it.copy(position = (seconds * 1000).toLong()) }
+            if (currentItem == playerItem) {
+                _state.update { it.copy(position = (seconds * 1000).toLong()) }
+            }
+        }
+
+        try {
+            val ready = withTimeout(30_000) { state.first { !it.isLoading } }
+            if (currentItem != playerItem) throw CancellationException("Media selection replaced")
+            check(ready.error == null && playerItem.status == AVPlayerStatusReadyToPlay) {
+                ready.error ?: "AVPlayer did not prepare the selected item"
+            }
+        } catch (cancelled: CancellationException) {
+            // A cancelled load must not later start playing or publish ready for this item.
+            // Never release a newer selection that has already replaced it.
+            if (currentItem == playerItem) release()
+            throw cancelled
         }
     }
 
@@ -137,14 +158,17 @@ class AVPlayerEngine : PlaybackEngine {
     }
 
     override suspend fun pause() {
+        autoPlayWhenReady = false
         avPlayer.pause()
         _state.value = _state.value.copy(isPlaying = false)
     }
 
     override suspend fun stop() {
+        autoPlayWhenReady = false
         avPlayer.pause()
         avPlayer.seekToTime(CMTimeMake(value = 0, timescale = 1000))
-        _state.value = PlaybackEngineState(duration = _state.value.duration)
+        // Stop retains the item: it must not pretend an in-flight load is prepared.
+        _state.update { it.copy(isPlaying = false, position = 0L) }
     }
 
     override suspend fun seekTo(positionMs: Long) {
@@ -159,10 +183,7 @@ class AVPlayerEngine : PlaybackEngine {
     }
 
     override fun currentPosition(): Long {
-        return memScoped {
-            avPlayer.currentTime()
-                .useContents { value / 1000L / 1000L }
-        }
+        return avPlayer.currentTime().useContents { toMilliseconds().toLong() }
     }
 
     override suspend fun release() {

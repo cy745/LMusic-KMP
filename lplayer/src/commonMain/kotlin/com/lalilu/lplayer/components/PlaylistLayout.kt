@@ -20,6 +20,7 @@ import com.lalilu.extensions.Item
 import com.lalilu.extensions.diff
 import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
@@ -46,8 +47,8 @@ fun PlaylistLayout(
         items.collect { list ->
             val newList = actualItems.diff(
                 items = list,
-                getId = { it.id },
-                isSameItem = { a, b -> a.id == b.id },
+                getId = { it.mediaKey.stableKey },
+                isSameItem = { a, b -> a.mediaKey == b.mediaKey },
                 isSameContent = { a, b ->
                     a.id == b.id
                             && a.title == b.title
@@ -109,7 +110,7 @@ fun PlaylistLayout(
                 imageData = data,
                 title = data.title,
                 subtitle = data.subtitle,
-                onClick = { PlayerAction.PlayById(data.id).action() },
+                onClick = { PlayerAction.PlayByKey(data.mediaKey).action() },
                 onLongClick = { sharedMap ->
                     val coverMemoryKey = context.retrieveCacheKey(item)
 

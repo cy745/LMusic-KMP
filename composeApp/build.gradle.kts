@@ -20,7 +20,9 @@ val appResourcesPath: java.io.File = rootDir.resolve("lplayer/src/jvmMain/assets
 vlcSetup {
     vlcVersion = "3.0.21"
     shouldCompressVlcFiles = true
-    shouldIncludeAllVlcFiles = false
+    // The plugin's minimal profile targets TS video and excludes HTTP/HTTPS and
+    // callback-memory access, both required by LMusic media sources.
+    shouldIncludeAllVlcFiles = true
     pathToCopyVlcLinuxFilesTo = appResourcesPath.resolve("linux/vlc")
     pathToCopyVlcMacosFilesTo = appResourcesPath.resolve("macos/vlc")
     pathToCopyVlcWindowsFilesTo = appResourcesPath.resolve("windows/vlc")

@@ -1,8 +1,10 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
+import com.lalilu.lplayer.action.launchPlayerAction
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.source.MediaData
@@ -10,8 +12,9 @@ import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.resolveMediaData
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.koin.mp.KoinPlatform
-import kotlin.random.Random
 
 /**
  * Abstract base implementation of Playback interface.
@@ -34,11 +37,11 @@ abstract class AbstractPlayback(
     protected val _errors = MutableSharedFlow<Throwable>()
     protected val _currentDuration = MutableStateFlow(0L)
     protected val _currentBufferedPosition = MutableStateFlow(0L)
-    protected val _playbackMode = MutableStateFlow(PlaybackMode.SEQUENTIAL)
+    protected val _playbackMode = MutableStateFlow(history.historyStorage.savedPlaybackMode())
     protected var _pauseWhenCompletion: Boolean = false
-    protected var _shuffledIndices: List<Int> = emptyList()
-    protected var _currentIndexInShuffled: Int = 0
     private val logger = Logger.withTag("AbstractPlayback")
+    private val queueEditMutex = Mutex()
+    private var historyStarted = false
 
     // ── Engine 基础设施 ──
 
@@ -87,31 +90,13 @@ abstract class AbstractPlayback(
         // 数据源刷新完成后只替换队列内的歌曲描述，不重建播放引擎或改变 position。
         startQueueMetadataRefresh(queue, audioRepository)
 
-        // 自动恢复历史队列
-        val snapshot = restoreFromHistory()
-        val restorer = snapshot?.let {
-            HistoryQueueRestorer(
-                snapshot = it,
-                repository = audioRepository,
-                restoreSettled = mediaSourceBindingRepository.observeHistoryRestoreSettled(),
-            )
-        }
-        restorer?.start(
-            scope = this,
-            queue = queue,
-            onCurrentResolved = ::onQueueRestored,
-        )
-
-        // 自动录制播放状态 — 此时所有属性均已初始化
-        startRecording(this, restorer?.state)
-
         // ── Engine 事件绑定 ──
         // 给每个 Engine 绑定 onEvent 回调，将离散事件转为 Playback 方法调用
         engineRouter.allEngines.forEach { engine ->
             engine.onEvent = { event ->
                 when (event) {
                     is PlaybackEngineEvent.Completion -> {
-                        launch { onCompletion() }
+                        launchPlayerAction { onCompletion() }
                     }
 
                     is PlaybackEngineEvent.Error -> {
@@ -130,6 +115,43 @@ abstract class AbstractPlayback(
                 _currentBufferedPosition.value = state.bufferedPosition
             }
             .launchIn(coroutineScope)
+    }
+
+    private var historyRestorer: HistoryQueueRestorer? = null
+
+    protected suspend fun claimHistoryPlaybackControl() {
+        historyRestorer?.claimPlaybackControl()
+    }
+
+    /** Called by the concrete platform only after its native player has been initialized. */
+    protected fun startHistoryPlayback() {
+        if (historyStarted) return
+        historyStarted = true
+        val snapshot = restoreFromHistory()
+        val restorer = snapshot?.let {
+            HistoryQueueRestorer(it, audioRepository,
+                mediaSourceBindingRepository.observeHistoryRestoreSettled(it.sourceNames.getOrNull(it.index)))
+        }
+        historyRestorer = restorer
+        restorer?.start(this, queue, ::onQueueRestored)
+        startRecording(this, restorer?.state)
+    }
+
+    override suspend fun onQueueRestored(snapshot: PlaybackHistory.HistorySnapshot) {
+        val state = queue.stateSnapshot()
+        val resolved = snapshot.resolveQueue(state.list)
+        val current = state.currentItem() ?: throw CancellationException("History selection disappeared")
+        if (resolved.currentIndex != state.index || resolved.items.getOrNull(resolved.currentIndex)?.mediaKey != current.mediaKey) {
+            throw CancellationException("History selection was replaced")
+        }
+        restoreLoadedItem(current, snapshot.position, history.historyStorage.autoPlayOnRestore())
+    }
+
+    /** Must return only after native loading and positioning succeed; never edit the restored queue. */
+    protected open suspend fun restoreLoadedItem(audio: LAudio, position: Long, start: Boolean) {
+        skipTo(queue.stateSnapshot().index, false)
+        seekTo(position)
+        if (start) play()
     }
 
     /**
@@ -176,11 +198,8 @@ abstract class AbstractPlayback(
         val nextIndex = when (_playbackMode.value) {
             PlaybackMode.SINGLE_LOOP -> currentState.index
             PlaybackMode.SHUFFLE -> {
-                if (_shuffledIndices.isEmpty()) {
-                    updateShuffledIndices()
-                }
-                _currentIndexInShuffled = (_currentIndexInShuffled + 1) % _shuffledIndices.size
-                _shuffledIndices[_currentIndexInShuffled]
+                prepareSurpriseNext()
+                SurpriseQueueOrder.nextIndex(flattened.size, currentState.index)
             }
 
             PlaybackMode.LOOP -> (currentState.index + 1) % flattened.size
@@ -209,11 +228,7 @@ abstract class AbstractPlayback(
         val previousIndex = when (_playbackMode.value) {
             PlaybackMode.SINGLE_LOOP -> currentState.index
             PlaybackMode.SHUFFLE -> {
-                if (_shuffledIndices.isEmpty()) {
-                    updateShuffledIndices()
-                }
-                _currentIndexInShuffled = (_currentIndexInShuffled - 1 + _shuffledIndices.size) % _shuffledIndices.size
-                _shuffledIndices[_currentIndexInShuffled]
+                SurpriseQueueOrder.previousIndex(flattened.size, currentState.index)
             }
 
             PlaybackMode.LOOP -> (currentState.index - 1 + flattened.size) % flattened.size
@@ -236,50 +251,44 @@ abstract class AbstractPlayback(
             "Updating playlist size: ${playlist.size}, startIndex: $startIndex, start: $start\n" +
                     playlist.joinToString(separator = "\n") { "(${it.id}) ${it.title}" }
         }
+        if (playlist.isEmpty()) {
+            clearPlaylist()
+            return
+        }
         queue.update { replaceAll(items = playlist, index = startIndex) }
 
-        if (_playbackMode.value == PlaybackMode.SHUFFLE) {
-            updateShuffledIndices()
-        }
-        skipTo(startIndex, start)
+        skipTo(queue.stateSnapshot().index, start)
+    }
+
+    override suspend fun editQueue(block: QueueUpdateRequest.() -> Unit) = queueEditMutex.withLock {
+        super<Playback>.editQueue(block)
+    }
+
+    override suspend fun playAudio(audio: LAudio) = queueEditMutex.withLock {
+        super<Playback>.playAudio(audio)
     }
 
     override suspend fun clearPlaylist() {
         logger.i { "Clearing playlist $this" }
-        queue.update { clear() }
-        _shuffledIndices = emptyList()
-        _currentIndexInShuffled = 0
+        editQueue { clear() }
     }
 
     override suspend fun setPlaybackMode(mode: PlaybackMode) {
         logger.i { "Setting playback mode: $mode" }
         if (_playbackMode.value == mode) return
 
-        val oldMode = _playbackMode.value
         _playbackMode.value = mode
-
-        if (oldMode == PlaybackMode.SHUFFLE || mode == PlaybackMode.SHUFFLE) {
-            if (mode == PlaybackMode.SHUFFLE) {
-                updateShuffledIndices()
-                val currentIndex = queue.stateSnapshot().index
-                _currentIndexInShuffled = _shuffledIndices.indexOf(currentIndex).takeIf { it >= 0 } ?: 0
-            } else {
-                if (oldMode == PlaybackMode.SHUFFLE) {
-                    queue.update { switchTo(_shuffledIndices.getOrNull(_currentIndexInShuffled) ?: 0) }
-                }
-            }
-        }
+        if (mode == PlaybackMode.SHUFFLE) prepareSurpriseNext()
     }
 
     override suspend fun setPauseWhenCompletion(cancel: Boolean) {
         _pauseWhenCompletion = !cancel
     }
 
-    private fun updateShuffledIndices() {
-        val currentState = queue.stateSnapshot()
-        val size = currentState.list.size
-        _shuffledIndices = (0 until size).toList().shuffled(Random.Default)
-        _currentIndexInShuffled = _shuffledIndices.indexOf(currentState.index).takeIf { it >= 0 } ?: 0
+    protected suspend fun prepareSurpriseNext() {
+        if (_playbackMode.value == PlaybackMode.SHUFFLE) {
+            queue.update { prepareSurpriseNext() }
+        }
     }
 
     protected fun emitError(error: Throwable) {

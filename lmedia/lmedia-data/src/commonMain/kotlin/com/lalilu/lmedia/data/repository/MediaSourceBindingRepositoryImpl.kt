@@ -42,8 +42,8 @@ class MediaSourceBindingRepositoryImpl(
     private val platformSource: PlatformMediaSource,
     private val database: ILMediaDatabase,
     private val kv: LMediaKV,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.io + SupervisorJob()),
 ) : MediaSourceBindingRepository {
-    private val scope = CoroutineScope(Dispatchers.io + SupervisorJob())
     private val startMutex = Mutex()
     private var started = false
     private val committers = mutableMapOf<String, SourceSnapshotCommitter>()
@@ -69,6 +69,12 @@ class MediaSourceBindingRepositoryImpl(
     override fun getSources(): PlatformMediaSource = platformSource
 
     override fun observeSource(name: String): Flow<SourceStatus?> = states.map { it[name] }
+
+    override suspend fun <T> withEnabledSource(sourceName: String, block: suspend () -> T): T {
+        startBinding()
+        val mutex = sourceMutexes[sourceName] ?: error("Unknown media source: $sourceName")
+        return mutex.runWhileSourceEnabled({ platformSource.isEnabled(sourceName) }, block)
+    }
 
     override suspend fun startBinding() {
         startMutex.withLock {

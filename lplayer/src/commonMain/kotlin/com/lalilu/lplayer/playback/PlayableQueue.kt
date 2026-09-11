@@ -1,6 +1,7 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +16,7 @@ data class QueueState(
     fun rearrange(): List<LAudio> {
         if (index !in list.indices) return list
         return (list.drop(index) + list.take(index))
-            .distinctBy { it.id }
+            .distinctBy { it.mediaKey }
     }
 
     /** 获取当前播放项 */

@@ -3,6 +3,7 @@ package com.lalilu.lplayer.extensions
 import androidx.compose.animation.core.*
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
+import com.lalilu.lplayer.action.launchPlayerAction
 import kotlinx.coroutines.*
 import kotlin.coroutines.CoroutineContext
 
@@ -36,12 +37,12 @@ class VolumeFadeHelper(
         }
 
     fun play(superPlay: () -> Unit = {}) {
+        animationJob?.cancel()
         if (!fadeEnabled()) {
             superPlay()
             if (debug) Logger.i("fade disabled, play immediately")
             return
         }
-        animationJob?.cancel()
         animationJob = launch(Dispatchers.io) {
             runAnimation(targetValue = 100f)
         }
@@ -52,23 +53,30 @@ class VolumeFadeHelper(
     }
 
     fun pause(superPause: suspend () -> Unit = {}) {
-        if (!fadeEnabled()) {
-            launch { superPause() }
-            if (debug) Logger.i("fade disabled, pause immediately")
-            return
-        }
+        // AudioSink has a synchronous API. Register the command before returning,
+        // but handle its eventual failure at this fire-and-forget boundary.
+        val pending = createPause(this, superPause)
+        launchPlayerAction { pending.await() }
+    }
+
+    /** Suspend playback APIs must wait for both the fade and the native pause. */
+    suspend fun pauseAndAwait(superPause: suspend () -> Unit = {}) = coroutineScope {
+        createPause(this, superPause).await()
+    }
+
+    private fun createPause(owner: CoroutineScope, superPause: suspend () -> Unit): Deferred<Unit> {
         animationJob?.cancel()
-        animationJob = launch(Dispatchers.io) {
-            runAnimation(targetValue = 0f)
+        val pending = owner.async(Dispatchers.io, start = CoroutineStart.LAZY) {
+            if (fadeEnabled()) runAnimation(targetValue = 0f)
             ensureActive()
             withContext(Dispatchers.Main) {
-
                 superPause()
-                if (debug) {
-                    Logger.i("superPause: $volumeOverride")
-                }
+                if (debug) Logger.i("superPause: $volumeOverride")
             }
         }
+        animationJob = pending
+        pending.start()
+        return pending
     }
 
     private suspend fun runAnimation(

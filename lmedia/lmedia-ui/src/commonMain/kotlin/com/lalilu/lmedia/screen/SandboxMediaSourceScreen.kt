@@ -25,6 +25,7 @@ import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.source.sandbox.SandboxMediaSource
+import com.lalilu.lmedia.source.sandbox.SandboxFileOperations
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenInfo
 import com.lalilu.navigation.ScreenInfoFactory
@@ -85,6 +86,7 @@ private fun SandboxMediaSourceContent(
 ) {
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
+    val fileOperations = koinInject<SandboxFileOperations>()
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var deletingId by rememberSaveable { mutableStateOf<String?>(null) }
     var busyId by remember { mutableStateOf<String?>(null) }
@@ -177,7 +179,7 @@ private fun SandboxMediaSourceContent(
                     onRename = { newName ->
                         busyId = audio.id
                         scope.launch {
-                            runCatching { source.rename(audio, newName) }
+                            runCatching { fileOperations.rename(source, audio, newName) }
                                 .onSuccess {
                                     editingId = null
                                     toaster?.show("文件已重命名")
@@ -194,7 +196,7 @@ private fun SandboxMediaSourceContent(
                     onDelete = {
                         busyId = audio.id
                         scope.launch {
-                            runCatching { source.delete(audio) }
+                            runCatching { fileOperations.delete(source, audio) }
                                 .onSuccess {
                                     deletingId = null
                                     toaster?.show("文件已删除")

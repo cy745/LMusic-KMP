@@ -3,6 +3,7 @@ package com.lalilu.lplayer.playback
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
+import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +20,7 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.PlayMode
@@ -26,8 +28,6 @@ import com.lalilu.lplayer.extensions.playMode
 import com.lalilu.lplayer.extensions.toMediaItem
 import com.lalilu.lplayer.service.CustomCommand
 import com.lalilu.lplayer.service.MService
-import io.github.petertrr.diffutils.algorithm.myers.MyersDiff
-import io.github.petertrr.diffutils.patch.DeltaType
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.guava.await
@@ -52,14 +52,17 @@ class MPlayerPlayback(
 
     private val logger = Logger.withTag("MPlayerPlayback")
     private val browserQueueMutex = Mutex()
-    private val timelineSyncLock = Any()
-    private var timelineSyncGeneration = 0L
+    private val queueEditMutex = Mutex()
     override val coroutineContext: CoroutineContext = Dispatchers.IO
     private val sessionToken by lazy {
         SessionToken(context, ComponentName(context, MService::class.java))
     }
 
-    override val queue: PlayableQueue = PlayableQueueImpl()
+    private val queueBridge = PlatformQueueBridge(
+        applyToPlatform = { state -> diffUpdateMediaItems(state.list) },
+        readPlatformAfterApply = { launch(Dispatchers.Main) { updateItems() } },
+    )
+    override val queue: PlayableQueue = queueBridge.queue
     private var browserInstance: MediaBrowser? = null
     private val browserFuture by lazy {
         MediaBrowser
@@ -74,6 +77,7 @@ class MPlayerPlayback(
     private val _isPlaying = MutableStateFlow(false)
     private val _errors = MutableSharedFlow<Throwable>()
     private val _currentDuration = MutableStateFlow(0L)
+    private val recordedPosition = MutableStateFlow(0L)
     private val _currentBufferedPosition = MutableStateFlow(0L)
     private val _playbackMode = MutableStateFlow(PlaybackMode.SEQUENTIAL)
     private val contentPreparation = ContentReadyPreparationCoordinator(
@@ -115,8 +119,20 @@ class MPlayerPlayback(
         val browser = browserFuture.get() ?: return
         browserInstance = browser
         browser.addListener(this@MPlayerPlayback)
+        launch(Dispatchers.Main) {
+            while (isActive) {
+                recordedPosition.value = browser.currentPosition.coerceAtLeast(0L)
+                delay(200)
+            }
+        }
+        LPlayerKV.playMode.flow().onEach { value ->
+            _playbackMode.value = when (PlayMode.from(value)) {
+                PlayMode.ListRecycle -> PlaybackMode.LOOP
+                PlayMode.RepeatOne -> PlaybackMode.SINGLE_LOOP
+                PlayMode.Shuffle -> PlaybackMode.SHUFFLE
+            }
+        }.launchIn(this)
         startQueueMetadataRefresh(queue, audioRepository)
-        startBrowserQueueSync()
 
         // 历史恢复
         val snapshot = restoreFromHistory()
@@ -124,7 +140,7 @@ class MPlayerPlayback(
             HistoryQueueRestorer(
                 snapshot = it,
                 repository = audioRepository,
-                restoreSettled = mediaSourceBindingRepository.observeHistoryRestoreSettled(),
+                restoreSettled = mediaSourceBindingRepository.observeHistoryRestoreSettled(it.sourceNames.getOrNull(it.index)),
             )
         }
         restorer?.start(
@@ -138,8 +154,11 @@ class MPlayerPlayback(
     }
 
     override fun currentPosition(): Long {
-        return runCatching { if (browserFuture.isDone) browserFuture.get()?.currentPosition else null }
-            .getOrNull() ?: 0L
+        // MediaBrowser enforces Main access. Reading it from the history IO collector used to
+        // throw, and runCatching silently persisted 0ms on every tick.
+        return if (Looper.myLooper() == Looper.getMainLooper()) {
+            browserInstance?.currentPosition?.coerceAtLeast(0L) ?: recordedPosition.value
+        } else recordedPosition.value
     }
 
     override suspend fun play() {
@@ -164,27 +183,15 @@ class MPlayerPlayback(
         contentPreparation.cancel()
         runWithBrowser { stop() }
     }
-    override suspend fun seekTo(positionMs: Long) = runWithBrowser { seekTo(positionMs) }
+    override suspend fun seekTo(positionMs: Long) = runWithBrowser {
+        seekTo(positionMs)
+        recordedPosition.value = currentPosition.coerceAtLeast(0L)
+    }
 
-    override suspend fun skipTo(index: Int, start: Boolean) {
-        if (index == -1) return
-        val queueSnapshot = queue.stateSnapshot()
-        val target = queueSnapshot.list.getOrNull(index)
-        val targetReady = target?.let(::isContentReady) != false
-
-        // Queue changes are normally mirrored to Media3 by a Flow collector. A caller can update
-        // the app queue and immediately skip to a newly inserted index before that collector runs,
-        // in which case Media3 would seek to the item that previously occupied the index. Make the
-        // mirror deterministic before resolving the index in the platform player.
-        diffUpdateMediaItems(queueSnapshot.list)
-
-        runWithBrowser {
-            seekTo(index, 0)
-            if (start && targetReady) play()
-        }
-
-        if (start && target != null && !targetReady) {
-            contentPreparation.request(target, playWhenReady = true)
+    override suspend fun skipTo(index: Int, start: Boolean) = queueEditMutex.withLock {
+        if (index !in queue.stateSnapshot().list.indices) return@withLock
+        queueBridge.editAndRun(block = { switchTo(index) }) {
+            applySelection(it, start)
         }
     }
 
@@ -193,7 +200,7 @@ class MPlayerPlayback(
             sendCustomCommand(
                 CustomCommand.SeekToNext.toSessionCommand(),
                 Bundle.EMPTY
-            )
+            ).await()
         } else {
             seekToNext()
         }
@@ -204,7 +211,7 @@ class MPlayerPlayback(
             sendCustomCommand(
                 CustomCommand.SeekToPrevious.toSessionCommand(),
                 Bundle.EMPTY
-            )
+            ).await()
         } else {
             seekToPrevious()
         }
@@ -215,19 +222,44 @@ class MPlayerPlayback(
         startIndex: Int,
         start: Boolean
     ) {
-        val mediaItems = playlist.map { it.toMediaItem() }
-        val target = playlist.getOrNull(startIndex)
-        val targetReady = target?.let(::isContentReady) != false
+        if (playlist.isEmpty()) {
+            clearPlaylist()
+            return
+        }
+        queueEditMutex.withLock {
+            queueBridge.editAndRun(block = { replaceAll(playlist, startIndex.coerceIn(playlist.indices)) }) {
+                applySelection(it, start)
+            }
+        }
+    }
 
+    override suspend fun editQueue(block: QueueUpdateRequest.() -> Unit) = queueEditMutex.withLock {
+        val previous = queue.currentItem()?.mediaKey
+        val resume = isPlaying.value || contentPreparation.hasPendingPlayIntent()
+        queueBridge.editAndRun(block) { selected ->
+            if (selected.currentItem()?.mediaKey != previous || selected.list.isEmpty()) {
+                stop()
+                if (selected.list.isNotEmpty()) applySelection(selected, resume)
+            }
+        }
+    }
+
+    override suspend fun playAudio(audio: LAudio) = queueEditMutex.withLock {
+        queueBridge.editAndRun(block = { selectOrInsert(audio) }) { selected ->
+            applySelection(selected, start = true)
+        }
+    }
+
+    private suspend fun applySelection(selected: QueueState, start: Boolean) {
+        val audio = selected.currentItem() ?: return
+        val ready = isContentReady(audio)
+        contentPreparation.cancel()
         runWithBrowser {
-            if (start && !targetReady) playWhenReady = false
-            setMediaItems(mediaItems, startIndex, 0)
-            if (start && targetReady) play()
+            playWhenReady = start && ready
+            seekTo(selected.index, 0)
+            if (start && ready) play()
         }
-
-        if (start && target != null && !targetReady) {
-            contentPreparation.request(target, playWhenReady = true)
-        }
+        if (start && !ready) contentPreparation.request(audio, playWhenReady = true)
     }
 
     override suspend fun setPlaybackMode(
@@ -246,16 +278,20 @@ class MPlayerPlayback(
     }
 
 
-    override suspend fun onQueueRestored(snapshot: PlaybackHistory.HistorySnapshot) {
+    override suspend fun onQueueRestored(snapshot: PlaybackHistory.HistorySnapshot) = queueEditMutex.withLock {
         val restored = queue.stateSnapshot()
+        if (snapshot.resolveQueue(restored.list).currentIndex != restored.index) {
+            throw CancellationException("History selection was replaced")
+        }
         val mediaIds = restored.list.map { it.toMediaItem() }
-        val browser = browserInstance ?: return
+        val browser = browserInstance ?: return@withLock
 
         browserQueueMutex.withLock {
             withContext(Dispatchers.Main) {
                 // 先恢复精确的队列、current 和 position，但等目标来源 Ready 后再真正打开媒体。
                 browser.playWhenReady = false
                 browser.setMediaItems(mediaIds, restored.index, snapshot.position)
+                recordedPosition.value = snapshot.position.coerceAtLeast(0L)
             }
         }
 
@@ -265,25 +301,11 @@ class MPlayerPlayback(
                 playWhenReady = LPlayerKV.autoPlayWhenRestart.value,
             )
         }
-
+        Unit
     }
-
-    /**
-     * browser 建立后立即镜像应用队列。这样即使历史 current 暂时缺失，已经解析出的其他歌曲也能
-     * 先进入播放器；[onQueueRestored] 只负责最终应用准确的 current 和 position。
-     */
-    private fun startBrowserQueueSync() {
-        queue.expandedItems
-            .filter {
-                it.updateReason !is QueueUpdateReason.Sync &&
-                    it.updateReason !is QueueUpdateReason.Unknown
-            }
-            .onEach { (list, _) -> diffUpdateMediaItems(list) }
-            .launchIn(this@MPlayerPlayback)
-    }
-
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
+        recordedPosition.value = browserInstance?.currentPosition?.coerceAtLeast(0L) ?: 0L
         _isPlaying.value = isPlaying
     }
 
@@ -299,17 +321,18 @@ class MPlayerPlayback(
 
     override fun onPlayerError(error: PlaybackException) {
         val mediaId = browserInstance?.currentMediaItem?.mediaId
-        val shouldResume = browserInstance?.playWhenReady == true
         if (mediaId == null) {
             _errors.tryEmit(error)
             return
         }
 
-        launch {
+        launch(Dispatchers.Main) {
             val audio = audioRepository.getAudio(mediaId).first()
+            val browser = browserInstance ?: return@launch
+            if (browser.currentMediaItem?.mediaId != mediaId) return@launch
             if (audio != null && !isContentReady(audio)) {
                 // Media3 的有限等待已经失败：继续在可取消协程中等待该来源，Ready 后确定性重试。
-                contentPreparation.request(audio, playWhenReady = shouldResume)
+                contentPreparation.request(audio, playWhenReady = browser.playWhenReady)
             } else {
                 _errors.emit(error)
             }
@@ -333,56 +356,41 @@ class MPlayerPlayback(
         currentIndex: Int = browserInstance?.currentMediaItemIndex ?: 0
     ) {
         val mediaItems = timeline?.toMediaItems() ?: emptyList()
-        val generation = synchronized(timelineSyncLock) { ++timelineSyncGeneration }
+        val generation = queueBridge.newPlatformSnapshot()
+        val knownItems = queue.stateSnapshot().list
 
         // 同步播放列表变化到playableQueue
         launch {
             val ids = mediaItems.map { it.mediaId }
-            val items = audioRepository.getAudios(ids).first().map { it }
-
-            // Timeline 在一次差量更新中可能连续回调。数据库查询较慢时，只让最后一份快照回写，
-            // 避免旧的中间态晚到并覆盖完整队列。
-            queue.update(
-                updateReason = QueueUpdateReason.Sync,
-                predicate = {
-                    synchronized(timelineSyncLock) { generation == timelineSyncGeneration }
-                },
-            ) {
-                replaceAll(items = items, index = currentIndex)
-            }
+            val resolved = audioRepository.getAudios(ids).first()
+            // Repository results need not follow Timeline order. Preserve duplicates and never
+            // compress missing entries, which would silently move the current index to another song.
+            val items = resolveTimelineQueue(ids, resolved, knownItems) ?: return@launch
+            queueBridge.acceptPlatformSnapshot(generation, items, currentIndex)
         }
     }
 
     private suspend fun diffUpdateMediaItems(items: List<LAudio>) = browserQueueMutex.withLock {
-        withContext(Dispatchers.IO) {
-            val browser = browserFuture.runCatching { get() }.getOrNull() ?: return@withContext
+        val browser = browserFuture.await()
+        val mediaItems = items.map { it.toMediaItem() }
+        val newIds = mediaItems.map { it.mediaId }
+        val byId = mediaItems.associateBy { it.mediaId }
+        while (true) {
             val currentIds = withContext(Dispatchers.Main) {
                 browser.currentTimeline.toMediaItems().map { it.mediaId }
             }
-
-            val mediaItems = items.map { it.toMediaItem() }
-            val newIds = mediaItems.map { it.mediaId }
-            val changes = MyersDiff<String>().computeDiff(source = currentIds, target = newIds)
-
-            withContext(Dispatchers.Main) {
-                changes.forEach { change ->
-                    when (change.deltaType) {
-                        DeltaType.DELETE -> browser.removeMediaItems(change.startOriginal, change.endOriginal)
-                        DeltaType.INSERT -> browser.addMediaItems(
-                            change.startOriginal,
-                            mediaItems.subList(change.startRevised, change.endRevised)
-                        )
-
-                        DeltaType.CHANGE -> browser.replaceMediaItems(
-                            change.startOriginal,
-                            change.endOriginal,
-                            mediaItems.subList(change.startRevised, change.endRevised)
-                        )
-
-                        DeltaType.EQUAL -> {}
-                    }
+            val changes = withContext(Dispatchers.Default) { queueReplacements(currentIds, newIds) }
+            val applied = withContext(Dispatchers.Main) {
+                // System controls can change the Timeline while the diff is calculated off-main.
+                if (browser.currentTimeline.toMediaItems().map { it.mediaId } != currentIds) {
+                    return@withContext false
                 }
+                changes.forEach { change ->
+                    browser.replaceMediaItems(change.from, change.to, change.items.map { byId.getValue(it) })
+                }
+                true
             }
+            if (applied) break
         }
     }
 

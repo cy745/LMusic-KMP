@@ -9,8 +9,7 @@ import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ShuffleOrder
-import kotlin.math.abs
-import kotlin.math.min
+import com.lalilu.lplayer.playback.SurpriseQueueOrder
 
 @OptIn(UnstableApi::class)
 internal class QueueControlPlayer(player: ExoPlayer) : ForwardingPlayer(player), Player.Listener {
@@ -37,23 +36,7 @@ internal class QueueControlPlayer(player: ExoPlayer) : ForwardingPlayer(player),
     }
 
     private fun getRandomNextIndex(): Int {
-        if (currentTimeline.windowCount <= 0) return -1
-
-        val maxIndex = currentTimeline.windowCount - 1
-        val currentIndex = currentMediaItemIndex
-
-        // 获取下一个元素的index
-        val nextIndex = (0..maxIndex)
-            .filter {
-                min(
-                    abs(it - currentIndex),
-                    abs(maxIndex - currentIndex + it)
-                ) / maxIndex.toFloat() > 0.25f
-            }
-            .randomOrNull()
-            ?: nextMediaItemIndex
-
-        return nextIndex
+        return SurpriseQueueOrder.candidateIndex(currentTimeline.windowCount, currentMediaItemIndex)
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -84,13 +67,11 @@ internal class QueueControlPlayer(player: ExoPlayer) : ForwardingPlayer(player),
         }
 
         override fun getNextIndex(index: Int): Int {
-            val target = index - 1
-            return if (target < 0) size - 1 else target
+            return SurpriseQueueOrder.nextIndex(size, index)
         }
 
         override fun getPreviousIndex(index: Int): Int {
-            val target = index + 1
-            return if (target >= size) 0 else target
+            return SurpriseQueueOrder.previousIndex(size, index)
         }
 
         override fun getLastIndex(): Int {

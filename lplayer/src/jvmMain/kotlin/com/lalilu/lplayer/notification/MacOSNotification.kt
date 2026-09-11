@@ -14,7 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
+import com.lalilu.lplayer.action.launchPlayerAction
 import org.rococoa.Rococoa
 import org.rococoa.cocoa.foundation.*
 import kotlin.coroutines.CoroutineContext
@@ -175,12 +175,12 @@ class MacOSNotification(
         val command = event.command()
 
         when (command) {
-            remoteCommandCenter.playCommand() -> launch { playback.play() }
-            remoteCommandCenter.pauseCommand() -> launch { playback.pause() }
-            remoteCommandCenter.stopCommand() -> launch { playback.stop() }
-            remoteCommandCenter.togglePlayPauseCommand() -> launch { playback.togglePlayPause() }
-            remoteCommandCenter.nextTrackCommand() -> launch { playback.skipToNext() }
-            remoteCommandCenter.previousTrackCommand() -> launch { playback.skipToPrevious() }
+            remoteCommandCenter.playCommand() -> launchPlayerAction { playback.play() }
+            remoteCommandCenter.pauseCommand() -> launchPlayerAction { playback.pause() }
+            remoteCommandCenter.stopCommand() -> launchPlayerAction { playback.stop() }
+            remoteCommandCenter.togglePlayPauseCommand() -> launchPlayerAction { playback.togglePlayPause() }
+            remoteCommandCenter.nextTrackCommand() -> launchPlayerAction { playback.skipToNext() }
+            remoteCommandCenter.previousTrackCommand() -> launchPlayerAction { playback.skipToPrevious() }
             else -> {
                 Logger.i("UnRecognized command: $command timestamp: ${event.timestamp()}")
             }
@@ -191,7 +191,7 @@ class MacOSNotification(
 
     override fun onPositionChange(event: MPChangePlaybackPositionCommandEvent): MPRemoteCommandHandlerStatus {
         val position = (event.positionTime() * 1000L).toLong()
-        launch {
+        launchPlayerAction {
             playback.seekTo(position)
             updatePosition(event.positionTime().toLong())
         }

@@ -5,7 +5,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.lalilu.lplayer.action.launchPlayerAction
 import org.rococoa.Foundation
 import org.rococoa.ID
 import org.rococoa.cocoa.NSApplication
@@ -59,9 +59,9 @@ class MacOSMenu(private val playback: Playback) : CoroutineScope {
     private fun onClickMenuItem(menuItem: MenuItem) {
         when (menuItem) {
             MenuItem.Like -> {}
-            MenuItem.Next -> launch { playback.skipToNext() }
-            MenuItem.PlayPause -> launch { playback.togglePlayPause() }
-            MenuItem.Previous -> launch { playback.skipToPrevious() }
+            MenuItem.Next -> launchPlayerAction { playback.skipToNext() }
+            MenuItem.PlayPause -> launchPlayerAction { playback.togglePlayPause() }
+            MenuItem.Previous -> launchPlayerAction { playback.skipToPrevious() }
             MenuItem.RandomPlay -> {}
         }
     }

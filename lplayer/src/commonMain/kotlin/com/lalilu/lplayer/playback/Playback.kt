@@ -1,6 +1,7 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
 import kotlinx.coroutines.flow.*
 
 
@@ -39,7 +40,25 @@ interface Playback {
     suspend fun seekTo(positionMs: Long)
 
     suspend fun updatePlaylist(playlist: List<LAudio>, startIndex: Int, start: Boolean)
-    suspend fun clearPlaylist() = queue.update { clear() }
+
+    /** Select an existing source-qualified song, or insert it next to current, then play it. */
+    suspend fun playAudio(audio: LAudio) {
+        queue.update { selectOrInsert(audio) }
+        skipTo(queue.stateSnapshot().index, start = true)
+    }
+    /** Queue edits that can affect the loaded item must go through the playback boundary. */
+    suspend fun editQueue(block: QueueUpdateRequest.() -> Unit) {
+        val previous = queue.currentItem()?.mediaKey
+        val resume = isPlaying.value
+        queue.update(block = block)
+        val next = queue.stateSnapshot()
+        if (next.currentItem()?.mediaKey != previous || next.list.isEmpty()) {
+            stop()
+            if (next.list.isNotEmpty()) skipTo(next.index, start = resume)
+        }
+    }
+
+    suspend fun clearPlaylist() = editQueue { clear() }
 
     // Playback Mode
     suspend fun setPlaybackMode(mode: PlaybackMode)

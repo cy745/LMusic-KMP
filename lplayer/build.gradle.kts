@@ -79,3 +79,11 @@ kotlin {
 }
 
 setupPublish()
+// Opt-in native checks depend on generated libraries outside Gradle's normal classpath.
+tasks.withType<Test>().configureEach {
+    val nativeResources = providers.environmentVariable("LMUSIC_NATIVE_RESOURCES")
+    inputs.property("nativeResources", nativeResources.orElse(""))
+    inputs.property("nativeAudioFixture", providers.environmentVariable("LMUSIC_NATIVE_AUDIO_FIXTURE").orElse(""))
+    outputs.upToDateWhen { !nativeResources.isPresent }
+    outputs.cacheIf { !nativeResources.isPresent }
+}

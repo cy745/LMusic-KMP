@@ -15,6 +15,23 @@ import kotlin.test.assertEquals
 class QueueMetadataRefresherTest {
 
     @Test
+    fun sameIdFromAnotherSourceDoesNotReplaceQueueMetadata() = runTest {
+        val repository = FakeAudioRepository()
+        val original = audio("a", "local").copy(mediaSourceName = "local")
+        val queue = PlayableQueueImpl()
+        queue.update { replaceAll(listOf(original, original), 1) }
+        backgroundScope.startQueueMetadataRefresh(queue, repository)
+        runCurrent()
+        repository.seed(original.copy(title = "wrong source", mediaSourceName = "remote"))
+        runCurrent()
+        assertEquals(listOf(original, original), queue.stateSnapshot().list)
+        repository.seed(original.copy(title = "updated"))
+        runCurrent()
+        assertEquals(listOf("updated", "updated"), queue.stateSnapshot().list.map { it.title })
+        assertEquals(1, queue.stateSnapshot().index)
+    }
+
+    @Test
     fun refreshesEntitiesWithoutChangingOrderOrCurrentIndex() = runTest {
         val repository = FakeAudioRepository()
         val queue = PlayableQueueImpl()

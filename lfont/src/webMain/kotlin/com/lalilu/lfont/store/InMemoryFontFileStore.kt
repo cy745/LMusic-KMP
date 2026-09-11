@@ -41,7 +41,7 @@ class InMemoryFontFileStore : FontFileStore {
     }
 
     override suspend fun delete(fileName: String): Result<Unit> = mutex.withLock {
-        runCatching { files.remove(fileName) }
+        runCatching { files.remove(fileName); Unit }
     }
 
     override suspend fun list(): List<Pair<String, Long>> = mutex.withLock {
