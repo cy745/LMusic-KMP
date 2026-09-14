@@ -10,7 +10,11 @@ import kotlinx.coroutines.flow.mapLatest
 data class QueueState(
     val list: List<LAudio> = emptyList(),
     val index: Int = 0,
-    val updateReason: QueueUpdateReason = QueueUpdateReason.Unknown
+    val updateReason: QueueUpdateReason = QueueUpdateReason.Unknown,
+    /** Explicit selection/replacement can reload the same song without changing its slot. */
+    val selectionRevision: Long = 0L,
+    /** Changes made through the queue command boundary; native mirrors preserve this number. */
+    val editRevision: Long = 0L,
 ) {
     /** 重新排列播放列表，将当前索引处的元素及其后的元素移到列表前面。 */
     fun rearrange(): List<LAudio> {

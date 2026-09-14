@@ -51,7 +51,7 @@ data class PlaylistDetailState(
         searchAudiosUseCase: SearchAudiosUseCase,
         mediaIds: List<String>? = null
     ): Flow<List<LAudio>> {
-        return searchAudiosUseCase(ids = mediaIds, keywords = emptyList())
+        return searchAudiosUseCase(playbackIds = mediaIds.orEmpty().distinct(), keywords = emptyList())
             .map { list -> list.map { it } }
     }
 }
@@ -119,7 +119,7 @@ class PlaylistDetailVM(
                 state.searchKeyWord.contains(' ') -> state.searchKeyWord.split(' ')
                 else -> listOf(state.searchKeyWord)
             }
-            searchAudiosUseCase(ids = mediaIds, keywords = keywords)
+            searchAudiosUseCase(playbackIds = mediaIds.orEmpty().distinct(), keywords = keywords)
         }
         .map { list -> list.map { it } }
         .doSortState(sorter, viewModelScope)
@@ -145,7 +145,7 @@ class PlaylistDetailVM(
             }
 
             is PlaylistDetailAction.LocaleToPlayingItem -> {
-                val mediaId = LPlayer.instance.queue.currentItem()?.id ?: run {
+                val mediaId = LPlayer.instance.queue.currentItem()?.playbackId ?: run {
                     Logger.e(tag = TAG, messageString = "can not find playing item's mediaId")
                     return@launch
                 }

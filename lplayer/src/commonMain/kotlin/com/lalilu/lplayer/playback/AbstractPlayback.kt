@@ -41,6 +41,7 @@ abstract class AbstractPlayback(
     protected var _pauseWhenCompletion: Boolean = false
     private val logger = Logger.withTag("AbstractPlayback")
     private val queueEditMutex = Mutex()
+    private val playNextRequests = PlayNextRequests()
     private var historyStarted = false
 
     // ── Engine 基础设施 ──
@@ -130,7 +131,8 @@ abstract class AbstractPlayback(
         val snapshot = restoreFromHistory()
         val restorer = snapshot?.let {
             HistoryQueueRestorer(it, audioRepository,
-                mediaSourceBindingRepository.observeHistoryRestoreSettled(it.sourceNames.getOrNull(it.index)))
+                mediaSourceBindingRepository.observeHistoryRestoreSettled(it.sourceNames.getOrNull(it.index)),
+                mediaSourceBindingRepository.observeReadableSources())
         }
         historyRestorer = restorer
         restorer?.start(this, queue, ::onQueueRestored)
@@ -191,6 +193,23 @@ abstract class AbstractPlayback(
 
     override suspend fun skipToNext() {
         logger.i { "skipToNext()" }
+        val playedRequest = queueEditMutex.withLock {
+            val state = queue.stateSnapshot()
+            val requested = playNextRequests.take(state.list.map { it.mediaKey }.toSet()) ?: return@withLock false
+            var target = state.list.indexOfFirst { it.mediaKey == requested }
+            if (_playbackMode.value == PlaybackMode.SHUFFLE && target != state.index) {
+                val next = SurpriseQueueOrder.nextIndex(state.list.size, state.index)
+                queue.update {
+                    replace(target, state.list[next])
+                    replace(next, state.list[target])
+                }
+                target = next
+            }
+            skipTo(target, start = true)
+            true
+        }
+        if (playedRequest) return
+
         val currentState = queue.stateSnapshot()
         val flattened = currentState.list
         if (flattened.isEmpty()) return
@@ -216,6 +235,7 @@ abstract class AbstractPlayback(
             skipTo(index = nextIndex, start = true)
         } else {
             logger.i { "Already at the end of the playlist" }
+            pause()
         }
     }
 
@@ -246,31 +266,64 @@ abstract class AbstractPlayback(
         }
     }
 
-    override suspend fun updatePlaylist(playlist: List<LAudio>, startIndex: Int, start: Boolean) {
+    override suspend fun updatePlaylist(playlist: List<LAudio>, startIndex: Int, start: Boolean) = queueEditMutex.withLock {
+        playNextRequests.clear()
         logger.i {
             "Updating playlist size: ${playlist.size}, startIndex: $startIndex, start: $start\n" +
                     playlist.joinToString(separator = "\n") { "(${it.id}) ${it.title}" }
         }
         if (playlist.isEmpty()) {
-            clearPlaylist()
-            return
+            super<Playback>.editQueue { clear() }
+            return@withLock
         }
         queue.update { replaceAll(items = playlist, index = startIndex) }
 
         skipTo(queue.stateSnapshot().index, start)
     }
 
-    override suspend fun editQueue(block: QueueUpdateRequest.() -> Unit) = queueEditMutex.withLock {
-        super<Playback>.editQueue(block)
+    override suspend fun editQueue(block: QueueUpdateRequest.() -> Unit) = editQueueWithReceipt(block) {}
+
+    override suspend fun editQueueWithReceipt(block: QueueUpdateRequest.() -> Unit, onApplied: (QueueState) -> Unit) = queueEditMutex.withLock {
+        try {
+            super<Playback>.editQueue(block)
+            onApplied(queue.stateSnapshot())
+        } finally {
+            playNextRequests.retain(queue.stateSnapshot().list.map { it.mediaKey }.toSet())
+        }
     }
 
     override suspend fun playAudio(audio: LAudio) = queueEditMutex.withLock {
         super<Playback>.playAudio(audio)
     }
 
-    override suspend fun clearPlaylist() {
+    override suspend fun restoreFailedQueueEdit(expected: QueueState, original: QueueState, position: Long): Boolean =
+        queueEditMutex.withLock {
+            var restored = false
+            queue.update(predicate = { it.stillOwnsEdit(expected) }) {
+                replaceAll(original.list, original.index)
+                restored = true
+            }
+            if (!restored) return@withLock false
+            playNextRequests.clear()
+            stop()
+            if (original.list.isNotEmpty()) {
+                skipTo(original.index, false)
+                seekTo(position.coerceAtLeast(0))
+            }
+            true
+        }
+
+    override suspend fun clearPlaylist() = queueEditMutex.withLock {
+        playNextRequests.clear()
         logger.i { "Clearing playlist $this" }
-        editQueue { clear() }
+        super<Playback>.editQueue { clear() }
+    }
+
+    override suspend fun playNext(audio: LAudio) = queueEditMutex.withLock {
+        queue.update {
+            if (queue.stateSnapshot().list.none { it.mediaKey == audio.mediaKey }) addToNext(listOf(audio))
+        }
+        playNextRequests.enqueue(audio.mediaKey)
     }
 
     override suspend fun setPlaybackMode(mode: PlaybackMode) {

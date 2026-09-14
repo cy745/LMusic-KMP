@@ -102,7 +102,7 @@ class LMediaLAudioDaoTest {
 
         audioDao.insert(audio)
         artistDao.insert(artist)
-        artistDao.insertRelation(listOf(CrossRefLAudioXLArtist(artist.id, audio.id)))
+        artistDao.insertRelation(listOf(CrossRefLAudioXLArtist(artist.id, audio.playbackId)))
 
         // Verify via the relation query result
         val result = audioDao.getAudioWithRelations("audio-artist-1").firstOrNull()
@@ -128,7 +128,7 @@ class LMediaLAudioDaoTest {
 
         audioDao.insert(audio)
         albumDao.insert(album)
-        albumDao.insertRelation(listOf(CrossRefLAudioXAlbum(album.id, audio.id)))
+        albumDao.insertRelation(listOf(CrossRefLAudioXAlbum(album.id, audio.playbackId)))
 
         val result = audioDao.getAudioWithRelations("audio-album-1").firstOrNull()
         assertNotNull(result)
@@ -153,7 +153,7 @@ class LMediaLAudioDaoTest {
 
         audioDao.insert(audio)
         genreDao.insert(genre)
-        genreDao.insertRelation(listOf(CrossRefLAudioXGenre(genre.id, audio.id)))
+        genreDao.insertRelation(listOf(CrossRefLAudioXGenre(genre.id, audio.playbackId)))
 
         val result = audioDao.getAudioWithRelations("audio-genre-1").firstOrNull()
         assertNotNull(result)
@@ -187,8 +187,8 @@ class LMediaLAudioDaoTest {
         artistDao.insert(artist)
         artistDao.insertRelation(
             listOf(
-                CrossRefLAudioXLArtist(artist.id, audio1.id),
-                CrossRefLAudioXLArtist(artist.id, audio2.id)
+                CrossRefLAudioXLArtist(artist.id, audio1.playbackId),
+                CrossRefLAudioXLArtist(artist.id, audio2.playbackId)
             )
         )
 

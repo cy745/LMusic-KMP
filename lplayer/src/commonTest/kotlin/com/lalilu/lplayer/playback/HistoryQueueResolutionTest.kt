@@ -24,11 +24,9 @@ class HistoryQueueResolutionTest {
         assertEquals(42_000L, snapshot.position)
     }
 
-    @Test fun invalidV2FallsBackToLegacyHistory() {
+    @Test fun invalidIdentityDoesNotRestoreLegacyHistory() {
         val storage = MemoryStorage(HistoryQueueIdentity(listOf("a"), emptyList(), 9))
-        val snapshot = PlaybackHistoryImpl(storage).restoreFromHistory()!!
-        assertEquals(listOf("legacy"), snapshot.ids)
-        assertEquals(listOf(null), snapshot.sourceNames)
+        assertNull(PlaybackHistoryImpl(storage).restoreFromHistory())
     }
 
     private class MemoryStorage(private val identity: HistoryQueueIdentity?) : HistoryStorage {

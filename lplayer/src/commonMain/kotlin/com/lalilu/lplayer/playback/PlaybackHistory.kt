@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.isActive
 import org.koin.core.annotation.Single
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * 播放历史记录行为定义。
@@ -61,18 +63,10 @@ interface PlaybackHistory {
 class PlaybackHistoryImpl(
     override val historyStorage: HistoryStorage
 ) : PlaybackHistory {
+    private val recordingMutex = Mutex()
 
     override fun restoreFromHistory(): PlaybackHistory.HistorySnapshot? {
-        historyStorage.savedQueueIdentity()?.takeIf { it.isValid() }?.let { identity ->
-            return identity.takeIf { it.ids.isNotEmpty() }?.let {
-                PlaybackHistory.HistorySnapshot(it.ids, it.index, historyStorage.savedPosition(), it.sourceNames)
-            }
-        }
-        val ids = historyStorage.savedPlaylistIds()
-        if (ids.isEmpty()) return null
-        val id = historyStorage.savedPlayId()
-        val index = ids.indexOf(id).coerceAtLeast(0)
-        return PlaybackHistory.HistorySnapshot(ids, index, historyStorage.savedPosition())
+        return historyStorage.readSnapshot()
     }
 
     override suspend fun onQueueRestored(snapshot: PlaybackHistory.HistorySnapshot) {
@@ -87,18 +81,21 @@ class PlaybackHistoryImpl(
         // 监听队列变化 → 持久化 playlist 信息
         val queuePersistence = restoreState?.let { state ->
             combine(playback.queue.expandedItems, state) { queue, restore ->
-                queue to (restore as? HistoryRestoreState.Pending)
+                queue to restore
             }
         } ?: playback.queue.expandedItems.map { queue -> queue to null }
 
         queuePersistence
             .onEach { (state, restore) ->
-                val persistence = historyQueuePersistence(state, restore)
-                persistence.currentId?.let(historyStorage::savePlayId)
-                persistence.playlistIds?.let(historyStorage::savePlaylistIds)
-                historyStorage.saveQueueIdentity(
-                    historyIdentityForPersistence(state, restore, historyStorage.savedQueueIdentity())
-                )
+                recordingMutex.withLock {
+                    // Flow notifications may have waited behind another write. Never persist
+                    // an obsolete queue or combine it with an obsolete restoration phase.
+                    if (!isCurrentHistoryRecording(state, restore,
+                            playback.queue.stateSnapshot(), restoreState?.value)) return@withLock
+                    historyStorage.saveQueueIdentity(
+                        historyIdentityForPersistence(state, restore as? HistoryRestoreState.Pending, historyStorage.savedQueueIdentity())
+                    )
+                }
             }
             .launchIn(this)
 
@@ -111,7 +108,7 @@ class PlaybackHistoryImpl(
             }
             ?.distinctUntilChanged()
             ?.filter { it }
-            ?.onEach { historyStorage.savePosition(0L) }
+            ?.onEach { recordingMutex.withLock { historyStorage.savePosition(0L) } }
             ?.launchIn(this)
 
         // 监听播放状态 → 持久化 position
@@ -120,10 +117,17 @@ class PlaybackHistoryImpl(
             .transformLatest<Boolean, Unit> { isPlaying ->
                 while (isActive) {
                     if (canPersistPlaybackPosition(restoreState?.value)) {
+                        val expected = playback.queue.stateSnapshot()
                         val position = playback.sampleHistoryPosition()
                         // Sampling can suspend while a newer restore/selection takes over.
                         if (position != null && canPersistPlaybackPosition(restoreState?.value)) {
-                            historyStorage.savePosition(position)
+                            recordingMutex.withLock {
+                                if (playback.queue.stateSnapshot() === expected && canPersistPlaybackPosition(restoreState?.value)) {
+                                    historyStorage.saveSnapshot(historyIdentityForPersistence(
+                                        expected, restoreState?.value as? HistoryRestoreState.Pending, historyStorage.savedQueueIdentity(),
+                                    ), position)
+                                }
+                            }
                         }
                     }
                     // Paused seeks and deferred history application also change position.
@@ -134,6 +138,14 @@ class PlaybackHistoryImpl(
             .launchIn(this)
     }
 }
+
+/** Identity, not structural equality: replacing an equal-looking state invalidates old work. */
+internal fun isCurrentHistoryRecording(
+    expectedQueue: QueueState,
+    expectedRestore: HistoryRestoreState?,
+    currentQueue: QueueState,
+    currentRestore: HistoryRestoreState?,
+): Boolean = expectedQueue === currentQueue && expectedRestore === currentRestore
 
 internal fun historyIdentityForPersistence(
     state: QueueState,

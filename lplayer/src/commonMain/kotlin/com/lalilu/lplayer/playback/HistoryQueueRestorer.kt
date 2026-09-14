@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -44,6 +46,8 @@ class HistoryQueueRestorer(
     private val snapshot: PlaybackHistory.HistorySnapshot,
     private val repository: AudioRepository,
     private val restoreSettled: Flow<Boolean> = emptyFlow(),
+    /** Null keeps the standalone restorer's legacy contract; production supplies live readiness. */
+    private val readableSources: Flow<Set<String>?> = flowOf(null),
 ) {
     private val originalIds = snapshot.ids
     private val originalCurrentIndex = snapshot.index.takeIf { it in originalIds.indices }
@@ -65,6 +69,7 @@ class HistoryQueueRestorer(
     private var queueWatcherJob: Job? = null
     private var settlementWatcherJob: Job? = null
     private var sourcesSettled = false
+    private var readableSourceNames: Set<String>? = null
     private var fallbackNotificationPending = false
     private var deliveryJob: Job? = null
     private var deliveryGeneration = 0L
@@ -222,8 +227,11 @@ class HistoryQueueRestorer(
         }
 
         restoreJob = scope.launch {
-            repository.getAudios(originalIds).collect { audios ->
+            combine(repository.getAudios(originalIds), readableSources) { audios, sources ->
+                audios to sources
+            }.collect { (audios, sources) ->
                 val step = stateMutex.withLock {
+                    readableSourceNames = sources
                     if (mutableState.value !is HistoryRestoreState.Pending) {
                         return@withLock RestoreStep.Ignore
                     }
@@ -280,7 +288,9 @@ class HistoryQueueRestorer(
                     }
 
                     val applied = queue.stateSnapshot().let { queueState ->
-                        queueState.updateReason is QueueUpdateReason.HistoryRestore &&
+                        (queueState.updateReason is QueueUpdateReason.HistoryRestore ||
+                            queueState.updateReason is QueueUpdateReason.Sync) &&
+                            queueState.index == targetIndex &&
                             queueState.list.map { it.mediaKey } == resolved.map { it.mediaKey }
                     }
                     if (!applied) {
@@ -290,7 +300,12 @@ class HistoryQueueRestorer(
 
                     resolvedIds = nextResolvedIds
                     resolvedKeys = resolved.map { it.mediaKey }
-                    val shouldNotifyCurrent = !currentDelivered && currentResolvedIndex >= 0
+                    val currentAudio = resolved.getOrNull(currentResolvedIndex)
+                    // Display database rows immediately, including unavailable ones. Opening the
+                    // historical media must wait for both the row and its source to be usable.
+                    val canLoadCurrent = currentAudio != null && currentAudio.available &&
+                        (sources == null || currentAudio.mediaSourceName in sources)
+                    val shouldNotifyCurrent = !currentDelivered && currentResolvedIndex >= 0 && canLoadCurrent
                     if (shouldNotifyCurrent) currentDelivered = true
 
                     fallbackFromMissingCurrentLocked()
@@ -338,8 +353,10 @@ class HistoryQueueRestorer(
 
     private fun takeFallbackSnapshotLocked(queue: PlayableQueue): PlaybackHistory.HistorySnapshot? {
         if (!fallbackNotificationPending || mutableState.value !is HistoryRestoreState.Pending) return null
-        fallbackNotificationPending = false
         val current = queue.stateSnapshot()
+        val audio = current.currentItem() ?: return null
+        if (!audio.available || readableSourceNames?.let { audio.mediaSourceName !in it } == true) return null
+        fallbackNotificationPending = false
         return PlaybackHistory.HistorySnapshot(current.list.map { it.id }, current.index, 0L,
             current.list.map { it.mediaSourceName })
     }

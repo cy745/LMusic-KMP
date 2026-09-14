@@ -5,6 +5,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import com.lalilu.lplayer.playback.IPlaybackDataTracker
+import com.lalilu.lmedia.domain.model.MediaKey
 
 @UnstableApi
 class HistoryAnalyticsListener(val dataTracker: IPlaybackDataTracker) : AnalyticsListener {
@@ -14,7 +15,7 @@ class HistoryAnalyticsListener(val dataTracker: IPlaybackDataTracker) : Analytic
         reason: Int
     ) {
         dataTracker.onMediaItemTransition(
-            mediaId = mediaItem?.mediaId,
+            mediaId = mediaItem?.mediaId?.takeIf { MediaKey.parse(it) != null },
             title = mediaItem?.mediaMetadata?.title.toString(),
             isRepeating = reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT,
             isNormalTransition = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO

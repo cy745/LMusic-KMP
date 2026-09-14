@@ -95,6 +95,7 @@ class LPlayerSettingsTest {
                 options = PlayMode.entries,
                 optionLabel = { mode ->
                     when (mode) {
+                        PlayMode.Sequential -> "顺序播放"
                         PlayMode.ListRecycle -> "列表循环"
                         PlayMode.RepeatOne   -> "单曲循环"
                         PlayMode.Shuffle     -> "随机播放"

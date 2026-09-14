@@ -22,6 +22,10 @@ sealed class QueueAction : Action {
     }
 
     suspend fun execute(player: Playback) {
+        if (this is AddToNext) {
+            player.playNext(item)
+            return
+        }
         val action = this
         // Snapshot-dependent operations are evaluated inside the queue's atomic update.
         player.editQueue {

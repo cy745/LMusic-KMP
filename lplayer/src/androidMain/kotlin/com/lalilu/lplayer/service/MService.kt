@@ -24,6 +24,7 @@ import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.*
 import com.lalilu.lplayer.playback.IPlaybackDataTracker
+import com.lalilu.lplayer.playback.AndroidPlaybackNavigation
 import com.lalilu.lplayer.playback.PlaybackHistory
 import com.lalilu.lplayer.playback.observeHistoryRestoreSettled
 import com.lalilu.lplayer.playback.resolveQueue
@@ -46,6 +47,7 @@ import kotlin.coroutines.CoroutineContext
 class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
     override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob()
     private val dataTracker by inject<IPlaybackDataTracker>()
+    private val navigation by inject<AndroidPlaybackNavigation>()
     private val historyAnalyticsListener by lazy { HistoryAnalyticsListener(dataTracker) }
 
     private var player: Player? = null
@@ -86,7 +88,12 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
                     )
                 )
             }
-            .setUpQueueControl()
+            .setUpQueueControl(
+                onNavigate = { direction -> navigation.failures.begin(direction) },
+                onCancelNavigation = { navigation.failures.cancel() },
+                onPausePreparation = { navigation.preparation.pause() },
+                onStopPreparation = { navigation.preparation.stop() },
+            )
 
         mediaSession = MediaLibrarySession
             .Builder(this, player!!, MServiceCallback(player!!))
@@ -218,6 +225,9 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
                 when (action) {
                     SeekToNext -> player.seekToNext()
                     SeekToPrevious -> player.seekToPrevious()
+                    CustomCommand.PlayNext -> (player as QueueControlPlayer).requestPlayNext(
+                        requireNotNull(args.getString("playbackId"))
+                    )
                 }
             }
 

@@ -8,12 +8,43 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlin.test.assertNotSame
 
 class PlayableQueueTest {
     private val a = LAudio(id = "a", mediaSourceName = "local")
     private val b = LAudio(id = "b", mediaSourceName = "local")
     private val c = LAudio(id = "c", mediaSourceName = "sandbox")
     private val d = LAudio(id = "d", mediaSourceName = "sandbox")
+
+    @Test fun selectingSameSlotPublishesANewSelection() = runTest {
+        val queue = queue(listOf(a), 0)
+        val before = queue.stateSnapshot()
+        queue.update { switchTo(0) }
+        val selected = queue.stateSnapshot()
+        assertNotSame(before, selected)
+        assertEquals(before.selectionRevision + 1, selected.selectionRevision)
+        queue.update { switchTo(0) }
+        assertEquals(selected.selectionRevision + 1, queue.stateSnapshot().selectionRevision)
+    }
+
+    @Test fun nativeSyncAndHistoryFillDoNotCreateNewSelectionRequests() = runTest {
+        val queue = queue(listOf(a), 0)
+        val revision = queue.stateSnapshot().selectionRevision
+        queue.update(QueueUpdateReason.Sync) { replaceAll(listOf(a), 0) }
+        val synced = queue.stateSnapshot()
+        queue.update(QueueUpdateReason.Sync) { replaceAll(listOf(a), 0) }
+        assertSame(synced, queue.stateSnapshot())
+        queue.update(QueueUpdateReason.HistoryRestore) { replaceAll(listOf(a, b), 0) }
+        assertEquals(revision, queue.stateSnapshot().selectionRevision)
+    }
+
+    @Test fun invalidSelectionDoesNotAdvanceRevision() = runTest {
+        val queue = queue(listOf(a), 0)
+        val before = queue.stateSnapshot()
+        queue.update { switchTo(5) }
+        assertSame(before, queue.stateSnapshot())
+    }
 
     @Test fun removingEarlierSongKeepsCurrentSong() = runTest {
         val queue = queue(listOf(a, b, c, d), 2)

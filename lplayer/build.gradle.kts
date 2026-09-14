@@ -23,6 +23,12 @@ extra.set("artifactId", "core")
 
 kotlin {
     setupMultiplatform(
+        setupAndroidTarget = {
+            withDeviceTest {
+                instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+                multidex.enable = true
+            }
+        },
         setupIosTarget = {
             forEach {
                 it.compilations.getByName<KotlinNativeCompilation>("main") {
@@ -63,6 +69,12 @@ kotlin {
             implementation(libs.kotlinx.coroutines.guava)
             implementation(project(":lplayer:lib-decoder-flac"))
         }
+        val androidDeviceTest by getting {
+            dependencies {
+                implementation("androidx.test:runner:1.6.2")
+                implementation("androidx.test.ext:junit:1.2.1")
+            }
+        }
         jvmMain.dependencies {
             implementation(libs.vlcj)
             implementation(libs.bundles.rococoa)
@@ -70,6 +82,8 @@ kotlin {
         }
         val jvmTest by getting {
             dependencies {
+                implementation(libs.compose.ui.test)
+                implementation(project(":lmedia:lmedia-ui"))
                 implementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
                 implementation("org.junit.jupiter:junit-jupiter-engine:5.13.4")
                 implementation("org.junit.platform:junit-platform-launcher:1.13.4")

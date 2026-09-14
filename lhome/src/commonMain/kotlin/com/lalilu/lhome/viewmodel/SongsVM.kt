@@ -115,7 +115,7 @@ class SongsVM(
             is SongsAction.UpdateSortConfig -> sorter.setConfig(intent.config)
             is SongsAction.LocaleToGroupItem -> postEvent { SongsEvent.ScrollToItem(intent.item) }
             is SongsAction.LocaleToPlayingItem -> {
-                val mediaId = LPlayer.instance.queue.currentItem()?.id ?: run {
+                val mediaId = LPlayer.instance.queue.currentItem()?.playbackId ?: run {
                     Logger.e("can not find playing item's mediaId")
                     return@launch
                 }

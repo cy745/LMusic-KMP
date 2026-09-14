@@ -9,8 +9,14 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
+import com.lalilu.lmedia.domain.repository.canReadContent
 
 internal const val LEGACY_HISTORY_WAIT_MILLIS = 15_000L
+
+internal fun MediaSourceBindingRepository.observeReadableSources(): Flow<Set<String>> =
+    states.map { statuses -> statuses.filterValues { it.canReadContent }.keys.toSet() }
+        .distinctUntilChanged()
 
 /**
  * 已知来源只等待目标源；旧历史没有来源信息时，最多等待 15 秒后允许回退。

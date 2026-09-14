@@ -16,6 +16,16 @@ class PlatformQueueBridgeTest {
     private val a = LAudio(id = "a")
     private val b = LAudio(id = "b")
 
+    @Test fun sameSlotCommandAdvancesRevisionAndNativeMirrorPreservesIt() = runTest {
+        val bridge = PlatformQueueBridge(applyToPlatform = {}, readPlatformAfterApply = {})
+        bridge.editAndRun({ replaceAll(listOf(a), 0) }) {}
+        val before = bridge.queue.stateSnapshot().selectionRevision
+        bridge.editAndRun({ switchTo(0) }) {}
+        assertEquals(before + 1, bridge.queue.stateSnapshot().selectionRevision)
+        bridge.acceptPlatformSnapshot(bridge.newPlatformSnapshot(), listOf(a), 0)
+        assertEquals(before + 1, bridge.queue.stateSnapshot().selectionRevision)
+    }
+
     @Test fun insertAndSeekCannotBeSeparatedByAPlatformCallback() = runTest {
         val entered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()

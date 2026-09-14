@@ -11,6 +11,7 @@ import com.lalilu.lmedia.domain.model.LAudio as DomainAudio
 import com.lalilu.lmedia.domain.repository.AlbumRepository
 import com.lalilu.lmedia.domain.repository.ArtistRepository
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.firstOrNull
@@ -27,7 +28,7 @@ class SongDetailVM(
     private val artistRepository: ArtistRepository
 ) : ViewModel() {
 
-    val flow = audioRepository.getAudio(mediaId)
+    val flow = audioRepository.getAudioByPlaybackId(mediaId)
         .mapLatest { it }
         .stateIn(viewModelScope, started = SharingStarted.Lazily, null)
 

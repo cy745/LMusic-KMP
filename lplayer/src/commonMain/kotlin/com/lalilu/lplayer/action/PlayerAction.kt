@@ -2,6 +2,7 @@ package com.lalilu.lplayer.action
 
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
 import com.lalilu.lmedia.domain.model.MediaKey
 import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lplayer.playback.PlaybackMode
@@ -26,6 +27,7 @@ sealed class PlayerAction() : Action {
     data object SkipToNext : PlayerAction()
     data object SkipToPrevious : PlayerAction()
     data class SkipToIndex(val index: Int) : PlayerAction()
+    /** IDs in player actions are source-qualified playback IDs, never raw source IDs. */
     data class AddToNext(val id: String) : PlayerAction()
     data class PlayById(val id: String) : PlayerAction()
     data class PlayByKey(val key: MediaKey) : PlayerAction()
@@ -57,6 +59,7 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
             is PlayerAction.SetPlayMode -> {
                 LPlayerKV.playMode.value = action.playMode.name
                 LPlayer.instance.setPlaybackMode(when (action.playMode) {
+                    PlayMode.Sequential -> PlaybackMode.SEQUENTIAL
                     PlayMode.ListRecycle -> PlaybackMode.LOOP
                     PlayMode.RepeatOne -> PlaybackMode.SINGLE_LOOP
                     PlayMode.Shuffle -> PlaybackMode.SHUFFLE
@@ -67,11 +70,8 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
             is PlayerAction.SkipToIndex -> LPlayer.instance.skipTo(action.index, true)
             is PlayerAction.SeekTo -> LPlayer.instance.seekTo(action.positionMs)
             is PlayerAction.PlayById -> {
-                val list = LPlayer.instance.queue.stateSnapshot().list
-                val keys = list.filter { it.id == action.id }.map { it.mediaKey }.distinct()
-                if (keys.size == 1) {
-                    LPlayer.instance.playAudio(list.first { it.mediaKey == keys.single() })
-                }
+                val audioRepo: AudioRepository = KoinPlatform.getKoin().get()
+                audioRepo.getAudioByPlaybackId(action.id).first()?.let { LPlayer.instance.playAudio(it) }
             }
 
             is PlayerAction.PlayByKey -> {
@@ -82,18 +82,18 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
 
             is PlayerAction.AddToNext -> {
                 val audioRepo: AudioRepository = KoinPlatform.getKoin().get()
-                audioRepo.getAudio(action.id).first()?.let { audio ->
-                    LPlayer.instance.editQueue { addToNext(listOf(audio)) }
+                audioRepo.getAudioByPlaybackId(action.id).first()?.let { audio ->
+                    LPlayer.instance.playNext(audio)
                 }
             }
 
             is PlayerAction.UpdateList -> {
                 val audioRepo: AudioRepository = KoinPlatform.getKoin().get()
-                val audios = audioRepo.getAudios(action.ids).first()
+                val selection = audioRepo.resolveQueueSelection(action.ids, action.id)
+                    ?: return@launchPlayerAction
                 LPlayer.instance.updatePlaylist(
-                    playlist = audios,
-                    startIndex = action.id?.let { id -> audios.indexOfFirst { it.id == id } }
-                        ?.coerceAtLeast(0) ?: 0,
+                    playlist = selection.items,
+                    startIndex = selection.index,
                     start = action.start
                 )
             }

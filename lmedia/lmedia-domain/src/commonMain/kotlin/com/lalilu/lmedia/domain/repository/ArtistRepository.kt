@@ -13,6 +13,7 @@ interface ArtistRepository {
     fun getAudiosByArtist(artistId: String): Flow<List<LAudio>>
 
     /** Returns IDs of audios associated with this artist via cross-ref table. */
+    /** Source-qualified playback IDs used for traversing artist/song relations. */
     fun getAudioIdsByArtist(artistId: String): Flow<List<String>>
 
     /** Returns IDs of artists associated with the given audio IDs via cross-ref table. */

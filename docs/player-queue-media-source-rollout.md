@@ -1,10 +1,22 @@
 # 播放队列、多数据源恢复与 Sandbox 分阶段推进
 
+最新阶段结论见 [#14 / #17 合并检查点](player-queue-issue-progress.md)。下文保留历次决策及测试证据；旧的 ID 方案和待办以检查点及较新的记录为准。
+
 关联需求：[#14](https://github.com/cy745/LMusic-KMP/issues/14)、[#17](https://github.com/cy745/LMusic-KMP/issues/17)。
 
-## 当前阶段性提交状态（2026-09-11）
+## 启动恢复的可见状态（2026-09-14）
 
-本次按用户要求保存四阶段当前实现，不代表 #14、#17 已完成或全部验收通过。下文按迭代保留历史记录，最新状态以本节为准。
+- 历史列表直接保留数据库已有行，包括 available=false 的歌曲；不等待数据源完成扫描再显示。历史当前歌曲只在数据库行可用且其来源可读取后交给播放器。来源迟到时继续补齐，但不能抢走用户的新选择。
+- Repository 转发内容可读状态，App 统一提供给歌曲卡片。曲库、队列、专辑/歌手歌曲列表、歌单、搜索、首页推荐/最近添加、历史记录的歌曲卡片，在数据库不可用或来源未就绪/停用时使用 0.38 透明度，并同时禁用整行、封面点击及长按。集合类专辑/歌手卡片不因此禁用。
+- 将旧版 DynamicTipsHost 的顶部浮动表现迁移到 commonMain：非焦点 Popup、1dp 淡边框、无阴影、粗体标题、关闭按钮、窄屏换行和宽屏最大宽度。提示挂在 App 根层，不随页面切换重置。
+- 启动提示倒数 15 秒；来源明确失败/停用，或完成首次数据库提交后提前结束对应等待。超时与手动关闭只隐藏提示，不取消扫描、不修改数据库可用标记、不删除歌曲。随后来源恢复时卡片仍可恢复正常；本次启动不因普通刷新重新弹出提示。
+- 验证：6 项提示/可播放判断测试、18 项队列恢复测试、4 项 Compose 界面测试通过。界面测试覆盖卡片与封面的点击/长按禁用、恢复启用、跨页面提示保留/关闭和宽屏限宽。Desktop 编译、lplayer iOS Simulator/Wasm 编译通过；这些不是 iOS/Web 的完整运行验收。
+- 最终 Release 构建成功（`/tmp/lmusic-startup-source-recovery-verified.log`），已安装小米 74e1826f 和独立 emulator-5580，均 Success，小米仅安装。独立模拟器启动恢复 PAUSED 19555ms、队列 1 项、error=null；来源停用后歌曲仍显示、置灰，点击/长按未播放或跳转，重新启用后封面交互恢复。未将这一正常路径宣称为之前所有历史进度偏差均已解决。
+- 截图：组件手机/宽屏提示 `/tmp/lmusic-startup-source-ui/startup-tip-phone.png`、`startup-tip-wide.png`；真实 Release 曲库置灰 `/tmp/lmusic-startup-source-disabled-songs.png`，恢复可用 `/tmp/lmusic-startup-source-enabled-songs.png`。倒计时超时和迟到来源由受控测试验证，本轮未在设备上注入真实网络慢连接。其余四阶段未完成项仍保留。
+
+## 阶段性提交记录（2026-09-11）
+
+本次按用户要求保存四阶段当前实现，不代表 #14、#17 已完成或全部验收通过。以下按迭代保留历史记录，后续新增验证以上方较新的记录为准。
 
 - 最新选定的 lplayer JVM 测试 130 项通过，0 失败、0 跳过；Android Release 构建成功，已安装小米 74e1826f 与 emulator-5556。最终日志 `/tmp/lmusic-history-position-final.log`。Desktop 编译、iOS Simulator 与 Wasm 编译已有通过记录，不等同于各平台完整运行验收。
 - Android 最新测试暂停为 15708ms，普通冷启动恢复为 9812ms，存在尚未解释的位置偏差。证据 `/tmp/lmusic-position-guard-paused.txt` 与 `/tmp/lmusic-position-guard-restored.txt`。随后发现 emulator-5556 正被其他任务使用并显示其他应用，已停止操作；需隔离重测，既不能归因于环境而忽略偏差，也不能据此认定代码根因。

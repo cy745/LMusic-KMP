@@ -45,7 +45,7 @@ internal object MediaLibraryAssembler {
                 artists.getOrPut(artistId) {
                     LArtistEntity(id = artistId, title = name, subtitle = "")
                 }
-                artistRelations += CrossRefLAudioXLArtist(artistId = artistId, songId = audio.id)
+                artistRelations += CrossRefLAudioXLArtist(artistId = artistId, songId = audio.playbackId)
             }
 
             val albumName = normalizeLibraryName(audio.albumName ?: "Unknown")
@@ -54,14 +54,14 @@ internal object MediaLibraryAssembler {
             albums.getOrPut(albumId) {
                 LAlbumEntity(id = albumId, title = albumName, subtitle = albumArtist)
             }
-            albumRelations += CrossRefLAudioXAlbum(albumId = albumId, songId = audio.id)
+            albumRelations += CrossRefLAudioXAlbum(albumId = albumId, songId = audio.playbackId)
 
             audio.libraryGenreId()?.let { genreId ->
                 val genreName = normalizeLibraryName(audio.genre.orEmpty())
                 genres.getOrPut(genreId) {
                     LGenreEntity(id = genreId, title = genreName, subtitle = "")
                 }
-                genreRelations += CrossRefLAudioXGenre(genreId = genreId, songId = audio.id)
+                genreRelations += CrossRefLAudioXGenre(genreId = genreId, songId = audio.playbackId)
             }
         }
 

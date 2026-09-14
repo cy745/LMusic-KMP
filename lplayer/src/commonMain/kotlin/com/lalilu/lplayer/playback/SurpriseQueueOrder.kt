@@ -20,7 +20,8 @@ internal object SurpriseQueueOrder {
         if (size <= 1) return -1
         val maxIndex = size - 1
         return (0..maxIndex).filter { index ->
-            index != current && min(abs(index - current), abs(maxIndex - current + index)) /
+            index != current && (size == 2 || index != previousIndex(size, current)) &&
+                min(abs(index - current), abs(maxIndex - current + index)) /
                 maxIndex.toFloat() > 0.25f
         }.randomOrNull(random) ?: nextIndex(size, current)
     }

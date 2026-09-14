@@ -8,6 +8,9 @@ import androidx.media3.common.MediaMetadata.MEDIA_TYPE_FOLDER_MIXED
 import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.MediaKey
+import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
+import com.lalilu.lmedia.domain.repository.getPlaybackSlots
 import com.lalilu.lmedia.domain.model.LFolder
 import com.lalilu.lmedia.domain.model.LGenre
 import com.lalilu.lmedia.domain.model.albumArtist
@@ -21,7 +24,6 @@ import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.repository.AlbumRepository
 import com.lalilu.lmedia.domain.repository.ArtistRepository
 import org.koin.mp.KoinPlatform
-import io.ktor.http.encodeURLPathPart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -30,11 +32,11 @@ fun LAudio.toMediaItem(): MediaItem {
     val uri = Uri.Builder()
         .scheme("lmusic")
         .path("audio")
-        .appendQueryParameter("id", id.encodeURLPathPart())
+        .appendQueryParameter("playbackId", playbackId)
         .build()
 
     return MediaItem.Builder()
-        .setMediaId(id)
+        .setMediaId(playbackId)
         .setUri(uri)
         .setMediaMetadata(
             MediaMetadata.Builder()
@@ -145,8 +147,10 @@ object MMedia {
     }
 
     suspend fun getItem(mediaId: String): MediaItem? = withContext(Dispatchers.IO) {
+        if (MediaKey.parse(mediaId) != null) {
+            return@withContext audioRepo.getAudioByPlaybackId(mediaId).first()?.toMediaItem()
+        }
         when (resolveType(mediaId)) {
-            "audio" -> audioRepo.getAudio(mediaId).first()?.toMediaItem()
             "album" -> albumRepo.getAlbum(mediaId).first()?.toMediaItem()
             "artist" -> artistRepo.getArtist(mediaId).first()?.toMediaItem()
             else -> null
@@ -154,14 +158,13 @@ object MMedia {
     }
 
     suspend fun getItems(mediaIds: List<String>): List<MediaItem> = withContext(Dispatchers.IO) {
-        val audioIds = mediaIds.filter { it.startsWith(com.lalilu.lmedia.domain.model.LAudio.ID_PREFIX) }
-        val albumIds = mediaIds.filter { it.startsWith(com.lalilu.lmedia.domain.model.LAlbum.ID_PREFIX) }
-        val artistIds = mediaIds.filter { it.startsWith(com.lalilu.lmedia.domain.model.LArtist.ID_PREFIX) }
-
-        buildList {
-            if (audioIds.isNotEmpty()) addAll(audioRepo.getAudios(audioIds).first().mapNotNull { it.toMediaItem() })
-            if (albumIds.isNotEmpty()) addAll(albumRepo.getAlbums(albumIds).first().mapNotNull { it.toMediaItem() })
-            if (artistIds.isNotEmpty()) addAll(artistRepo.getArtists(artistIds).first().mapNotNull { it.toMediaItem() })
+        if (mediaIds.all { MediaKey.parse(it) != null }) {
+            return@withContext audioRepo.getPlaybackSlots(mediaIds).first().map { audio ->
+                requireNotNull(audio) { "Requested playback item is unavailable" }.toMediaItem()
+            }
+        }
+        mediaIds.map { id ->
+            requireNotNull(getItem(id)) { "Requested media item is unavailable" }
         }
     }
 

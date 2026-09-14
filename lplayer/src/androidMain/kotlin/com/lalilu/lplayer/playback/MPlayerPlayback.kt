@@ -18,6 +18,11 @@ import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.PlaybackFailureRepository
+import com.lalilu.lmedia.domain.model.PlaybackFailure
+import com.lalilu.lmedia.domain.model.PlaybackFailureReason
+import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
+import com.lalilu.lmedia.domain.repository.getPlaybackSlots
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.mediaKey
@@ -43,27 +48,36 @@ class MPlayerPlayback(
     private val audioRepository: AudioRepository,
     private val mediaSourceBindingRepository: MediaSourceBindingRepository,
     private val platformMediaSource: PlatformMediaSource,
-    private val history: PlaybackHistory
+    private val history: PlaybackHistory,
+    private val playbackFailureRepository: PlaybackFailureRepository,
+    private val navigation: AndroidPlaybackNavigation,
 ) : CoroutineScope,
     Player.Listener,
     Playback,
+    HistoryPositionProvider,
     Runnable,
     PlaybackHistory by history {
 
     private val logger = Logger.withTag("MPlayerPlayback")
     private val browserQueueMutex = Mutex()
     private val queueEditMutex = Mutex()
+    private val failureTraversal = navigation.failures
+    private val failureWrites = PlaybackFailureWrites(playbackFailureRepository)
     override val coroutineContext: CoroutineContext = Dispatchers.IO
     private val sessionToken by lazy {
         SessionToken(context, ComponentName(context, MService::class.java))
     }
 
     private val queueBridge = PlatformQueueBridge(
-        applyToPlatform = { state -> diffUpdateMediaItems(state.list) },
+        applyToPlatform = { state ->
+            if (state.updateReason == QueueUpdateReason.HistoryRestore) applyHistoryQueue(state)
+            else diffUpdateMediaItems(state.list)
+        },
         readPlatformAfterApply = { launch(Dispatchers.Main) { updateItems() } },
     )
     override val queue: PlayableQueue = queueBridge.queue
     private var browserInstance: MediaBrowser? = null
+    private var startupHistory: PlaybackHistory.HistorySnapshot? = null
     private val browserFuture by lazy {
         MediaBrowser
             .Builder(context, sessionToken)
@@ -85,11 +99,14 @@ class MPlayerPlayback(
         sourceOf = { audio ->
             platformMediaSource.findEnabledSource(audio.mediaSourceName)
         },
-        onReady = { audio, playWhenReady ->
+        preparationTicket = { navigation.preparation.ticket() },
+        onReady = { audio, latestIntent ->
             withContext(Dispatchers.Main) {
                 val browser = browserInstance ?: return@withContext
-                if (browser.currentMediaItem?.mediaId != audio.id) return@withContext
-                browser.playWhenReady = playWhenReady
+                if (browser.currentMediaItem?.mediaId != audio.playbackId) return@withContext
+                val (playWhenReady, ticket) = latestIntent() ?: return@withContext
+                val intent = navigation.preparation.playIntent(ticket, playWhenReady) ?: return@withContext
+                browser.playWhenReady = intent
                 browser.prepare()
             }
         },
@@ -127,6 +144,7 @@ class MPlayerPlayback(
         }
         LPlayerKV.playMode.flow().onEach { value ->
             _playbackMode.value = when (PlayMode.from(value)) {
+                PlayMode.Sequential -> PlaybackMode.SEQUENTIAL
                 PlayMode.ListRecycle -> PlaybackMode.LOOP
                 PlayMode.RepeatOne -> PlaybackMode.SINGLE_LOOP
                 PlayMode.Shuffle -> PlaybackMode.SHUFFLE
@@ -136,11 +154,13 @@ class MPlayerPlayback(
 
         // 历史恢复
         val snapshot = restoreFromHistory()
+        startupHistory = snapshot
         val restorer = snapshot?.let {
             HistoryQueueRestorer(
                 snapshot = it,
                 repository = audioRepository,
                 restoreSettled = mediaSourceBindingRepository.observeHistoryRestoreSettled(it.sourceNames.getOrNull(it.index)),
+                readableSources = mediaSourceBindingRepository.observeReadableSources(),
             )
         }
         restorer?.start(
@@ -161,18 +181,30 @@ class MPlayerPlayback(
         } else recordedPosition.value
     }
 
+    override suspend fun historyPosition(expectedQueue: QueueState): Long? = withContext(Dispatchers.Main) {
+        val browser = browserInstance ?: return@withContext null
+        if (queue.stateSnapshot() !== expectedQueue) return@withContext null
+        if (!matchesNativeHistorySelection(
+                expectedQueue,
+                browser.currentTimeline.toMediaItems().map { it.mediaId },
+                browser.currentMediaItemIndex,
+            )) return@withContext null
+        browser.currentPosition.takeIf { it >= 0L }
+    }
+
     override suspend fun play() {
         val current = queue.currentItem()
         if (current != null && !isContentReady(current)) {
             contentPreparation.request(current, playWhenReady = true)
             return
         }
-        contentPreparation.updatePlayIntent(current?.id, playWhenReady = true)
+        contentPreparation.updatePlayIntent(current?.playbackId, playWhenReady = true)
         runWithBrowser { play() }
     }
 
     override suspend fun pause() {
-        contentPreparation.updatePlayIntent(queue.currentItem()?.id, playWhenReady = false)
+        withContext(Dispatchers.Main) { failureTraversal.cancel() }
+        contentPreparation.updatePlayIntent(queue.currentItem()?.playbackId, playWhenReady = false)
         runWithBrowser { pause() }
     }
     override suspend fun togglePlayPause() {
@@ -180,6 +212,7 @@ class MPlayerPlayback(
     }
 
     override suspend fun stop() {
+        withContext(Dispatchers.Main) { failureTraversal.cancel() }
         contentPreparation.cancel()
         runWithBrowser { stop() }
     }
@@ -196,6 +229,7 @@ class MPlayerPlayback(
     }
 
     override suspend fun skipToNext() = runWithBrowser {
+        failureTraversal.begin(PlaybackDirection.Forward)
         if (playMode == PlayMode.Shuffle) {
             sendCustomCommand(
                 CustomCommand.SeekToNext.toSessionCommand(),
@@ -207,6 +241,7 @@ class MPlayerPlayback(
     }
 
     override suspend fun skipToPrevious() = runWithBrowser {
+        failureTraversal.begin(PlaybackDirection.Backward)
         if (playMode == PlayMode.Shuffle) {
             sendCustomCommand(
                 CustomCommand.SeekToPrevious.toSessionCommand(),
@@ -233,7 +268,9 @@ class MPlayerPlayback(
         }
     }
 
-    override suspend fun editQueue(block: QueueUpdateRequest.() -> Unit) = queueEditMutex.withLock {
+    override suspend fun editQueue(block: QueueUpdateRequest.() -> Unit) = editQueueWithReceipt(block) {}
+
+    override suspend fun editQueueWithReceipt(block: QueueUpdateRequest.() -> Unit, onApplied: (QueueState) -> Unit) = queueEditMutex.withLock {
         val previous = queue.currentItem()?.mediaKey
         val resume = isPlaying.value || contentPreparation.hasPendingPlayIntent()
         queueBridge.editAndRun(block) { selected ->
@@ -242,6 +279,7 @@ class MPlayerPlayback(
                 if (selected.list.isNotEmpty()) applySelection(selected, resume)
             }
         }
+        onApplied(queue.stateSnapshot())
     }
 
     override suspend fun playAudio(audio: LAudio) = queueEditMutex.withLock {
@@ -250,7 +288,35 @@ class MPlayerPlayback(
         }
     }
 
+    override suspend fun restoreFailedQueueEdit(expected: QueueState, original: QueueState, position: Long): Boolean =
+        queueEditMutex.withLock {
+            val browser = browserInstance ?: return@withLock false
+            withContext(Dispatchers.Main) {
+                restorePausedQueueIfOwned(
+                    bridge = queueBridge, player = browser, expected = expected, original = original,
+                    position = position, prepare = original.currentItem()?.let(::isContentReady) == true,
+                    beforeApply = {
+                        failureTraversal.cancel()
+                        contentPreparation.cancel()
+                    },
+                ).also { applied -> if (applied) recordedPosition.value = position.coerceAtLeast(0) }
+            }
+        }
+
+    override suspend fun playNext(audio: LAudio) = queueEditMutex.withLock {
+        queueBridge.editAndRun(block = {
+            if (queue.stateSnapshot().list.none { it.mediaKey == audio.mediaKey }) addToNext(listOf(audio))
+        }) {
+            runWithBrowser {
+                sendCustomCommand(CustomCommand.PlayNext.toSessionCommand(), Bundle().apply {
+                    putString("playbackId", audio.playbackId)
+                }).await()
+            }
+        }
+    }
+
     private suspend fun applySelection(selected: QueueState, start: Boolean) {
+        withContext(Dispatchers.Main) { failureTraversal.begin() }
         val audio = selected.currentItem() ?: return
         val ready = isContentReady(audio)
         contentPreparation.cancel()
@@ -266,7 +332,7 @@ class MPlayerPlayback(
         mode: PlaybackMode
     ) = runWithBrowser {
         playMode = when (mode) {
-            PlaybackMode.SEQUENTIAL -> PlayMode.ListRecycle
+            PlaybackMode.SEQUENTIAL -> PlayMode.Sequential
             PlaybackMode.LOOP -> PlayMode.ListRecycle
             PlaybackMode.SINGLE_LOOP -> PlayMode.RepeatOne
             PlaybackMode.SHUFFLE -> PlayMode.Shuffle
@@ -307,9 +373,23 @@ class MPlayerPlayback(
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         recordedPosition.value = browserInstance?.currentPosition?.coerceAtLeast(0L) ?: 0L
         _isPlaying.value = isPlaying
+        if (isPlaying) {
+            val playedId = browserInstance?.currentMediaItem?.mediaId
+            if (playedId != null) {
+                val ticket = failureWrites.register(playedId)
+                launch {
+                    failureWrites.apply(ticket, null).onFailure {
+                        Logger.e(it) { "Could not clear playback failure" }
+                    }
+                }
+            }
+        }
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
+            failureTraversal.begin(PlaybackDirection.Forward)
+        }
         contentPreparation.cancelIfCurrentChanged(mediaItem?.mediaId)
         updateItems()
 
@@ -320,21 +400,65 @@ class MPlayerPlayback(
     }
 
     override fun onPlayerError(error: PlaybackException) {
-        val mediaId = browserInstance?.currentMediaItem?.mediaId
+        val failureTicket = failureTraversal.generation
+        val failedSelectionRevision = queue.stateSnapshot().selectionRevision
+        val failedBrowser = browserInstance
+        val mediaId = failedBrowser?.currentMediaItem?.mediaId
         if (mediaId == null) {
             _errors.tryEmit(error)
             return
         }
+        val failedIndex = failedBrowser.currentMediaItemIndex
+        val failedIds = failedBrowser.currentTimeline.toMediaItems().map { it.mediaId }
+        val writeTicket = failureWrites.register(mediaId)
 
         launch(Dispatchers.Main) {
-            val audio = audioRepository.getAudio(mediaId).first()
-            val browser = browserInstance ?: return@launch
-            if (browser.currentMediaItem?.mediaId != mediaId) return@launch
-            if (audio != null && !isContentReady(audio)) {
-                // Media3 的有限等待已经失败：继续在可取消协程中等待该来源，Ready 后确定性重试。
-                contentPreparation.request(audio, playWhenReady = browser.playWhenReady)
-            } else {
+            fun isCurrentFailure(): Boolean = browserInstance === failedBrowser &&
+                failureTicket == failureTraversal.generation &&
+                queue.stateSnapshot().selectionRevision == failedSelectionRevision &&
+                failedBrowser.currentMediaItem?.mediaId == mediaId &&
+                failedBrowser.currentMediaItemIndex == failedIndex &&
+                failedBrowser.currentTimeline.toMediaItems().map { it.mediaId } == failedIds
+
+            runPlaybackFailureRecovery(
+                isCurrent = ::isCurrentFailure,
+                onFailure = { Logger.e(it) { "Could not recover playback failure; pausing only the failed selection" } },
+                pause = { failedBrowser.pause() },
+            ) recover@{
                 _errors.emit(error)
+                if (!isCurrentFailure()) return@recover
+                val audio = audioRepository.getAudioByPlaybackId(mediaId).first()
+                val browser = failedBrowser
+                if (!isCurrentFailure()) return@recover
+                // Startup prepares only after readiness, in onQueueRestored. An error during normal
+                // navigation must skip an unready source, not start another unbounded source wait.
+                if (audio != null && isContentReady(audio)) {
+                    failureWrites.apply(writeTicket, PlaybackFailure(
+                        reason = classifyPlaybackFailure(error),
+                        occurredAtMillis = System.currentTimeMillis(),
+                    )).onFailure {
+                        Logger.e(it) { "Could not persist playback failure; continuing navigation" }
+                    }
+                }
+                if (!isCurrentFailure()) return@recover
+                // The public queue can lag behind a native transition. Resolve exact native slots.
+                val nativeIds = failedIds
+                val nativeIndex = failedIndex
+                val slots = audioRepository.getPlaybackSlots(nativeIds).first()
+                if (!isCurrentFailure()) return@recover
+                val failures = playbackFailureRepository.failures.first()
+                if (!isCurrentFailure()) return@recover
+                val next = failureTraversal.next(failureTicket, nativeIds.size, nativeIndex, playbackMode.value) { index ->
+                    val candidate = slots[index]
+                    candidate != null && candidate.available && isContentReady(candidate) && candidate.playbackId !in failures
+                }
+                if (next == null) {
+                    browser.pause()
+                } else {
+                    // Do not begin a new traversal here: all consecutive failures share one budget.
+                    browser.seekTo(next, 0)
+                    browser.prepare()
+                }
             }
         }
     }
@@ -348,6 +472,7 @@ class MPlayerPlayback(
     }
 
     override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+        failureTraversal.observeQueue(timeline.toMediaItems().map { it.mediaId })
         updateItems(timeline)
     }
 
@@ -362,11 +487,23 @@ class MPlayerPlayback(
         // 同步播放列表变化到playableQueue
         launch {
             val ids = mediaItems.map { it.mediaId }
-            val resolved = audioRepository.getAudios(ids).first()
+            val resolved = audioRepository.getPlaybackSlots(ids).first()
             // Repository results need not follow Timeline order. Preserve duplicates and never
             // compress missing entries, which would silently move the current index to another song.
-            val items = resolveTimelineQueue(ids, resolved, knownItems) ?: return@launch
+            val knownById = knownItems.associateBy { it.playbackId }
+            val items = ids.mapIndexed { index, id ->
+                resolved[index] ?: knownById[id] ?: return@launch
+            }
             queueBridge.acceptPlatformSnapshot(generation, items, currentIndex)
+        }
+    }
+
+    /** Publish the historical selection before native callbacks can mirror the default index 0. */
+    private suspend fun applyHistoryQueue(state: QueueState) = browserQueueMutex.withLock {
+        val browser = browserFuture.await()
+        withContext(Dispatchers.Main) {
+            recordedPosition.value = browser.restoreHistoryQueueSelection(state, startupHistory)
+            // No prepare/play here: unavailable sources must remain displayable without opening media.
         }
     }
 

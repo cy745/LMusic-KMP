@@ -17,6 +17,95 @@ import kotlin.test.assertFalse
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryQueueRestorerTest {
+    @Test fun immediateNativeMirrorDoesNotCancelAnIdenticalRestoredQueue() = runTest {
+        val repository = FakeAudioRepository().apply { seed(audio("a"), audio("b")) }
+        val backing = PlayableQueueImpl()
+        val queue = object : PlayableQueue by backing {
+            override suspend fun update(
+                updateReason: QueueUpdateReason,
+                predicate: (QueueState) -> Boolean,
+                block: QueueUpdateRequest.() -> Unit,
+            ) {
+                backing.update(updateReason, predicate, block)
+                if (updateReason == QueueUpdateReason.HistoryRestore) {
+                    val state = backing.stateSnapshot()
+                    backing.update(QueueUpdateReason.Sync) { replaceAll(state.list, state.index) }
+                }
+            }
+        }
+        val delivered = mutableListOf<PlaybackHistory.HistorySnapshot>()
+        val restorer = HistoryQueueRestorer(PlaybackHistory.HistorySnapshot(listOf("a", "b", "a"), 2, 8070), repository)
+        restorer.start(backgroundScope, queue) { delivered += it }
+        runCurrent()
+        assertEquals(listOf(8070L), delivered.map { it.position })
+        assertEquals(2, queue.stateSnapshot().index)
+        assertEquals(2, delivered.single().index)
+        assertEquals(listOf("a", "b", "a"), queue.stateSnapshot().list.map { it.id })
+        assertIs<HistoryRestoreState.Complete>(restorer.state.value)
+    }
+
+    @Test fun cachedQueueAppearsBeforeSourcesAreReadyAndKeepsUnavailableRows() = runTest {
+        val repository = FakeAudioRepository()
+        val sources = MutableStateFlow<Set<String>?>(emptySet())
+        val song = audio("a").copy(mediaSourceName = "slow")
+        val unavailable = audio("b").copy(mediaSourceName = "slow", available = false)
+        repository.seed(song, unavailable)
+        val queue = PlayableQueueImpl()
+        val deliveries = mutableListOf<PlaybackHistory.HistorySnapshot>()
+        val restorer = HistoryQueueRestorer(
+            PlaybackHistory.HistorySnapshot(listOf("a", "b"), 0, 12000), repository,
+            readableSources = sources,
+        )
+        restorer.start(backgroundScope, queue) { deliveries += it }
+        runCurrent()
+        assertEquals(listOf(song, unavailable), queue.stateSnapshot().list)
+        assertTrue(deliveries.isEmpty())
+        assertFalse((restorer.state.value as HistoryRestoreState.Pending).currentRestored)
+        sources.value = setOf("slow")
+        runCurrent()
+        assertEquals(12000L, deliveries.single().position)
+        assertEquals(listOf(song, unavailable), queue.stateSnapshot().list)
+    }
+
+    @Test fun unavailableCurrentWaitsForDatabaseUpdateEvenAfterSourceReady() = runTest {
+        val repository = FakeAudioRepository()
+        val song = audio("a").copy(mediaSourceName = "slow", available = false)
+        repository.seed(song)
+        val queue = PlayableQueueImpl()
+        var deliveries = 0
+        val restorer = HistoryQueueRestorer(
+            PlaybackHistory.HistorySnapshot(listOf("a"), 0, 12000), repository,
+            readableSources = MutableStateFlow(setOf("slow")),
+        )
+        restorer.start(backgroundScope, queue) { deliveries++ }
+        runCurrent()
+        assertEquals(listOf(song), queue.stateSnapshot().list)
+        assertEquals(0, deliveries)
+        repository.seed(song.copy(available = true))
+        runCurrent()
+        assertEquals(1, deliveries)
+    }
+
+    @Test fun choosingAnotherSongWhileSourceLoadsPreventsLateHistoryTakeover() = runTest {
+        val repository = FakeAudioRepository()
+        repository.seed(audio("a").copy(mediaSourceName = "slow"), audio("b").copy(mediaSourceName = "fast"))
+        val sources = MutableStateFlow<Set<String>?>(setOf("fast"))
+        val queue = PlayableQueueImpl()
+        var deliveries = 0
+        val restorer = HistoryQueueRestorer(
+            PlaybackHistory.HistorySnapshot(listOf("a", "b"), 0, 12000), repository,
+            readableSources = sources,
+        )
+        restorer.start(backgroundScope, queue) { deliveries++ }
+        runCurrent()
+        queue.update { switchTo(1) }
+        runCurrent()
+        sources.value = setOf("fast", "slow")
+        runCurrent()
+        assertEquals("b", queue.currentItem()?.id)
+        assertEquals(0, deliveries)
+    }
+
     @Test fun duplicateSelectionCompletesAlreadyFilledHistoryWithoutAnotherDatabaseEvent() = runTest {
         val repository = FakeAudioRepository()
         val queue = PlayableQueueImpl()

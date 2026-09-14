@@ -18,6 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lalilu.component.LazyGridContent
 import com.lalilu.extensions.SharedMap
 import com.lalilu.lhome.component.RecommendCard
+import com.lalilu.lmedia.isAudioPlayable
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
@@ -58,7 +59,7 @@ object DailyRecommend : LazyGridContent {
                 items = { dailyRecommends.value },
                 onClick = { item, sharedMap ->
                     val id = when (item) {
-                        is RecommendItem.Audio -> item.audio.id
+                        is RecommendItem.Audio -> item.audio.playbackId
                         is RecommendItem.Album -> item.album.id
                         is RecommendItem.Artist -> item.artist.id
                     }
@@ -103,7 +104,7 @@ fun LazyGridScope.dailyRecommendForSideCompat(
             items = { list },
             getId = { item ->
                 when (item) {
-                    is RecommendItem.Audio -> item.audio.id
+                    is RecommendItem.Audio -> item.audio.playbackId
                     is RecommendItem.Album -> item.album.id
                     is RecommendItem.Artist -> item.artist.id
                 }
@@ -111,7 +112,7 @@ fun LazyGridScope.dailyRecommendForSideCompat(
             scrollToFirstWhenChange = true
         ) { item ->
             val id = when (item) {
-                is RecommendItem.Audio -> item.audio.id
+                is RecommendItem.Audio -> item.audio.playbackId
                 is RecommendItem.Album -> item.album.id
                 is RecommendItem.Artist -> item.artist.id
             }
@@ -137,6 +138,7 @@ fun LazyGridScope.dailyRecommendForSideCompat(
                 title = title,
                 subTitle = subtitle,
                 imageData = imageData,
+                enabled = if (item is RecommendItem.Audio) isAudioPlayable(item.audio) else true,
                 onClick = { onClick(item, it) }
             )
         }

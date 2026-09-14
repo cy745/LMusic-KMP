@@ -1,9 +1,11 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lplayer.action.QueueAction
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runCurrent
@@ -23,6 +25,249 @@ class QueuePlaybackTest {
     private val a = LAudio(id = "a", mediaSourceName = "local")
     private val b = LAudio(id = "b", mediaSourceName = "sandbox")
     private val c = LAudio(id = "c", mediaSourceName = "local")
+
+    @Test fun failedDeletionRestoresDuplicatesSelectionAndPositionWithoutAutoplay() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b, a, c), 2, true)
+        player.seekTo(12345)
+        val deletion = QueueRemovalRecovery(player, setOf(a.mediaKey))
+        deletion.remove()
+        assertEquals(listOf(b, c), player.queue.stateSnapshot().list)
+        assertTrue(deletion.restore(listOf(a)))
+        assertEquals(listOf(a, b, a, c), player.queue.stateSnapshot().list)
+        assertEquals(2, player.queue.stateSnapshot().index)
+        assertEquals(12345L, player.currentPosition())
+        assertFalse(player.isPlaying.value)
+    }
+
+    @Test fun failedDeletionDoesNotOverwriteUserEditEvenIfTheyMoveItemsBack() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b, c), 0, false)
+        val deletion = QueueRemovalRecovery(player, setOf(a.mediaKey))
+        deletion.remove()
+        val removed = player.queue.stateSnapshot()
+        player.editQueue { move(0, 1) }
+        player.editQueue { move(1, 0) }
+        assertEquals(removed.list, player.queue.stateSnapshot().list)
+        assertEquals(removed.index, player.queue.stateSnapshot().index)
+        assertFalse(deletion.restore(listOf(a)))
+        assertEquals(listOf(b, c), player.queue.stateSnapshot().list)
+    }
+
+    @Test fun nativeMetadataAcknowledgementDoesNotPreventDeletionRecovery() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b), 0, false)
+        val deletion = QueueRemovalRecovery(player, setOf(a.mediaKey))
+        deletion.remove()
+        player.queue.update(QueueUpdateReason.Sync) { replaceAll(listOf(b.copy(title = "refreshed")), 0) }
+        val restoredAudio = a.copy(title = "restored", available = true)
+        assertTrue(deletion.restore(listOf(restoredAudio)))
+        assertEquals(restoredAudio, player.queue.currentItem())
+        assertFalse(player.isPlaying.value)
+    }
+
+    @Test fun partialNativeRemovalFailureStillHasARecoveryReceipt() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b), 0, true)
+        player.seekTo(9000)
+        val deletion = QueueRemovalRecovery(player, setOf(a.mediaKey))
+        player.nextLoadFailure = IllegalStateException("native load failed after queue publication")
+        assertFailsWith<IllegalStateException> { deletion.remove() }
+        assertEquals(listOf(b), player.queue.stateSnapshot().list)
+        assertTrue(deletion.restore(listOf(a)))
+        assertEquals(a, player.queue.currentItem())
+        assertEquals(9000L, player.currentPosition())
+        assertFalse(player.isPlaying.value)
+    }
+
+    @Test fun explicitSameSongSelectionTakesOwnershipFromDeletion() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b), 0, false)
+        val deletion = QueueRemovalRecovery(player, setOf(a.mediaKey))
+        deletion.remove()
+        player.playAudio(b)
+        assertFalse(deletion.restore(listOf(a)))
+        assertEquals(b, player.queue.currentItem())
+        assertTrue(player.isPlaying.value)
+    }
+
+    @Test fun explicitClearOfAlreadyEmptyQueuePreventsDeletionRecovery() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a), 0, false)
+        val deletion = QueueRemovalRecovery(player, setOf(a.mediaKey))
+        deletion.remove()
+        assertTrue(player.queue.stateSnapshot().list.isEmpty())
+        player.clearPlaylist()
+        assertFalse(deletion.restore(listOf(a)))
+        assertTrue(player.queue.stateSnapshot().list.isEmpty())
+    }
+
+    @Test fun recorderRejectsLatePositionWhenSameSongIsReloadedAtSameIndex() = runTest {
+        val storage = MemoryHistory()
+        val player = DevicePlayback(backgroundScope, storage)
+        runCurrent()
+        player.updatePlaylist(listOf(a), 0, false)
+        val oldSample = CompletableDeferred<Long?>()
+        val sampling = CompletableDeferred<Unit>()
+        player.historyPositionReader = {
+            sampling.complete(Unit)
+            oldSample.await()
+        }
+        advanceTimeBy(1100)
+        runCurrent()
+        assertTrue(sampling.isCompleted)
+
+        // Same song, same slot, same update reason, but a new load now owns the position.
+        player.updatePlaylist(listOf(a), 0, false)
+        player.seekTo(7000)
+        oldSample.complete(42000)
+        runCurrent()
+        assertTrue(storage.snapshots.none { it.second == 42000L })
+
+        player.historyPositionReader = { player.currentPosition() }
+        advanceTimeBy(1100)
+        runCurrent()
+        assertEquals(7000L, storage.snapshots.last().second)
+    }
+
+    @Test fun recorderRejectsLatePositionFromPreviousSourceAndThenSavesNewSelection() = runTest {
+        val storage = MemoryHistory()
+        val player = DevicePlayback(backgroundScope, storage)
+        runCurrent()
+        player.updatePlaylist(listOf(a), 0, false)
+        val oldSample = CompletableDeferred<Long?>()
+        val sampling = CompletableDeferred<Unit>()
+        player.historyPositionReader = {
+            sampling.complete(Unit)
+            oldSample.await()
+        }
+        advanceTimeBy(1100)
+        runCurrent()
+        assertTrue(sampling.isCompleted)
+
+        // The raw ID is identical, but this is a different source and a different recording owner.
+        val replacement = a.copy(mediaSourceName = "replacement-source")
+        player.updatePlaylist(listOf(replacement), 0, false)
+        player.seekTo(7000)
+        runCurrent()
+        oldSample.complete(42000)
+        runCurrent()
+        assertTrue(storage.snapshots.none { it.second == 42000L })
+
+        player.historyPositionReader = { player.currentPosition() }
+        advanceTimeBy(1100)
+        runCurrent()
+        assertEquals(7000L, storage.snapshots.last().second)
+        assertEquals(listOf("replacement-source"), storage.snapshots.last().first.sourceNames)
+        assertFalse(player.isPlaying.value)
+    }
+
+    @Test fun removingAndReaddingSongDoesNotRestoreItsPlayNextRequest() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b, c), 0, false)
+        player.setPlaybackMode(PlaybackMode.SEQUENTIAL)
+        player.playNext(c)
+        QueueAction.Remove(c).execute(player)
+        QueueAction.AddToEnd(c).execute(player)
+        player.skipToNext()
+        assertEquals(b, player.queue.currentItem())
+    }
+
+    @Test fun replacingQueueWithSameSongsDiscardsPreviousPlayNextRequest() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b, c), 0, false)
+        player.setPlaybackMode(PlaybackMode.SEQUENTIAL)
+        player.playNext(c)
+        player.updatePlaylist(listOf(a, b, c), 0, false)
+        player.skipToNext()
+        assertEquals(b, player.queue.currentItem())
+    }
+
+    @Test fun sequentialCompletionStopsAtTheLastSong() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b), 1, true)
+        player.setPlaybackMode(PlaybackMode.SEQUENTIAL)
+        player.completeSong()
+        assertEquals(b, player.queue.currentItem())
+        assertFalse(player.isPlaying.value)
+    }
+
+    @Test fun loopCompletionReturnsToTheFirstSong() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b), 1, true)
+        player.setPlaybackMode(PlaybackMode.LOOP)
+        player.completeSong()
+        assertEquals(a, player.queue.currentItem())
+        assertTrue(player.isPlaying.value)
+    }
+
+    @Test fun explicitNextStillPlaysAfterTheSequentialLastSong() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b, c), 2, true)
+        player.setPlaybackMode(PlaybackMode.SEQUENTIAL)
+        player.playNext(a)
+        player.completeSong()
+        assertEquals(a, player.queue.currentItem())
+        assertTrue(player.isPlaying.value)
+        player.skipTo(2, true)
+        player.completeSong()
+        assertEquals(c, player.queue.currentItem())
+        assertFalse(player.isPlaying.value)
+    }
+
+    @Test fun explicitPlayNextOverridesShuffleWithoutDuplicatingSong() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b, c), 0, false)
+        player.setPlaybackMode(PlaybackMode.SHUFFLE)
+        player.playNext(c)
+        player.skipToNext()
+        assertEquals(c, player.queue.currentItem())
+        assertEquals(3, player.queue.stateSnapshot().list.size)
+    }
+
+    @Test fun explicitPlayNextOverridesSingleRepeat() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b), 0, false)
+        player.setPlaybackMode(PlaybackMode.SINGLE_LOOP)
+        player.playNext(b)
+        player.skipToNext()
+        assertEquals(b, player.queue.currentItem())
+    }
+
+    @Test fun requestedShuffleSongAppearsBeforeThePreviouslyPlayingSong() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b, c), 1, false)
+        player.setPlaybackMode(PlaybackMode.SHUFFLE)
+        player.playNext(a)
+        player.skipToNext()
+        assertEquals(listOf(a, b), player.queue.stateSnapshot().rearrange().take(2))
+        assertEquals(setOf(a, b, c), player.queue.stateSnapshot().list.toSet())
+    }
+
+    @Test fun requestedShuffleSongWrapsBeforeTheFirstSlotWithoutDuplicatingIt() = runTest {
+        val player = DevicePlayback(backgroundScope)
+        runCurrent()
+        player.updatePlaylist(listOf(a, b, c), 0, false)
+        player.setPlaybackMode(PlaybackMode.SHUFFLE)
+        player.playNext(b)
+        player.completeSong()
+        assertEquals(listOf(b, a), player.queue.stateSnapshot().rearrange().take(2))
+        assertEquals(3, player.queue.stateSnapshot().list.size)
+    }
 
     @Test fun historySampleRejectsQueueReplacementDuringTheNativeRead() = runTest {
         val player = DevicePlayback(backgroundScope)
@@ -203,6 +448,7 @@ class QueuePlaybackTest {
         val reportedFailures = mutableListOf<Exception>()
         private var position = 0L
         override fun createEngines() = emptyList<PlaybackEngine>()
+        suspend fun completeSong() = onCompletion()
         override suspend fun skipTo(index: Int, start: Boolean) {
             nextLoadFailure?.let { failure ->
                 nextLoadFailure = null
@@ -223,6 +469,11 @@ class QueuePlaybackTest {
 
     private class MemoryHistory : HistoryStorage {
         private var position = 0L
+        val snapshots = mutableListOf<Pair<HistoryQueueIdentity, Long>>()
+        override fun saveSnapshot(identity: HistoryQueueIdentity, position: Long) {
+            snapshots += identity to position
+            savePosition(position)
+        }
         override fun savedPlaylistIds() = emptyList<String>()
         override fun savedPlayId() = ""
         override fun savedPosition() = position

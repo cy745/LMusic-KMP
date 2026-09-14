@@ -24,10 +24,12 @@ import kotlin.random.Random
  * Callers MUST pre-resolve any [LItem] to [List]<[LAudio]> before calling.
  */
 class QueueUpdateRequest(
-    snapshot: QueueState
+    private val snapshot: QueueState
 ) : QueueMutationOps<QueueUpdateRequest> {
     private var pendingList: List<LAudio> = snapshot.list
     private var pendingIndex: Int = snapshot.index
+    private val selectionRevision = snapshot.selectionRevision
+    private var selectionRequested = false
     val currentIndex: Int get() = normalizeIndex(pendingIndex)
 
     /** Resolve identity and insertion against the same atomic queue snapshot. */
@@ -84,6 +86,7 @@ class QueueUpdateRequest(
     override fun switchTo(index: Int): QueueUpdateRequest {
         if (index in pendingList.indices) {
             pendingIndex = index
+            selectionRequested = true
         }
         return this
     }
@@ -96,6 +99,7 @@ class QueueUpdateRequest(
      *              自动在 items 中查找与当前播放项 id 匹配的元素位置作为新索引。
      */
     override fun replaceAll(items: List<LAudio>, index: Int): QueueUpdateRequest {
+        if (index >= 0) selectionRequested = true
         var targetIndex = index
         if (targetIndex == -1) {
             val currentKey = pendingList.getOrNull(pendingIndex)?.mediaKey
@@ -172,6 +176,8 @@ class QueueUpdateRequest(
 
     /** 清空所有播放项，索引重置为 0。 */
     override fun clear(): QueueUpdateRequest {
+        // Clearing an already empty queue is still an explicit takeover from pending recovery.
+        selectionRequested = true
         pendingList = emptyList()
         pendingIndex = 0
         return this
@@ -180,9 +186,19 @@ class QueueUpdateRequest(
     /**
      * 构建最终的 [QueueState]。
      */
-    fun build(updateReason: QueueUpdateReason): QueueState = QueueState(
-        list = pendingList,
-        index = normalizeIndex(pendingIndex),
-        updateReason = updateReason
-    )
+    fun build(updateReason: QueueUpdateReason): QueueState {
+        val result = QueueState(
+            list = pendingList,
+            index = normalizeIndex(pendingIndex),
+            updateReason = updateReason,
+            // Native mirrors and database refreshes acknowledge the selection; they do not own
+            // a new playback request. Keeping their revision avoids a feedback loop.
+            selectionRevision = selectionRevision + if (selectionRequested &&
+                updateReason != QueueUpdateReason.Sync && updateReason != QueueUpdateReason.HistoryRestore) 1L else 0L,
+            editRevision = snapshot.editRevision,
+        )
+        return if (result != snapshot && updateReason != QueueUpdateReason.Sync &&
+            updateReason != QueueUpdateReason.HistoryRestore) result.copy(editRevision = snapshot.editRevision + 1)
+        else result
+    }
 }

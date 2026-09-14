@@ -93,7 +93,10 @@ class QueueMetadataRefresherTest {
         override fun getAudios(): Flow<List<LAudio>> = audios
 
         override fun getAudios(ids: List<String>): Flow<List<LAudio>> =
-            audios.map { list -> list.filter { it.id in ids } }
+            error("Queue refresh must query source-qualified IDs")
+
+        override fun getAudiosByPlaybackIds(playbackIds: List<String>): Flow<List<LAudio>> =
+            audios.map { list -> list.filter { it.playbackId in playbackIds } }
 
         override fun getAudio(id: String): Flow<LAudio?> =
             audios.map { list -> list.firstOrNull { it.id == id } }

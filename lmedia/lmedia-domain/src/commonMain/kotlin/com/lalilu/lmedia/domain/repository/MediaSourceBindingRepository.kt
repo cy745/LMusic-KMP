@@ -2,6 +2,8 @@ package com.lalilu.lmedia.domain.repository
 
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.domain.source.MediaContentAvailability
+import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -38,7 +40,16 @@ data class SourceStatus(
     val resultRevision: Long? = null,
     val songCount: Int = 0,
     val commitState: SnapshotCommitState = SnapshotCommitState.Idle,
+    /** Reading readiness is separate from scanning/database availability. */
+    val contentAvailability: MediaContentAvailability = MediaContentAvailability.Uninitialized,
 )
+
+val SourceStatus.canReadContent: Boolean
+    get() = enabled && !enablementChanging && enablementError == null &&
+        contentAvailability == MediaContentAvailability.Ready
+
+fun Map<String, SourceStatus>.canPlay(audio: LAudio): Boolean =
+    audio.available && this[audio.mediaSourceName]?.canReadContent == true
 
 data class MediaLibrarySummary(
     val refreshingSources: Set<String> = emptySet(),

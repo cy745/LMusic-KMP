@@ -69,7 +69,7 @@ class LMediaLArtistDaoTest {
 
         audioDao.insert(audio)
         artistDao.insert(artist)
-        artistDao.insertRelation(listOf(CrossRefLAudioXLArtist(artistId = artist.id, songId = audio.id)))
+        artistDao.insertRelation(listOf(CrossRefLAudioXLArtist(artistId = artist.id, songId = audio.playbackId)))
 
         val audios = artistDao.getAudiosByArtist("artist-4").firstOrNull()
         assertNotNull(audios)

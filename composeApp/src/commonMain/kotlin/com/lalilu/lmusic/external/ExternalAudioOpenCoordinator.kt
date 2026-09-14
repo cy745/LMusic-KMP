@@ -5,6 +5,7 @@ import com.lalilu.common.ext.io
 import com.lalilu.extensions.GlobalToaster
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
@@ -99,7 +100,7 @@ class ExternalAudioOpenCoordinator(
     }
 
     private suspend fun finishOpening(result: LAudio) {
-        val persisted = audioRepository.getAudio(result.id).first()
+        val persisted = audioRepository.getAudioByPlaybackId(result.playbackId).first()
             ?.takeIf { it.mediaSourceName == result.mediaSourceName && it.available }
             ?: platformMediaSource.sources.firstOrNull { it.name == result.mediaSourceName }
                 ?.snapshot?.value?.let { current ->
@@ -127,7 +128,7 @@ class ExternalAudioOpenCoordinator(
         expected = audio,
         revision = revision,
         statuses = bindingRepository.observeSource(source.name),
-        persisted = audioRepository.getAudio(audio.id),
+        persisted = audioRepository.getAudioByPlaybackId(audio.playbackId),
     )
 
     private suspend fun play(audio: LAudio) {

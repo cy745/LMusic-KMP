@@ -4,6 +4,8 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lplayer.action.launchPlayerAction
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.MediaKey
+import com.lalilu.lmedia.domain.model.PlaybackFailure
+import com.lalilu.lmedia.domain.repository.PlaybackFailureRepository
 import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
@@ -21,6 +23,10 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import org.koin.core.annotation.Single
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
@@ -31,13 +37,15 @@ fun provideVLCPlayback(
     history: PlaybackHistory,
     platformMediaSource: PlatformMediaSource,
     dataTracker: IPlaybackDataTracker,
-): VLCPlayback = VLCPlayback(audioRepository, history, platformMediaSource, dataTracker)
+    playbackFailureRepository: PlaybackFailureRepository,
+): VLCPlayback = VLCPlayback(audioRepository, history, platformMediaSource, dataTracker, playbackFailureRepository)
 
 class VLCPlayback internal constructor(
     audioRepository: AudioRepository,
     private val history: PlaybackHistory,
     override val platformMediaSource: PlatformMediaSource,
     private val dataTracker: IPlaybackDataTracker,
+    playbackFailureRepository: PlaybackFailureRepository,
     scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
     private val nativePlayerProvider: suspend () -> MediaPlayer = {
         VLCPlayerLoader.initialize().join()
@@ -54,6 +62,8 @@ class VLCPlayback internal constructor(
     private var loadedMediaKey: MediaKey? = null
     private val logger = Logger.withTag("VLCPlayback")
     private val commands = LatestPlaybackCommand()
+    private val failureWrites = PlaybackFailureWrites(playbackFailureRepository)
+    private var successfulPlaybackWatch: Job? = null
     // Serialize unsuspended command sections without occupying the Compose UI thread.
     // LatestPlaybackCommand handles cancellation across suspension points.
     private val commandDispatcher = Dispatchers.IO.limitedParallelism(1)
@@ -76,6 +86,14 @@ class VLCPlayback internal constructor(
     override suspend fun skipTo(index: Int, start: Boolean): Unit = withContext(commandDispatcher) {
         claimHistoryPlaybackControl()
         commands.run { selectInternal(index, start) }
+    }
+
+    override suspend fun skipToNext(): Unit = withContext(PlaybackNavigationContext(PlaybackDirection.Forward)) {
+        super.skipToNext()
+    }
+
+    override suspend fun skipToPrevious(): Unit = withContext(PlaybackNavigationContext(PlaybackDirection.Backward)) {
+        super.skipToPrevious()
     }
 
     override suspend fun seekTo(positionMs: Long): Unit = withContext(commandDispatcher) {
@@ -109,13 +127,53 @@ class VLCPlayback internal constructor(
     }
 
     private suspend fun playItem(item: LAudio, start: Boolean, position: Long = 0) {
+        successfulPlaybackWatch?.cancel()
+        successfulPlaybackWatch = null
         loadedMediaKey = null
-        val data = platformMediaSource.resolveMediaData(item)
-        currentCoroutineContext().ensureActive()
-        prepareVlcMedia(player, data, position)
-        loadedMediaKey = item.mediaKey
-        if (start) {
-            player.controls().play()
+        val successTicket = failureWrites.register(item.playbackId)
+        try {
+            val data = platformMediaSource.resolveMediaData(item)
+            currentCoroutineContext().ensureActive()
+            prepareVlcMedia(player, data, position)
+            loadedMediaKey = item.mediaKey
+            watchSuccessfulPlayback(item.mediaKey, successTicket)
+            if (start) {
+                player.controls().play()
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            // The command owns item even when selection has not yet been published to the queue.
+            // A source that is still loading is not evidence that the song itself is broken.
+            if (platformMediaSource.findEnabledSource(item.mediaSourceName)?.contentState?.value?.isReady == true) {
+                failureWrites.apply(failureWrites.register(item.playbackId), PlaybackFailure(
+                    classifyVlcLoadFailure(failure), System.currentTimeMillis(),
+                )).onFailure { logger.e(it) { "Could not persist VLC load failure" } }
+            }
+            throw failure
+        }
+    }
+
+    /** A prepared/paused input is not a successful retry. Confirm actual native progress. */
+    private fun watchSuccessfulPlayback(key: MediaKey, ticket: PlaybackFailureWrites.Ticket) {
+        successfulPlaybackWatch = launch(commandDispatcher) {
+            var previousPosition: Long? = null
+            while (isActive && loadedMediaKey == key) {
+                delay(250)
+                if (commands.isRunning || loadedMediaKey != key || queue.currentItem()?.mediaKey != key ||
+                    !player.status().isPlaying) {
+                    previousPosition = null
+                    continue
+                }
+                val position = player.status().time()
+                val previous = previousPosition
+                previousPosition = position
+                if (previous != null && previous >= 0 && position > previous) {
+                    val result = failureWrites.apply(ticket, null)
+                    if (result.isSuccess) return@launch
+                    result.onFailure { logger.e(it) { "Could not clear VLC playback failure" } }
+                }
+            }
         }
     }
 
@@ -134,10 +192,8 @@ class VLCPlayback internal constructor(
                 player.controls().play()
                 _isPlaying.value = true
             } else {
-                val current = queue.currentItem()
-                    ?: throw Exception("No media to play")
-
-                playItem(current, true)
+                check(queue.currentItem() != null) { "No media to play" }
+                selectInternal(queue.stateSnapshot().index, true)
             }
         } catch (e: Exception) {
             reportPlaybackCommandFailure(e) {
@@ -164,6 +220,8 @@ class VLCPlayback internal constructor(
     }
 
     private suspend fun stopInternal() {
+        successfulPlaybackWatch?.cancel()
+        successfulPlaybackWatch = null
         try {
             player.controls().stop()
             _isPlaying.value = false
@@ -177,12 +235,49 @@ class VLCPlayback internal constructor(
     }
 
     private suspend fun selectInternal(index: Int, start: Boolean) {
+        val traversal = PlaybackFailureTraversal()
+        val direction = currentCoroutineContext()[PlaybackNavigationContext]?.direction ?: PlaybackDirection.Forward
+        traversal.begin(direction)
+        var target = index
+        var originalFailure: Exception? = null
+        while (true) {
+            val state = queue.stateSnapshot()
+            traversal.observeQueue(state.list.map { it.playbackId })
+            try {
+                selectOneInternal(target, start)
+                return
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                // Paused preparation and non-loading command failures must not start other songs.
+                if (!start || loadedMediaKey != null || target !in state.list.indices) throw failure
+                if (originalFailure == null) originalFailure = failure
+                currentCoroutineContext().ensureActive()
+                if (queue.stateSnapshot().list != state.list) throw failure
+                val next = traversal.next(traversal.generation, state.list.size, target, playbackMode.value) { slot ->
+                    val candidate = state.list[slot]
+                    candidate.available && platformMediaSource.findEnabledSource(candidate.mediaSourceName)
+                        ?.contentState?.value?.isReady == true
+                }
+                if (next == null) {
+                    try { stopInternal() } catch (stopFailure: Exception) {
+                        if (stopFailure is CancellationException) throw stopFailure
+                        originalFailure.addSuppressed(stopFailure)
+                    }
+                    throw originalFailure
+                }
+                target = next
+            }
+        }
+    }
+
+    private suspend fun selectOneInternal(index: Int, start: Boolean) {
         logger.i { "skipTo $index start=$start" }
         try {
             val state = queue.stateSnapshot()
             val targetItem = state.list.getOrNull(index)
                 ?: throw Exception("Invalid index")
-            if (loadedMediaKey == targetItem.mediaKey) {
+            if (loadedMediaKey == targetItem.mediaKey && player.media().isValid) {
                 seekInternal(0)
                 queue.update { switchTo(index) }
                 prepareSurpriseNext()
@@ -194,7 +289,7 @@ class VLCPlayback internal constructor(
                 prepareSurpriseNext()
 
                 dataTracker.onMediaItemTransition(
-                    mediaId = targetItem.id,
+                    mediaId = targetItem.playbackId,
                     title = targetItem.title,
                     isRepeating = oldItem?.mediaKey == targetItem.mediaKey,
                     isNormalTransition = oldItem?.mediaKey != targetItem.mediaKey

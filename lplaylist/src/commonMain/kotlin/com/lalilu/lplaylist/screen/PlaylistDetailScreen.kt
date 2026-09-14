@@ -151,7 +151,7 @@ data class PlaylistDetailScreen(
                     longClick = { true },
                     color = { Color(0xFFF5381D) },
                     onAction = {
-                        val ids = vm.selector.selected().map { it.id }
+                        val ids = vm.selector.selected().map { it.playbackId }
                         vm.intent(PlaylistDetailAction.RemoveItems(ids))
                     }
                 ),

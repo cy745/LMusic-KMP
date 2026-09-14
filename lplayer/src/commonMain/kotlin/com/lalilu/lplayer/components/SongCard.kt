@@ -34,6 +34,8 @@ fun SongCard(
     title: String = "",
     subtitle: String = "",
     extraText: String = "",
+    enabled: Boolean = true,
+    failureReason: String? = null,
     onClick: () -> Unit = {},
     onLongClick: ((SharedMap) -> Unit)? = null,
 ) = SharedContext(
@@ -52,8 +54,10 @@ fun SongCard(
 
     Row(
         modifier = modifier
+            .alpha(if (enabled) 1f else 0.38f)
             .fillMaxWidth()
             .combinedClickable(
+                enabled = enabled,
                 onClick = onClick,
                 onLongClick = { onLongClick?.invoke(sharedMap) }
             )
@@ -73,6 +77,7 @@ fun SongCard(
                     .aspectRatio(1f)
                     .sharedElementV2("COVER")
                     .combinedClickable(
+                        enabled = enabled,
                         interactionSource = interaction,
                         indication = null,
                         onLongClick = {
@@ -120,6 +125,13 @@ fun SongCard(
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                 }
+            }
+            if (failureReason != null) {
+                Text(
+                    text = "播放失败 · $failureReason · 点击重试",
+                    color = androidx.compose.ui.graphics.Color(0xFFD84343),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }

@@ -38,7 +38,7 @@ import org.koin.core.annotation.Named
  * | `lplayer_handleAudioFocus`                | Switch    | `LPlayerKV.handleAudioFocus`    |
  * | `lplayer_handleBecomeNoisy`               | Switch    | `LPlayerKV.handleBecomeNoisy`   |
  * | `lplayer_playMode`                        | Dropdown  | `LPlayerKV.playMode` (String)   |
- * | `lplayer.clear_history_position`          | Click     | 无，点击时重置 `LPlayerKV.historyPlayPosition` |
+ * | `lplayer.clear_history_position`          | Click     | 请求下次恢复时将进度归零，不改变当前播放 |
  */
 @Factory
 @Named("settings_lplayer")
@@ -68,6 +68,7 @@ fun provideLPlayerSettings(): SettingsGroup = settingsGroup(
         options = PlayMode.entries,
         optionLabel = { mode ->
             when (mode) {
+                PlayMode.Sequential -> "顺序播放"
                 PlayMode.ListRecycle -> "列表循环"
                 PlayMode.RepeatOne   -> "单曲循环"
                 PlayMode.Shuffle     -> "随机播放"
@@ -82,7 +83,7 @@ fun provideLPlayerSettings(): SettingsGroup = settingsGroup(
         title = { "清除播放进度记录" },
         summary = { "下次启动将从头开始播放" },
         onClick = { ctx ->
-            LPlayerKV.historyPlayPosition.value = 0L
+            com.lalilu.lplayer.playback.HistoryStorageImpl().requestPositionReset()
             // 仅在业务侧注入了真实 Toaster 时才反馈（默认 NoOpToaster）
             (ctx.toaster.takeIf { it !== NoOpToaster })?.info("已清除")
         }

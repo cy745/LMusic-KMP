@@ -65,4 +65,26 @@ internal class PlatformQueueBridge(
             replaceAll(items, index)
         }
     }
+
+    /** Caller owns native replacement. Check and apply on its native thread without an IO patch. */
+    suspend fun editAndApplyIf(
+        predicate: (QueueState) -> Boolean,
+        block: QueueUpdateRequest.() -> Unit,
+        apply: (QueueState) -> Unit,
+    ): Boolean = mutex.withLock {
+        var changed = false
+        backing.update(predicate = predicate) {
+            block()
+            changed = true
+        }
+        if (!changed) return@withLock false
+        newPlatformSnapshot()
+        try {
+            apply(backing.stateSnapshot())
+        } finally {
+            newPlatformSnapshot()
+            readPlatformAfterApply()
+        }
+        true
+    }
 }

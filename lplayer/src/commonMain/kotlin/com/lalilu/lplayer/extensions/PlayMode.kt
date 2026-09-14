@@ -3,7 +3,8 @@ package com.lalilu.lplayer.extensions;
 enum class PlayMode(val index: Int) {
     ListRecycle(0),
     RepeatOne(1),
-    Shuffle(2);
+    Shuffle(2),
+    Sequential(3);
 
     companion object {
         fun indexOf(index: Int): PlayMode {

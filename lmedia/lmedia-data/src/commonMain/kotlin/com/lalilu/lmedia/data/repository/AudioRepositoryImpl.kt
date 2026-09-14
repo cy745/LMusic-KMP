@@ -23,12 +23,14 @@ class AudioRepositoryImpl(
 
     override fun getAudios(ids: List<String>): Flow<List<LAudio>> =
         audioDao.getAudios(ids).mapLatest { list ->
-            val audioById = list.associateBy { it.id }
-            ids.mapNotNull { id -> audioById[id]?.toDomain() }
+            list.map { it.toDomain() }
         }
 
     override fun getAudio(id: String): Flow<LAudio?> =
         audioDao.getAudio(id).mapLatest { it?.toDomain() }
+
+    override fun getAudiosByPlaybackIds(playbackIds: List<String>): Flow<List<LAudio>> =
+        audioDao.getAudiosByPlaybackIds(playbackIds).mapLatest { rows -> rows.map { it.toDomain() } }
 
     override suspend fun clearUnavailableAudio() {
         database.mediaDao().clearUnavailableMedia(

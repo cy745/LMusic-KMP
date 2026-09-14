@@ -1,6 +1,8 @@
 package com.lalilu.lmusic.external
 
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
 import com.lalilu.lmedia.domain.repository.SnapshotCommitState
 import com.lalilu.lmedia.domain.repository.SourceStatus
 import kotlinx.coroutines.async
@@ -16,6 +18,21 @@ import kotlin.test.assertFalse
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ExternalAudioCommitTest {
     private val target = LAudio(id = "song", mediaSourceName = "sandbox")
+    @Test fun sourceQualifiedLookupConfirmsRenameDespiteAmbiguousRawId() = runTest {
+        val renamed = target.copy(extra = mapOf("path" to "/new.mp3"))
+        val other = target.copy(mediaSourceName = "other", extra = mapOf("path" to "/other.mp3"))
+        val repository = object : AudioRepository {
+            override fun getAudios() = flowOf(listOf(other, renamed))
+            override fun getAudios(ids: List<String>) = error("Must use qualified lookup")
+            override fun getAudio(id: String) = error("Raw ID is ambiguous")
+            override fun getAudiosByPlaybackIds(playbackIds: List<String>) =
+                flowOf(listOf(other, renamed).filter { it.playbackId in playbackIds })
+            override suspend fun clearUnavailableAudio() = Unit
+        }
+        assertEquals(renamed, awaitExternalAudioCommit(target, 4, flowOf(committed(4)),
+            repository.getAudioByPlaybackId(target.playbackId), expectedPath = "/new.mp3"))
+    }
+
     private fun committed(revision: Long) = SourceStatus(
         commitState = SnapshotCommitState.Committed(revision),
     )

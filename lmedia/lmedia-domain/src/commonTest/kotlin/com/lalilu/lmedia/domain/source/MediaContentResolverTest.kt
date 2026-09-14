@@ -14,6 +14,18 @@ import kotlin.test.assertNull
 @OptIn(ExperimentalCoroutinesApi::class)
 class MediaContentResolverTest {
     @Test
+    fun readySourceWithMissingSongIsNotASourceReadinessFailure() = runTest {
+        val target = FakeSource("target")
+        target.store.content.ready()
+        assertFailsWith<AudioMediaMissingException> {
+            PlatformMediaSource(listOf(target)).resolveMediaData(
+                LAudio(id = "missing", mediaSourceName = "target")
+            )
+        }
+        assertEquals(1, target.mediaRequests)
+    }
+
+    @Test
     fun onlyTargetSourceReadinessIsRequired() = runTest {
         val unrelated = FakeSource("slow")
         unrelated.store.content.preparing(preserveReady = false)

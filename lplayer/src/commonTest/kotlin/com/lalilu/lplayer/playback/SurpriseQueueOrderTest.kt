@@ -9,6 +9,22 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class SurpriseQueueOrderTest {
+    @Test fun preparingAgainAfterTransitionKeepsPreviousSongEvenInSmallQueues() = runTest {
+        for (size in 2..8) for (start in 0 until size) for (seed in 0..20) {
+            val items = (0 until size).map { LAudio(id = "$it", mediaSourceName = "local") }
+            val queue = PlayableQueueImpl()
+            queue.update { replaceAll(items, start); prepareSurpriseNext(Random(seed)) }
+            val oldCurrent = queue.currentItem()
+            queue.update { switchTo(SurpriseQueueOrder.nextIndex(size, start)) }
+            val newCurrent = queue.currentItem()
+            queue.update { prepareSurpriseNext(Random(seed + 1)) }
+            val visible = queue.stateSnapshot().rearrange()
+            assertEquals(newCurrent, visible[0], "size=$size start=$start seed=$seed")
+            assertEquals(oldCurrent, visible[1], "size=$size start=$start seed=$seed")
+            assertEquals(items.toSet(), visible.toSet())
+        }
+    }
+
     @Test fun newSongAppearsAboveOldCurrentWithoutChangingMembership() = runTest {
         val original = (0..19).map { LAudio(id = "$it", mediaSourceName = "local") }
         for (start in original.indices) {

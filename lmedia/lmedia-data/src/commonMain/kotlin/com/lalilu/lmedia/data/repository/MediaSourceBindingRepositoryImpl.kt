@@ -105,6 +105,12 @@ class MediaSourceBindingRepositoryImpl(
                     }
                     .launchIn(scope)
 
+                source.contentState
+                    .onEach { content ->
+                        updateStatus(source.name) { it.copy(contentAvailability = content.availability) }
+                    }
+                    .launchIn(scope)
+
                 source.snapshot
                     .filterNotNull()
                     .distinctUntilChangedBy { it.revision }

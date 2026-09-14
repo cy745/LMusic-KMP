@@ -25,6 +25,9 @@ import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.lmedia.rememberMediaCoverRequest
+import com.lalilu.lmedia.audioPlaybackStatus
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.AudioPlaybackPresentation
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 
@@ -36,6 +39,7 @@ fun RecommendCard(
     title: String,
     subTitle: String,
     imageData: Any = Unit,
+    enabled: Boolean = true,
     onClick: (SharedMap) -> Unit = {}
 ) {
     SharedContext(
@@ -50,10 +54,19 @@ fun RecommendCard(
     ) {
         val interactionSource = remember { MutableInteractionSource() }
         val coverData = rememberMediaCoverRequest(imageData)
+        val status = (imageData as? LAudio)?.let { audioPlaybackStatus(it) }
+        val failure = status as? AudioPlaybackPresentation.Failed
+        val canInteract = when (status) {
+            AudioPlaybackPresentation.SourceNotReady -> false
+            is AudioPlaybackPresentation.Failed -> true
+            else -> enabled
+        }
 
         Column(
             modifier = modifier
+                .alpha(if (canInteract) 1f else 0.38f)
                 .clickable(
+                    enabled = canInteract,
                     interactionSource = interactionSource,
                     indication = null,
                     onClick = { onClick(sharedMap) }
@@ -71,6 +84,7 @@ fun RecommendCard(
                         shape = RoundedCornerShape(12.dp)
                     )
                     .clickable(
+                        enabled = canInteract,
                         interactionSource = interactionSource,
                         onClick = { onClick(sharedMap) }
                     )
@@ -98,6 +112,13 @@ fun RecommendCard(
                 color = MaterialTheme.colorScheme.onBackground,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (failure != null) {
+                Text(
+                    text = "播放失败 · ${failure.reason.displayMessage}",
+                    color = androidx.compose.ui.graphics.Color(0xFFD84343),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }

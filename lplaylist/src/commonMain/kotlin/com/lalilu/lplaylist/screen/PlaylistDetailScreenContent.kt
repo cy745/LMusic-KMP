@@ -17,6 +17,7 @@ import com.lalilu.RemixIcon
 import org.jetbrains.compose.resources.vectorResource
 import com.lalilu.extensions.*
 import com.lalilu.lmedia.component.AudioItemCard
+import com.lalilu.lmedia.isAudioPlayable
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.sortable.GroupId
 import com.lalilu.lmedia.sortable.SortResult
@@ -67,8 +68,8 @@ internal fun PlaylistDetailScreenContent(
         lazyListState = listState
     ) { from, to ->
         playlistState.toMutableList().apply {
-            val toIndex = indexOfFirst { it.id == to.key }
-            val fromIndex = indexOfFirst { it.id == from.key }
+            val toIndex = indexOfFirst { it.playbackId == to.key }
+            val fromIndex = indexOfFirst { it.playbackId == from.key }
             if (toIndex < 0 || fromIndex < 0) return@rememberReorderableLazyListState
 
             add(toIndex, removeAt(fromIndex))
@@ -141,21 +142,22 @@ internal fun PlaylistDetailScreenContent(
             if (enableDraggable) {
                 items(
                     items = playlistState,
-                    key = { it.id },
+                    key = { it.playbackId },
                     contentType = { it::class }
                 ) { item ->
                     ReorderableItem(
                         state = reorderableState,
-                        key = item.id
+                        key = item.playbackId
                     ) { isDragging ->
                         AudioItemCard(
                             modifier = Modifier.fillMaxWidth(),
                             coverModifier = Modifier
-                                .draggableHandle(onDragStopped = { onUpdatePlaylist(playlistState.map { it.id }) }),
-                            id = item.id,
+                                .draggableHandle(onDragStopped = { onUpdatePlaylist(playlistState.map { it.playbackId }) }),
+                            id = item.playbackId,
                             title = item.title,
                             subtitle = item.subtitle,
                             imageData = item,
+                            enabled = isAudioPlayable(item),
                             isSelecting = { selector().isSelecting.value },
                             isSelected = { selector().isSelected(item) },
                             onEnterSelect = { selector().onSelect(item) },
@@ -165,7 +167,7 @@ internal fun PlaylistDetailScreenContent(
                                     val list = playlist?.mediaIds ?: emptyList()
                                     PlayerAction.UpdateList(
                                         ids = list,
-                                        id = item.id,
+                                        id = item.playbackId,
                                         start = true
                                     ).action()
                                 }
@@ -174,7 +176,7 @@ internal fun PlaylistDetailScreenContent(
                                 val coverMemoryKey = context.retrieveCacheKey(item)
 
                                 AppRouter.route("/song/detail")
-                                    .with("mediaId", item.id)
+                                    .with("mediaId", item.playbackId)
                                     .with("song", item)
                                     .with("coverCacheKey", coverMemoryKey)
                                     .with("sharedMap", sharedMap)
@@ -206,7 +208,7 @@ internal fun PlaylistDetailScreenContent(
 
                     itemsIndexed(
                         items = items,
-                        key = { index, item -> item.id },
+                        key = { index, item -> item.playbackId },
                         contentType = { index, item -> item::class }
                     ) { index, item ->
                         val extra = extras.getOrNull(index)
@@ -215,11 +217,12 @@ internal fun PlaylistDetailScreenContent(
                             modifier = Modifier
                                 .animateItem()
                                 .fillMaxWidth(),
-                            id = item.id,
+                            id = item.playbackId,
                             title = item.title,
                             subtitle = item.subtitle,
                             imageData = item,
                             isSelecting = { selector().isSelecting.value },
+                            enabled = isAudioPlayable(item),
                             isSelected = { selector().isSelected(item) },
                             onEnterSelect = { selector().onSelect(item) },
                             onSelect = { selector().onSelect(item) },
@@ -228,7 +231,7 @@ internal fun PlaylistDetailScreenContent(
                                     val list = playlist?.mediaIds ?: emptyList()
                                     PlayerAction.UpdateList(
                                         ids = list,
-                                        id = item.id,
+                                        id = item.playbackId,
                                         start = true
                                     ).action()
                                 }
@@ -237,7 +240,7 @@ internal fun PlaylistDetailScreenContent(
                                 val coverMemoryKey = context.retrieveCacheKey(item)
 
                                 AppRouter.route("/song/detail")
-                                    .with("mediaId", item.id)
+                                    .with("mediaId", item.playbackId)
                                     .with("song", item)
                                     .with("coverCacheKey", coverMemoryKey)
                                     .with("sharedMap", sharedMap)

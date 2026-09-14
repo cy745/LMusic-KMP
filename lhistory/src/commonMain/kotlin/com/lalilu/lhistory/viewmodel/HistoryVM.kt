@@ -8,6 +8,7 @@ import androidx.paging.cachedIn
 import com.lalilu.extensions.toState
 import com.lalilu.lhistory.repository.HistoryRepository
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.getPlaybackSlots
 import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.firstOrNull
@@ -28,7 +29,7 @@ class HistoryVM(
             val ids = map.toList()
                 .sortedByDescending { it.second }
                 .map { it.first }
-            audioRepository.getAudios(ids)
+            audioRepository.getPlaybackSlots(ids).map { it.filterNotNull() }
         }.map { list -> list.map { it }.take(6) }
         .toState(emptyList(), viewModelScope)
 

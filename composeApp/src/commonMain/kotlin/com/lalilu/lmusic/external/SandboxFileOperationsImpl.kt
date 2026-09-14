@@ -3,11 +3,13 @@ package com.lalilu.lmusic.external
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.repository.SnapshotCommitState
 import com.lalilu.lmedia.source.sandbox.SandboxFileOperations
 import com.lalilu.lmedia.source.sandbox.SandboxMediaSource
 import com.lalilu.lplayer.LPlayer
+import com.lalilu.lplayer.playback.QueueRemovalRecovery
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeout
@@ -27,7 +29,7 @@ class SandboxFileOperationsImpl(
                     expected = target,
                     revision = snapshot.revision,
                     statuses = bindingRepository.observeSource(source.name),
-                    persisted = audioRepository.getAudio(target.id),
+                    persisted = audioRepository.getAudioByPlaybackId(target.playbackId),
                     expectedPath = path,
                 )
                 withTimeout(30_000) {
@@ -42,10 +44,11 @@ class SandboxFileOperationsImpl(
 
     override suspend fun delete(source: SandboxMediaSource, audio: LAudio) {
         bindingRepository.withEnabledSource(source.name) {
+            val queueRemoval = QueueRemovalRecovery(LPlayer.instance, setOf(audio.mediaKey))
             source.delete(audio) { snapshot ->
                 val restored = snapshot.audios.any { it.mediaKey == audio.mediaKey }
                 withTimeout(30_000) {
-                    combine(bindingRepository.observeSource(source.name), audioRepository.getAudio(audio.id)) { status, row ->
+                    combine(bindingRepository.observeSource(source.name), audioRepository.getAudioByPlaybackId(audio.playbackId)) { status, row ->
                         when (val commit = status?.commitState) {
                             is SnapshotCommitState.Failed -> {
                                 if (commit.revision >= snapshot.revision) error("写入媒体库失败：${commit.message}")
@@ -60,10 +63,9 @@ class SandboxFileOperationsImpl(
                     }.first { it }
                 }
                 if (!restored) {
-                    LPlayer.instance.editQueue { removeAll(setOf(audio.mediaKey)) }
-                    check(LPlayer.instance.queue.stateSnapshot().list.none { it.mediaKey == audio.mediaKey }) {
-                        "歌曲仍在播放队列中，删除已取消"
-                    }
+                    queueRemoval.remove()
+                } else {
+                    queueRemoval.restore(snapshot.audios)
                 }
             }
         }

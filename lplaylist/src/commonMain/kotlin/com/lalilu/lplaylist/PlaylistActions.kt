@@ -75,7 +75,7 @@ fun provideAddToPlaylistAction(
         val items = selectedItems()
 
         AppRouter.route("/playlist/add")
-            .with("mediaIds", items.map { it.id })
+            .with("mediaIds", items.map { it.playbackId })
             .jump()
     }
 )
@@ -90,7 +90,7 @@ fun provideAddToFavouriteAction(
     icon = { RemixIcon.HealthAndMedical.heart3Line },
     color = { MaterialTheme.colorScheme.primary },
     onAction = { context ->
-        val items = selectedItems().map { it.id }
+        val items = selectedItems().map { it.playbackId }
         if (items.isEmpty()) {
             context.onDismiss()
             GlobalToaster?.show("请先选中歌曲")

@@ -147,7 +147,7 @@ class AlbumDetailVM(
             }
 
             is AlbumDetailAction.LocaleToPlayingItem -> {
-                val mediaId = LPlayer.instance.queue.currentItem()?.id ?: run {
+                val mediaId = LPlayer.instance.queue.currentItem()?.playbackId ?: run {
                     Logger.e(tag = TAG, messageString = "can not find playing item's mediaId")
                     return@launch
                 }

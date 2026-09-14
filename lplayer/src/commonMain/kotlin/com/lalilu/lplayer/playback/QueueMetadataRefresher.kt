@@ -29,7 +29,7 @@ internal fun CoroutineScope.startQueueMetadataRefresh(
     .distinctUntilChanged()
     .filter { it.isNotEmpty() }
     .flatMapLatest { ids ->
-        audioRepository.getAudios(ids.map { it.id }).map { audios -> ids to audios }
+        audioRepository.getAudiosByPlaybackIds(ids.map { it.stableKey }).map { audios -> ids to audios }
     }
     .onEach { (observedIds, refreshed) ->
         val current = queue.stateSnapshot()
