@@ -15,7 +15,13 @@ group = "com.lalilu.llyric"
 version = "1.0.0"
 
 kotlin {
-    setupMultiplatform()
+    setupMultiplatform(
+        setupJvmTarget = {
+            testRuns["test"].executionTask.configure {
+                useJUnitPlatform()
+            }
+        }
+    )
     setupKoin()
 
     sourceSets {

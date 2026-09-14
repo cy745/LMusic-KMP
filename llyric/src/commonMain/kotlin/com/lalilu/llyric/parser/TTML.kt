@@ -73,8 +73,9 @@ data class TTMLHead(
 
 @Serializable
 data class TTMLBody(
+    // 容器可以省略时间属性，逐句/逐字时间由子节点提供。
     @XmlSerialName(value = "dur")
-    val dur: String,
+    val dur: String? = null,
     @XmlValue
     @XmlSerialName(value = "div")
     val div: List<TTMLDiv> = emptyList()
@@ -83,9 +84,9 @@ data class TTMLBody(
 @Serializable
 data class TTMLDiv(
     @XmlSerialName("begin")
-    val begin: String,
+    val begin: String? = null,
     @XmlSerialName("end")
-    val end: String,
+    val end: String? = null,
     @XmlSerialName(
         value = "songPart",
         prefix = "itunes",

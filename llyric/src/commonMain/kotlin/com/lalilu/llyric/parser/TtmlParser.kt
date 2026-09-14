@@ -87,9 +87,12 @@ object TtmlParser : LyricParser {
 
         return divs.map { div ->
             val songPart = div.songPart?.takeIf { it.isNotBlank() }?.let {
+                val startTime = div.begin?.takeIf { it.isNotBlank() }?.let(::parseTime)
+                    ?: div.p.minOfOrNull { sentence -> parseTime(sentence.begin) }
+                    ?: 0L
                 LyricItem.FixedTips(
                     content = it.replace("__AND__", "&"),
-                    time = parseTime(div.begin),
+                    time = startTime,
                     key = "${randomKeyPrefix}_${it}_${div.begin}"
                 )
             }
