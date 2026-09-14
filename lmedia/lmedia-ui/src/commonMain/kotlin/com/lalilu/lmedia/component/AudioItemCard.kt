@@ -25,6 +25,9 @@ import coil3.compose.AsyncImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.buildSharedMap
 import com.lalilu.lmedia.rememberMediaCoverRequest
+import com.lalilu.lmedia.audioPlaybackStatus
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.AudioPlaybackPresentation
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 
@@ -37,6 +40,7 @@ fun AudioItemCard(
     title: String,
     subtitle: String,
     imageData: Any = Unit,
+    enabled: Boolean = true,
     isSelecting: () -> Boolean = { false },
     isSelected: () -> Boolean = { false },
     onEnterSelect: () -> Unit = {},
@@ -51,6 +55,13 @@ fun AudioItemCard(
     )
 ) {
     val coverData = rememberMediaCoverRequest(imageData)
+    val playbackStatus = (imageData as? LAudio)?.let { audioPlaybackStatus(it) }
+    val failure = playbackStatus as? AudioPlaybackPresentation.Failed
+    val canInteract = when (playbackStatus) {
+        AudioPlaybackPresentation.SourceNotReady -> false
+        is AudioPlaybackPresentation.Failed -> true
+        else -> enabled
+    }
     val selectionColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
     val bgColor by animateColorAsState(
         targetValue = if (isSelected()) selectionColor else Color.Transparent,
@@ -59,9 +70,11 @@ fun AudioItemCard(
 
     Row(
         modifier = modifier
+            .alpha(if (canInteract) 1f else 0.38f)
             .clip(RoundedCornerShape(2.dp))
             .background(color = bgColor)
             .combinedClickable(
+                enabled = canInteract,
                 onClick = { if (isSelecting()) onSelect() else onPlay() },
                 onLongClick = { if (isSelecting()) onEnterSelect() else onNavigateToDetail(sharedMap) }
             )
@@ -91,6 +104,13 @@ fun AudioItemCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onBackground
             )
+            if (failure != null) {
+                Text(
+                    text = "播放失败 · ${failure.reason.displayMessage} · 点击重试",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFD84343),
+                )
+            }
         }
 
         AsyncImage(
@@ -106,6 +126,7 @@ fun AudioItemCard(
                 )
                 .background(MaterialTheme.colorScheme.onBackground.copy(0.15f))
                 .combinedClickable(
+                    enabled = canInteract,
                     onClick = { if (isSelecting()) onSelect() else onPlay() },
                     onLongClick = { onEnterSelect() }
                 ),

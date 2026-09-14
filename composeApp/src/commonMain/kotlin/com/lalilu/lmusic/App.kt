@@ -42,6 +42,12 @@ import com.lalilu.LMusicTheme
 import com.lalilu.ScreenModeHandler
 import com.lalilu.component.rememberCupertinoOverscrollEffectFactory
 import com.lalilu.extensions.DialogWrapper
+import com.lalilu.extensions.DynamicTipsHost
+import com.lalilu.lmedia.LocalMediaSourceStatuses
+import com.lalilu.lmedia.LocalPlaybackFailures
+import com.lalilu.lmedia.domain.repository.PlaybackFailureRepository
+import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
+import com.lalilu.lmusic.component.SourceRecoveryPresenter
 import com.lalilu.extensions.ProvideLocalToaster
 import com.lalilu.lfont.manager.FontManager
 import com.lalilu.lmusic.screen.BottomBarApplier
@@ -98,6 +104,12 @@ fun App() = ScreenModeHandler {
 
     val fontManager = koinInject<FontManager>()
     val fontState by fontManager.state.collectAsState()
+    val sourceRepository = koinInject<MediaSourceBindingRepository>()
+    val sourceStatuses by sourceRepository.states.collectAsState()
+    val failureRepository = koinInject<PlaybackFailureRepository>()
+    val playbackFailures by failureRepository.failures.collectAsState(emptyMap())
+    val recoveryPresenter = koinInject<SourceRecoveryPresenter>()
+    val recoveryNotice by recoveryPresenter.state.collectAsState()
 
     LMusicTheme(
         globalFontFamily = fontState.globalFont,
@@ -111,6 +123,8 @@ fun App() = ScreenModeHandler {
                 )
 
                 CompositionLocalProvider(
+                    LocalMediaSourceStatuses provides sourceStatuses,
+                    LocalPlaybackFailures provides playbackFailures,
                     LocalSharedTransitionScope provides this,
                     LocalBackStack provides backStack,
                     LocalOverscrollFactory provides rememberCupertinoOverscrollEffectFactory()
@@ -143,6 +157,12 @@ fun App() = ScreenModeHandler {
                             }
 
                             DialogWrapper.Content()
+                            DynamicTipsHost(
+                                visible = recoveryNotice.visible,
+                                title = "正在恢复数据源 · ${recoveryNotice.remainingSeconds} 秒",
+                                subtitle = "还有 ${recoveryNotice.pendingSources.size} 个来源正在恢复，灰色歌曲暂不可用。关闭后仍会继续恢复。",
+                                onDismiss = recoveryPresenter::dismiss,
+                            )
                         }
                     }
                 }

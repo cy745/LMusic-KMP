@@ -11,10 +11,10 @@ import androidx.media3.datasource.DefaultDataSource
 import com.lalilu.common.ext.io
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.resolveMediaData
-import io.ktor.http.decodeURLPart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -50,12 +50,11 @@ class LMediaDataSource(
             return defaultDataSource.open(dataSpec)
         }
 
-        val id = uri?.getQueryParameter("id")
-            ?.decodeURLPart()
+        val id = uri?.getQueryParameter("playbackId")
 
         val audioRepo = KoinPlatform.getKoin().get<AudioRepository>()
-        val domainItem = id?.let { runBlocking(Dispatchers.IO) { audioRepo.getAudio(id).first() } }
-            ?: return defaultDataSource.open(dataSpec)
+        val domainItem = id?.let { runBlocking(Dispatchers.IO) { audioRepo.getAudioByPlaybackId(id).first() } }
+            ?: throw java.io.IOException("Requested playback item is unavailable")
 
         val data = runBlocking(Dispatchers.io) {
             platformMediaSource.resolveMediaData(domainItem)

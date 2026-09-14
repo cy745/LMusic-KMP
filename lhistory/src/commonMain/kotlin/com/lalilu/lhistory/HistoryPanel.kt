@@ -23,6 +23,7 @@ import com.lalilu.component.LazyGridContent
 import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lhistory.viewmodel.HistoryVM
 import com.lalilu.lmedia.component.AudioItemCard
+import com.lalilu.lmedia.isAudioPlayable
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
 import kotlinx.coroutines.launch
@@ -95,21 +96,22 @@ class HistoryPanel : LazyGridContent {
                         config = { repeat(columnsValue.value) { column(1.fr) } }
                     ) {
                         items.forEach { audio ->
-                            key(audio.id) {
+                            key(audio.playbackId) {
                                 AudioItemCard(
                                     modifier = Modifier.fillMaxWidth()
                                         .animateBounds(this@lookaheadScope),
                                     sharedMapPrefix = "history_panel",
-                                    id = audio.id,
+                                    id = audio.playbackId,
                                     title = audio.title,
                                     subtitle = audio.subtitle,
                                     imageData = audio,
+                                    enabled = isAudioPlayable(audio),
                                     onPlay = {
                                         vm.getHistoryPlayedIds { list ->
                                             scope.launch {
                                                 PlayerAction.UpdateList(
                                                     ids = list,
-                                                    id = audio.id,
+                                                    id = audio.playbackId,
                                                     start = true
                                                 ).action()
                                             }
@@ -119,7 +121,7 @@ class HistoryPanel : LazyGridContent {
                                         val coverMemoryKey = context.retrieveCacheKey(audio)
 
                                         AppRouter.route("/song/detail")
-                                            .with("mediaId", audio.id)
+                                            .with("mediaId", audio.playbackId)
                                             .with("song", audio)
                                             .with("coverCacheKey", coverMemoryKey)
                                             .with("sharedMap", sharedMap)

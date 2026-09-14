@@ -20,7 +20,7 @@ fun Any.toFallbackSortable(): Sortable = object : Sortable {
         @Suppress("UNCHECKED_CAST")
         return when (val self = this@toFallbackSortable) {
             is LAudio -> when (key) {
-                Sortable.COMPARE_KEY_ID -> self.id
+                Sortable.COMPARE_KEY_ID -> self.playbackId
                 Sortable.COMPARE_KEY_TITLE -> self.title
                 Sortable.COMPARE_KEY_SUB_TITLE -> self.artistName
                 Sortable.COMPARE_KEY_DURATION -> self.duration

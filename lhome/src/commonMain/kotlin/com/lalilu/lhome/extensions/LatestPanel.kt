@@ -21,6 +21,7 @@ import com.lalilu.lhome.component.RecommendCard
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
+import com.lalilu.lmedia.isAudioPlayable
 import com.lalilu.navigation.AppRouter
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -79,15 +80,16 @@ object LatestPanel : LazyGridContent {
                 ) { item ->
                     RecommendCard(
                         modifier = Modifier.width(120.dp),
-                        id = item.id,
+                        id = item.playbackId,
                         title = item.title,
                         subTitle = item.subtitle,
                         imageData = item,
+                        enabled = isAudioPlayable(item),
                         onClick = { sharedMap ->
                             val coverMemoryKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/song/detail")
-                                .with("mediaId", item.id)
+                                .with("mediaId", item.playbackId)
                                 .with("song", item)
                                 .with("sharedMap", sharedMap)
                                 .with("coverCacheKey", coverMemoryKey)

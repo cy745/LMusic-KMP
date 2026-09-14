@@ -5,8 +5,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.lalilu.lmusic.component.PlayingInfoCard
 import com.lalilu.lplayer.LPlayer
+import com.lalilu.lplayer.action.PlayerAction
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 
 @Composable
@@ -14,7 +14,6 @@ fun PlayingInfoCardImpl(
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
-    val scope = rememberCoroutineScope()
     val currentPlaying = remember { LPlayer.instance.queue.currentItemFlow() }
         .collectAsState(null)
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
@@ -39,8 +38,8 @@ fun PlayingInfoCardImpl(
         },
         isPlaying = { isPlaying.value },
         hasNext = { hasNext.value },
-        onClickPlayPause = { scope.launch { LPlayer.instance.togglePlayPause() } },
-        onClickNext = { scope.launch { LPlayer.instance.skipToNext() } },
+        onClickPlayPause = { PlayerAction.PlayOrPause.action() },
+        onClickNext = { PlayerAction.SkipToNext.action() },
         onClick = onClick,
     )
 }

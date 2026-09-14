@@ -40,6 +40,8 @@ import com.lalilu.lhistory.lhistory.generated.resources.Res
 import com.lalilu.lhistory.lhistory.generated.resources.history_screen_title
 import com.lalilu.lhistory.viewmodel.HistoryVM
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
+import com.lalilu.lmedia.isAudioPlayable
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.Screen
@@ -117,12 +119,13 @@ private fun HistoryScreenContent(
         ) { index ->
             val item = items[index]
             val audioRepo = org.koin.compose.koinInject<AudioRepository>()
-            val audio = remember(item) { item?.contentId?.let { audioRepo.getAudio(it) } }
+            val audio = remember(item) { item?.contentId?.let { audioRepo.getAudioByPlaybackId(it) } }
                 ?.collectAsStateWithLifecycle(null)
 
             HistoryItemCard(
                 modifier = Modifier.animateItem(),
                 imageData = { audio?.value },
+                enabled = audio?.value?.let { isAudioPlayable(it) } == true,
                 title = { item?.contentTitle ?: "" },
                 startTime = { item?.startTime ?: Clock.System.now().toEpochMilliseconds() },
                 duration = { item?.duration ?: 0 },

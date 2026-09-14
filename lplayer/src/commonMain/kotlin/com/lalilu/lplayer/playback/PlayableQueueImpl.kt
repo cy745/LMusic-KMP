@@ -1,6 +1,7 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,14 +32,15 @@ class PlayableQueueImpl : PlayableQueue {
 
     override fun previousOf(target: LAudio): LAudio? {
         return _rawQueue.value.list.run {
-            val index = indexOfFirst { it.id == target.id }
+            val index = indexOfFirst { it.mediaKey == target.mediaKey }
             getOrNull(index - 1)
         }
     }
 
     override fun nextOf(target: LAudio): LAudio? {
         return _rawQueue.value.list.run {
-            val index = indexOfFirst { it.id == target.id }
+            val index = indexOfFirst { it.mediaKey == target.mediaKey }
+            if (index < 0) return null
             getOrNull(index + 1)
         }
     }

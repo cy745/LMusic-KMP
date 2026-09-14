@@ -8,7 +8,8 @@ import com.lalilu.lplayer.service.CustomCommand.SeekToPrevious
 
 internal enum class CustomCommand(val action: String) {
     SeekToNext(action = "com.lalilu.lplayer.service.command.next"),
-    SeekToPrevious(action = "com.lalilu.lplayer.service.command.previous");
+    SeekToPrevious(action = "com.lalilu.lplayer.service.command.previous"),
+    PlayNext(action = "com.lalilu.lplayer.service.command.play_next");
 
     fun toSessionCommand(): SessionCommand = SessionCommand(action, Bundle.EMPTY)
 }
@@ -17,6 +18,7 @@ internal fun SessionCommand.toCustomCommendOrNull(): CustomCommand? {
     return when (customAction) {
         SeekToNext.action -> SeekToNext
         SeekToPrevious.action -> SeekToPrevious
+        CustomCommand.PlayNext.action -> CustomCommand.PlayNext
         else -> null
     }
 }

@@ -1,6 +1,7 @@
 package com.lalilu.lmedia.domain.usecase
 
 import com.lalilu.lmedia.domain.fake.FakeAudioRepository
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.util.createAudio
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -13,6 +14,18 @@ import kotlin.test.assertTrue
 class SearchAudiosUseCaseTest {
     private val repo = FakeAudioRepository()
     private val useCase = SearchAudiosUseCase(repo)
+
+    @Test fun qualifiedPlaylistFilterKeepsSourceAndOrder() = runTest {
+        val local = LAudio(id = "42", mediaSourceName = "local", title = "Local")
+        val remote = local.copy(mediaSourceName = "remote", title = "Remote")
+        repo.seed(local, remote)
+        assertEquals(listOf(remote, local, remote), useCase(
+            playbackIds = listOf(remote.playbackId, local.playbackId, remote.playbackId),
+        ).first())
+        assertEquals(listOf(remote), useCase(
+            playbackIds = listOf(local.playbackId, remote.playbackId), keywords = listOf("Remote"),
+        ).first())
+    }
 
     @BeforeTest
     fun setup() {

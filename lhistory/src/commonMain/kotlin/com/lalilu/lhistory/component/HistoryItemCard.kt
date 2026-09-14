@@ -27,6 +27,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.AndroidUiModes.UI_MODE_NIGHT_YES
@@ -39,6 +41,9 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.lalilu.preview.preview
+import com.lalilu.lmedia.audioPlaybackStatus
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.AudioPlaybackPresentation
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
@@ -51,10 +56,18 @@ fun HistoryItemCard(
     startTime: () -> Long = { Clock.System.now().toEpochMilliseconds() },
     repeatCount: () -> Int = { 0 },
     duration: () -> Long = { 0 },
+    enabled: Boolean = true,
     onLongClick: () -> Unit = {},
     onClick: () -> Unit = {}
 ) {
     val context = LocalPlatformContext.current
+    val playbackStatus = (imageData() as? LAudio)?.let { audioPlaybackStatus(it) }
+    val failure = playbackStatus as? AudioPlaybackPresentation.Failed
+    val canInteract = when (playbackStatus) {
+        AudioPlaybackPresentation.SourceNotReady -> false
+        is AudioPlaybackPresentation.Failed -> true
+        else -> enabled
+    }
     val data = remember(imageData()) {
         ImageRequest.Builder(context)
             .data(imageData())
@@ -64,8 +77,9 @@ fun HistoryItemCard(
 
     Row(
         modifier = modifier
+            .alpha(if (canInteract) 1f else 0.38f)
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(enabled = canInteract, onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -81,6 +95,14 @@ fun HistoryItemCard(
                 color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 14.sp
             )
+
+            if (failure != null) {
+                Text(
+                    text = "播放失败 · ${failure.reason.displayMessage} · 点击重试",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFD84343),
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

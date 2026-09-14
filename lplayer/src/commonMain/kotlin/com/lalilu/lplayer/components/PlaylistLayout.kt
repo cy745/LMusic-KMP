@@ -20,6 +20,10 @@ import com.lalilu.extensions.Item
 import com.lalilu.extensions.diff
 import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
+import com.lalilu.lmedia.isAudioPlayable
+import com.lalilu.lmedia.audioPlaybackStatus
+import com.lalilu.lmedia.domain.model.AudioPlaybackPresentation
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
@@ -46,13 +50,15 @@ fun PlaylistLayout(
         items.collect { list ->
             val newList = actualItems.diff(
                 items = list,
-                getId = { it.id },
-                isSameItem = { a, b -> a.id == b.id },
+                getId = { it.mediaKey.stableKey },
+                isSameItem = { a, b -> a.mediaKey == b.mediaKey },
                 isSameContent = { a, b ->
                     a.id == b.id
                             && a.title == b.title
                             && a.subtitle == b.subtitle
                             && a.mediaSourceName == b.mediaSourceName
+                            && a.available == b.available
+                            && a.extra == b.extra
                 }
             )
             val newListFirst = newList.firstOrNull()
@@ -100,21 +106,25 @@ fun PlaylistLayout(
                 else Color.Transparent
             )
             val data = item.data
+            val playbackStatus = audioPlaybackStatus(data)
+            val failure = playbackStatus as? AudioPlaybackPresentation.Failed
 
             SongCard(
                 modifier = Modifier
                     .animateItem()
                     .drawBehind { drawRect(color = bgColor.value) },
-                id = data.id,
+                id = data.playbackId,
                 imageData = data,
+                enabled = playbackStatus != AudioPlaybackPresentation.SourceNotReady,
+                failureReason = failure?.reason?.displayMessage,
                 title = data.title,
                 subtitle = data.subtitle,
-                onClick = { PlayerAction.PlayById(data.id).action() },
+                onClick = { PlayerAction.PlayByKey(data.mediaKey).action() },
                 onLongClick = { sharedMap ->
                     val coverMemoryKey = context.retrieveCacheKey(item)
 
                     AppRouter.route("/song/detail")
-                        .with("mediaId", data.id)
+                        .with("mediaId", data.playbackId)
                         .with("song", data)
                         .with("sharedMap", sharedMap)
                         .with("coverCacheKey", coverMemoryKey)

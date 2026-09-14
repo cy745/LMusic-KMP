@@ -234,17 +234,17 @@ class LMediaLMediaDaoTest {
             "source-owner",
         )
 
-        assertFailsWith<IllegalArgumentException> {
-            db.mediaDao().insert(
-                Snapshot(listOf(sourceAudio("source-collision", "source-other"))),
-                "source-other",
-            )
-        }
+        db.mediaDao().insert(
+            Snapshot(listOf(sourceAudio("source-collision", "source-other"))),
+            "source-other",
+        )
 
         assertEquals(
             "source-owner",
-            audioDao.getAudio("source-collision").firstOrNull()?.mediaSourceName,
+            db.mediaDao().getAudioBySource("source-owner").single().mediaSourceName,
         )
+        assertEquals(2, audioDao.getAudios(listOf("source-collision")).firstOrNull()?.size)
+        assertEquals(null, audioDao.getAudio("source-collision").firstOrNull())
     }
 
     @Test

@@ -39,7 +39,7 @@ class LMediaLGenreDaoTest {
 
         genreDao.insert(genre)
         audioDao.insert(audio)
-        genreDao.insertRelation(listOf(CrossRefLAudioXGenre(genreId = genre.id, songId = audio.id)))
+        genreDao.insertRelation(listOf(CrossRefLAudioXGenre(genreId = genre.id, songId = audio.playbackId)))
 
         val audios = genreDao.getAudiosByGenre("genre-2").firstOrNull()
         assertNotNull(audios)

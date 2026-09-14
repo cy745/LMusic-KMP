@@ -30,7 +30,7 @@ class ArtistRepositoryImpl(
         artistDao.getAudiosByArtist(artistId).mapLatest { list -> list.map { it.toDomain() } }
 
     override fun getAudioIdsByArtist(artistId: String): Flow<List<String>> =
-        artistDao.getAudiosByArtist(artistId).mapLatest { list -> list.map { it.id } }
+        artistDao.getAudiosByArtist(artistId).mapLatest { list -> list.map { it.playbackId } }
 
     override fun getArtistIdsByAudioIds(audioIds: List<String>): Flow<List<String>> =
         artistDao.getArtistIdsByAudioIds(audioIds)

@@ -33,7 +33,7 @@ class LMediaLAlbumDaoTest {
         val audio = LAudioEntity(id = "audio-album-q", title = "In Album", subtitle = "", mediaSourceName = "test")
 
         albumDao.insert(album)
-        albumDao.insertRelation(listOf(CrossRefLAudioXAlbum(album.id, audio.id)))
+        albumDao.insertRelation(listOf(CrossRefLAudioXAlbum(album.id, audio.playbackId)))
 
         // Need audioDao to insert the audio itself
         db.audioDao().insert(audio)

@@ -18,12 +18,63 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryRestoreSettlementTest {
+    @Test fun legacyHistoryWaitIsBoundedWithoutCancellingSources() = runTest {
+        val source = FakeSource("slow")
+        source.contentState.value = MediaContentState(availability = MediaContentAvailability.Preparing)
+        val settled = FakeBindingRepository(source).observeHistoryRestoreSettled()
+            .stateIn(backgroundScope, SharingStarted.Eagerly, false)
+        runCurrent()
+        advanceTimeBy(LEGACY_HISTORY_WAIT_MILLIS - 1)
+        runCurrent()
+        assertFalse(settled.value)
+        advanceTimeBy(1)
+        runCurrent()
+        assertTrue(settled.value)
+        assertTrue(source.contentState.value.availability == MediaContentAvailability.Preparing)
+    }
+
+    @Test fun knownTargetIsNotAbandonedBecauseLegacyDeadlineExpires() = runTest {
+        val source = FakeSource("target")
+        val settled = FakeBindingRepository(source).observeHistoryRestoreSettled("target")
+            .stateIn(backgroundScope, SharingStarted.Eagerly, false)
+        runCurrent()
+        advanceTimeBy(LEGACY_HISTORY_WAIT_MILLIS * 2)
+        runCurrent()
+        assertFalse(settled.value)
+    }
+    @Test fun targetFailureDoesNotWaitForUnrelatedPreparingSource() = runTest {
+        val target = FakeSource("target")
+        val unrelated = FakeSource("unrelated")
+        unrelated.contentState.value = MediaContentState(availability = MediaContentAvailability.Preparing)
+        val repository = FakeBindingRepository(target, unrelated)
+        val settled = repository.observeHistoryRestoreSettled("target")
+            .stateIn(backgroundScope, SharingStarted.Eagerly, false)
+        runCurrent()
+        assertFalse(settled.value)
+        target.contentState.value = MediaContentState(availability = MediaContentAvailability.Unavailable("failed"))
+        runCurrent()
+        assertTrue(settled.value)
+    }
+
+    @Test fun removedOrDisabledTargetIsTerminal() = runTest {
+        val target = FakeSource("target")
+        val repository = FakeBindingRepository(target)
+        val removed = repository.observeHistoryRestoreSettled("removed")
+            .stateIn(backgroundScope, SharingStarted.Eagerly, false)
+        val disabled = repository.observeHistoryRestoreSettled("target")
+            .stateIn(backgroundScope, SharingStarted.Eagerly, false)
+        repository.states.value = mapOf("target" to SourceStatus(enabled = false))
+        runCurrent()
+        assertTrue(removed.value)
+        assertTrue(disabled.value)
+    }
     @Test
     fun readySourceSettlesOnlyAfterItsSnapshotCommitFinishes() = runTest {
         val source = FakeSource("source")
@@ -90,6 +141,8 @@ class HistoryRestoreSettlementTest {
         override fun getSources(): PlatformMediaSource = platformSources
         override fun observeSource(name: String): Flow<SourceStatus?> = states.map { it[name] }
         override suspend fun startBinding() = Unit
+        override suspend fun <T> withEnabledSource(sourceName: String, block: suspend () -> T): T =
+            error("File operations are not used by history settlement tests")
         override suspend fun retryCommit(sourceName: String): Boolean = false
         override suspend fun setSourceEnabled(sourceName: String, enabled: Boolean): Boolean = false
     }

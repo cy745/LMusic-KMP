@@ -2,12 +2,20 @@ package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.model.MediaKey
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lplayer.extensions.VolumeFadeHelper
 import com.lalilu.lplayer.helper.AudioSessionHelper
 import com.lalilu.lplayer.notifacation.NowPlayingInfoNotification
 import com.lalilu.lplayer.notifacation.RemoteCommandHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.first
+import kotlin.math.abs
 import org.koin.core.annotation.Single
 import org.koin.core.component.KoinComponent
 
@@ -29,6 +37,38 @@ class AVPlayerPlayback(
     }
 
     private val logger = Logger.withTag(TAG)
+    private var loadedMediaKey: MediaKey? = null
+    private val commands = LatestPlaybackCommand()
+
+    override suspend fun play(): Unit = withContext(Dispatchers.Main) {
+        claimHistoryPlaybackControl()
+        commands.run { playInternal() }
+    }
+
+    override suspend fun pause(): Unit = withContext(Dispatchers.Main) {
+        claimHistoryPlaybackControl()
+        commands.run { pauseInternal() }
+    }
+
+    override suspend fun stop(): Unit = withContext(Dispatchers.Main) {
+        claimHistoryPlaybackControl()
+        commands.run { stopInternal() }
+    }
+
+    override suspend fun skipTo(index: Int, start: Boolean): Unit = withContext(Dispatchers.Main) {
+        claimHistoryPlaybackControl()
+        commands.run { selectInternal(index, start) }
+    }
+
+    override suspend fun seekTo(positionMs: Long): Unit = withContext(Dispatchers.Main) {
+        claimHistoryPlaybackControl()
+        commands.run {
+            check(loadedMediaKey != null && loadedMediaKey == queue.currentItem()?.mediaKey) {
+                "Cannot seek before the selected media is loaded"
+            }
+            seekInternal(positionMs)
+        }
+    }
 
     override fun createEngines(): List<PlaybackEngine> = listOf(
         MusicKitEngine(),
@@ -81,56 +121,94 @@ class AVPlayerPlayback(
                 }
             })
         }
+        startHistoryPlayback()
     }
 
-    override suspend fun play() = withContext(Dispatchers.Main) {
+    override suspend fun restoreLoadedItem(audio: LAudio, position: Long, start: Boolean): Unit =
+        withContext(Dispatchers.Main) {
+            commands.run { restoreInternal(audio, position, start) }
+        }
+
+    private suspend fun restoreInternal(audio: LAudio, position: Long, start: Boolean): Unit =
+        withContext(Dispatchers.Main) {
+            val data = resolveMediaData(audio)
+            ensureActive()
+            val engine = engineRouter.selectEngine(data, audio) ?: throw NoEngineFoundException(data, audio)
+            if (engine !== activeEngine) {
+                activeEngine?.release()
+                activeEngine = engine
+            }
+            loadedMediaKey = null
+            engine.load(data, audio)
+            ensureActive()
+            val ready = withTimeout(30_000) { engine.state.first { !it.isLoading } }
+            check(ready.error == null) { ready.error ?: "History media load failed" }
+            val target = if (ready.duration > 0) position.coerceIn(0, ready.duration) else position.coerceAtLeast(0)
+            engine.seekTo(target)
+            withTimeout(5_000) {
+                while (abs(engine.currentPosition() - target) > 100) delay(20)
+            }
+            loadedMediaKey = audio.mediaKey
+            if (start) engine.play() else engine.pause()
+        }
+
+    private suspend fun playInternal(): Unit = withContext(Dispatchers.Main) {
         volumeFadeHelper.play()
         try {
-            if (activeEngine != null) {
+            if (activeEngine != null && loadedMediaKey != null && loadedMediaKey == queue.currentItem()?.mediaKey) {
                 activeEngine?.play()
             } else {
                 val current = queue.currentItem()
                     ?: throw Exception("No media to play")
                 logger.i(messageString = "playing: ${current.id} ${current.title} from ${current.mediaSourceName}")
-                skipTo(queue.stateSnapshot().index, true)
+                selectInternal(queue.stateSnapshot().index, true)
             }
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-            emitError(e)
+            reportPlaybackCommandFailure(e) {
+                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                emitError(e)
+            }
         }
         Unit
     }
 
-    override suspend fun pause() {
-        volumeFadeHelper.pause { activeEngine?.pause() }
+    private suspend fun pauseInternal() {
+        volumeFadeHelper.pauseAndAwait { activeEngine?.pause() }
     }
 
     override suspend fun togglePlayPause() {
         if (_isPlaying.value) pause() else play()
     }
 
-    override suspend fun stop() = withContext(Dispatchers.Main) {
+    private suspend fun stopInternal() = withContext(Dispatchers.Main) {
         try {
             activeEngine?.stop()
+            loadedMediaKey = null
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-            emitError(e)
+            reportPlaybackCommandFailure(e) {
+                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                emitError(e)
+            }
         }
         Unit
     }
 
-    override suspend fun skipTo(index: Int, start: Boolean) = withContext(Dispatchers.Main) {
+    private suspend fun selectInternal(index: Int, start: Boolean): Unit = withContext(Dispatchers.Main) {
         try {
             val state = queue.stateSnapshot()
             val item = state.list.getOrNull(index)
                 ?: throw Exception("Invalid index: $index")
 
-            if (index == state.index && activeEngine != null) {
-                seekTo(0)
+            if (loadedMediaKey == item.mediaKey && activeEngine != null) {
+                seekInternal(0)
+                queue.update { switchTo(index) }
+                prepareSurpriseNext()
+                if (start) playInternal() else pauseInternal()
                 return@withContext
             }
 
             val mediaData = resolveMediaData(item)
+            ensureActive()
             val engine = engineRouter.selectEngine(mediaData, item)
                 ?: throw NoEngineFoundException(mediaData, item)
 
@@ -142,21 +220,29 @@ class AVPlayerPlayback(
                 activeEngine = engine
             }
 
+            loadedMediaKey = null
             engine.load(mediaData, item)
+            ensureActive()
+            loadedMediaKey = item.mediaKey
             queue.update { switchTo(index = index) }
+            prepareSurpriseNext()
             if (start) engine.play()
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-            emitError(e)
+            reportPlaybackCommandFailure(e) {
+                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                emitError(e)
+            }
         }
     }
 
-    override suspend fun seekTo(positionMs: Long) = withContext(Dispatchers.Main) {
+    private suspend fun seekInternal(positionMs: Long) = withContext(Dispatchers.Main) {
         try {
             activeEngine?.seekTo(positionMs)
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-            emitError(e)
+            reportPlaybackCommandFailure(e) {
+                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                emitError(e)
+            }
         }
         Unit
     }

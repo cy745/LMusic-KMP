@@ -41,7 +41,7 @@ interface LMediaDao {
     @Query("SELECT * FROM l_audio WHERE media_source_name = :source")
     suspend fun getAudioBySource(source: String): List<LAudioEntity>
 
-    @Query("SELECT * FROM l_audio WHERE song_id IN (:ids)")
+    @Query("SELECT * FROM l_audio WHERE raw_id IN (:ids)")
     suspend fun getAudioByIds(ids: List<String>): List<LAudioEntity>
 
     @Query("DELETE FROM cross_ref_audio_x_artist WHERE song_id IN (:songIds)")
@@ -149,16 +149,6 @@ interface LMediaDao {
         val audioFromSource = getAudioBySource(sourceName)
         val audioMap = batch.audios.associateBy { it.id }
 
-        if (audioMap.isNotEmpty()) {
-            val conflicts = audioMap.keys
-                .chunked(SQLITE_QUERY_CHUNK_SIZE)
-                .flatMap { getAudioByIds(it) }
-                .filter { it.mediaSourceName != sourceName }
-            require(conflicts.isEmpty()) {
-                "Audio id is already owned by another source: ${conflicts.joinToString { it.id }}"
-            }
-        }
-
         val audioToUpdate = audioFromSource
             .filter { audio -> audioMap[audio.id] == null }
             .map { it.copy(available = false) }
@@ -169,7 +159,7 @@ interface LMediaDao {
         insertGenre(batch.genres)
 
         // 只替换本次仍然存在的歌曲关系；已标记不可用的旧歌曲保留原关系供用户识别。
-        val incomingSongIds = batch.audios.map(LAudioEntity::id)
+        val incomingSongIds = batch.audios.map(LAudioEntity::playbackId)
         incomingSongIds.chunked(SQLITE_QUERY_CHUNK_SIZE).forEach { songIds ->
             deleteArtistRelationsBySongIds(songIds)
             deleteAlbumRelationsBySongIds(songIds)

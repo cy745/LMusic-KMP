@@ -23,6 +23,7 @@ import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lalbum.component.AlbumCard
 import com.lalilu.lartist.component.ArtistCard
 import com.lalilu.lmedia.component.AudioItemCard
+import com.lalilu.lmedia.isAudioPlayable
 import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.model.LAudio
@@ -229,7 +230,7 @@ private fun SearchResultList(
                     }
                     items(
                         items = visibleAudios,
-                        key = { _, audio -> "audio-${audio.id}" },
+                        key = { _, audio -> "audio-${audio.playbackId}" },
                         contentType = { _, _ -> LAudio::class },
                         span = GRID_COLUMNS / spanRule.audioDivisor,
                         paddingValues = PaddingValues()
@@ -311,22 +312,23 @@ private fun AudioCardItem(audio: LAudio, allAudios: List<LAudio>) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 0.5.dp),
-        id = audio.id,
+        id = audio.playbackId,
         title = audio.title,
         subtitle = audio.subtitle,
         imageData = audio,
+        enabled = isAudioPlayable(audio),
         onPlay = {
             scope.launch {
                 PlayerAction.UpdateList(
-                    ids = allAudios.map { it.id },
-                    id = audio.id,
+                    ids = allAudios.map { it.playbackId },
+                    id = audio.playbackId,
                     start = true
                 ).action()
             }
         },
         onNavigateToDetail = { sharedMap ->
             AppRouter.route("/song/detail")
-                .with("mediaId", audio.id)
+                .with("mediaId", audio.playbackId)
                 .with("song", audio)
                 .with("coverCacheKey", coverCacheKey)
                 .with("sharedMap", sharedMap)

@@ -2,6 +2,8 @@ package com.lalilu.lmedia.domain.repository
 
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.domain.source.MediaContentAvailability
+import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -12,6 +14,9 @@ interface MediaSourceBindingRepository {
     fun getSources(): PlatformMediaSource
     fun observeSource(name: String): Flow<SourceStatus?>
     suspend fun startBinding()
+
+    /** Holds the per-source enablement boundary through commit/rollback; block must not change enablement. */
+    suspend fun <T> withEnabledSource(sourceName: String, block: suspend () -> T): T
 
     /** 重新提交该数据源最近一次完整成功结果；没有可重试结果时返回 false。 */
     suspend fun retryCommit(sourceName: String): Boolean
@@ -35,7 +40,16 @@ data class SourceStatus(
     val resultRevision: Long? = null,
     val songCount: Int = 0,
     val commitState: SnapshotCommitState = SnapshotCommitState.Idle,
+    /** Reading readiness is separate from scanning/database availability. */
+    val contentAvailability: MediaContentAvailability = MediaContentAvailability.Uninitialized,
 )
+
+val SourceStatus.canReadContent: Boolean
+    get() = enabled && !enablementChanging && enablementError == null &&
+        contentAvailability == MediaContentAvailability.Ready
+
+fun Map<String, SourceStatus>.canPlay(audio: LAudio): Boolean =
+    audio.available && this[audio.mediaSourceName]?.canReadContent == true
 
 data class MediaLibrarySummary(
     val refreshingSources: Set<String> = emptySet(),

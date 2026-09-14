@@ -1,6 +1,7 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.MediaKey
 
 /**
  * 播放队列操作定义。
@@ -16,5 +17,11 @@ interface QueueMutationOps<out R> {
     fun switchTo(index: Int): R
     fun replaceAll(items: List<LAudio>, index: Int): R
     fun remove(item: LAudio): R
+    fun removeAll(keys: Set<MediaKey>): R
+    fun removeSource(sourceName: String): R
+    fun removeAt(index: Int): R
+    fun insert(index: Int, items: List<LAudio>): R
+    fun move(from: Int, to: Int): R
+    fun replace(index: Int, item: LAudio): R
     fun clear(): R
 }

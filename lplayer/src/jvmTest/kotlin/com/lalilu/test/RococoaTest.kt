@@ -15,7 +15,11 @@ class RococoaTest {
 
     init {
         val projectPath = System.getProperty("user.dir")
-        val nativeLibPath = "$projectPath/src/jvmMain/resources/osx"
+        val nativeLibPath = System.getenv("LMUSIC_NATIVE_RESOURCES")
+            ?: java.io.File(projectPath, "../composeApp/build/compose/tmp/prepareAppResources").canonicalPath
+        require(java.io.File(nativeLibPath, "libwrapper.dylib").isFile) {
+            "Build Desktop native resources or set LMUSIC_NATIVE_RESOURCES before running Rococoa tests"
+        }
         System.setProperty("jna.library.path", nativeLibPath)
         WrapperLibrary.instance
         println(nativeLibPath)
@@ -125,5 +129,4 @@ fun NSDictionary.allKeys(): NSArray {
         NSArray::class.java
     )
 }
-
 

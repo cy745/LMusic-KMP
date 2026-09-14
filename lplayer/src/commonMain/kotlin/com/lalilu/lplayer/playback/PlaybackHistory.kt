@@ -1,5 +1,6 @@
 package com.lalilu.lplayer.playback
 
+import com.lalilu.lmedia.domain.model.mediaKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -14,6 +15,8 @@ import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.isActive
 import org.koin.core.annotation.Single
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * 播放历史记录行为定义。
@@ -26,7 +29,9 @@ interface PlaybackHistory {
     data class HistorySnapshot(
         val ids: List<String>,
         val index: Int,
-        val position: Long
+        val position: Long,
+        /** Null entries are legacy identities whose source has not yet been resolved. */
+        val sourceNames: List<String?> = List(ids.size) { null },
     )
 
     /**
@@ -58,13 +63,10 @@ interface PlaybackHistory {
 class PlaybackHistoryImpl(
     override val historyStorage: HistoryStorage
 ) : PlaybackHistory {
+    private val recordingMutex = Mutex()
 
     override fun restoreFromHistory(): PlaybackHistory.HistorySnapshot? {
-        val ids = historyStorage.savedPlaylistIds()
-        if (ids.isEmpty()) return null
-        val id = historyStorage.savedPlayId()
-        val index = ids.indexOf(id).coerceAtLeast(0)
-        return PlaybackHistory.HistorySnapshot(ids, index, historyStorage.savedPosition())
+        return historyStorage.readSnapshot()
     }
 
     override suspend fun onQueueRestored(snapshot: PlaybackHistory.HistorySnapshot) {
@@ -79,15 +81,21 @@ class PlaybackHistoryImpl(
         // 监听队列变化 → 持久化 playlist 信息
         val queuePersistence = restoreState?.let { state ->
             combine(playback.queue.expandedItems, state) { queue, restore ->
-                queue to (restore as? HistoryRestoreState.Pending)
+                queue to restore
             }
         } ?: playback.queue.expandedItems.map { queue -> queue to null }
 
         queuePersistence
             .onEach { (state, restore) ->
-                val persistence = historyQueuePersistence(state, restore)
-                persistence.currentId?.let(historyStorage::savePlayId)
-                persistence.playlistIds?.let(historyStorage::savePlaylistIds)
+                recordingMutex.withLock {
+                    // Flow notifications may have waited behind another write. Never persist
+                    // an obsolete queue or combine it with an obsolete restoration phase.
+                    if (!isCurrentHistoryRecording(state, restore,
+                            playback.queue.stateSnapshot(), restoreState?.value)) return@withLock
+                    historyStorage.saveQueueIdentity(
+                        historyIdentityForPersistence(state, restore as? HistoryRestoreState.Pending, historyStorage.savedQueueIdentity())
+                    )
+                }
             }
             .launchIn(this)
 
@@ -100,7 +108,7 @@ class PlaybackHistoryImpl(
             }
             ?.distinctUntilChanged()
             ?.filter { it }
-            ?.onEach { historyStorage.savePosition(0L) }
+            ?.onEach { recordingMutex.withLock { historyStorage.savePosition(0L) } }
             ?.launchIn(this)
 
         // 监听播放状态 → 持久化 position
@@ -109,14 +117,58 @@ class PlaybackHistoryImpl(
             .transformLatest<Boolean, Unit> { isPlaying ->
                 while (isActive) {
                     if (canPersistPlaybackPosition(restoreState?.value)) {
-                        historyStorage.savePosition(playback.currentPosition())
+                        val expected = playback.queue.stateSnapshot()
+                        val position = playback.sampleHistoryPosition()
+                        // Sampling can suspend while a newer restore/selection takes over.
+                        if (position != null && canPersistPlaybackPosition(restoreState?.value)) {
+                            recordingMutex.withLock {
+                                if (playback.queue.stateSnapshot() === expected && canPersistPlaybackPosition(restoreState?.value)) {
+                                    historyStorage.saveSnapshot(historyIdentityForPersistence(
+                                        expected, restoreState?.value as? HistoryRestoreState.Pending, historyStorage.savedQueueIdentity(),
+                                    ), position)
+                                }
+                            }
+                        }
                     }
-                    if (!isPlaying) break
+                    // Paused seeks and deferred history application also change position.
+                    // Keep a low-frequency sampler rather than stopping after the first read.
                     delay(1000.milliseconds)
                 }
             }
             .launchIn(this)
     }
+}
+
+/** Identity, not structural equality: replacing an equal-looking state invalidates old work. */
+internal fun isCurrentHistoryRecording(
+    expectedQueue: QueueState,
+    expectedRestore: HistoryRestoreState?,
+    currentQueue: QueueState,
+    currentRestore: HistoryRestoreState?,
+): Boolean = expectedQueue === currentQueue && expectedRestore === currentRestore
+
+internal fun historyIdentityForPersistence(
+    state: QueueState,
+    restore: HistoryRestoreState.Pending?,
+    saved: HistoryQueueIdentity?,
+): HistoryQueueIdentity {
+    if (restore == null || state.list.map { it.id } != restore.resolvedIds) {
+        return HistoryQueueIdentity(state.list.map { it.id }, state.list.map { it.mediaSourceName }, state.index)
+    }
+    val original = saved?.takeIf { it.ids == restore.originalIds }
+        ?: HistoryQueueIdentity(restore.originalIds, List(restore.originalIds.size) { null }, 0)
+    val slots = PlaybackHistory.HistorySnapshot(original.ids, original.index, 0, original.sourceNames)
+        .resolveQueue(state.list).slots
+    val names = original.sourceNames.mapIndexed { index, name -> name ?: slots[index]?.mediaSourceName }
+    if (!restore.currentRestored) {
+        val index = if (saved != null || restore.currentId == null) original.index
+            else original.ids.indexOf(restore.currentId).coerceAtLeast(0)
+        return original.copy(sourceNames = names, index = index)
+    }
+    val current = state.currentItem()?.mediaKey
+    val occurrence = state.list.take(state.index).count { it.mediaKey == current }
+    val target = slots.indices.filter { slots[it]?.mediaKey == current }.getOrNull(occurrence)
+    return original.copy(sourceNames = names, index = target ?: original.index)
 }
 
 internal data class HistoryQueuePersistence(

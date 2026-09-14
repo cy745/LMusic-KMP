@@ -10,5 +10,8 @@ object LPlayerKV : KVContext("lplayer") {
     val handleAudioFocus = obtain("handleAudioFocus", true)
     val historyPlaylistIds = obtainList("historyPlaylistIds", emptyList<String>())
     val historyPlayId = obtain("historyPlayId", "")
+    val historyQueueIdentityV2 = obtain("historyQueueIdentityV2", "")
+    val historyPlaybackQueue = obtain("historyPlaybackQueue", "")
+    val historyPositionResetRequested = obtain("historyPositionResetRequested", false)
     val playMode = obtain("playMode", PlayMode.ListRecycle.name)
 }

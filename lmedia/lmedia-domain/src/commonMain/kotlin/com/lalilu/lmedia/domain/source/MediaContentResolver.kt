@@ -4,6 +4,9 @@ import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 
+/** The source is ready, but this particular song cannot be resolved. */
+class AudioMediaMissingException : IllegalStateException("Audio media is missing")
+
 /**
  * 只等待目标歌曲所属数据源，并在其内容能力就绪后解析实际媒体。
  * 无关数据源的加载或失败不会参与本次判断。
@@ -28,7 +31,7 @@ suspend fun PlatformMediaSource.resolveMediaData(
         )
     }
     return source.dataSource.getMedia(audio)
-        ?: throw MediaContentUnavailableException("Media data unavailable for ${audio.id}")
+        ?: throw AudioMediaMissingException()
 }
 
 /**

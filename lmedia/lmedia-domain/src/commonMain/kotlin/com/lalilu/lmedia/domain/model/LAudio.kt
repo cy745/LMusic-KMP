@@ -11,6 +11,9 @@ data class LAudio(
     val extra: Map<String, String>? = null,
     val available: Boolean = true,
 ) {
+    /** A single reversible identity for queue entries and platform playback requests. */
+    val playbackId: String get() = mediaKey.stableKey
+
     companion object {
         const val ID_PREFIX = "audio_"
     }

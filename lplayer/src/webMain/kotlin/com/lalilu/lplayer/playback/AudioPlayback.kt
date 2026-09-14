@@ -1,15 +1,19 @@
 package com.lalilu.lplayer.playback
 
 import co.touchlab.kermit.Logger
-import com.lalilu.lmedia.data.Library
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.MediaKey
+import com.lalilu.lmedia.domain.model.mediaKey
+import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.resolveMediaData
 import com.lalilu.lplayer.notification.BrowserMediaSessionHelper
 import com.lalilu.lplayer.playback.PlaybackEngine
 import io.github.vinceglb.filekit.utils.toJsArray
-import kotlinx.coroutines.launch
+import com.lalilu.lplayer.action.launchPlayerAction
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import org.koin.core.annotation.Single
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -22,9 +26,9 @@ import org.w3c.files.BlobPropertyBag
 @Single(binds = [Playback::class])
 @OptIn(ExperimentalWasmJsInterop::class)
 class AudioPlayback(
-    private val library: Library,
+    audioRepository: AudioRepository,
     private val history: PlaybackHistory
-) : AbstractPlayback(history = history), KoinComponent {
+) : AbstractPlayback(history = history, audioRepository = audioRepository), KoinComponent {
     companion object {
         const val TAG = "AudioPlayback"
     }
@@ -32,18 +36,31 @@ class AudioPlayback(
     override val platformMediaSource: PlatformMediaSource by inject()
     override fun createEngines(): List<PlaybackEngine> = emptyList()
     private val player = Audio()
-
-    override suspend fun resolveMedia(ids: List<String>): List<LAudio> = library.mapBy<LAudio>(ids)
+    private var loadedMediaKey: MediaKey? = null
 
     init {
         BrowserMediaSessionHelper.bindPlayback(this)
         player.addEventListener("ended") {
-            launch { skipToNext() }
+            launchPlayerAction { skipToNext() }
         }
+        startHistoryPlayback()
+    }
+
+    override suspend fun restoreLoadedItem(audio: LAudio, position: Long, start: Boolean) {
+        playItem(audio, false)
+        withTimeout(30_000) {
+            while (player.readyState.toInt() < 1) {
+                check(player.error == null) { "History media load failed" }
+                delay(50)
+            }
+        }
+        player.currentTime = position.coerceAtLeast(0) / 1000.0
+        if (start) player.play()
     }
 
     private suspend fun playItem(item: LAudio, start: Boolean) {
         player.pause()
+        loadedMediaKey = null
 
         when (val data = platformMediaSource.resolveMediaData(item)) {
             is MediaData.Url -> {
@@ -62,18 +79,17 @@ class AudioPlayback(
 
         }
 
+        loadedMediaKey = item.mediaKey
         if (start) {
             player.play()
             _isPlaying.value = true
         }
-        val targetIndex = queue.stateSnapshot().list.indexOfFirst { it.id == item.id }
-        queue.update { switchTo(index = targetIndex) }
     }
 
 
     override suspend fun play() {
         try {
-            if (player.duration > 0) {
+            if (loadedMediaKey != null && loadedMediaKey == queue.currentItem()?.mediaKey) {
                 player.play()
                 _isPlaying.value = true
             } else {
@@ -83,8 +99,10 @@ class AudioPlayback(
                 playItem(current, true)
             }
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-            emitError(e)
+            reportPlaybackCommandFailure(e) {
+                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                emitError(e)
+            }
         }
     }
 
@@ -93,8 +111,10 @@ class AudioPlayback(
             player.pause()
             _isPlaying.value = false
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-            emitError(e)
+            reportPlaybackCommandFailure(e) {
+                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                emitError(e)
+            }
         }
     }
 
@@ -106,35 +126,46 @@ class AudioPlayback(
         try {
             player.pause()
             _isPlaying.value = false
-            queue.update { switchTo(0) }
+            loadedMediaKey = null
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-            emitError(e)
+            reportPlaybackCommandFailure(e) {
+                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                emitError(e)
+            }
         }
     }
 
     override suspend fun skipTo(index: Int, start: Boolean) {
         try {
             val state = queue.stateSnapshot()
-            if (index == state.index) {
+            val targetItem = state.list.getOrNull(index)
+                ?: throw Exception("Invalid index")
+            if (loadedMediaKey == targetItem.mediaKey) {
                 seekTo(0)
+                queue.update { switchTo(index) }
+                prepareSurpriseNext()
+                if (start) play() else pause()
             } else {
-                val targetItem = state.list.getOrNull(index)
-                    ?: throw Exception("Invalid index")
                 playItem(targetItem, start)
+                queue.update { switchTo(index) }
+                prepareSurpriseNext()
             }
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-            emitError(e)
+            reportPlaybackCommandFailure(e) {
+                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                emitError(e)
+            }
         }
     }
 
     override suspend fun seekTo(positionMs: Long) {
         try {
-            player.fastSeek(positionMs.toDouble())
+            player.currentTime = positionMs.coerceAtLeast(0L) / 1000.0
         } catch (e: Exception) {
-            Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
-            emitError(e)
+            reportPlaybackCommandFailure(e) {
+                Logger.e(tag = TAG, messageString = "${e.message}", throwable = e)
+                emitError(e)
+            }
         }
     }
 

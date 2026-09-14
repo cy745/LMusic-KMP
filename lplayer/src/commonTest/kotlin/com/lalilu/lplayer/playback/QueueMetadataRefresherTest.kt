@@ -15,6 +15,23 @@ import kotlin.test.assertEquals
 class QueueMetadataRefresherTest {
 
     @Test
+    fun sameIdFromAnotherSourceDoesNotReplaceQueueMetadata() = runTest {
+        val repository = FakeAudioRepository()
+        val original = audio("a", "local").copy(mediaSourceName = "local")
+        val queue = PlayableQueueImpl()
+        queue.update { replaceAll(listOf(original, original), 1) }
+        backgroundScope.startQueueMetadataRefresh(queue, repository)
+        runCurrent()
+        repository.seed(original.copy(title = "wrong source", mediaSourceName = "remote"))
+        runCurrent()
+        assertEquals(listOf(original, original), queue.stateSnapshot().list)
+        repository.seed(original.copy(title = "updated"))
+        runCurrent()
+        assertEquals(listOf("updated", "updated"), queue.stateSnapshot().list.map { it.title })
+        assertEquals(1, queue.stateSnapshot().index)
+    }
+
+    @Test
     fun refreshesEntitiesWithoutChangingOrderOrCurrentIndex() = runTest {
         val repository = FakeAudioRepository()
         val queue = PlayableQueueImpl()
@@ -76,7 +93,10 @@ class QueueMetadataRefresherTest {
         override fun getAudios(): Flow<List<LAudio>> = audios
 
         override fun getAudios(ids: List<String>): Flow<List<LAudio>> =
-            audios.map { list -> list.filter { it.id in ids } }
+            error("Queue refresh must query source-qualified IDs")
+
+        override fun getAudiosByPlaybackIds(playbackIds: List<String>): Flow<List<LAudio>> =
+            audios.map { list -> list.filter { it.playbackId in playbackIds } }
 
         override fun getAudio(id: String): Flow<LAudio?> =
             audios.map { list -> list.firstOrNull { it.id == id } }

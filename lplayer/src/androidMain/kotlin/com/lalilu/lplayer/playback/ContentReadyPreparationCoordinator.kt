@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
 internal class ContentReadyPreparationCoordinator(
     private val scope: CoroutineScope,
     private val sourceOf: (LAudio) -> MediaSource?,
-    private val onReady: suspend (audio: LAudio, playWhenReady: Boolean) -> Unit,
+    private val preparationTicket: () -> Long,
+    private val onReady: suspend (audio: LAudio, latestIntent: () -> Pair<Boolean, Long>?) -> Unit,
     private val onSourceMissing: suspend (LAudio) -> Unit,
 ) {
     private val lock = Any()
@@ -26,8 +27,10 @@ internal class ContentReadyPreparationCoordinator(
     private var generation = 0L
     private var audioId: String? = null
     private var playWhenReady = false
+    private var controlTicket = 0L
 
     fun request(audio: LAudio, playWhenReady: Boolean) {
+        val ticket = preparationTicket()
         val source = sourceOf(audio)
         if (source == null) {
             cancel()
@@ -38,23 +41,25 @@ internal class ContentReadyPreparationCoordinator(
         val requestGeneration = synchronized(lock) {
             job?.cancel()
             generation += 1
-            audioId = audio.id
+            audioId = audio.playbackId
             this.playWhenReady = playWhenReady
+            controlTicket = ticket
             generation
         }
 
         val requestJob = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 source.awaitContentReadyOrThrow()
-                val shouldPlay = synchronized(lock) {
-                    if (requestGeneration != generation || audioId != audio.id) return@launch
-                    this@ContentReadyPreparationCoordinator.playWhenReady
+                // Read at native application time, not before dispatching to the main thread.
+                onReady(audio) {
+                    synchronized(lock) {
+                        if (requestGeneration != generation || audioId != audio.playbackId) null
+                        else this@ContentReadyPreparationCoordinator.playWhenReady to controlTicket
+                    }
                 }
-
-                onReady(audio, shouldPlay)
             } catch (_: MediaContentUnavailableException) {
                 val isCurrent = synchronized(lock) {
-                    requestGeneration == generation && audioId == audio.id
+                    requestGeneration == generation && audioId == audio.playbackId
                 }
                 if (isCurrent) onSourceMissing(audio)
             } finally {
@@ -81,6 +86,7 @@ internal class ContentReadyPreparationCoordinator(
     fun updatePlayIntent(audioId: String?, playWhenReady: Boolean): Boolean = synchronized(lock) {
         if (audioId == null || this.audioId != audioId || job?.isActive != true) return@synchronized false
         this.playWhenReady = playWhenReady
+        if (playWhenReady) controlTicket = preparationTicket()
         true
     }
 

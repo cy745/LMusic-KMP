@@ -17,6 +17,7 @@
 package com.lalilu.lmedia.data.database
 
 interface ILMediaDatabase {
+    fun playbackFailureDao(): PlaybackFailureDao
     fun audioDao(): LAudioDao
     fun artistDao(): LArtistDao
     fun albumDao(): LAlbumDao

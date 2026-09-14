@@ -1,6 +1,7 @@
 package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
 import kotlinx.coroutines.flow.*
 
 
@@ -39,7 +40,37 @@ interface Playback {
     suspend fun seekTo(positionMs: Long)
 
     suspend fun updatePlaylist(playlist: List<LAudio>, startIndex: Int, start: Boolean)
-    suspend fun clearPlaylist() = queue.update { clear() }
+
+    /** Select an existing source-qualified song, or insert it next to current, then play it. */
+    suspend fun playAudio(audio: LAudio) {
+        queue.update { selectOrInsert(audio) }
+        skipTo(queue.stateSnapshot().index, start = true)
+    }
+    /** Queue edits that can affect the loaded item must go through the playback boundary. */
+    suspend fun editQueue(block: QueueUpdateRequest.() -> Unit) {
+        val previous = queue.currentItem()?.mediaKey
+        val resume = isPlaying.value
+        queue.update(block = block)
+        val next = queue.stateSnapshot()
+        if (next.currentItem()?.mediaKey != previous || next.list.isEmpty()) {
+            stop()
+            if (next.list.isNotEmpty()) skipTo(next.index, start = resume)
+        }
+    }
+
+    suspend fun clearPlaylist() = editQueue { clear() }
+
+    /** Atomically restore a failed edit only while its resulting queue still owns the player.
+     * Implementations without a guarded restore leave the user's queue untouched. Never autoplay.
+     */
+    suspend fun restoreFailedQueueEdit(expected: QueueState, original: QueueState, position: Long): Boolean = false
+
+    /** Receipt must be delivered inside the same edit boundary, after internal selection settles. */
+    suspend fun editQueueWithReceipt(block: QueueUpdateRequest.() -> Unit, onApplied: (QueueState) -> Unit): Unit =
+        error("This player does not support recoverable queue edits")
+
+    /** Request the next actual playback, not merely a position in the displayed list. */
+    suspend fun playNext(audio: LAudio) = editQueue { addToNext(listOf(audio)) }
 
     // Playback Mode
     suspend fun setPlaybackMode(mode: PlaybackMode)

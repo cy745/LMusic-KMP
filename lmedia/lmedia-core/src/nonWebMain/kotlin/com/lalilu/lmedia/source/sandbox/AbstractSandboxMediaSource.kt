@@ -32,7 +32,6 @@ import io.github.vinceglb.filekit.resolve
 import io.github.vinceglb.filekit.sink
 import io.github.vinceglb.filekit.size
 import io.github.vinceglb.filekit.source
-import io.github.vinceglb.filekit.writeString
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -70,8 +69,10 @@ abstract class AbstractSandboxMediaSource(
     private val stateStore = MediaSourceStateStore()
     private val operationMutex = Mutex()
     private val json = Json { ignoreUnknownKeys = true }
+    private val atomicFileWriter = SandboxAtomicFileWriter()
     private val importedDirectory = rootDirectory.resolve(IMPORTED_DIRECTORY_NAME)
     private val indexFile = rootDirectory.resolve(INDEX_FILE_NAME)
+    private val deletionDirectory = rootDirectory.resolve(".pending-deletions")
     private var index: SandboxIndex? = null
     private var loadingJob: Job? = null
 
@@ -80,6 +81,7 @@ abstract class AbstractSandboxMediaSource(
     final override val contentState = stateStore.contentState
 
     protected abstract fun buildPlaybackUrl(file: PlatformFile): String
+    protected open suspend fun readAudioMetadata(file: PlatformFile): Metadata? = Taglib.readMetadata(file.path)
 
     final override fun init() = refresh(preserveReady = false)
 
@@ -148,9 +150,24 @@ abstract class AbstractSandboxMediaSource(
         val taskId = stateStore.begin(message = "Importing ${file.name}")
         stateStore.content.preparing()
         var temporaryFile: PlatformFile? = null
+        var movedDestination: PlatformFile? = null
+        var previousIndex: SandboxIndex? = null
+
+        suspend fun rollBackImport(failure: Throwable) = withContext(NonCancellable) {
+            for (ownedCopy in listOfNotNull(temporaryFile, movedDestination)) {
+                runCatching { ownedCopy.delete(mustExist = false) }
+                    .onFailure { failure.addSuppressed(it) }
+            }
+            if (movedDestination != null) {
+                previousIndex?.let { old ->
+                    runCatching { saveIndex(old) }.onFailure { failure.addSuppressed(it) }
+                }
+            }
+        }
 
         try {
             ensureIndexLoaded()
+            previousIndex = indexOrEmpty()
             temporaryFile = allocateTemporaryFile(file)
             val digest = copyAndDigest(file, temporaryFile)
             val magicNumber = MagicNumber.match(
@@ -158,31 +175,35 @@ abstract class AbstractSandboxMediaSource(
                 source = temporaryFile.source().buffered(),
             ) ?: throw UnsupportedExternalAudioException("Unsupported audio file: ${file.name}")
 
-            val metadata = Taglib.readMetadata(temporaryFile.path)
+            readAudioMetadata(temporaryFile)
                 ?: throw UnsupportedExternalAudioException("Unable to parse audio metadata: ${file.name}")
 
             findDigestMatch(digest, candidates)?.let { existing ->
                 temporaryFile.delete(mustExist = false)
+                stateStore.succeed(taskId, scan()) ?: error("Sandbox import was superseded")
+                stateStore.content.ready()
                 return@withLock SandboxImportResult.Existing(existing)
             }
 
             val destination = allocateDestination(file.name, magicNumber)
             temporaryFile.atomicMove(destination)
+            movedDestination = destination
             temporaryFile = null
 
             updateIndex(destination, digest)
-            val snapshot = stateStore.succeed(taskId, scan())
+            val scanned = scan()
+            val imported = scanned.firstOrNull { it.id == audioId(destination) }
+                ?: throw UnsupportedExternalAudioException("Imported audio was not found in the completed scan")
+            val snapshot = stateStore.succeed(taskId, scanned)
                 ?: error("Sandbox scan was superseded")
             stateStore.content.ready()
-            val imported = snapshot.audios.firstOrNull { it.id == audioId(destination) }
-                ?: buildAudio(destination, metadata)
             SandboxImportResult.Imported(imported, snapshot.revision)
         } catch (cancelled: CancellationException) {
-            temporaryFile?.delete(mustExist = false)
+            rollBackImport(cancelled)
             stateStore.cancel(taskId)
             throw cancelled
         } catch (throwable: Throwable) {
-            temporaryFile?.delete(mustExist = false)
+            rollBackImport(throwable)
             logger.e(throwable) { "Import failed: ${file.name}" }
             stateStore.fail(taskId, throwable.message ?: "Unknown import error")
             stateStore.content.unavailable(
@@ -193,7 +214,11 @@ abstract class AbstractSandboxMediaSource(
         }
     }
 
-    final override suspend fun rename(audio: LAudio, newBaseName: String): LAudio =
+    final override suspend fun rename(
+        audio: LAudio,
+        newBaseName: String,
+        confirmSnapshot: suspend (Snapshot) -> Unit,
+    ): LAudio =
         operationMutex.withLock {
             loadingJob?.cancelAndJoin()
             ensureDirectories()
@@ -236,17 +261,20 @@ abstract class AbstractSandboxMediaSource(
                 }
                 saveIndex(SandboxIndex(entries))
 
-                val snapshot = stateStore.succeed(taskId, scan())
+                val scanned = scan()
+                val renamed = scanned.firstOrNull { it.id == stableAudioId }
+                    ?: error("Renamed audio is missing from sandbox snapshot")
+                val snapshot = stateStore.succeed(taskId, scanned)
                     ?: error("Sandbox rename was superseded")
                 stateStore.content.ready()
-                snapshot.audios.firstOrNull { it.id == stableAudioId }
-                    ?: error("Renamed audio is missing from sandbox snapshot")
+                confirmSnapshot(snapshot)
+                renamed
             } catch (cancelled: CancellationException) {
-                if (moved) rollbackRename(destination, source, previousIndex)
+                if (moved) rollbackRename(destination, source, previousIndex, confirmSnapshot, cancelled)
                 stateStore.cancel(taskId)
                 throw cancelled
             } catch (throwable: Throwable) {
-                if (moved) rollbackRename(destination, source, previousIndex)
+                if (moved) rollbackRename(destination, source, previousIndex, confirmSnapshot, throwable)
                 logger.e(throwable) { "Rename failed: ${source.name}" }
                 stateStore.fail(taskId, throwable.message ?: "Rename failed")
                 stateStore.content.unavailable(
@@ -261,30 +289,66 @@ abstract class AbstractSandboxMediaSource(
         destination: PlatformFile,
         source: PlatformFile,
         previousIndex: SandboxIndex,
+        confirmSnapshot: suspend (Snapshot) -> Unit,
+        failure: Throwable,
     ) = withContext(NonCancellable) {
-        runCatching { destination.atomicMove(source) }
-            .onFailure { logger.e(it) { "Failed to roll back sandbox file rename" } }
-        runCatching { saveIndex(previousIndex) }
-            .onFailure { logger.e(it) { "Failed to roll back sandbox index" } }
+        try {
+            check(!source.exists()) { "Cannot restore rename over an existing file" }
+            destination.atomicMove(source)
+            saveIndex(previousIndex)
+            val task = stateStore.begin(message = "Restoring ${source.name}")
+            val restored = stateStore.succeed(task, scan()) ?: error("Rename recovery was superseded")
+            stateStore.content.ready()
+            confirmSnapshot(restored)
+        } catch (rollbackFailure: Throwable) {
+            failure.addSuppressed(rollbackFailure)
+            logger.e(rollbackFailure) { "Failed to roll back sandbox rename" }
+        }
     }
 
-    final override suspend fun delete(audio: LAudio) = operationMutex.withLock {
+    final override suspend fun delete(
+        audio: LAudio,
+        confirmSnapshot: suspend (Snapshot) -> Unit,
+    ): Unit = operationMutex.withLock {
         loadingJob?.cancelAndJoin()
         ensureDirectories()
         ensureIndexLoaded()
 
         val file = requireOwnedFile(audio)
+        val previousIndex = indexOrEmpty()
+        deletionDirectory.createDirectories()
+        val quarantine = deletionDirectory.resolve("delete-${randomToken()}")
+        val journal = deletionDirectory.resolve("${quarantine.name}.json")
+        val pending = PendingDeletion(relativePath(file), previousIndex.entries[relativePath(file)])
+        atomicFileWriter.save(journal, json.encodeToString(PendingDeletion.serializer(), pending))
         val taskId = stateStore.begin(message = "Deleting ${file.name}")
         stateStore.content.preparing(preserveReady = true)
         try {
-            file.delete(mustExist = false)
-            val entries = indexOrEmpty().entries.toMutableMap().apply {
-                remove(relativePath(file))
-            }
-            saveIndex(SandboxIndex(entries))
-            stateStore.succeed(taskId, scan())
-                ?: error("Sandbox delete was superseded")
-            stateStore.content.ready()
+            stagedSandboxDeletion(
+                original = file,
+                quarantine = quarantine,
+                removeAndConfirm = {
+                    saveIndex(SandboxIndex(previousIndex.entries - relativePath(file)))
+                    val removed = stateStore.succeed(taskId, scan())
+                        ?: error("Sandbox delete was superseded")
+                    // Remaining files can be loaded while the player switches away from the deleted item.
+                    stateStore.content.ready()
+                    confirmSnapshot(removed)
+                },
+                restoreAndConfirm = {
+                    saveIndex(previousIndex)
+                    val restoreTask = stateStore.begin(message = "Restoring ${file.name}")
+                    val restored = stateStore.succeed(restoreTask, scan())
+                        ?: error("Sandbox restore was superseded")
+                    stateStore.content.ready()
+                    confirmSnapshot(restored)
+                    journal.delete(mustExist = false)
+                },
+            )
+            // The file is already removed; a journal-cleanup failure must not pretend to roll it back.
+            runCatching { journal.delete(mustExist = false) }
+                .onFailure { logger.w(it) { "Deletion journal will be cleaned at next startup" } }
+            Unit
         } catch (cancelled: CancellationException) {
             stateStore.cancel(taskId)
             throw cancelled
@@ -340,7 +404,7 @@ abstract class AbstractSandboxMediaSource(
         val files = scanFiles(rootDirectory)
         files.mapNotNull { file ->
             currentCoroutineContext().ensureActive()
-            val metadata = Taglib.readMetadata(file.path) ?: return@mapNotNull null
+            val metadata = readAudioMetadata(file) ?: return@mapNotNull null
             buildAudio(file, metadata)
         }
     }
@@ -351,6 +415,8 @@ abstract class AbstractSandboxMediaSource(
     ): List<PlatformFile> {
         directory.list().forEach { file ->
             if (file.path == indexFile.path) return@forEach
+            if (file.path == indexFile.path + ".tmp") return@forEach
+            if (file.path == deletionDirectory.path) return@forEach
             if (file.isDirectory()) {
                 scanFiles(file, result)
             } else if (file.size() >= MIN_AUDIO_SIZE && runCatching {
@@ -462,20 +528,61 @@ abstract class AbstractSandboxMediaSource(
 
     private suspend fun ensureIndexLoaded(): SandboxIndex {
         index?.let { return it }
-        return if (indexFile.exists()) {
-            runCatching { json.decodeFromString<SandboxIndex>(indexFile.readString()) }
-                .onFailure { logger.w(it) { "Ignoring invalid sandbox index" } }
-                .getOrDefault(SandboxIndex())
+        val loaded = if (indexFile.exists()) {
+            try {
+                json.decodeFromString<SandboxIndex>(indexFile.readString())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                // A renamed file's stable ID exists only in this index. Treating a
+                // damaged/unreadable index as empty would silently replace identities.
+                // Leave both disk and the cache untouched so a repaired index can retry.
+                throw IllegalStateException("Sandbox index is unreadable; original files preserved", failure)
+            }
         } else {
             SandboxIndex()
-        }.also { index = it }
+        }
+        index = loaded
+        try {
+            recoverPendingDeletions()
+        } catch (failure: Throwable) {
+            index = null
+            throw failure
+        }
+        return indexOrEmpty()
+    }
+
+    /** Prefer restoring an interrupted delete to silently losing the user's only copy. */
+    private suspend fun recoverPendingDeletions() {
+        if (!deletionDirectory.exists()) return
+        deletionDirectory.list().filter { it.name.endsWith(".json") }.forEach { journal ->
+            val pending = json.decodeFromString<PendingDeletion>(journal.readString())
+            val relative = pending.relativePath.removePrefix("/")
+            require(relative.isNotBlank() && relative.split('/').none { it == ".." || it == "." }) {
+                "Invalid sandbox deletion recovery path"
+            }
+            val original = rootDirectory.resolve(relative)
+            val quarantine = deletionDirectory.resolve(journal.name.removeSuffix(".json"))
+            if (quarantine.exists()) {
+                check(!original.exists()) { "Deletion recovery conflicts with ${original.name}" }
+                original.parent()?.createDirectories()
+                quarantine.atomicMove(original)
+            }
+            if (original.exists()) {
+                val entries = indexOrEmpty().entries.toMutableMap()
+                pending.entry?.let { entries[pending.relativePath] = it }
+                saveIndex(SandboxIndex(entries))
+            }
+            journal.delete()
+        }
     }
 
     private fun indexOrEmpty(): SandboxIndex = index ?: SandboxIndex()
 
     private suspend fun saveIndex(value: SandboxIndex) {
-        indexFile.writeString(json.encodeToString(SandboxIndex.serializer(), value))
-        index = value
+        atomicFileWriter.save(indexFile, json.encodeToString(SandboxIndex.serializer(), value)) {
+            index = value
+        }
     }
 
     private fun ensureDirectories() {
@@ -587,6 +694,12 @@ abstract class AbstractSandboxMediaSource(
     @Serializable
     private data class SandboxIndex(
         val entries: Map<String, SandboxIndexEntry> = emptyMap(),
+    )
+
+    @Serializable
+    private data class PendingDeletion(
+        val relativePath: String,
+        val entry: SandboxIndexEntry?,
     )
 
     @Serializable

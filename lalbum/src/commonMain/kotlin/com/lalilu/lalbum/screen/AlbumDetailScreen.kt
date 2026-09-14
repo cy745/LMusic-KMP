@@ -172,7 +172,7 @@ data class AlbumDetailScreen(
                 album?.let { a ->
                     scope.launch {
                         PlayerAction.UpdateList(
-                            ids = songs.itemList.map { it.id },
+                            ids = songs.itemList.map { it.playbackId },
                             start = false
                         ).action()
                     }
@@ -181,7 +181,7 @@ data class AlbumDetailScreen(
             onClickPlayAll = {
                 scope.launch {
                     PlayerAction.UpdateList(
-                        ids = songs.itemList.map { it.id },
+                        ids = songs.itemList.map { it.playbackId },
                         start = true
                     ).action()
                 }

@@ -182,7 +182,7 @@ data class ArtistDetailScreen(
                 currentArtist?.let {
                     scope.launch {
                         PlayerAction.UpdateList(
-                            ids = songs.itemList.map { it.id },
+                            ids = songs.itemList.map { it.playbackId },
                             start = false
                         ).action()
                     }
@@ -191,7 +191,7 @@ data class ArtistDetailScreen(
             onClickPlayAll = {
                 scope.launch {
                     PlayerAction.UpdateList(
-                        ids = songs.itemList.map { it.id },
+                        ids = songs.itemList.map { it.playbackId },
                         start = true
                     ).action()
                 }

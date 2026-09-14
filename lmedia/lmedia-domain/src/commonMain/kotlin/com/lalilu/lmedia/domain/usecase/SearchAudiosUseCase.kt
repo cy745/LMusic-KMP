@@ -2,6 +2,7 @@ package com.lalilu.lmedia.domain.usecase
 
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
+import com.lalilu.lmedia.domain.repository.getPlaybackSlots
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapLatest
@@ -22,12 +23,14 @@ class SearchAudiosUseCase(
     @OptIn(ExperimentalCoroutinesApi::class)
     operator fun invoke(
         ids: List<String>? = null,
-        keywords: List<String> = emptyList()
+        keywords: List<String> = emptyList(),
+        playbackIds: List<String>? = null,
     ): Flow<List<LAudio>> {
-        val source = if (ids != null) {
-            audioRepository.getAudios(ids)
-        } else {
-            audioRepository.getAudios()
+        require(ids == null || playbackIds == null) { "Choose raw IDs or playback IDs, not both" }
+        val source = when {
+            playbackIds != null -> audioRepository.getPlaybackSlots(playbackIds).mapLatest { it.filterNotNull() }
+            ids != null -> audioRepository.getAudios(ids)
+            else -> audioRepository.getAudios()
         }
 
         if (keywords.isEmpty()) return source

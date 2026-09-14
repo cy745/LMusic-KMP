@@ -32,6 +32,7 @@ import com.lalilu.extensions.*
 import com.lalilu.lartist.component.ArtistCard
 import com.lalilu.lartist.viewmodel.ArtistDetailEvent
 import com.lalilu.lmedia.component.AudioItemCard
+import com.lalilu.lmedia.isAudioPlayable
 import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.duration
@@ -211,7 +212,7 @@ internal fun ArtistDetailScreenContent(
 
                 itemsIndexed(
                     items = items,
-                    key = { index, item -> item.id },
+                    key = { index, item -> item.playbackId },
                     contentType = { index, item -> item::class }
                 ) { index, item ->
                     AudioItemCard(
@@ -219,10 +220,11 @@ internal fun ArtistDetailScreenContent(
                             .animateItem()
                             .fillMaxWidth(),
                         sharedMapPrefix = sharedMapPrefix,
-                        id = item.id,
+                        id = item.playbackId,
                         title = item.title,
                         subtitle = item.subtitle,
                         imageData = item,
+                        enabled = isAudioPlayable(item),
                         isSelecting = { selector().isSelecting.value },
                         isSelected = { selector().isSelected(item) },
                         onEnterSelect = { selector().onSelect(item) },
@@ -230,8 +232,8 @@ internal fun ArtistDetailScreenContent(
                         onPlay = {
                             scope.launch {
                                 PlayerAction.UpdateList(
-                                    ids = songs.itemList.map { it.id },
-                                    id = item.id,
+                                    ids = songs.itemList.map { it.playbackId },
+                                    id = item.playbackId,
                                     start = true
                                 ).action()
                             }
@@ -240,7 +242,7 @@ internal fun ArtistDetailScreenContent(
                             val coverMemoryKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/song/detail")
-                                .with("mediaId", item.id)
+                                .with("mediaId", item.playbackId)
                                 .with("song", item)
                                 .with("coverCacheKey", coverMemoryKey)
                                 .with("sharedMap", sharedMap)
