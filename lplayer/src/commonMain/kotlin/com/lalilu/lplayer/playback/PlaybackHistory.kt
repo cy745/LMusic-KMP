@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.transformLatest
@@ -65,6 +66,9 @@ class PlaybackHistoryImpl(
 ) : PlaybackHistory {
     private val recordingMutex = Mutex()
 
+    /** 每次成功写入位置采样后自增，供迟到的历史回退清零判断是否已有更新的进度。 */
+    private val positionWrites = MutableStateFlow(0L)
+
     override fun restoreFromHistory(): PlaybackHistory.HistorySnapshot? {
         return historyStorage.readSnapshot()
     }
@@ -100,15 +104,28 @@ class PlaybackHistoryImpl(
             .launchIn(this)
 
         // 缺失的历史 current 已回退，或用户在部分队列中主动改选时，旧 position 不再属于新歌曲。
+        // 该清零只对通知发出时的队列与恢复阶段有效；迟到的通知不能清掉接管之后写入的进度。
         restoreState
             ?.map { state ->
-                state is HistoryRestoreState.Pending &&
-                    state.currentRestored &&
-                    state.currentId == null
+                state to (state is HistoryRestoreState.Pending && state.currentRestored && state.currentId == null)
             }
-            ?.distinctUntilChanged()
-            ?.filter { it }
-            ?.onEach { recordingMutex.withLock { historyStorage.savePosition(0L) } }
+            ?.distinctUntilChanged { previous, current -> previous.second == current.second }
+            ?.filter { (_, shouldClear) -> shouldClear }
+            ?.onEach { (restore) ->
+                val expectedQueue = playback.queue.stateSnapshot()
+                val expectedWrites = positionWrites.value
+                recordingMutex.withLock {
+                    if (!shouldClearFallbackPosition(
+                            expectedQueue = expectedQueue,
+                            expectedRestore = restore,
+                            currentQueue = playback.queue.stateSnapshot(),
+                            currentRestore = restoreState.value,
+                            expectedPositionWrites = expectedWrites,
+                            currentPositionWrites = positionWrites.value,
+                        )) return@withLock
+                    historyStorage.savePosition(0L)
+                }
+            }
             ?.launchIn(this)
 
         // 监听播放状态 → 持久化 position
@@ -126,6 +143,7 @@ class PlaybackHistoryImpl(
                                     historyStorage.saveSnapshot(historyIdentityForPersistence(
                                         expected, restoreState?.value as? HistoryRestoreState.Pending, historyStorage.savedQueueIdentity(),
                                     ), position)
+                                    positionWrites.value += 1
                                 }
                             }
                         }
@@ -146,6 +164,20 @@ internal fun isCurrentHistoryRecording(
     currentQueue: QueueState,
     currentRestore: HistoryRestoreState?,
 ): Boolean = expectedQueue === currentQueue && expectedRestore === currentRestore
+
+/**
+ * 历史回退的清零通知只有在仍属于发出时的队列/恢复阶段、且此后没有任何更新的位置采样时，
+ * 才能覆盖已持久化的进度。更新的采样已经属于接管后的选择，不属于本次回退。
+ */
+internal fun shouldClearFallbackPosition(
+    expectedQueue: QueueState,
+    expectedRestore: HistoryRestoreState?,
+    currentQueue: QueueState,
+    currentRestore: HistoryRestoreState?,
+    expectedPositionWrites: Long,
+    currentPositionWrites: Long,
+): Boolean = isCurrentHistoryRecording(expectedQueue, expectedRestore, currentQueue, currentRestore) &&
+    expectedPositionWrites == currentPositionWrites
 
 internal fun historyIdentityForPersistence(
     state: QueueState,

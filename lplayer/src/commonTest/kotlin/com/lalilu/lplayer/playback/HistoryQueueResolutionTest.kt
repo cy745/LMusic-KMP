@@ -31,11 +31,7 @@ class HistoryQueueResolutionTest {
 
     private class MemoryStorage(private val identity: HistoryQueueIdentity?) : HistoryStorage {
         override fun savedQueueIdentity() = identity
-        override fun savedPlaylistIds() = listOf("legacy")
-        override fun savedPlayId() = "legacy"
         override fun savedPosition() = 42_000L
-        override fun savePlaylistIds(ids: List<String>) = Unit
-        override fun savePlayId(id: String) = Unit
         override fun savePosition(position: Long) = Unit
     }
 

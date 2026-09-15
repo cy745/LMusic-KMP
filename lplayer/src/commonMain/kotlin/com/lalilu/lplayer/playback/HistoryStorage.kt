@@ -57,12 +57,8 @@ interface HistoryStorage {
         savePosition(position)
     }
     fun savedPlaybackMode(): PlaybackMode = PlaybackMode.LOOP
-    fun savedPlaylistIds(): List<String>
-    fun savedPlayId(): String
     fun savedPosition(): Long
 
-    fun savePlaylistIds(ids: List<String>)
-    fun savePlayId(id: String)
     fun savePosition(position: Long)
 }
 
@@ -114,12 +110,8 @@ class HistoryStorageImpl(
         PlayMode.RepeatOne -> PlaybackMode.SINGLE_LOOP
         PlayMode.Shuffle -> PlaybackMode.SHUFFLE
     }
-    override fun savedPlaylistIds(): List<String> = kv.historyPlaylistIds.value
-    override fun savedPlayId(): String = kv.historyPlayId.value
     override fun savedPosition(): Long = if (kv.historyPositionResetRequested.value) 0L else readRecord()?.position ?: 0L
 
-    override fun savePlaylistIds(ids: List<String>) { kv.historyPlaylistIds.value = ids }
-    override fun savePlayId(id: String) { kv.historyPlayId.value = id }
     override fun savePosition(position: Long) {
         val record = readRecord() ?: return
         kv.historyPlaybackQueue.value = json.encodeToString(record.copy(position = position.coerceAtLeast(0L)))

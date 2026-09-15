@@ -474,11 +474,7 @@ class QueuePlaybackTest {
             snapshots += identity to position
             savePosition(position)
         }
-        override fun savedPlaylistIds() = emptyList<String>()
-        override fun savedPlayId() = ""
         override fun savedPosition() = position
-        override fun savePlaylistIds(ids: List<String>) = Unit
-        override fun savePlayId(id: String) = Unit
         override fun savePosition(position: Long) { this.position = position }
     }
 }

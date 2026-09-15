@@ -12,4 +12,4 @@ cd "$task_root"
 xcrun simctl spawn "$LMUSIC_IOS_SIMULATOR_ID" \
     "$task_root/lplayer/build/bin/iosSimulatorArm64/debugTest/test.kexe" \
     -- --ktest_logger=TEAMCITY \
-    --ktest_gradle_filter=com.lalilu.lplayer.playback.AVPlayerPreparationTest,com.lalilu.lplayer.playback.MediaTimeConversionTest,com.lalilu.lplayer.playback.HistoryQueueRestorerTest
+    --ktest_gradle_filter=com.lalilu.lplayer.playback.AVPlayerPreparationTest,com.lalilu.lplayer.playback.MediaTimeConversionTest,com.lalilu.lplayer.playback.HistoryQueueRestorerTest,com.lalilu.lplayer.playback.IosLoadFailureTest,com.lalilu.lplayer.playback.PlaybackFailureNavigationTest,com.lalilu.lplayer.playback.LoadFailureWatchTest

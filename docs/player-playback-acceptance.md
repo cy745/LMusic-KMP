@@ -4,6 +4,34 @@
 
 当前阶段结论见 [#14 / #17 合并检查点](player-queue-issue-progress.md)。下文按时间倒序保留当时的记录，“未提交/未推送”和旧的待办描述不是最新状态。
 
+## iOS 失败后沿方向跳过（2026-09-14 后续轮次）
+
+- 新增公共内部函数 `navigateWithFailureFallback`：单次导航内沿方向跳过失败槽位，最多绕队列一周；跳过前重新读取队列，被替换即中止而不推测新的所有权；预算用尽时先 `stop` 再抛出首个失败，每个失败槽位单独回调记账。`skipPolicy` 在**尝试之前**求值——只有"用户请求了播放且这次是真正的加载"才允许跳过，已经加载成功后的失败不会升级成整队列连跳。
+- `AVPlayerPlayback.selectInternal` 改用该循环：候选槽位需 `available`、来源已就绪、且不在失败表中（一次跳过搜索只读一次失败表）；失败槽位按 `classifyIosLoadFailure` 记录后继续沿方向尝试，全部失败则停止并上报首个失败。`attemptLoad` 抽出复用分支与全新加载分支，成功后启动观察器；引擎处于错误态时不再走"同一首已加载"捷径。
+- 方向来自 `PlaybackNavigationContext`：iOS 现在与 Desktop 一样在 `skipToNext`/`skipToPrevious` 中写入 Forward/Backward；自然播放结束走同一条命令路径，因此"自动切到一首坏歌"也被覆盖。
+- 明确不做：**播放中途**（已加载后）引擎报错只记录失败、不自动切歌。Android 的 `onPlayerError` 会导航，但 iOS 引擎报错时会同时把状态置为未播放，无法可靠区分"用户在暂停时遇到的错误"与"播放中断"，自动切歌可能违背用户当前意图；且 MusicKit 会同时置 `state.error` 与发 Error 事件，两处都导航会连跳两首。此项作为已知跨平台差异保留。
+- `/tmp/lmusic-final-jvm.log`：`:lplayer:jvmTest` 全量 248 项（新增 19 项导航/观察规则测试），失败/错误 0、跳过 19。`/tmp/lmusic-final-ios-native.log`：iPhone 17 Pro（iOS 26.3）原生运行 6 个测试类共 57 项，`testFailed` 0；脚本 filter 新增 `PlaybackFailureNavigationTest`、`LoadFailureWatchTest`，证明同一套规则在 Kotlin/Native 上同样通过。
+- `composeApp:compileKotlinIosSimulatorArm64`、`lplayer:compileKotlinWasmJs`、`androidApp:compileDebugKotlin` 通过。本轮未改 Desktop 的 `VLCPlayback`（仍是每次选曲新建 traversal），公共循环可被它复用但不在本轮；iOS 也还没有 Android 那样的内容就绪等待，只按当前来源状态过滤候选。
+- 独立对抗性审查（子 agent，只读）提出并按严重程度处理：
+  - **已修（高）**：观察器原来是一次性的，记账后 `return`，而 `playInternal` 的"已加载直接 play"分支不会重启它 → 被记录过失败的歌曲即使用户恢复播放成功，记录也永远清不掉，卡片持续红色并被跳过过滤器长期排除。现在观察器常驻到媒体被替换/停止为止，记账与清除共用同一个 `PlaybackFailureWrites.Ticket`（重新注册会让另一侧被自己的写入判为过期）；判定抽成公共 `LoadFailureWatch` 并配 5 项规则测试，其中"更早段落留下的失败在首次真实推进后也必须清除"直接覆盖该缺陷。同时移除 `recordEngineFailure`：iOS 现有三个引擎的异步错误都会写入 `engine.state.error`，第二个写入者只会抢走 ticket 并再次破坏清除。
+  - **已修（中）**：`playableSlots` 是挂起调用（iOS 侧查失败表），原先只在它之前校验队列；同长度重排不会越界，旧下标会被套到新列表的别的槽位上。现在挂起点之后复查候选 id 列表。`PlaybackFailureNavigationTest` 新增"重排后中止"用例，**去掉该复查即失败**（`/tmp/nav-red.log`），恢复后通过（`/tmp/nav-green.log`）。
+  - **已修（中）**：失败表读取失败不再顶替原始加载失败，按"没有已知失败"继续尝试并记录诊断（`runCatching`），与 Android 的恢复边界一致。
+  - **未修（记录为中）**：跳过循环整体位于 `queueEditMutex` 内（`playAudio` 与 `skipToNext` 的优先请求分支），单次 `AVPlayerEngine.load` 最坏 30s，坏队列最坏 N×30s 阻塞队列编辑且不会被这些操作取消；需要给单次尝试/整轮跳过加总时长上限或把失败导航改成投递新命令，属于结构性改动。
+  - **未修（记录为中）**：`AVAudioPlayerEngine` 从不写 `state.error`、decode 错误只打日志、`load` 不检查 `errorPtr`，因此 iOS Bytes 播放失败对新账本基本不可见；需要引擎侧补错误信号。
+  - **未修（记录为中）**：迟到异步错误缺 storeID/加载代次判定，MusicKit 上一首条目的迟到 error 可能记到当前歌曲；需要引擎把加载代次带进 Error 事件。
+  - **未修（低）**：分类器按 domain + code 独立匹配，嵌套 NSError 的 UserInfo 可能误判；清零守卫用恢复阶段对象标识可能"漏清"而非"误清"（反向风险已确认不可达）。
+- 仍未完成：iOS 播放中途错误的自动导航；真实坏文件注入与"红卡片 → 重试 → 清错 → 自动跳下一首"的模拟器/真机端到端验收；上述三个中危缺口。
+
+## 历史回退清零归属与 iOS 失败持久化（2026-09-14 后续轮次）
+
+- 历史回退的“清零 position”通知原先没有归属校验：队列写入与位置采样都会核对发出时的队列/恢复阶段，只有清零直接 `savePosition(0)`。新增 `shouldClearFallbackPosition`，要求队列与恢复阶段仍是通知发出时的同一次（按对象标识比较），且此后没有任何更新的位置采样；`PlaybackHistoryImpl.positionWrites` 在每次采样成功写入后自增，清零进锁后比对计数。`/tmp/lmusic-history-clear-ownership.log`：`:lplayer:jvmTest` 全量 229 项，失败/错误 0、跳过 19（原生 VLC 环境变量缺失）。iOS 模拟器与 Wasm 编译、`composeApp` iOS 编译、`androidApp:compileDebugKotlin` 均通过。
+- 该竞态只在真实多线程交错下可达（`recordingMutex` 临界区全为同步代码，`runTest` 单线程调度无法抢占，`HistoryStorage` 也没有挂起缝），因此本轮只有规则级测试，**没有“修复前失败”的复现证据**，不得宣称竞态已在设备上验证消除。
+- 按“内测阶段不做数据兼容与迁移”的决定，删除 V1/V2 历史键 `historyPlayPosition`、`historyPlaylistIds`、`historyPlayId`、`historyQueueIdentityV2` 及 `HistoryStorage` 的 `savedPlaylistIds/savedPlayId/savePlaylistIds/savePlayId`。现有持久化只保留 `historyPlaybackQueue`（队列身份 + current + position 的单条 JSON）与 `historyPositionResetRequested`。装过旧版本的设备升级后历史会被丢弃，这是明确选择而非遗漏。
+- iOS 接入失败持久化：`AVPlayerPlayback` 注入 `PlaybackFailureRepository` 并复用 `PlaybackFailureWrites`。命令路径的加载失败记账；AVPlayer `status=Failed` 这类不会变成异常的情况由 `watchLoadedItem` 记账（同时负责“真实位置推进后才清除”）；MusicKit 的 Engine Error 事件只在错误来自当前引擎且仍是当前已加载歌曲时记账。来源未就绪、取消、非当前歌曲一律不记账（`shouldRecordIosLoadFailure` 规则测试覆盖）。引擎处于错误态时不再走“同一首已加载”捷径，避免界面重试变成空操作。
+- iOS 分类只识别明确的 domain+code（`NSCocoaErrorDomain` 257/260，`NSURLErrorDomain` -1001/-1003/-1004/-1005/-1009）。刻意不把整个 `NSURLErrorDomain` 判成网络问题：不存在的本地文件同样可能报 -1100，类别错误比通用提示更糟，因此保留 Unknown。
+- `/tmp/lmusic-ios-failure-native.log`：iPhone 17 Pro（iOS 26.3，`588DC4F8-1B07-4D89-BD2F-862ABBC44113`）上经 `scripts/test-ios-player-native.sh` 原生运行 4 个测试类共 38 项，`testFailed` 0 项；脚本 filter 新增 `IosLoadFailureTest`。首轮曾出现 1 项失败，原因是分类表按合成字符串而非真实 `NSError.description`（`Error Domain=… Code=…`）格式匹配，已修正测试与规则。
+- 仍未完成：iOS 失败后没有沿方向有界跳过（只保留失败状态，不自动跳下一首）；iOS 失败链路的真实坏文件注入、界面重试与真机运行验收未做；VLC 异步 error 归属、Desktop 跨选曲失败预算、Android 清错时机仍未改动。
+
 ## 删除失败的受保护队列恢复（2026-09-14）
 
 - SandboxFileOperationsImpl 在文件恢复且数据库确认完成后，调用本次删除专属 QueueRemovalRecovery：记录删除前列表/当前重复项位置/可归属进度，恢复时使用最新恢复的歌曲元数据。即使原生应用在队列已发布后抛异常，也保留恢复记录。

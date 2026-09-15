@@ -277,11 +277,7 @@ class VlcPlaybackNativeTest {
 
     private class MemoryHistory : HistoryStorage {
         @Volatile private var position = 0L
-        override fun savedPlaylistIds() = emptyList<String>()
-        override fun savedPlayId() = ""
         override fun savedPosition() = position
-        override fun savePlaylistIds(ids: List<String>) = Unit
-        override fun savePlayId(id: String) = Unit
         override fun savePosition(position: Long) { this.position = position }
     }
 
