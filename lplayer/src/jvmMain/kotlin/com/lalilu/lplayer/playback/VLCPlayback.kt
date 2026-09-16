@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.first
 import kotlin.time.TimeSource
 import org.koin.core.annotation.Single
 import uk.co.caprica.vlcj.player.base.MediaPlayer
+import uk.co.caprica.vlcj.player.base.State
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 
 @Single(binds = [Playback::class])
@@ -66,6 +67,15 @@ class VLCPlayback internal constructor(
     private val commands = LatestPlaybackCommand()
     private val failureWrites = PlaybackFailureWrites(playbackFailureRepository)
     private var successfulPlaybackWatch: Job? = null
+
+    /** 用户是否明确要求过播放当前这首歌；播放中途/加载期出错时只有它仍成立才自动继续下一首。 */
+    private var playRequestedFor: MediaKey? = null
+
+    /** 观察者确认已就绪的媒体；用于判断 seek 能否直接作用于原生。 */
+    private var preparedKey: MediaKey? = null
+
+    /** 原生还没就绪时收到的定位请求：就绪后由观察者补上，调用方不必等待预备。 */
+    private var pendingSeek: Long? = null
     // Serialize unsuspended command sections without occupying the Compose UI thread.
     // LatestPlaybackCommand handles cancellation across suspension points.
     private val commandDispatcher = Dispatchers.IO.limitedParallelism(1)
@@ -133,37 +143,141 @@ class VLCPlayback internal constructor(
         successfulPlaybackWatch = null
         loadedMediaKey = null
         val successTicket = failureWrites.register(item.playbackId)
+        preparedKey = null
+        pendingSeek = null
         val data = platformMediaSource.resolveMediaData(item)
         currentCoroutineContext().ensureActive()
         prepareVlcMedia(player, data, position)
+        preparedKey = item.mediaKey
         loadedMediaKey = item.mediaKey
-        watchSuccessfulPlayback(item.mediaKey, successTicket)
+        // 恢复路径已经在命令内完成定位与播放意图，观察者只负责清除/记账。
+        playRequestedFor = null
+        watchLoadedItem(item, successTicket, requestPlay = false)
         if (start) {
             player.controls().play()
         }
     }
 
-    /** A prepared/paused input is not a successful retry. Confirm actual native progress. */
-    private fun watchSuccessfulPlayback(key: MediaKey, ticket: PlaybackFailureWrites.Ticket) {
+    /**
+     * 常驻观察者：就绪后按需真正播放；坏内容/超时按歌曲记账并（在用户要求播放时）继续下一首；
+     * 真实位置推进后才清除失败记录。一次加载一个观察者，换歌即取消，因此迟到的结果无法劫持新歌。
+     */
+    private fun watchLoadedItem(item: LAudio, ticket: PlaybackFailureWrites.Ticket, requestPlay: Boolean) {
+        val key = item.mediaKey
+        successfulPlaybackWatch?.cancel()
         successfulPlaybackWatch = launch(commandDispatcher) {
+            val watch = LoadFailureWatch()
+            val startedAt = TimeSource.Monotonic.markNow()
             var previousPosition: Long? = null
+            var prepared = false
+            var playApplied = !requestPlay
             while (isActive && loadedMediaKey == key) {
                 delay(250)
-                if (commands.isRunning || loadedMediaKey != key || queue.currentItem()?.mediaKey != key ||
-                    !player.status().isPlaying) {
+                if (commands.isRunning || loadedMediaKey != key || queue.currentItem()?.mediaKey != key) {
+                    previousPosition = null
+                    continue
+                }
+                val state = player.status().state()
+                // 实测：坏内容/不存在的文件会在从未进入 PAUSED（音轨 -1）的情况下直接 ENDED。
+                if (state == State.ERROR || (state == State.ENDED && !prepared)) {
+                    handleStalledFailure(item, ticket)
+                    return@launch
+                }
+                if (!prepared) {
+                    if (state == State.PAUSED && player.audio().track() >= 0) {
+                        prepared = true
+                        preparedKey = key
+                        // 就绪前收到的定位请求在这里补上：调用方无需等待预备。
+                        pendingSeek?.let { target ->
+                            pendingSeek = null
+                            player.controls().setTime(target)
+                        }
+                    } else if (startedAt.elapsedNow() > DEFAULT_PREPARATION_TIMEOUT) {
+                        handleStalledFailure(item, ticket)
+                        return@launch
+                    } else {
+                        previousPosition = null
+                        continue
+                    }
+                }
+                if (!playApplied) {
+                    // 用户在就绪之前暂停/停止了：不能把"就绪后补播"再执行一遍。
+                    if (playRequestedFor != key) {
+                        playApplied = true
+                        previousPosition = null
+                        continue
+                    }
+                    player.controls().play()
+                    playApplied = true
+                    previousPosition = null
+                    continue
+                }
+                if (!player.status().isPlaying) {
                     previousPosition = null
                     continue
                 }
                 val position = player.status().time()
                 val previous = previousPosition
                 previousPosition = position
-                if (previous != null && previous >= 0 && position > previous) {
-                    val result = failureWrites.apply(ticket, null)
-                    if (result.isSuccess) return@launch
-                    result.onFailure { logger.e(it) { "Could not clear VLC playback failure" } }
+                if (previous == null || previous < 0 || position <= previous) continue
+                if (watch.onPositionAdvanced()) {
+                    failureWrites.apply(ticket, null).onFailure {
+                        logger.e(it) { "Could not clear VLC playback failure" }
+                    }
                 }
             }
         }
+    }
+
+    /** 加载没能就绪：按来源就绪记一次账；用户要求过播放且位置停住时继续沿方向找下一首。 */
+    private suspend fun handleStalledFailure(item: LAudio, ticket: PlaybackFailureWrites.Ticket) {
+        val recorded = recordLoadFailure(item, IllegalStateException("VLC did not prepare the audio"))
+        if (!recorded) return
+        if (!shouldNavigateAfterStalledFailure(
+                failedKey = item.mediaKey,
+                currentItemKey = queue.currentItem()?.mediaKey,
+                loadedKey = loadedMediaKey,
+                playRequestedKey = playRequestedFor,
+                positionAdvanced = false,
+            )) return
+        playRequestedFor = null
+        navigateAfterStalledFailure(item.mediaKey)
+    }
+
+    /** 用独立协程发起：观察者会随换歌被取消，不能让它把这次导航一起带走。 */
+    private fun navigateAfterStalledFailure(key: MediaKey) {
+        launch(commandDispatcher) {
+            if (loadedMediaKey != key || queue.currentItem()?.mediaKey != key) return@launch
+            try {
+                skipToNext()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                logger.e(failure) { "Could not continue playback after a stalled failure" }
+            }
+        }
+    }
+
+    /**
+     * 发起加载并交给观察者；**不等待原生预备**。选曲命令位于队列编辑边界内，
+     * 在这里等待会把点歌与队列编辑一起阻塞到原生上限。
+     */
+    private suspend fun startItem(item: LAudio, start: Boolean) {
+        successfulPlaybackWatch?.cancel()
+        successfulPlaybackWatch = null
+        preparedKey = null
+        pendingSeek = null
+        playRequestedFor = item.mediaKey.takeIf { start }
+        try {
+            val data = platformMediaSource.resolveMediaData(item)
+            currentCoroutineContext().ensureActive()
+            startVlcMedia(player, data)
+        } catch (failure: Exception) {
+            playRequestedFor = null
+            throw failure
+        }
+        loadedMediaKey = item.mediaKey
+        watchLoadedItem(item, failureWrites.register(item.playbackId), requestPlay = start)
     }
 
     override suspend fun restoreLoadedItem(audio: LAudio, position: Long, start: Boolean): Unit =
@@ -184,6 +298,7 @@ class VLCPlayback internal constructor(
     private suspend fun playInternal() {
         try {
             if (player.media().isValid && loadedMediaKey != null && loadedMediaKey == queue.currentItem()?.mediaKey) {
+                playRequestedFor = loadedMediaKey
                 player.controls().play()
                 _isPlaying.value = true
             } else {
@@ -199,6 +314,7 @@ class VLCPlayback internal constructor(
     }
 
     private suspend fun pauseInternal() {
+        playRequestedFor = null
         try {
             player.controls().setPause(true)
             _isPlaying.value = false
@@ -217,6 +333,7 @@ class VLCPlayback internal constructor(
     private suspend fun stopInternal() {
         successfulPlaybackWatch?.cancel()
         successfulPlaybackWatch = null
+        playRequestedFor = null
         try {
             player.controls().stop()
             _isPlaying.value = false
@@ -263,13 +380,14 @@ class VLCPlayback internal constructor(
         // 未初始化的播放器不能在这里抛错：该判定发生在尝试之前，抛出去会绕过失败处理。
         runCatching { playerInstance?.media()?.isValid == true }.getOrDefault(false)
 
-    /** 来源还在加载时，加载失败不是这首歌的问题。取消从不记账。 */
-    private suspend fun recordLoadFailure(item: LAudio, failure: Exception) {
-        if (failure is CancellationException) return
-        if (platformMediaSource.findEnabledSource(item.mediaSourceName)?.contentState?.value?.isReady != true) return
+    /** 来源还在加载时，加载失败不是这首歌的问题。取消从不记账。返回是否真的写入了记录。 */
+    private suspend fun recordLoadFailure(item: LAudio, failure: Exception): Boolean {
+        if (failure is CancellationException) return false
+        if (platformMediaSource.findEnabledSource(item.mediaSourceName)?.contentState?.value?.isReady != true) return false
         failureWrites.apply(failureWrites.register(item.playbackId), PlaybackFailure(
             classifyVlcLoadFailure(failure), System.currentTimeMillis(),
         )).onFailure { logger.e(it) { "Could not persist VLC load failure" } }
+        return true
     }
 
     private suspend fun selectOneInternal(index: Int, start: Boolean) {
@@ -282,10 +400,14 @@ class VLCPlayback internal constructor(
                 seekInternal(0)
                 queue.update { switchTo(index) }
                 prepareSurpriseNext()
+                playRequestedFor = targetItem.mediaKey.takeIf { start }
                 if (start) playInternal() else pauseInternal()
+                if (successfulPlaybackWatch?.isActive != true) {
+                    watchLoadedItem(targetItem, failureWrites.register(targetItem.playbackId), requestPlay = start)
+                }
             } else {
                 val oldItem = state.currentItem()
-                playItem(targetItem, start)
+                startItem(targetItem, start)
                 queue.update { switchTo(index) }
                 prepareSurpriseNext()
 
@@ -305,6 +427,11 @@ class VLCPlayback internal constructor(
     }
 
     private suspend fun seekInternal(positionMs: Long) {
+        if (preparedKey != loadedMediaKey) {
+            // 原生还在打开：直接 setTime 会被忽略甚至打断打开流程，交给观察者就绪后补上。
+            pendingSeek = positionMs
+            return
+        }
         try {
             player.controls().setTime(positionMs)
         } catch (e: Exception) {

@@ -285,6 +285,25 @@ class AVPlayerPreparationTest {
         }
     }
 
+    @Test fun aSeekIssuedRightAfterANonBlockingSelectionStillLands() = runNativeMainTest {
+        val file = PlatformFile(NSTemporaryDirectory() + "lmusic-seek-while-loading-${Random.nextLong()}.wav")
+        val engine = AVPlayerEngine()
+        try {
+            file.sink().buffered().use { it.write(silentWave()) }
+            // 选曲不再等待就绪：调用方紧接着定位时，AVFoundation 必须自己排队并在就绪后落到目标位置。
+            engine.load(MediaData.Url("file://${file.path}"), LAudio(id = "seek-loading", mediaSourceName = "validation"))
+            engine.seekTo(12_000)
+            withTimeout(10.seconds) {
+                while (abs(engine.currentPosition() - 12_000) > 200) delay(20)
+            }
+            assertNull(engine.state.value.error)
+            engine.pause()
+        } finally {
+            engine.release()
+            file.delete()
+        }
+    }
+
     @Test fun aSlowRemoteLoadDoesNotBlockTheSelectionCommand() = runNativeMainTest {
         val engine = AVPlayerEngine()
         try {

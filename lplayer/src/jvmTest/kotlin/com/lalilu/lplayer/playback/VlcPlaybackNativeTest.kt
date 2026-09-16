@@ -15,6 +15,7 @@ import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.factory.discovery.NativeDiscovery
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.State
+import java.io.File
 import kotlin.math.abs
 import kotlin.test.*
 
@@ -75,6 +76,99 @@ class VlcPlaybackNativeTest {
             assertFailsWith<java.io.FileNotFoundException> { playback.updatePlaylist(songs, 0, true) }
             assertEquals(listOf("bad-0", "bad-1", "bad-2"), attempted)
             assertFalse(native.status().isPlaying)
+            assertFalse(playback.isPlaying.value)
+        }
+    }
+
+    @Test fun aSlowLoadDoesNotBlockTheNextSelection() = runBlocking {
+        val slow = slowUrl
+        withPlayback(mediaUrl = { song -> if (song.id == "slow") slow else null }) { playback, native, _, song ->
+            val slowSong = song.copy(id = "slow")
+            val good = song.copy(id = "good")
+            playback.updatePlaylist(listOf(slowSong, good), 0, false)
+
+            val startedAt = System.nanoTime()
+            playback.skipTo(0, start = true)
+            val firstSelectionMillis = (System.nanoTime() - startedAt) / 1_000_000
+
+            val secondStartedAt = System.nanoTime()
+            playback.skipTo(1, start = true)
+            val secondSelectionMillis = (System.nanoTime() - secondStartedAt) / 1_000_000
+
+            // 修复前这里会等待原生预备上限（30s）：选曲命令必须立刻返回。
+            assertTrue(firstSelectionMillis < 2_000, "slow selection blocked for ${firstSelectionMillis}ms")
+            assertTrue(secondSelectionMillis < 2_000, "second selection blocked for ${secondSelectionMillis}ms")
+            assertEquals(good, playback.queue.currentItem())
+            withTimeout(10_000) { while (!native.status().isPlaying) delay(25) }
+            playback.pause()
+            // 结束前中止可能仍在 OPENING 的输入，避免把原生状态残留给后续用例。
+            playback.stop()
+            withTimeout(5_000) { while (native.status().state() == State.OPENING) delay(25) }
+        }
+    }
+
+    @Test fun aBrokenFileIsRecordedAndSkippedToTheNextPlayableSong() = runBlocking {
+        val broken = File.createTempFile("lmusic-broken", ".mp3").apply {
+            writeText("this is definitely not audio")
+            deleteOnExit()
+        }
+        val failures = MemoryFailures()
+        withPlayback(
+            failureRepository = failures,
+            mediaUrl = { song -> if (song.id == "broken") broken.toURI().toString() else null },
+        ) { playback, native, _, song ->
+            val brokenSong = song.copy(id = "broken")
+            val good = song.copy(id = "good")
+            playback.setPlaybackMode(PlaybackMode.LOOP)
+            playback.updatePlaylist(listOf(brokenSong, good), 0, true)
+
+            // 坏内容不会同步抛错：由观察者发现（实测是"未就绪就 ENDED"）后记账并继续下一首。
+            withTimeout(15_000) { while (failures.failures.value[brokenSong.playbackId] == null) delay(25) }
+            // 记账与导航是两步：等真正切到下一首，而不是记账后立刻断言。
+            withTimeout(15_000) { while (playback.queue.currentItem() != good) delay(25) }
+            withTimeout(10_000) { while (!native.status().isPlaying) delay(25) }
+            assertNull(failures.failures.value[good.playbackId])
+            playback.pause()
+        }
+    }
+
+    @Test fun aLateFailureOfTheReplacedSongDoesNotHijackTheCurrentOne() = runBlocking {
+        val broken = File.createTempFile("lmusic-late-broken", ".mp3").apply {
+            writeText("this is definitely not audio")
+            deleteOnExit()
+        }
+        val failures = MemoryFailures()
+        withPlayback(
+            failureRepository = failures,
+            mediaUrl = { song -> if (song.id == "broken") broken.toURI().toString() else null },
+        ) { playback, native, _, song ->
+            val brokenSong = song.copy(id = "broken")
+            val good = song.copy(id = "good")
+            playback.setPlaybackMode(PlaybackMode.LOOP)
+            playback.updatePlaylist(listOf(brokenSong, good), 0, false)
+
+            playback.skipTo(0, start = true)
+            // 坏歌还没失败就切到好歌：坏歌的迟到失败不能停掉/改写当前播放。
+            playback.skipTo(1, start = true)
+            withTimeout(10_000) { while (!native.status().isPlaying) delay(25) }
+            delay(2_000)
+
+            assertEquals(good, playback.queue.currentItem())
+            assertTrue(native.status().isPlaying, "the late failure stopped the current song")
+            assertNull(failures.failures.value[good.playbackId], "the failure was attributed to the current song")
+            playback.pause()
+        }
+    }
+
+    @Test fun pauseBeforePreparationCompletesCancelsTheQueuedAutoplay() = runBlocking {
+        withPlayback(mediaUrl = { song -> if (song.id == "slow") slowUrl else null }) { playback, native, _, song ->
+            val slow = song.copy(id = "slow")
+            playback.updatePlaylist(listOf(slow), 0, false)
+            playback.skipTo(0, start = true)
+            // 原生还没就绪时暂停：就绪后不能自己开始播放。
+            playback.pause()
+            delay(2_000)
+            assertFalse(native.status().isPlaying, "queued autoplay ignored the pause")
             assertFalse(playback.isPlaying.value)
         }
     }
@@ -247,9 +341,13 @@ class VlcPlaybackNativeTest {
         }
     }
 
+    private val slowUrl = "http://10.255.255.1/lmusic-slow-probe.mp3"
+
     private suspend fun withPlayback(
         beforeRead: suspend (LAudio) -> Unit = {},
         failureRepository: PlaybackFailureRepository = MemoryFailures(),
+        /** 默认所有歌曲都用同一个真实音频夹具；按 id 返回不同 URL 可模拟慢加载/坏内容。 */
+        mediaUrl: (LAudio) -> String? = { null },
         block: suspend (VLCPlayback, MediaPlayer, MemoryHistory, LAudio) -> Unit,
     ) {
         val resources = System.getenv("LMUSIC_NATIVE_RESOURCES")
@@ -269,7 +367,7 @@ class VlcPlaybackNativeTest {
             override val dataSource = object : MediaDataSource {
                 override suspend fun getMedia(song: LAudio): MediaData {
                     beforeRead(song)
-                    return MediaData.Url(fixture!!)
+                    return MediaData.Url(mediaUrl(song) ?: fixture!!)
                 }
             }
         }

@@ -12,24 +12,32 @@ import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.State
 import kotlin.math.abs
 
+/**
+ * 只**发起**加载：停止旧输入、提交媒体描述符并让原生开始打开。返回不代表音频已经可以播放。
+ *
+ * 实测（真实 VLC）：正常文件随后进入 `PAUSED` 且音轨 >= 0；坏内容或不存在的文件会在从未就绪的情况下
+ * 直接 `ENDED` 且音轨为 -1；不可达地址会长时间停在 `OPENING`。就绪/失败的判定交给观察者。
+ */
+internal fun startVlcMedia(player: MediaPlayer, data: MediaData) {
+    player.controls().stop()
+    // Open first, then clamp the saved position to the actual native duration.
+    // Passing an out-of-range :start-time could end the item before it is ready.
+    val options = arrayOf(":start-paused")
+    val accepted = when (data) {
+        is MediaData.Url -> player.media().prepare(data.url, *options)
+        is MediaData.Bytes -> player.media().prepare(ByteArrayCallbackMedia.obtain(data.bytes), *options)
+    }
+    check(accepted) { "VLC rejected media" }
+    player.controls().play()
+}
+
 /** Called only inside the player's serialized command boundary. Leaves decoded media paused.
  * Native prepare() only accepts a descriptor; it does not establish that audio can be opened.
  */
 internal suspend fun prepareVlcMedia(player: MediaPlayer, data: MediaData, position: Long = 0) {
     currentCoroutineContext().ensureActive()
-    // Clear the previous native state before looking for PAUSED, rather than relying
-    // on an unqualified paused callback that may have come from an earlier command.
-    player.controls().stop()
     try {
-        // Open first, then clamp the saved position to the actual native duration.
-        // Passing an out-of-range :start-time could end the item before it is ready.
-        val options = arrayOf(":start-paused")
-        val accepted = when (data) {
-            is MediaData.Url -> player.media().prepare(data.url, *options)
-            is MediaData.Bytes -> player.media().prepare(ByteArrayCallbackMedia.obtain(data.bytes), *options)
-        }
-        check(accepted) { "VLC rejected media" }
-        player.controls().play()
+        startVlcMedia(player, data)
         withTimeout(30_000) {
             while (true) {
                 when (player.status().state()) {

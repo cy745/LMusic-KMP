@@ -4,6 +4,15 @@
 
 当前阶段结论见 [#14 / #17 合并检查点](player-queue-issue-progress.md)。下文按时间倒序保留当时的记录，“未提交/未推送”和旧的待办描述不是最新状态。
 
+## 选曲不再被原生加载阻塞（Desktop 半，2026-09-14 后续轮次）
+
+- 根因与 iOS 同构但位置不同：`prepareVlcMedia` 在命令内等待原生进入 PAUSED（30s 上限）与定位确认（5s），这段位于队列编辑边界内。
+- 先用真实 VLC 实测可观察状态（临时诊断用例，跑完即删）：正常文件 → `PAUSED` 且音轨 >= 0；坏内容/不存在的文件 → **在从未进入 PAUSED（音轨 -1）的情况下直接 `ENDED`**；不可达地址 → 长时间停在 `OPENING`。据此确定"就绪 = PAUSED + 有音轨；坏 = 未就绪即 ENDED；卡住 = OPENING 超时"。
+- 改动：拆出非阻塞的 `startVlcMedia`（停止旧输入 + 提交描述符 + 触发打开并立即返回），会话路径改用它；常驻观察者接管"就绪后按需真正播放 / 坏内容与超时按歌曲记账 / 用户要求过播放时沿方向继续下一首 / 真实推进后清除失败"。历史恢复保留阻塞式 `prepareVlcMedia`（该路径不在队列编辑边界内）。
+- 顺带修掉两个由此暴露的问题：①**就绪前的定位请求**改为挂起、由观察者在就绪后补上（VLC 在 OPENING 时 `setTime` 会被忽略），因此 `updatePlaylist(start=false) + seekTo` 不再依赖阻塞式预备；②**就绪后补播必须重新检查播放意图**——既有用例 `pausedSeekAndHistoryRecordingStayAtTheNativePosition` 恰好抓到了这个回归（准备期间暂停后又被补播），已修并新增 `pauseBeforePreparationCompletesCancelsTheQueuedAutoplay`。
+- 验证（本机真实 VLC + 真实 MP3 夹具）：Desktop 原生新增 4 项——慢加载不阻塞下一次选曲（不可路由地址，断言两次选曲均 <2s 返回）、坏文件记账并跳到下一首、被替换歌曲的迟到失败不劫持当前播放（2s 后仍在播且未把失败记到当前歌）、准备期间暂停取消补播；`VlcPlaybackNativeTest` + `VlcHistoryNativeTest` 合计 **24 项、失败 0**，连续两轮复跑稳定。JVM 全量 **266 项、失败 0、跳过 0**（`/tmp/lmusic-goal-jvm2.log`）；iOS 原生 **7 类 71 项**、`testFailed` 0（`/tmp/lmusic-goal-ios3.log`，新增"选曲后立刻定位仍能落到目标"以钉住 AVFoundation 自身排队的行为）；`composeApp` iOS/JVM、`lplayer` Wasm、`androidApp` Android 编译通过。
+- 仍未完成：没有在 Windows/Mac 上手动点验（本机验证的是逻辑与真实播放器边界）；上述 VLC 状态事实来自 macOS + 仓库自带 VLC 构建，其他平台/版本未复测；Android 本来就异步，未改动。
+
 ## 选曲不再被原生加载阻塞（iOS 半，2026-09-14 后续轮次）
 
 - 问题实测（公共边界，虚拟时间）：一次慢加载会让**第二次点歌和所有队列编辑排队等待**，且是等待而不是取消；`updatePlaylist(..., start=false)` 这种"只加载不播放"的调用同样占用该边界。测量用例 `QueueEditLockMeasurementTest` 固定了这三条现象与 35s 全占用的观测。
