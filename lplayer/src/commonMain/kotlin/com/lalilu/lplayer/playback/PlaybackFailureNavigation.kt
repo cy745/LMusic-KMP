@@ -86,3 +86,19 @@ private suspend fun stopPreferring(
     if (stopFailure is CancellationException) throw stopFailure
     originalFailure.addSuppressed(stopFailure)
 }
+
+/**
+ * 可以尝试的槽位：可用、所属来源已就绪、且没有已记录的失败。
+ *
+ * 抽成公共规则而不是留在平台实现里，是为了让"哪些槽位允许尝试"能被独立测试——
+ * 平台侧的假实现只会替掉调用，测不到真实过滤条件。失败按来源限定的 playbackId 判定，
+ * 因此一个来源的失败不会排除另一个来源的同 ID 歌曲。
+ */
+internal fun playablePlaybackSlots(
+    list: List<LAudio>,
+    recordedFailures: Set<String>,
+    sourceReady: (LAudio) -> Boolean,
+): Set<Int> = list.indices.filter { slot ->
+    val candidate = list[slot]
+    candidate.available && sourceReady(candidate) && candidate.playbackId !in recordedFailures
+}.toSet()

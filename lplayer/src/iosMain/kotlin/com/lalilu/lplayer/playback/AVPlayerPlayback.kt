@@ -351,10 +351,7 @@ class AVPlayerPlayback(
         val known = runCatching { playbackFailureRepository.failures.first() }
             .onFailure { logger.e(it) { "Could not read recorded playback failures; skipping without them" } }
             .getOrDefault(emptyMap())
-        return list.indices.filter { slot ->
-            val candidate = list[slot]
-            candidate.available && isSourceReady(candidate) && candidate.playbackId !in known
-        }.toSet()
+        return playablePlaybackSlots(list, known.keys, ::isSourceReady)
     }
 
     /** 已经加载且引擎未处于错误态：选中同一首时走定位 + 播放，不重新加载。 */

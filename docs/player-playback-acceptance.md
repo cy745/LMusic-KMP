@@ -4,6 +4,12 @@
 
 当前阶段结论见 [#14 / #17 合并检查点](player-queue-issue-progress.md)。下文按时间倒序保留当时的记录，“未提交/未推送”和旧的待办描述不是最新状态。
 
+## 清零守卫重估与候选槽位规则抽取（2026-09-14 后续轮次）
+
+- **清零守卫改为锁内重估阶段**（原低危 L9）：原先用恢复阶段的**对象标识**比较，StateFlow 合并等值通知时会把一次本应生效的清零整体丢掉，让陈旧进度留到下次恢复。现在锁内按**当前值**重新判定 `isFallbackClearPhase`（Pending && currentRestored && currentId == null），保留队列身份与"此后没有更新的位置采样"两个条件。新增用例要求"结构相等的新恢复阶段实例仍然清除"，并固定"历史 current 已解析 / 阶段已结束时不得清零"。
+- **候选槽位过滤抽成公共规则**（原测试缺口 L10）：`playablePlaybackSlots(list, recordedFailures, sourceReady)` 从 iOS 实现里抽出，新增 3 项测试覆盖可用性、来源就绪、已记录失败，以及"同原始 ID 不同来源的失败不互相排除"。此前测试里的假实现只替掉调用，测不到真实过滤条件。
+- 验证：`:lplayer:jvmTest` 全量 **254 项**、失败/错误 0、跳过 19（`/tmp/lmusic-r4-jvm.log`）；iOS 模拟器原生 **7 类 65 项**、`testFailed` 0（`/tmp/lmusic-r4-ios-native.log`）；`composeApp` iOS、`lplayer` Wasm、`androidApp` Android 编译通过。
+
 ## 审查缺口收口：分类器配对、Bytes 失败上报、跳过总时长上限（2026-09-14 后续轮次）
 
 - **分类器 domain/code 成对匹配**（原低危）：`iosFailureReasonFromDescription` 改为成对正则匹配，并按**出现位置最靠前**的一组判定——`NSError.description` 顶层 `Error Domain=… Code=…` 在前、`UserInfo` 嵌套在后，因此嵌套的 `NSCocoaErrorDomain Code=257` 不会再覆盖外层的网络错误；同时兼容 `localizedDescription` 的 `(NSURLErrorDomain error -1009.)` 形式（MusicKit 用它），并新增 `NSOSStatusErrorDomain`/`OSStatus error` → `UnsupportedFormat`。回归用例"顶层网络 + UserInfo 嵌套 Cocoa 257"在退回"按类别顺序取首个命中"时返回 `PermissionDenied`（`/tmp/lmusic-r3-ios-red.log`），恢复成按位置取最早后通过（`/tmp/lmusic-r3-ios-native.log`）。

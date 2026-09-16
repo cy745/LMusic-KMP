@@ -104,20 +104,18 @@ class PlaybackHistoryImpl(
             .launchIn(this)
 
         // 缺失的历史 current 已回退，或用户在部分队列中主动改选时，旧 position 不再属于新歌曲。
-        // 该清零只对通知发出时的队列与恢复阶段有效；迟到的通知不能清掉接管之后写入的进度。
+        // 归属在锁内重新求值：恢复阶段可能被等值的新实例替换（StateFlow 会合并通知），
+        // 用对象标识比较会把这次清零整体丢掉，让陈旧进度留到下次恢复。
         restoreState
-            ?.map { state ->
-                state to (state is HistoryRestoreState.Pending && state.currentRestored && state.currentId == null)
-            }
-            ?.distinctUntilChanged { previous, current -> previous.second == current.second }
-            ?.filter { (_, shouldClear) -> shouldClear }
-            ?.onEach { (restore) ->
+            ?.map { isFallbackClearPhase(it) }
+            ?.distinctUntilChanged()
+            ?.filter { it }
+            ?.onEach {
                 val expectedQueue = playback.queue.stateSnapshot()
                 val expectedWrites = positionWrites.value
                 recordingMutex.withLock {
                     if (!shouldClearFallbackPosition(
                             expectedQueue = expectedQueue,
-                            expectedRestore = restore,
                             currentQueue = playback.queue.stateSnapshot(),
                             currentRestore = restoreState.value,
                             expectedPositionWrites = expectedWrites,
@@ -165,18 +163,26 @@ internal fun isCurrentHistoryRecording(
     currentRestore: HistoryRestoreState?,
 ): Boolean = expectedQueue === currentQueue && expectedRestore === currentRestore
 
+/** 历史 current 已回退或用户已接管：这时旧 position 不再属于当前歌曲。 */
+internal fun isFallbackClearPhase(restore: HistoryRestoreState?): Boolean =
+    restore is HistoryRestoreState.Pending && restore.currentRestored && restore.currentId == null
+
 /**
- * 历史回退的清零通知只有在仍属于发出时的队列/恢复阶段、且此后没有任何更新的位置采样时，
- * 才能覆盖已持久化的进度。更新的采样已经属于接管后的选择，不属于本次回退。
+ * 历史回退的清零通知只有在队列仍是发出时的那一个、恢复阶段仍处于回退状态、
+ * 且此后没有任何更新的位置采样时，才能覆盖已持久化的进度。
+ *
+ * 恢复阶段按**当前值重新判定**而不是比较对象标识：StateFlow 会合并等值通知，
+ * 用标识比较会把一次本应生效的清零丢掉（陈旧进度留到下次恢复）。
+ * 更新的采样已经属于接管后的选择，此时清零必须让位。
  */
 internal fun shouldClearFallbackPosition(
     expectedQueue: QueueState,
-    expectedRestore: HistoryRestoreState?,
     currentQueue: QueueState,
     currentRestore: HistoryRestoreState?,
     expectedPositionWrites: Long,
     currentPositionWrites: Long,
-): Boolean = isCurrentHistoryRecording(expectedQueue, expectedRestore, currentQueue, currentRestore) &&
+): Boolean = expectedQueue === currentQueue &&
+    isFallbackClearPhase(currentRestore) &&
     expectedPositionWrites == currentPositionWrites
 
 internal fun historyIdentityForPersistence(
