@@ -47,6 +47,53 @@ class IosLoadFailureTest {
         assertEquals(PlaybackFailureReason.Unknown, classifyIosLoadFailure(error))
     }
 
+    @Test fun domainAndCodeMustAppearAsAPair() {
+        // 257 属于别的 domain：它不是 Cocoa 权限错误，而是 OSStatus 的解码失败。
+        val foreignDomain = classifyIosLoadFailure(
+            IllegalStateException("Error Domain=NSOSStatusErrorDomain Code=257")
+        )
+        assertEquals(PlaybackFailureReason.UnsupportedFormat, foreignDomain)
+        assertFalse(foreignDomain == PlaybackFailureReason.PermissionDenied)
+        // 只有 code、没有配对 domain 的文本不参与判定。
+        assertEquals(
+            PlaybackFailureReason.Unknown,
+            classifyIosLoadFailure(IllegalStateException("failed with Code=257")),
+        )
+        // 顶层 domain/code 在前时以顶层为准，不被 UserInfo 里嵌套的 domain/code 覆盖。
+        assertEquals(
+            PlaybackFailureReason.Network,
+            classifyIosLoadFailure(IllegalStateException(
+                "Error Domain=NSURLErrorDomain Code=-1009 \"offline\" " +
+                    "UserInfo={NSUnderlyingError=Error Domain=NSCocoaErrorDomain Code=257}"
+            )),
+        )
+    }
+
+    @Test fun theLocalizedNSErrorFormIsAlsoUnderstood() {
+        // MusicKit 侧用的是 localizedDescription，形如 "(NSURLErrorDomain error -1009.)"。
+        assertEquals(
+            PlaybackFailureReason.Network,
+            classifyIosLoadFailure(IllegalStateException(
+                "The operation couldn't be completed. (NSURLErrorDomain error -1009.)"
+            )),
+        )
+    }
+
+    @Test fun osStatusFailuresMeanTheDataCouldNotBeDecoded() {
+        assertEquals(
+            PlaybackFailureReason.UnsupportedFormat,
+            classifyIosLoadFailure(IllegalStateException(
+                "Error Domain=NSOSStatusErrorDomain Code=1954115647 \"(null)\""
+            )),
+        )
+        assertEquals(
+            PlaybackFailureReason.UnsupportedFormat,
+            classifyIosLoadFailure(IllegalStateException(
+                "The operation couldn't be completed. (OSStatus error 1954115647.)"
+            )),
+        )
+    }
+
     @Test fun unknownDescriptionsAreNotGuessedEvenWhenTheyContainPathsOrCredentials() {
         val error = IllegalStateException("https://user:secret@example.com/stream.mp3 failed")
         assertEquals(PlaybackFailureReason.Unknown, classifyIosLoadFailure(error))

@@ -48,16 +48,32 @@ class AVAudioPlayerEngine : PlaybackEngine {
     override suspend fun load(mediaData: MediaData, audio: LAudio) {
         release()
         _state.value = PlaybackEngineState(isLoading = true)
+        errorPtr.value = null
 
         val bytes = (mediaData as MediaData.Bytes).bytes
         logger.i(messageString = "loading bytes: ${bytes.size}")
+        if (bytes.isEmpty()) {
+            throw failLoad("Empty audio data")
+        }
 
-        val player = memScoped {
-            val data = NSData.dataWithBytes(
-                bytes = bytes.refTo(0).getPointer(this),
-                length = bytes.size.toULong()
-            )
-            AVAudioPlayer(data, errorPtr.ptr)
+        val player = try {
+            memScoped {
+                val data = NSData.dataWithBytes(
+                    bytes = bytes.refTo(0).getPointer(this),
+                    length = bytes.size.toULong()
+                )
+                AVAudioPlayer(data, errorPtr.ptr)
+            }
+        } catch (failure: Throwable) {
+            // Kotlin/Native 对返回 nil 的 ObjC 构造器抛 NPE，真正的原因在错误指针里；
+            // 构造失败此前被静默忽略，Bytes 播放失败既不上报也不入账。
+            throw failLoad("AVAudioPlayer could not open the data: ${errorPtr.value?.description ?: failure.message}")
+        }
+        errorPtr.value?.let { error ->
+            throw failLoad("AVAudioPlayer could not open the data: ${error.description}")
+        }
+        if (!player.prepareToPlay()) {
+            throw failLoad("AVAudioPlayer could not prepare the data (OSStatus error)")
         }
 
         // 注册播放完成/中断回调
@@ -73,7 +89,11 @@ class AVAudioPlayerEngine : PlaybackEngine {
                 logger.i(messageString = "AVAudioPlayerEndInterruptionWithFlags: $flags")
             },
             onDecodeErrorDidOccur = { _, error ->
-                logger.i(messageString = "AVAudioPlayerDecodeErrorDidOccur: ${error?.description}")
+                val failure = IllegalStateException(
+                    "AVAudioPlayerDecodeError: ${error?.description ?: "unknown OSStatus error"}"
+                )
+                logger.e(failure) { "AVAudioPlayerDecodeErrorDidOccur" }
+                reportEngineError(failure)
             },
             onBeginInterruption = {
                 logger.i(messageString = "AVAudioPlayerBeginInterruption")
@@ -83,7 +103,6 @@ class AVAudioPlayerEngine : PlaybackEngine {
             }
         )
 
-        player.prepareToPlay()
         val duration = (player.duration * 1000L).toLong()
 
         currentPlayer = player
@@ -91,6 +110,22 @@ class AVAudioPlayerEngine : PlaybackEngine {
             isLoading = false,
             duration = duration
         )
+    }
+
+    /** 加载失败必须让调用方（导航循环/历史恢复）看到，而不是只留下一条日志。 */
+    private fun failLoad(message: String): IllegalStateException {
+        val failure = IllegalStateException(message)
+        _state.value = PlaybackEngineState(isLoading = false, error = message)
+        logger.e(failure) { "AVAudioPlayer load failed" }
+        return failure
+    }
+
+    /** 播放中途的解码错误：写入状态供观察器记账，并按引擎事件约定上报一次。 */
+    private fun reportEngineError(failure: Exception) {
+        _state.update { it.copy(isLoading = false, isPlaying = false, error = failure.message) }
+        scope.launch {
+            onEvent?.invoke(PlaybackEngineEvent.Error(failure))
+        }
     }
 
     override suspend fun play() {

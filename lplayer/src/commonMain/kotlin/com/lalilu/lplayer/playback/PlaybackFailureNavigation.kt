@@ -9,7 +9,8 @@ import kotlinx.coroutines.CancellationException
  * - [skipPolicy] 在**尝试之前**求值：只有"用户确实请求了播放、且这次是真正的加载"才允许跳过；
  *   已经加载成功后的失败不跳，避免把一次播放错误升级成整队列连跳。
  * - 两次尝试之间队列发生变化即中止，不推测新的队列所有权。
- * - 预算用尽时调用 [stop] 并抛出首个失败，由调用方决定如何上报。
+ * - 预算用尽（绕队列一周，或 [outOfBudget] 判定的总时长上限）时调用 [stop] 并抛出首个失败，
+ *   由调用方决定如何上报。
  * - 每个失败槽位都会回调 [recordFailure]，失败原因按歌曲分别保留。
  *
  * 返回真正开始播放的槽位下标。
@@ -25,6 +26,8 @@ internal suspend fun navigateWithFailureFallback(
     recordFailure: suspend (LAudio, Exception) -> Unit,
     stop: suspend () -> Unit,
     attempt: suspend (Int, LAudio) -> Unit,
+    /** 每次尝试**之前**求值：整轮跳过已经超时就不再继续占着调用方的边界（例如队列编辑锁）。 */
+    outOfBudget: () -> Boolean = { false },
 ): Int {
     traversal.begin(direction)
     var target = initialIndex
@@ -49,6 +52,11 @@ internal suspend fun navigateWithFailureFallback(
             if (originalFailure == null) originalFailure = failure
             // 队列在两次尝试之间被替换：旧的失败不再代表新的导航目标。
             if (candidates().map { it.playbackId } != list.map { it.playbackId }) throw failure
+            if (outOfBudget()) {
+                originalFailure.addSuppressed(IllegalStateException("Failure fallback budget exhausted"))
+                stopPreferring(originalFailure, stop)
+                throw originalFailure
+            }
             val playable = playableSlots(list)
             // playableSlots 可能挂起（平台侧可能查数据库）：期间队列被替换就不能把旧下标套到新列表上。
             if (candidates().map { it.playbackId } != list.map { it.playbackId }) throw failure
@@ -60,16 +68,21 @@ internal suspend fun navigateWithFailureFallback(
                 playable = { slot -> slot in playable },
             )
             if (next == null) {
-                try {
-                    stop()
-                } catch (stopFailure: Exception) {
-                    if (stopFailure is CancellationException) throw stopFailure
-                    // 停止失败不能顶替原始失败：保留为 suppressed，调用方仍看到首个加载失败。
-                    originalFailure.addSuppressed(stopFailure)
-                }
+                stopPreferring(originalFailure, stop)
                 throw originalFailure
             }
             target = next
         }
     }
+}
+
+/** 停止失败不能顶替原始失败：保留为 suppressed，调用方仍看到首个加载失败。 */
+private suspend fun stopPreferring(
+    originalFailure: Exception,
+    stop: suspend () -> Unit,
+): Unit = try {
+    stop()
+} catch (stopFailure: Exception) {
+    if (stopFailure is CancellationException) throw stopFailure
+    originalFailure.addSuppressed(stopFailure)
 }

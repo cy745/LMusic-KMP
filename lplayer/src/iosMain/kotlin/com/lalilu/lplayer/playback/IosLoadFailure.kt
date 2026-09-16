@@ -30,19 +30,39 @@ internal fun classifyIosLoadFailure(error: Throwable): PlaybackFailureReason {
     return PlaybackFailureReason.Unknown
 }
 
-/** 仅识别 Apple 文档中语义明确的错误码，其他文本一律返回 null 交给调用方按 Unknown 处理。 */
-internal fun iosFailureReasonFromDescription(description: String): PlaybackFailureReason? = when {
-    description.contains("NSCocoaErrorDomain") && description.contains("Code=257") ->
-        PlaybackFailureReason.PermissionDenied
-    description.contains("NSCocoaErrorDomain") && description.contains("Code=260") ->
-        PlaybackFailureReason.FileMissing
-    description.contains("NSURLErrorDomain") && IOS_NETWORK_ERROR_CODES.any { description.contains("Code=$it") } ->
-        PlaybackFailureReason.Network
-    else -> null
+/**
+ * domain 与 code 必须**成对出现**才算匹配：`NSError.description` 的 `UserInfo` 里可能嵌套别的
+ * domain/code，只按 `contains("Code=257")` 判断会把外层错误误判成内层类别。
+ * 同一段文本出现多组成对模式时取**位置最靠前**的一组——`NSError.description` 的顶层
+ * `Error Domain=… Code=…` 在最前，内层 UserInfo 在后。
+ */
+private val IOS_FAILURE_PATTERNS: List<Pair<PlaybackFailureReason, Regex>> = buildList {
+    listOf(
+        Regex("""Domain=NSCocoaErrorDomain Code=257\b"""),
+        Regex("""NSCocoaErrorDomain error 257\b"""),
+    ).forEach { add(PlaybackFailureReason.PermissionDenied to it) }
+    listOf(
+        Regex("""Domain=NSCocoaErrorDomain Code=260\b"""),
+        Regex("""NSCocoaErrorDomain error 260\b"""),
+    ).forEach { add(PlaybackFailureReason.FileMissing to it) }
+    // 明确的连接类错误：超时、找不到主机、无法连接、连接中断、未联网。
+    listOf(1001, 1003, 1004, 1005, 1009).forEach { code ->
+        add(PlaybackFailureReason.Network to Regex("""Domain=NSURLErrorDomain Code=-?$code\b"""))
+        add(PlaybackFailureReason.Network to Regex("""NSURLErrorDomain error -?$code\b"""))
+    }
+    // 播放加载路径上的 OSStatus 失败意味着数据无法解码（AVAudioPlayer 构造/解码失败等）。
+    listOf(
+        Regex("""Domain=NSOSStatusErrorDomain Code="""),
+        Regex("""OSStatus error """),
+    ).forEach { add(PlaybackFailureReason.UnsupportedFormat to it) }
 }
 
-/** 明确的连接类错误：超时、找不到主机、无法连接、连接中断、未联网。 */
-private val IOS_NETWORK_ERROR_CODES = listOf(-1001, -1003, -1004, -1005, -1009)
+/** 只识别 Apple 文档中语义明确的 domain+code 对，其他文本返回 null 交给调用方按 Unknown 处理。 */
+internal fun iosFailureReasonFromDescription(description: String): PlaybackFailureReason? =
+    IOS_FAILURE_PATTERNS
+        .mapNotNull { (reason, pattern) -> pattern.find(description)?.range?.first?.let { it to reason } }
+        .minByOrNull { it.first }
+        ?.second
 
 /**
  * 只有仍属于同一首歌、所属来源已就绪、且不是取消的失败才写入记录。

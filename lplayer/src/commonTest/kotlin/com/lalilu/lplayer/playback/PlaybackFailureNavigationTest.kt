@@ -186,6 +186,46 @@ class PlaybackFailureNavigationTest {
         assertEquals(listOf(0, 2), attempts)
     }
 
+    @Test fun anExhaustedTimeBudgetStopsInsteadOfTryingEverySlot() = runTest {
+        val attempts = mutableListOf<Int>()
+        var stopped = 0
+        val failure = assertFailsWith<IllegalStateException> {
+            navigate(
+                initialIndex = 0,
+                playable = recordedFailures(emptySet()),
+                recorded = mutableListOf(),
+                stop = { stopped++ },
+                outOfBudget = { attempts.size >= 1 },
+                attempt = { target ->
+                    attempts += target
+                    error("broken ${queue[target].id}")
+                },
+            )
+        }
+        // 只尝试了首曲：总时长上限到点后不再继续占着队列编辑锁。
+        assertEquals(listOf(0), attempts)
+        assertEquals(1, stopped)
+        assertEquals("broken a", failure.message)
+        assertTrue(failure.suppressedExceptions.any { it.message?.contains("budget exhausted") == true })
+    }
+
+    @Test fun aBudgetThatNeverTripsStillUsesTheWholeQueueBudget() = runTest {
+        val attempts = mutableListOf<Int>()
+        assertFailsWith<IllegalStateException> {
+            navigate(
+                initialIndex = 0,
+                playable = recordedFailures(emptySet()),
+                recorded = mutableListOf(),
+                outOfBudget = { false },
+                attempt = { target ->
+                    attempts += target
+                    error("broken")
+                },
+            )
+        }
+        assertEquals(queue.size, attempts.size)
+    }
+
     @Test fun queueReorderedWhileResolvingPlayableSlotsAbortsTheSkip() = runTest {
         // 同长度重排不会越界，只靠顶部下标检查兜不住：旧下标会被套到新列表的别的槽位上。
         var current = queue + d
@@ -277,6 +317,7 @@ class PlaybackFailureNavigationTest {
         playableSlotsDelay: suspend () -> Unit = {},
         skipPolicy: (LAudio) -> Boolean = { true },
         stop: suspend () -> Unit = {},
+        outOfBudget: () -> Boolean = { false },
         attempt: suspend (Int) -> Unit,
     ): Int = navigateWithFailureFallback(
         traversal = PlaybackFailureTraversal(),
@@ -295,5 +336,6 @@ class PlaybackFailureNavigationTest {
         },
         stop = stop,
         attempt = { target, _ -> attempt(target) },
+        outOfBudget = outOfBudget,
     )
 }

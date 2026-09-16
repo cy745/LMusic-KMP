@@ -4,6 +4,14 @@
 
 当前阶段结论见 [#14 / #17 合并检查点](player-queue-issue-progress.md)。下文按时间倒序保留当时的记录，“未提交/未推送”和旧的待办描述不是最新状态。
 
+## 审查缺口收口：分类器配对、Bytes 失败上报、跳过总时长上限（2026-09-14 后续轮次）
+
+- **分类器 domain/code 成对匹配**（原低危）：`iosFailureReasonFromDescription` 改为成对正则匹配，并按**出现位置最靠前**的一组判定——`NSError.description` 顶层 `Error Domain=… Code=…` 在前、`UserInfo` 嵌套在后，因此嵌套的 `NSCocoaErrorDomain Code=257` 不会再覆盖外层的网络错误；同时兼容 `localizedDescription` 的 `(NSURLErrorDomain error -1009.)` 形式（MusicKit 用它），并新增 `NSOSStatusErrorDomain`/`OSStatus error` → `UnsupportedFormat`。回归用例"顶层网络 + UserInfo 嵌套 Cocoa 257"在退回"按类别顺序取首个命中"时返回 `PermissionDenied`（`/tmp/lmusic-r3-ios-red.log`），恢复成按位置取最早后通过（`/tmp/lmusic-r3-ios-native.log`）。
+- **Bytes 播放失败不再静默**（原中危）：`AVAudioPlayerEngine.load` 以前不读错误指针、不查 `prepareToPlay()` 返回值、解码错误只打日志，于是 Bytes 播放失败既不上报也不入账。现在空数据、构造失败（Kotlin/Native 对返回 nil 的 ObjC 构造器抛 NPE，真正原因在错误指针里，需捕获后读出）、`prepareToPlay` 失败都抛可分类异常并写入 `state.error`；`onDecodeErrorDidOccur` 写入状态并上报一次 `PlaybackEngineEvent.Error`。新增 `AVAudioPlayerEngineTest` 用真实 AVAudioPlayer 固定坏数据/空数据必须失败、合法 16bit PCM WAV 必须按时长成功加载（防止"改成永远抛错"也算通过）。修复前该用例以 `Expected IllegalStateException but was NullPointerException` 失败。
+- **跳过总时长上限**（原中危）：`navigateWithFailureFallback` 新增每次尝试前求值的 `outOfBudget`；iOS 以 `TimeSource.Monotonic` 给单次失败导航设 60 秒上限，超时按预算用尽处理（停止 + 抛出首个失败并附 suppressed 说明），避免在队列编辑锁内把单次加载 30s 放大成 N×30s。规则测试 `anExhaustedTimeBudgetStopsInsteadOfTryingEverySlot` 去掉该分支即失败（`/tmp/nav-budget-red.log`）。
+- 验证：`:lplayer:jvmTest` 全量 **250 项**、失败/错误 0、跳过 19（`/tmp/lmusic-r3-jvm.log`）；iOS 模拟器 iPhone 17 Pro（iOS 26.3）原生 **7 个测试类 65 项**、`testFailed` 0（`/tmp/lmusic-r3-ios-native.log`）；`composeApp` iOS、`lplayer` Wasm、`androidApp` Android 编译通过。
+- 仍未完成（与上一节一致）：iOS 播放中途错误的自动导航；迟到异步错误的 storeID/加载代次归属（需要引擎级加载令牌，MusicKit 的 Error 事件目前不带条目信息）；"坏文件 → 红卡片 → 重试 → 清错 → 自动跳下一首"的设备端到端验收；Desktop 仍未复用公共跳过循环。
+
 ## iOS 失败后沿方向跳过（2026-09-14 后续轮次）
 
 - 新增公共内部函数 `navigateWithFailureFallback`：单次导航内沿方向跳过失败槽位，最多绕队列一周；跳过前重新读取队列，被替换即中止而不推测新的所有权；预算用尽时先 `stop` 再抛出首个失败，每个失败槽位单独回调记账。`skipPolicy` 在**尝试之前**求值——只有"用户请求了播放且这次是真正的加载"才允许跳过，已经加载成功后的失败不会升级成整队列连跳。
