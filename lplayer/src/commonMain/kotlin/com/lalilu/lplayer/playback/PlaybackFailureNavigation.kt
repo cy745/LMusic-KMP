@@ -2,6 +2,7 @@ package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.CancellationException
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * 沿当前方向尝试播放，单次导航内的失败沿方向跳过，且最多绕队列一周。
@@ -102,3 +103,9 @@ internal fun playablePlaybackSlots(
     val candidate = list[slot]
     candidate.available && sourceReady(candidate) && candidate.playbackId !in recordedFailures
 }.toSet()
+
+/**
+ * 单次失败导航的总时长上限。单次加载最坏 30s（例如不可达的远程地址），没有上限时
+ * "绕队列一周"最坏会变成 N×30s，而这段逻辑位于队列编辑边界内。
+ */
+internal val DefaultSkipNavigationBudget = 60.seconds

@@ -4,6 +4,14 @@
 
 当前阶段结论见 [#14 / #17 合并检查点](player-queue-issue-progress.md)。下文按时间倒序保留当时的记录，“未提交/未推送”和旧的待办描述不是最新状态。
 
+## 电脑版复用公共失败跳过（2026-09-14 后续轮次）
+
+- `VLCPlayback.selectInternal` 不再自己维护一份简化循环（每次选曲新建 traversal、无失败表过滤、无总时长上限），改为与 iOS 共用 `navigateWithFailureFallback`：候选槽位经 `playablePlaybackSlots` 过滤（可用 + 来源就绪 + 未记录失败），并有相同的 60s 总预算（`DefaultSkipNavigationBudget` 提到公共层，iOS 改用它）。
+- 记账收敛到调用方：`playItem` 只负责加载；选曲路径的每个失败由循环的 `recordFailure` 记账，历史恢复路径在 `restoreInternal` 的 catch 中记账后继续上抛（与 iOS 同构）。`isLoadedItem` 的判定在尝试之前发生，因此对未初始化播放器做了 `runCatching` 保护，避免抛出绕过失败处理。
+- 与旧实现的行为差异：队列在两次尝试之间只有元数据刷新时不再中止（比较按 playbackId 槽位，而不是整个 QueueState 结构相等）；已记录失败的歌曲在跳过时不再重试。
+- 验证（仓库内 VLC 资源 + 真实 MP3 夹具，本机实跑）：`:lplayer:jvmTest` 全量 **255 项、失败 0、跳过 0**（以前 19 项原生 VLC 用例因未配置环境而跳过）——`/tmp/lmusic-r5-jvm.log`。新增原生用例 `alreadyRecordedFailuresAreNotRetriedWhileSkipping`：去掉失败表过滤后实际尝试序列退化为 `[bad, remembered, good]` 并失败（`/tmp/vlc-red.log`），恢复后为 `[bad, good]`（`/tmp/vlc-newtest.log`）。基线（改动前）同一套原生测试 19 项全过，对比结果一致。iOS 模拟器原生 **7 类 65 项**、`testFailed` 0（`/tmp/lmusic-r5-ios-native.log`）；`composeApp` iOS/JVM、`lplayer` Wasm、`androidApp` Android 编译通过。
+- 仍未完成：这是逻辑与真实播放器边界的验证，不等于在 Windows/Mac 上手动点过一遍；Desktop 的跳过语义变化（上述两条差异）未做人工验收。
+
 ## 清零守卫重估与候选槽位规则抽取（2026-09-14 后续轮次）
 
 - **清零守卫改为锁内重估阶段**（原低危 L9）：原先用恢复阶段的**对象标识**比较，StateFlow 合并等值通知时会把一次本应生效的清零整体丢掉，让陈旧进度留到下次恢复。现在锁内按**当前值**重新判定 `isFallbackClearPhase`（Pending && currentRestored && currentId == null），保留队列身份与"此后没有更新的位置采样"两个条件。新增用例要求"结构相等的新恢复阶段实例仍然清除"，并固定"历史 current 已解析 / 阶段已结束时不得清零"。

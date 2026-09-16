@@ -27,6 +27,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.first
+import kotlin.time.TimeSource
 import org.koin.core.annotation.Single
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
@@ -45,7 +47,7 @@ class VLCPlayback internal constructor(
     private val history: PlaybackHistory,
     override val platformMediaSource: PlatformMediaSource,
     private val dataTracker: IPlaybackDataTracker,
-    playbackFailureRepository: PlaybackFailureRepository,
+    private val playbackFailureRepository: PlaybackFailureRepository,
     scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
     private val nativePlayerProvider: suspend () -> MediaPlayer = {
         VLCPlayerLoader.initialize().join()
@@ -131,26 +133,13 @@ class VLCPlayback internal constructor(
         successfulPlaybackWatch = null
         loadedMediaKey = null
         val successTicket = failureWrites.register(item.playbackId)
-        try {
-            val data = platformMediaSource.resolveMediaData(item)
-            currentCoroutineContext().ensureActive()
-            prepareVlcMedia(player, data, position)
-            loadedMediaKey = item.mediaKey
-            watchSuccessfulPlayback(item.mediaKey, successTicket)
-            if (start) {
-                player.controls().play()
-            }
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Exception) {
-            // The command owns item even when selection has not yet been published to the queue.
-            // A source that is still loading is not evidence that the song itself is broken.
-            if (platformMediaSource.findEnabledSource(item.mediaSourceName)?.contentState?.value?.isReady == true) {
-                failureWrites.apply(failureWrites.register(item.playbackId), PlaybackFailure(
-                    classifyVlcLoadFailure(failure), System.currentTimeMillis(),
-                )).onFailure { logger.e(it) { "Could not persist VLC load failure" } }
-            }
-            throw failure
+        val data = platformMediaSource.resolveMediaData(item)
+        currentCoroutineContext().ensureActive()
+        prepareVlcMedia(player, data, position)
+        loadedMediaKey = item.mediaKey
+        watchSuccessfulPlayback(item.mediaKey, successTicket)
+        if (start) {
+            player.controls().play()
         }
     }
 
@@ -183,7 +172,13 @@ class VLCPlayback internal constructor(
         }
 
     private suspend fun restoreInternal(audio: LAudio, position: Long, start: Boolean) {
-        playItem(audio, start, position)
+        try {
+            playItem(audio, start, position)
+        } catch (failure: Exception) {
+            // 历史恢复失败必须继续上抛，恢复器据此保留 Pending.failure 并允许重试。
+            recordLoadFailure(audio, failure)
+            throw failure
+        }
     }
 
     private suspend fun playInternal() {
@@ -235,40 +230,46 @@ class VLCPlayback internal constructor(
     }
 
     private suspend fun selectInternal(index: Int, start: Boolean) {
-        val traversal = PlaybackFailureTraversal()
         val direction = currentCoroutineContext()[PlaybackNavigationContext]?.direction ?: PlaybackDirection.Forward
-        traversal.begin(direction)
-        var target = index
-        var originalFailure: Exception? = null
-        while (true) {
-            val state = queue.stateSnapshot()
-            traversal.observeQueue(state.list.map { it.playbackId })
-            try {
-                selectOneInternal(target, start)
-                return
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                // Paused preparation and non-loading command failures must not start other songs.
-                if (!start || loadedMediaKey != null || target !in state.list.indices) throw failure
-                if (originalFailure == null) originalFailure = failure
-                currentCoroutineContext().ensureActive()
-                if (queue.stateSnapshot().list != state.list) throw failure
-                val next = traversal.next(traversal.generation, state.list.size, target, playbackMode.value) { slot ->
-                    val candidate = state.list[slot]
-                    candidate.available && platformMediaSource.findEnabledSource(candidate.mediaSourceName)
-                        ?.contentState?.value?.isReady == true
-                }
-                if (next == null) {
-                    try { stopInternal() } catch (stopFailure: Exception) {
-                        if (stopFailure is CancellationException) throw stopFailure
-                        originalFailure.addSuppressed(stopFailure)
-                    }
-                    throw originalFailure
-                }
-                target = next
-            }
+        val navigationStartedAt = TimeSource.Monotonic.markNow()
+        navigateWithFailureFallback(
+            traversal = PlaybackFailureTraversal(),
+            initialIndex = index,
+            direction = direction,
+            playbackMode = { playbackMode.value },
+            candidates = { queue.stateSnapshot().list },
+            playableSlots = { list -> playableSlots(list) },
+            // 只有"用户请求了播放、且这次是真正的加载"才允许跳过；已经加载成功后的失败不连跳。
+            skipPolicy = { item -> start && !isLoadedItem(item) },
+            recordFailure = { item, failure -> recordLoadFailure(item, failure) },
+            stop = { stopInternal() },
+            attempt = { target, _ -> selectOneInternal(target, start) },
+            outOfBudget = { navigationStartedAt.elapsedNow() > DefaultSkipNavigationBudget },
+        )
+    }
+
+    /** 可以尝试的槽位：可用、来源已就绪，且没有已记录的失败。一次跳过搜索只读一次失败表。 */
+    private suspend fun playableSlots(list: List<LAudio>): Set<Int> {
+        val known = runCatching { playbackFailureRepository.failures.first() }
+            .onFailure { logger.e(it) { "Could not read recorded playback failures; skipping without them" } }
+            .getOrDefault(emptyMap())
+        return playablePlaybackSlots(list, known.keys) { candidate ->
+            platformMediaSource.findEnabledSource(candidate.mediaSourceName)
+                ?.contentState?.value?.isReady == true
         }
+    }
+
+    private fun isLoadedItem(item: LAudio): Boolean = loadedMediaKey == item.mediaKey &&
+        // 未初始化的播放器不能在这里抛错：该判定发生在尝试之前，抛出去会绕过失败处理。
+        runCatching { playerInstance?.media()?.isValid == true }.getOrDefault(false)
+
+    /** 来源还在加载时，加载失败不是这首歌的问题。取消从不记账。 */
+    private suspend fun recordLoadFailure(item: LAudio, failure: Exception) {
+        if (failure is CancellationException) return
+        if (platformMediaSource.findEnabledSource(item.mediaSourceName)?.contentState?.value?.isReady != true) return
+        failureWrites.apply(failureWrites.register(item.playbackId), PlaybackFailure(
+            classifyVlcLoadFailure(failure), System.currentTimeMillis(),
+        )).onFailure { logger.e(it) { "Could not persist VLC load failure" } }
     }
 
     private suspend fun selectOneInternal(index: Int, start: Boolean) {

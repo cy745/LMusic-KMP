@@ -79,6 +79,30 @@ class VlcPlaybackNativeTest {
         }
     }
 
+    @Test fun alreadyRecordedFailuresAreNotRetriedWhileSkipping() = runBlocking {
+        val failures = MemoryFailures()
+        val attempted = mutableListOf<String>()
+        withPlayback(
+            beforeRead = { song ->
+                attempted += song.id
+                if (song.id != "good") throw java.io.FileNotFoundException("test")
+            },
+            failureRepository = failures,
+        ) { playback, native, _, song ->
+            val bad = song.copy(id = "bad")
+            val remembered = song.copy(id = "remembered")
+            val good = song.copy(id = "good")
+            // 这首歌在本次导航之前就已经失败过：跳过时不应再花时间重试它。
+            failures.record(remembered.playbackId, PlaybackFailure(PlaybackFailureReason.FileMissing, 1L))
+            playback.setPlaybackMode(PlaybackMode.LOOP)
+            playback.updatePlaylist(listOf(bad, remembered, good), 0, true)
+            assertEquals(listOf("bad", "good"), attempted)
+            assertEquals(good, playback.queue.currentItem())
+            withTimeout(5_000) { while (!native.status().isPlaying) delay(25) }
+            playback.pause()
+        }
+    }
+
     @Test fun pausedPreparationKeepsFailureUntilRealPlaybackAdvances() = runBlocking {
         val failures = MemoryFailures()
         withPlayback(failureRepository = failures) { playback, native, _, song ->

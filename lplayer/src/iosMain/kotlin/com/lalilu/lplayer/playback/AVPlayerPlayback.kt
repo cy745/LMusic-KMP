@@ -47,12 +47,6 @@ class AVPlayerPlayback(
 
     companion object {
         const val TAG = "AVPlayerPlayback"
-
-        /**
-         * 单次导航里沿方向跳过失败槽位的总时长上限。单次加载最坏 30s（不可达的远程 URL），
-         * 没有上限时"一整轮跳过"最坏 N×30s，而这段代码位于队列编辑锁内。
-         */
-        val SKIP_NAVIGATION_BUDGET = 60.seconds
     }
 
     private val logger = Logger.withTag(TAG)
@@ -335,7 +329,7 @@ class AVPlayerPlayback(
                 recordFailure = { item, failure -> persistLoadFailure(item, failureWrites.register(item.playbackId), failure) },
                 stop = { stopInternal() },
                 attempt = { target, item -> attemptLoad(item, target, start) },
-                outOfBudget = { navigationStartedAt.elapsedNow() > SKIP_NAVIGATION_BUDGET },
+                outOfBudget = { navigationStartedAt.elapsedNow() > DefaultSkipNavigationBudget },
             )
         } catch (e: Exception) {
             reportPlaybackCommandFailure(e) {
