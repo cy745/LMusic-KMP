@@ -51,6 +51,7 @@ class AVPlayerPreparationTest {
             val data = MediaData.Url("file://${file.path}")
             val audio = LAudio(id = "a", mediaSourceName = "validation")
             engine.load(data, audio)
+            engine.awaitPreparation()
             engine.play()
             supervisorScope {
                 val rows = MutableStateFlow(listOf(audio))
@@ -104,6 +105,7 @@ class AVPlayerPreparationTest {
             val data = MediaData.Url("file://${file.path}")
             val audio = LAudio(id = "command-wave", mediaSourceName = "validation")
             engine.load(data, audio)
+            engine.awaitPreparation()
             engine.play()
             supervisorScope {
                 val resolved = CompletableDeferred<Unit>()
@@ -143,6 +145,7 @@ class AVPlayerPreparationTest {
                         MediaData.Url("file://${file.path}"),
                         LAudio(id = "pending-play", mediaSourceName = "validation"),
                     )
+                    engine.awaitPreparation()
                 }
                 assertTrue(engine.state.value.isLoading, "Control must arrive before native preparation finishes")
                 engine.play()
@@ -170,7 +173,10 @@ class AVPlayerPreparationTest {
             val data = MediaData.Url("file://${file.path}")
             val audio = LAudio(id = "cancel-wave", mediaSourceName = "validation")
             supervisorScope {
-                val loading = async(start = CoroutineStart.UNDISPATCHED) { engine.load(data, audio) }
+                val loading = async(start = CoroutineStart.UNDISPATCHED) {
+                    engine.load(data, audio)
+                    engine.awaitPreparation()
+                }
                 assertTrue(engine.state.value.isLoading, "Test must cancel an in-flight native load")
                 loading.cancelAndJoin()
                 assertTrue(loading.isCancelled)
@@ -179,6 +185,7 @@ class AVPlayerPreparationTest {
                 assertEquals(PlaybackEngineState.EMPTY, engine.state.value)
             }
             engine.load(data, audio)
+            engine.awaitPreparation()
             assertFalse(engine.state.value.isLoading)
             assertNull(engine.state.value.error)
             assertTrue(engine.state.value.duration in 19_900L..20_100L)
@@ -196,10 +203,14 @@ class AVPlayerPreparationTest {
             val data = MediaData.Url("file://${file.path}")
             val audio = LAudio(id = "replace-wave", mediaSourceName = "validation")
             supervisorScope {
-                val old = async(start = CoroutineStart.UNDISPATCHED) { engine.load(data, audio) }
+                val old = async(start = CoroutineStart.UNDISPATCHED) {
+                    engine.load(data, audio)
+                    engine.awaitPreparation()
+                }
                 assertTrue(engine.state.value.isLoading, "Old load must still be pending")
                 // Same song, distinct AVPlayerItem: checking only the song ID is insufficient.
                 engine.load(data, audio)
+                engine.awaitPreparation()
                 assertFailsWith<CancellationException> { old.await() }
                 assertNull(engine.state.value.error)
                 assertFalse(engine.state.value.isLoading)
@@ -223,6 +234,7 @@ class AVPlayerPreparationTest {
                 MediaData.Url("file://${file.path}"),
                 LAudio(id = "local-wave", mediaSourceName = "validation"),
             )
+            engine.awaitPreparation()
             assertFalse(engine.state.value.isLoading)
             assertTrue(engine.state.value.duration in 19_900L..20_100L)
             assertFalse(engine.state.value.isPlaying)
@@ -252,18 +264,37 @@ class AVPlayerPreparationTest {
         }
     }
 
-    @Test fun missingLocalFileFailsBeforeLoadReturns() = runNativeMainTest {
+    @Test fun aMissingLocalFileIsReportedThroughStateWithoutBlockingTheSelection() = runNativeMainTest {
         val engine = AVPlayerEngine()
         try {
-            assertFailsWith<IllegalStateException> {
-                engine.load(
-                    MediaData.Url("file:///lmusic-validation-nonexistent/audio.mp3"),
-                    LAudio(id = "missing-file", mediaSourceName = "validation"),
-                )
+            val started = TimeSource.Monotonic.markNow()
+            engine.load(
+                MediaData.Url("file:///lmusic-validation-nonexistent/audio.mp3"),
+                LAudio(id = "missing-file", mediaSourceName = "validation"),
+            )
+            // 选曲命令不再等待原生加载：失败由状态流交给外层观察者记账与导航。
+            assertTrue(started.elapsedNow() < 2.seconds, "selection must not wait for native preparation")
+            withTimeout(15.seconds) {
+                engine.state.first { it.error != null || !it.isLoading }
             }
             assertNotNull(engine.state.value.error)
             assertFalse(engine.state.value.isLoading)
             assertFalse(engine.state.value.isPlaying)
+        } finally {
+            engine.release()
+        }
+    }
+
+    @Test fun aSlowRemoteLoadDoesNotBlockTheSelectionCommand() = runNativeMainTest {
+        val engine = AVPlayerEngine()
+        try {
+            val started = TimeSource.Monotonic.markNow()
+            // 不可路由地址：修复前这里会等待原生 30s 上限并把点歌一起阻塞。
+            engine.load(
+                MediaData.Url("http://10.255.255.1/lmusic-slow-probe.mp3"),
+                LAudio(id = "slow-remote", mediaSourceName = "validation"),
+            )
+            assertTrue(started.elapsedNow() < 2.seconds, "selection must not wait for native preparation")
         } finally {
             engine.release()
         }

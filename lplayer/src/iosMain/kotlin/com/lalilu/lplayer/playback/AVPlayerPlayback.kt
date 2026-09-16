@@ -176,9 +176,10 @@ class AVPlayerPlayback(
                 loadedMediaKey = null
                 engine.load(data, audio)
                 ensureActive()
-                val ready = withTimeout(30_000) { engine.state.first { !it.isLoading } }
-                check(ready.error == null) { ready.error ?: "History media load failed" }
-                val target = if (ready.duration > 0) position.coerceIn(0, ready.duration) else position.coerceAtLeast(0)
+                // 历史恢复必须在命令内确认就绪：失败要抛给恢复器以便保留 Pending.failure 重试。
+                engine.awaitPreparation()
+                val duration = engine.state.value.duration
+                val target = if (duration > 0) position.coerceIn(0, duration) else position.coerceAtLeast(0)
                 engine.seekTo(target)
                 withTimeout(5_000) {
                     while (abs(engine.currentPosition() - target) > 100) delay(20)

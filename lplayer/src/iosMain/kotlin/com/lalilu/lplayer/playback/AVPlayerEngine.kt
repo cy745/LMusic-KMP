@@ -8,11 +8,11 @@ import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +22,7 @@ import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeMake
 import platform.Foundation.NSURL
 import platform.Foundation.removeObserver
+import kotlin.time.Duration
 
 /**
  * Engine 封装 [AVPlayer]，处理 [MediaData.Url] 类型的媒体。
@@ -133,16 +134,22 @@ class AVPlayerEngine : PlaybackEngine {
             }
         }
 
+        // 这里**不能**等待就绪：选曲命令位于播放器的队列编辑边界内，等待会把"点歌/改队列"
+        // 一起阻塞到 30 秒（安卓是在命令之外等）。启动加载后立即返回，就绪/失败由状态流和
+        // 外层观察者处理；需要确认就绪的调用方走 [awaitPreparation]。
+    }
+
+    override suspend fun awaitPreparation(timeout: Duration) {
+        val item = currentItem ?: return
         try {
-            val ready = withTimeout(30_000) { state.first { !it.isLoading } }
-            if (currentItem != playerItem) throw CancellationException("Media selection replaced")
-            check(ready.error == null && playerItem.status == AVPlayerStatusReadyToPlay) {
+            val ready = withTimeout(timeout) { state.first { !it.isLoading } }
+            if (currentItem != item) throw CancellationException("Media selection replaced")
+            check(ready.error == null && item.status == AVPlayerStatusReadyToPlay) {
                 ready.error ?: "AVPlayer did not prepare the selected item"
             }
         } catch (cancelled: CancellationException) {
-            // A cancelled load must not later start playing or publish ready for this item.
-            // Never release a newer selection that has already replaced it.
-            if (currentItem == playerItem) release()
+            // 取消的加载不能继续发布就绪或开始播放；但绝不能释放已经替换它的新媒体。
+            if (currentItem == item) release()
             throw cancelled
         }
     }
