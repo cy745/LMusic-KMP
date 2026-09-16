@@ -1,5 +1,7 @@
 package com.lalilu.lplayer.playback
 
+import com.lalilu.lmedia.domain.model.MediaKey
+
 /**
  * 「加载失败记账 + 播放真实推进后清除」的判定状态机。
  *
@@ -34,3 +36,20 @@ internal class LoadFailureWatch {
         return true
     }
 }
+
+/**
+ * 播放中途失败的自动导航判定。必须同时满足：
+ * - 用户确实要求过播放这首歌——暂停/停止之后才出现的错误不算，否则会在用户想停下来看情况时把歌跳走；
+ * - 失败项仍是当前加载项与队列当前项——迟到错误、用户已经换歌都不接管；
+ * - 位置在两次采样之间没有前进——确认真的停住了，而不是加载慢或缓冲。
+ */
+internal fun shouldNavigateAfterStalledFailure(
+    failedKey: MediaKey,
+    currentItemKey: MediaKey?,
+    loadedKey: MediaKey?,
+    playRequestedKey: MediaKey?,
+    positionAdvanced: Boolean,
+): Boolean = failedKey == currentItemKey &&
+    failedKey == loadedKey &&
+    failedKey == playRequestedKey &&
+    !positionAdvanced

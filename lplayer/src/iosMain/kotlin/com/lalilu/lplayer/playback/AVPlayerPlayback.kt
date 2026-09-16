@@ -57,6 +57,12 @@ class AVPlayerPlayback(
     /** 只观察当前已加载项；换歌或停止时取消，避免把旧结果写回新歌曲。 */
     private var loadedWatch: Job? = null
 
+    /**
+     * 用户是否明确要求过播放当前这首歌。播放中途出错时只有它仍成立才自动跳下一首，
+     * 避免"用户已经暂停/停止，播放器却自己把歌跳走"。
+     */
+    private var playRequestedFor: MediaKey? = null
+
     override suspend fun play(): Unit = withContext(Dispatchers.Main) {
         claimHistoryPlaybackControl()
         commands.run { playInternal() }
@@ -208,16 +214,29 @@ class AVPlayerPlayback(
                     val audio = queue.currentItem()
                     if (watch.onStateError(state.error)) {
                         persistLoadFailure(audio, ticket, IllegalStateException(state.error))
-                        previousPosition = null
+                    }
+                    val position = engine.currentPosition()
+                    val previous = previousPosition
+                    previousPosition = position
+                    if (state.error != null) {
+                        // 连续两次采样之间位置没有前进，说明这次错误真的让播放停住了。
+                        if (shouldNavigateAfterStalledFailure(
+                                failedKey = key,
+                                currentItemKey = audio?.mediaKey,
+                                loadedKey = loadedMediaKey,
+                                playRequestedKey = playRequestedFor,
+                                positionAdvanced = previous == null || position > previous,
+                            )) {
+                            playRequestedFor = null
+                            navigateAfterStalledFailure(engine, key)
+                            return@launch
+                        }
                         continue
                     }
                     if (audio?.mediaKey != key || !state.isPlaying) {
                         previousPosition = null
                         continue
                     }
-                    val position = engine.currentPosition()
-                    val previous = previousPosition
-                    previousPosition = position
                     if (previous == null || position <= previous) continue
                     if (watch.onPositionAdvanced()) {
                         failureWrites.apply(ticket, null).onFailure {
@@ -264,12 +283,31 @@ class AVPlayerPlayback(
         ?.value
         ?.isReady == true
 
+    /**
+     * 播放中途失败后继续沿方向找下一首。用独立协程发起：观察器本身会在换歌时被取消，
+     * 不能让它把这次导航一起带走。
+     */
+    private fun navigateAfterStalledFailure(engine: PlaybackEngine, key: MediaKey) {
+        launch(Dispatchers.Main) {
+            if (engine !== activeEngine || loadedMediaKey != key) return@launch
+            if (queue.currentItem()?.mediaKey != key) return@launch
+            try {
+                skipToNext()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                logger.e(failure) { "Could not continue playback after a stalled failure" }
+            }
+        }
+    }
+
     private suspend fun playInternal(): Unit = withContext(Dispatchers.Main) {
         volumeFadeHelper.play()
         try {
             val loaded = loadedMediaKey
             val engine = activeEngine
             if (engine != null && loaded != null && loaded == queue.currentItem()?.mediaKey) {
+                playRequestedFor = loaded
                 engine.play()
                 // 观察器可能已因异常退出；恢复播放同样需要一条清除路径。
                 if (loadedWatch?.isActive != true) {
@@ -291,6 +329,7 @@ class AVPlayerPlayback(
     }
 
     private suspend fun pauseInternal() {
+        playRequestedFor = null
         volumeFadeHelper.pauseAndAwait { activeEngine?.pause() }
     }
 
@@ -301,6 +340,7 @@ class AVPlayerPlayback(
     private suspend fun stopInternal() = withContext(Dispatchers.Main) {
         loadedWatch?.cancel()
         loadedWatch = null
+        playRequestedFor = null
         try {
             activeEngine?.stop()
             loadedMediaKey = null
@@ -360,6 +400,8 @@ class AVPlayerPlayback(
     private suspend fun attemptLoad(item: LAudio, index: Int, start: Boolean) {
         loadedWatch?.cancel()
         loadedWatch = null
+        // 只有这次加载被要求播放时才算"用户想听这首歌"。
+        playRequestedFor = item.mediaKey.takeIf { start }
         val successTicket = failureWrites.register(item.playbackId)
 
         if (isLoadedItem(item)) {

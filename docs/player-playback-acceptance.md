@@ -4,6 +4,14 @@
 
 当前阶段结论见 [#14 / #17 合并检查点](player-queue-issue-progress.md)。下文按时间倒序保留当时的记录，“未提交/未推送”和旧的待办描述不是最新状态。
 
+## iOS 播放中途错误的自动导航（2026-09-14 后续轮次）
+
+- 用户确认要"和安卓一致：自己跳下一首"。新增纯规则 `shouldNavigateAfterStalledFailure`，要求三个条件同时成立才导航：**用户确实要求过播放这首歌**（暂停/停止后出现的错误不算，避免用户想停下来观察时被跳走）、失败项仍是当前加载项与队列当前项（迟到错误或用户已换歌都不接管）、位置在两次采样之间**没有前进**（确认真的停住，而不是加载慢或缓冲）。
+- `AVPlayerPlayback` 增加 `playRequestedFor`：`attemptLoad(start=true)` 与被要求播放的复用分支写入，`pauseInternal` / `stopInternal` 清除。观察器在错误分支按上述规则判定，命中则交给独立协程执行 `skipToNext()`（观察器本身会在换歌时被取消，不能让它把导航一起带走）；导航仍走公共跳过循环，因此失败项不会在同一轮被重复尝试。
+- 规则测试 4 项：停住且已请求播放才导航；仍在前进不跳；暂停/停止后不跳；迟到错误或已被替换的歌曲不跳。
+- 验证：`:lplayer:jvmTest` 全量 **259 项、失败 0、跳过 0**（`/tmp/lmusic-r6-jvm.log`）；iOS 模拟器原生 **7 类 69 项**、`testFailed` 0（`/tmp/lmusic-r6-ios-native.log`）；`composeApp` iOS/JVM、`lplayer` Wasm、`androidApp` Android 编译通过。
+- **未验证**：本机无法让 iOS 真实播放中途出错（需要真机 + Apple Music 订阅），因此"观察器判定 + 自动跳转"的**接线**没有自动化覆盖，也没有设备端验收；判定逻辑本身只有规则级测试。若判定失误，表现为"该跳没跳"或"不该跳却跳了"，回滚这一处即可。
+
 ## 电脑版复用公共失败跳过（2026-09-14 后续轮次）
 
 - `VLCPlayback.selectInternal` 不再自己维护一份简化循环（每次选曲新建 traversal、无失败表过滤、无总时长上限），改为与 iOS 共用 `navigateWithFailureFallback`：候选槽位经 `playablePlaybackSlots` 过滤（可用 + 来源就绪 + 未记录失败），并有相同的 60s 总预算（`DefaultSkipNavigationBudget` 提到公共层，iOS 改用它）。
