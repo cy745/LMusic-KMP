@@ -46,7 +46,16 @@ kotlin {
                 api(libs.koin.compose.viewmodel)
                 api(libs.remixicon.kmp)
                 api(libs.qrcode.kotlin)
-                api(libs.sonner)
+                // compose-sonner 发布时把发布者平台(macos-arm64)的 Compose Desktop 构件写进了
+                // 元数据(scope=runtime)，于是所有宿主都被塞进 macOS 的 Skiko 原生库：非 macOS 上
+                // Compose 测试会因加载不到本平台原生库而失败，打包时也会多带一份无用的原生库。
+                // 宿主平台那一份由各自的 compose.desktop.currentOs 提供，这里只剔除被焊死的那个平台。
+                // 说明：KMP source-set 的 api(...) 带 lambda 的重载只接受 String，而版本目录给出的
+                // MinimalExternalModuleDependency 是只读的，故按「组:模块:版本」记法声明，
+                // 取值仍来自版本目录，保持单一事实来源。
+                api("${libs.sonner.get().module}:${libs.sonner.get().versionConstraint.requiredVersion}") {
+                    exclude(group = "org.jetbrains.compose.desktop", module = "desktop-jvm-macos-arm64")
+                }
                 api(libs.materialKolor)
                 api(libs.reorderable)
                 api(libs.paging.compose)

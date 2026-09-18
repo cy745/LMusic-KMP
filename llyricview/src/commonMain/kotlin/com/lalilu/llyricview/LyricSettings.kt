@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lalilu.common.kv.KVContext
+import com.lalilu.common.kv.KVItem
 import com.lalilu.llyricview.serializable.DpSerializer
 import com.lalilu.llyricview.serializable.PaddingValueSerializer
 import com.lalilu.llyricview.serializable.TextAlignSerializer
@@ -59,6 +61,13 @@ data class LyricSettings(
     val translationVisible: Boolean = true,
     val onlyCurrentTranslationVisible: Boolean = false,
 
+    /**
+     * 歌词页展开时隐藏其他组件（播放页的 toolbar、进度条与系统状态栏）。
+     *
+     * 移植自单端 LMusic 的 `SettingsSp.autoHideSeekbar`，默认值与原实现一致。
+     */
+    val autoHideComponents: Boolean = false,
+
     // 歌词滚动效果配置
     val scrollSpringStiffness: Float = 100f,
     val scrollSpringDampingRatio: Float = 0.75f,
@@ -79,3 +88,12 @@ data class LyricSettings(
         fontWeight = FontWeight(translationFontWeight),
     )
 }
+
+/**
+ * 共享的 [LyricSettings] KV 访问器。
+ *
+ * 与歌词设置页（`provideLyricSettings`）、播放页弹窗（`provideLyricSettingsQuick`）
+ * 使用同一份 key，因此播放页可直接读取这里的开关（如 [LyricSettings.autoHideComponents]）。
+ */
+fun obtainLyricSettings(): KVItem<LyricSettings> =
+    KVContext.obtainStatic(key = "LyricSettings", defaultValue = LyricSettings())

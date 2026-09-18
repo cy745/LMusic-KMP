@@ -39,6 +39,9 @@ import org.koin.core.annotation.Named
  * | `lplayer_handleBecomeNoisy`               | Switch    | `LPlayerKV.handleBecomeNoisy`   |
  * | `lplayer_playMode`                        | Dropdown  | `LPlayerKV.playMode` (String)   |
  * | `lplayer.clear_history_position`          | Click     | 请求下次恢复时将进度归零，不改变当前播放 |
+ *
+ * 注：「歌词页展开时隐藏其他组件」属于歌词页显示行为，已放到歌词设置组
+ * （`llyricview` 的 `provideLyricSettings` / `provideLyricSettingsQuick`），不在此处。
  */
 @Factory
 @Named("settings_lplayer")

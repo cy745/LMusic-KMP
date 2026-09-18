@@ -87,6 +87,25 @@ class SandboxSourceFileOperationsTest {
         assertEquals(original.id, renamed.id)
     }
 
+    /**
+     * 归属判断不能依赖 '/'：Windows 的路径分隔符是 '\'，旧的 `path.startsWith("$root/")`
+     * 会把所有嵌套路径误判成越界，导致导入后的曲目无法重命名/删除。
+     */
+    @Test fun nestedSandboxPathIsOwnedWhateverThePlatformSeparator() = fixture { root, _, source ->
+        val external = audio(root.parentFile.resolve("external.mp3"))
+        val original = source.import(PlatformFile(external), emptyList()).audio
+        val stored = original.extra!!.getValue("path")
+        assertTrue(stored.startsWith(root.path), "沙箱内路径应以根目录开头：$stored")
+        assertTrue(stored.length > root.path.length, "导入后应为嵌套路径，而不是根目录本身：$stored")
+        assertTrue(stored.contains(File.separatorChar), "嵌套路径应使用平台分隔符 ${File.separatorChar}：$stored")
+
+        // rename 会走 requireOwnedPath 的嵌套分支；分隔符判断错误时这里会抛
+        // "Song path is outside the sandbox"（旧实现在 Windows 上必失败）。
+        val renamed = source.rename(original, "separator-check") {}
+        assertEquals(original.id, renamed.id)
+        assertTrue(root.resolve("Imported/separator-check.mp3").exists())
+    }
+
     @Test fun downstreamRenameFailureRestoresPathIndexAndSnapshot() = fixture { root, _, source ->
         val external = audio(root.parentFile.resolve("external.mp3"))
         val original = source.import(PlatformFile(external), emptyList()).audio

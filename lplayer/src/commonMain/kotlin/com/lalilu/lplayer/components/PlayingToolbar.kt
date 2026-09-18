@@ -3,7 +3,7 @@ package com.lalilu.lplayer.components
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
@@ -26,6 +26,7 @@ fun PlayingToolbar(
     contentColor: () -> Color,
     contentPadding: PaddingValues = PaddingValues(start = 25.dp, end = 20.dp),
     onClick: () -> Unit = {},
+    onDoubleClick: () -> Unit = {},
     fixContent: @Composable RowScope.() -> Unit = {},
     extraContent: @Composable AnimatedVisibilityScope.() -> Unit = {}
 ) {
@@ -71,8 +72,14 @@ fun PlayingToolbar(
     Row(
         modifier = modifier
             .enableFor(isUserTouchEnable) {
-                clickable(
+                // 单击与双击必须交给同一个识别器：
+                // 两个 pointerInput 叠在同一节点上时，modifier 链尾的那个在 Main 阶段先派发，
+                // clickable 会 consume() 掉按下事件，链首的双击识别器就永远等不到
+                // 未消费的按下事件（awaitFirstDown(requireUnconsumed = true)），双击因此静默失效。
+                // 传入 onDoubleClick 后，单击回调会延后到双击判定窗口结束，再触发。
+                combinedClickable(
                     onClick = { if (isUserTouchEnable()) onClick() },
+                    onDoubleClick = { if (isUserTouchEnable()) onDoubleClick() },
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 )

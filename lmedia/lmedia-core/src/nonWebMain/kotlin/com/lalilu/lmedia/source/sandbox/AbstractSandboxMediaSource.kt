@@ -664,9 +664,14 @@ abstract class AbstractSandboxMediaSource(
     )
 
     private fun isInsideRoot(file: PlatformFile): Boolean {
-        val root = rootDirectory.path.trimEnd('/')
+        // Windows 用 '\'、POSIX 用 '/'，且 root 与 file 的分隔符还可能混用
+        // （File(parent, child) 拼接时会用宿主分隔符），因此两种分隔符都必须认。
+        // 只按 '/' 判断会让 Windows 上的所有嵌套路径被误判为越界。
+        val root = rootDirectory.path.trimEnd('/', '\\')
         val path = file.path
-        return path == root || path.startsWith("$root/")
+        if (path == root) return true
+        if (path.length <= root.length || !path.startsWith(root)) return false
+        return path[root.length] == '/' || path[root.length] == '\\'
     }
 
     private fun requireOwnedPath(song: LAudio): String {

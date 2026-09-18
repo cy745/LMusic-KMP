@@ -67,6 +67,9 @@ kotlin {
             implementation(libs.media3.session)
             implementation(libs.media3.exoplayer)
             implementation(libs.kotlinx.coroutines.guava)
+            // SystemBarsVisibilityEffect 的 Android 实现使用 WindowInsetsControllerCompat
+            // （兼容 API 21+；minSdk 为 23）
+            implementation(libs.androidx.core.ktx)
             implementation(project(":lplayer:lib-decoder-flac"))
         }
         val androidDeviceTest by getting {
@@ -83,6 +86,10 @@ kotlin {
         val jvmTest by getting {
             dependencies {
                 implementation(libs.compose.ui.test)
+                // Compose 的图形引擎(Skiko)严格分平台，运行时必须拿到宿主平台那一份。
+                // compose-sonner 这类库在发布时把发布者平台(macos-arm64)焊进了元数据，
+                // 会把 macOS 的原生库带给所有宿主，故此处显式补回宿主平台的一份。
+                runtimeOnly(compose.desktop.currentOs)
                 implementation(project(":lmedia:lmedia-ui"))
                 implementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
                 implementation("org.junit.jupiter:junit-jupiter-engine:5.13.4")

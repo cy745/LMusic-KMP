@@ -41,6 +41,7 @@ internal fun PlayerToolbarContent(
     isPlaying: () -> Boolean,
     isUserTouchEnabled: () -> Boolean,
     showExtraActions: () -> Boolean,
+    onDoubleClick: () -> Unit = {},
 ) {
     PlayingToolbar(
         modifier = modifier,
@@ -50,6 +51,8 @@ internal fun PlayerToolbarContent(
         isPlaying = isPlaying,
         isUserTouchEnable = isUserTouchEnabled,
         isExtraVisible = showExtraActions,
+        // 单击 / 双击都由 PlayingToolbar 内部同一个手势识别器处理，这里只传语义动作
+        onDoubleClick = onDoubleClick,
         extraContent = { PlayerLyricActions(contentColor = contentColor) },
     )
 }

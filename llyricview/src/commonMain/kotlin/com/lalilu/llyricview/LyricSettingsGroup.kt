@@ -286,6 +286,12 @@ fun provideLyricSettings(
                 value = kv.settings.value.translationVisible,
                 onValueChange = { kv.updateAndPersist { copy(translationVisible = it) } }
             )
+            switch(
+                key = "lyric_auto_hide_components",
+                title = { "歌词页展开时隐藏其他组件" },
+                value = kv.settings.value.autoHideComponents,
+                onValueChange = { kv.updateAndPersist { copy(autoHideComponents = it) } }
+            )
 
             if (includeFontEntry) {
                 click(
@@ -417,6 +423,12 @@ fun provideLyricSettingsQuick(
             title = { "显示翻译" },
             value = settings.value.translationVisible,
             onValueChange = { updateAndPersist { copy(translationVisible = it) } }
+        )
+        switch(
+            key = "lyric_quick_auto_hide_components",
+            title = { "歌词页展开时隐藏其他组件" },
+            value = settings.value.autoHideComponents,
+            onValueChange = { updateAndPersist { copy(autoHideComponents = it) } }
         )
         click(
             key = "lyric_quick_full_settings",

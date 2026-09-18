@@ -124,6 +124,40 @@ class XxxDialogTest {
 ./gradlew :common:jvmTest
 ```
 
+### 5.1 前置条件
+
+- **JDK 21**：`vlc-setup` 插件要求 JVM ≥ 21，JDK 17 会在配置阶段直接失败。本机有多个 JDK 时用
+  `JAVA_HOME` 指定，例如 `JAVA_HOME=~/.jdks/corretto-21.0.11`。
+- **VLC 原生资源**：桌面端原生播放用例依赖仓库内的 VLC 二进制
+  （`lplayer/src/jvmMain/assets/<os>/vlc/`，被 `.gitignore` 排除，不随克隆分发）。
+  首次运行或资源过期（改了 `composeApp` 的 `vlcSetup` 配置）时先执行：
+
+  ```bash
+  ./gradlew :composeApp:vlcSetup
+  ```
+
+  ⚠️ `vlcSetup` 会**先删光目标目录中的 dll 再重写**，不要往该目录放自备 dll。
+  用 `shouldIncludeAllVlcFiles = true` 时资源约 58 MB（UPX 压缩后），minimal 配置只有约 10 MB——
+  后者会让网络音源与内存回调播放失败。
+- **真实音频夹具**：`LMUSIC_NATIVE_AUDIO_FIXTURE` 需指向一个 **≥ 12 秒**的真实音频文件
+  （原生用例会 seek 到 12s，过短会失败）。可用 ffmpeg 生成：
+
+  ```bash
+  ffmpeg -f lavfi -i "sine=frequency=440:duration=30" -ac 1 -ar 44100 -b:a 64k native-audio.mp3
+  ```
+
+### 5.2 启用原生用例
+
+`lplayer` 的原生播放用例默认**跳过**（`assumeTrue` 环境守卫），需要同时指定两个环境变量：
+
+```bash
+export LMUSIC_NATIVE_RESOURCES="$PWD/lplayer/src/jvmMain/assets/windows"   # 含 vlc/ 的目录
+export LMUSIC_NATIVE_AUDIO_FIXTURE="$PWD/build/native-fixtures/native-audio.mp3"
+./gradlew :lplayer:jvmTest
+```
+
+未设置时这些用例计为 `skipped` 而非失败。注意：设置后 `jvmTest` 不再命中 up-to-date 缓存，会真实重跑。
+
 ---
 
 ## 6. 覆盖率目标
@@ -153,3 +187,29 @@ class XxxDialogTest {
 
 测试统一在 `commonTest` 跑。涉及 `expect/actual` 时，测试代码本身只能放 `commonTest`；
 具体平台的行为验证交由该平台的 instrumented test。
+
+### 8.1 平台专属用例的跳过约定
+
+桌面端同一份 `jvmTest` 会在 Windows / macOS / Linux 上执行，而部分被测代码本身是平台专属的。
+这类用例必须在**用例体第一行**显式声明所需平台，不匹配时**跳过而不是失败**：
+
+```kotlin
+@Test
+fun onlyMeaningfulOnMac() {
+    assumeDesktopOs(DesktopOs.MACOS)   // Windows / Linux 上计为 skipped
+    ...
+}
+```
+
+`assumeDesktopOs` 与 `DesktopOs` 定义在 `lplayer/src/jvmTest/kotlin/com/lalilu/test/DesktopOsAssumptions.kt`，
+底层是 JUnit4 的 `Assume.assumeTrue`（本模块的测试运行在 JUnit4 runner 上），
+Gradle 会正确计成 `skipped` 并带上原因。反向同理：只在 Windows 上成立的用例写
+`assumeDesktopOs(DesktopOs.WINDOWS)`。
+
+两点注意：
+
+- 若类里用 `init { ... }` 初始化平台专属资源，必须改成 `lazy`：`init` 在**构造阶段**执行，
+  会早于守卫，导致非目标平台仍然报错（`RococoaTest` 就是这个情况）。
+- **不要用它掩盖真实缺陷**：环境缺失（原生库未就绪、夹具未提供）用环境守卫处理；
+  跨平台的路径分隔符、编码、大小写等问题属于 bug，必须修而不能跳过。
+
