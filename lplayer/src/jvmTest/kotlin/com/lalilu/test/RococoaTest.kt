@@ -13,7 +13,13 @@ import org.rococoa.cocoa.foundation.NSString
 
 class RococoaTest {
 
-    init {
+    /**
+     * 原生库与 Darwin 运行时的初始化。
+     *
+     * 这里用 lazy 而不是 init 块：init 在构造阶段就会执行，而 Rococoa 只在 macOS 上可用，
+     * 放在 init 里会让非 macOS 宿主在 assumeDesktopOs 跳过用例之前就抛出异常。
+     */
+    private val rococoaReady: Unit by lazy {
         val projectPath = System.getProperty("user.dir")
         val nativeLibPath = System.getenv("LMUSIC_NATIVE_RESOURCES")
             ?: java.io.File(projectPath, "../composeApp/build/compose/tmp/prepareAppResources").canonicalPath
@@ -25,8 +31,13 @@ class RococoaTest {
         println(nativeLibPath)
     }
 
+    /** 在守卫通过后触发一次初始化；lazy 保证多次调用只执行一次。 */
+    private fun prepareRococoa() = rococoaReady
+
     @Test
     fun testNSMenu() {
+        assumeDesktopOs(DesktopOs.MACOS)
+        prepareRococoa()
         val menu = NSMenu.alloc().initWithTitle("test")
         val menuItem = NSMenuItem.alloc().initWithTitle("test item", null, "p")
 
@@ -39,6 +50,8 @@ class RococoaTest {
 
     @Test
     fun testMPNowPlayingInfoCenter() {
+        assumeDesktopOs(DesktopOs.MACOS)
+        prepareRococoa()
         val defaultCenter = MPNowPlayingInfoCenter.defaultCenter()
         var info = defaultCenter.nowPlayingInfo()
 
@@ -77,6 +90,8 @@ class RococoaTest {
 
     @Test
     fun testNSMutableDictionary() {
+        assumeDesktopOs(DesktopOs.MACOS)
+        prepareRococoa()
         val keys = NSArray.CLASS.arrayWithObjects(
             MPMediaItemProperty.Title.nativeValue,
             MPMediaItemProperty.Artist.nativeValue,

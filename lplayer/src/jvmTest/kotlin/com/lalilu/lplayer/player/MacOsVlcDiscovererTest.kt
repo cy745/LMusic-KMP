@@ -1,5 +1,7 @@
 package com.lalilu.lplayer.player
 
+import com.lalilu.test.DesktopOs
+import com.lalilu.test.assumeDesktopOs
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -8,6 +10,7 @@ import kotlin.test.assertTrue
 
 class MacOsVlcDiscovererTest {
     @Test fun pluginCallbackReceivesAlreadyResolvedDirectory() {
+        assumeDesktopOs(DesktopOs.MACOS)
         val root = Files.createTempDirectory("lmusic-vlc-discovery-").toFile()
         try {
             val plugins = root.resolve("plugins").apply { mkdirs() }
@@ -19,6 +22,7 @@ class MacOsVlcDiscovererTest {
     }
 
     @Test fun missingPluginDirectoryDoesNotConfigureAnInventedPath() {
+        assumeDesktopOs(DesktopOs.MACOS)
         val root = Files.createTempDirectory("lmusic-vlc-discovery-").toFile()
         try {
             val values = mutableListOf<String>()
@@ -29,6 +33,7 @@ class MacOsVlcDiscovererTest {
     }
 
     @Test fun environmentSetterFailureIsNotReportedAsSuccess() {
+        assumeDesktopOs(DesktopOs.MACOS)
         val root = Files.createTempDirectory("lmusic-vlc-discovery-").toFile()
         try {
             root.resolve("plugins").mkdirs()

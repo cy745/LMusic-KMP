@@ -60,5 +60,11 @@ kotlin {
             implementation(libs.turbine)
             implementation(libs.compose.ui.test)
         }
+        // Compose 的图形引擎(Skiko)严格分平台，运行时必须拿到宿主平台那一份。
+        // compose-sonner 这类库在发布时把发布者平台(macos-arm64)焊进了元数据，
+        // 会把 macOS 的原生库带给所有宿主，故此处显式补回宿主平台的一份。
+        jvmTest.dependencies {
+            runtimeOnly(compose.desktop.currentOs)
+        }
     }
 }
