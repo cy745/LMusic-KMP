@@ -21,10 +21,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.lalilu.llyricview.LyricContent
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.components.DragAnchor
 import com.lalilu.lplayer.components.PlayerScaffold
 import com.lalilu.lplayer.components.PlaylistLayout
 import com.lalilu.lplayer.components.rememberSeekbarPositionState
+import com.lalilu.lplayer.extensions.SystemBarsVisibilityEffect
+import com.lalilu.lplayer.extensions.hideControl
 import com.lalilu.navigation.LocalModalBottomSheetState
 import kotlinx.coroutines.flow.Flow
 
@@ -53,6 +56,14 @@ internal fun PlayerScreenContent(
         toolbarContent = {
             Column(
                 modifier = Modifier
+                    // 歌词页展开时隐藏其他组件：toolbar 需要"先点击一下显示，再点击才触发按钮"，
+                    // 因此 intercept 为 true
+                    .hideControl(
+                        enable = {
+                            LPlayerKV.autoHideSeekbar.value && currentAnchor == DragAnchor.Max
+                        },
+                        intercept = { true },
+                    )
                     .fillMaxWidth()
                     .statusBarsPadding()
                     .padding(bottom = 10.dp)
@@ -99,7 +110,12 @@ internal fun PlayerScreenContent(
                 items = queue,
             )
         },
-        overlayContent = { _ ->
+        overlayContent = { scaffold ->
+            // 歌词页展开且开启自动隐藏时，系统状态栏一并隐藏（桌面端 / Web 为空操作，见 actual 实现）
+            SystemBarsVisibilityEffect(
+                visible = !(LPlayerKV.autoHideSeekbar.value && scaffold.currentAnchor == DragAnchor.Max),
+            )
+
             val controlsProgress = animateFloatAsState(
                 targetValue = if (!isManuallyScrollingLyrics) 1f else 0f,
                 animationSpec = spring(stiffness = Spring.StiffnessLow),
@@ -117,6 +133,14 @@ internal fun PlayerScreenContent(
             ) {
                 PlayerTransportControls(
                     modifier = Modifier
+                        // 歌词页展开时隐藏其他组件：进度条不拦截点击（intercept 默认 false），
+                        // 以保证其原有手势（拖动进度 / 点击切歌）不受影响
+                        .hideControl(
+                            enable = {
+                                LPlayerKV.autoHideSeekbar.value &&
+                                    scaffold.currentAnchor == DragAnchor.Max
+                            },
+                        )
                         .padding(horizontal = 40.dp)
                         .padding(bottom = 100.dp),
                     currentTime = currentTime,

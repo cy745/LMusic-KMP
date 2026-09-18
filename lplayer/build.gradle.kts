@@ -67,6 +67,9 @@ kotlin {
             implementation(libs.media3.session)
             implementation(libs.media3.exoplayer)
             implementation(libs.kotlinx.coroutines.guava)
+            // SystemBarsVisibilityEffect 的 Android 实现使用 WindowInsetsControllerCompat
+            // （兼容 API 21+；minSdk 为 23）
+            implementation(libs.androidx.core.ktx)
             implementation(project(":lplayer:lib-decoder-flac"))
         }
         val androidDeviceTest by getting {

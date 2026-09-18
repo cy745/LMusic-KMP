@@ -30,13 +30,14 @@ import org.koin.core.annotation.Named
  * 用 `@Factory` + `@Named("settings_lplayer")` 注入到 Koin，
  * 由 :lsettings 模块的 [com.lalilu.common.settings.SettingsCollector] 收集后渲染。
  *
- * 当前包含 5 个偏好项：
+ * 当前包含 6 个偏好项：
  *
  * | key                                       | 类型      | 持久化字段                  |
  * |-------------------------------------------|-----------|-----------------------------|
  * | `lplayer_autoPlayWhenRestart`             | Switch    | `LPlayerKV.autoPlayWhenRestart` |
  * | `lplayer_handleAudioFocus`                | Switch    | `LPlayerKV.handleAudioFocus`    |
  * | `lplayer_handleBecomeNoisy`               | Switch    | `LPlayerKV.handleBecomeNoisy`   |
+ * | `lplayer_autoHideSeekbar`                 | Switch    | `LPlayerKV.autoHideSeekbar`     |
  * | `lplayer_playMode`                        | Dropdown  | `LPlayerKV.playMode` (String)   |
  * | `lplayer.clear_history_position`          | Click     | 请求下次恢复时将进度归零，不改变当前播放 |
  */
@@ -61,6 +62,11 @@ fun provideLPlayerSettings(): SettingsGroup = settingsGroup(
         kv = LPlayerKV.handleBecomeNoisy,
         title = { "监听耳机拔出" },
         summary = { "拔出耳机时自动暂停播放" }
+    )
+    switch(
+        kv = LPlayerKV.autoHideSeekbar,
+        title = { "歌词页展开时隐藏其他组件" },
+        summary = { "简化界面显示效果；触摸时重新显示，手指离开后自动隐藏" }
     )
     dropdown(
         kv = LPlayerKV.playMode,
