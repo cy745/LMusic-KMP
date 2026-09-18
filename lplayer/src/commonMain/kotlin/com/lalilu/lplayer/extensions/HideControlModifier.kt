@@ -25,7 +25,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -91,7 +92,16 @@ fun Modifier.hideControl(
         }
     }
 
-    this.alpha(animateAlpha.value)
+    this.graphicsLayer {
+        alpha = animateAlpha.value
+        // 用 ModulateAlpha 而不是默认的 Offscreen：
+        // Offscreen 会额外创建一层离屏缓冲，其范围等于本节点的布局尺寸，因此"移出自身边界"的
+        // 内容会在淡入淡出过程中被裁剪 —— 进度条上拖时内部会 translationY 向上位移（见
+        // SeekbarLayout 的 offsetYProgress），正是这个原因导致过渡期间上方区域被裁。
+        // ModulateAlpha 直接把透明度乘进每条绘制指令，不创建离屏层，所以不会裁剪。
+        // 代价：内容自身相互重叠时不会按整体合成做混合（本处为进度条/文本，无重叠问题）。
+        compositingStrategy = CompositingStrategy.ModulateAlpha
+    }
         .enableFor(enable = enable) {
             pointerInput(Unit) {
                 awaitPointerEventScope {

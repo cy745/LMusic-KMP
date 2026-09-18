@@ -2,11 +2,14 @@ package com.lalilu.lplayer.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -19,6 +22,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Velocity
 import com.lalilu.extensions.ClassicBackHandler
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -41,12 +46,23 @@ internal interface PlayerScaffoldScope {
     fun dragBy(delta: Float): Float
     suspend fun fling(velocity: Float): Float
     fun flingAsync(velocity: Float)
+
+    /**
+     * 让播放列表回到顶部。
+     *
+     * 对外暴露的是「意图」而非滚动机制：列表的滚动状态由本 Scaffold 持有（它负责列表的
+     * 测量放置），调用方（例如 toolbar 的双击手势）不需要知道它是 [LazyListState]，
+     * 也不必自己判断列表是否为空。
+     */
+    fun scrollPlaylistToTop()
 }
 
 @Stable
 private class DefaultPlayerScaffoldScope(
     private val draggable: CustomAnchoredDraggableState,
     private val expandedContentUnlocked: MutableState<Boolean>,
+    private val playlistState: LazyListState,
+    private val scope: CoroutineScope,
 ) : PlayerScaffoldScope {
     override val currentAnchor: DragAnchor
         get() = draggable.state.value
@@ -66,6 +82,12 @@ private class DefaultPlayerScaffoldScope(
     override fun dragBy(delta: Float): Float = draggable.dispatchRawDelta(delta)
     override suspend fun fling(velocity: Float): Float = draggable.fling(velocity)
     override fun flingAsync(velocity: Float) = draggable.flingAsync(velocity)
+
+    override fun scrollPlaylistToTop() {
+        // 空列表直接返回，避免把「列表是否为空」这种细节暴露给调用方
+        if (playlistState.layoutInfo.totalItemsCount == 0) return
+        scope.launch { playlistState.animateScrollToItem(0) }
+    }
 }
 
 /**
@@ -79,7 +101,7 @@ internal fun PlayerScaffold(
     modifier: Modifier = Modifier,
     toolbarContent: @Composable PlayerScaffoldScope.() -> Unit = {},
     dynamicHeaderContent: @Composable PlayerScaffoldScope.() -> Unit = {},
-    playlistContent: @Composable PlayerScaffoldScope.(Modifier) -> Unit = {},
+    playlistContent: @Composable PlayerScaffoldScope.(Modifier, LazyListState) -> Unit = { _, _ -> },
     overlayContent: @Composable BoxScope.(PlayerScaffoldScope) -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
@@ -99,10 +121,14 @@ internal fun PlayerScaffold(
             }
         },
     )
-    val scaffoldScope = remember(draggable, expandedContentUnlocked) {
+    val playlistState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val scaffoldScope = remember(draggable, expandedContentUnlocked, playlistState) {
         DefaultPlayerScaffoldScope(
             draggable = draggable,
             expandedContentUnlocked = expandedContentUnlocked,
+            playlistState = playlistState,
+            scope = scope,
         )
     }
 
@@ -165,6 +191,7 @@ internal fun PlayerScaffold(
                 scaffoldScope.dynamicHeaderContent()
                 scaffoldScope.playlistContent(
                     Modifier.nestedScroll(playlistNestedScrollConnection),
+                    playlistState,
                 )
             },
         ) { measurables, constraints ->

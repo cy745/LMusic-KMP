@@ -14,9 +14,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
@@ -41,9 +44,17 @@ internal fun PlayerToolbarContent(
     isPlaying: () -> Boolean,
     isUserTouchEnabled: () -> Boolean,
     showExtraActions: () -> Boolean,
+    onDoubleClick: () -> Unit = {},
 ) {
+    // 「双击 toolbar」这一手势契约由 toolbar 自己负责，调用方只需传入语义动作。
+    // 用 rememberUpdatedState 持有最新回调，避免 pointerInput(Unit) 捕获到旧的 lambda。
+    val currentOnDoubleClick = rememberUpdatedState(onDoubleClick)
     PlayingToolbar(
-        modifier = modifier,
+        modifier = modifier.pointerInput(Unit) {
+            // 点在按钮上时子节点已消费该按下事件，而 detectTapGestures 默认要求未消费，
+            // 因此不会抢走按钮点击；只有点在本区域空白处才会识别为双击。
+            detectTapGestures(onDoubleTap = { currentOnDoubleClick.value() })
+        },
         title = title,
         subtitle = subtitle,
         contentColor = contentColor,

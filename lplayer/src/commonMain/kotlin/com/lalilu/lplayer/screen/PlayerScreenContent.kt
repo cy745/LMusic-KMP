@@ -20,8 +20,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.lalilu.llyricview.LyricContent
+import com.lalilu.llyricview.obtainLyricSettings
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.components.DragAnchor
 import com.lalilu.lplayer.components.PlayerScaffold
 import com.lalilu.lplayer.components.PlaylistLayout
@@ -51,7 +51,8 @@ internal fun PlayerScreenContent(
         currentTime.longValue.toFloat()
     }
     var isManuallyScrollingLyrics by remember { mutableStateOf(false) }
-
+    // 「歌词页展开时隐藏其他组件」与歌词设置页 / 播放页弹窗共用同一份设置
+    val lyricSettings = remember { obtainLyricSettings() }
     PlayerScaffold(
         toolbarContent = {
             Column(
@@ -60,7 +61,8 @@ internal fun PlayerScreenContent(
                     // 因此 intercept 为 true
                     .hideControl(
                         enable = {
-                            LPlayerKV.autoHideSeekbar.value && currentAnchor == DragAnchor.Max
+                            lyricSettings.value.autoHideComponents &&
+                                currentAnchor == DragAnchor.Max
                         },
                         intercept = { true },
                     )
@@ -88,6 +90,10 @@ internal fun PlayerScreenContent(
                         currentAnchor == DragAnchor.Min || currentAnchor == DragAnchor.Max
                     },
                     showExtraActions = { currentAnchor == DragAnchor.Max },
+                    // 歌词页收起（非 Max 锚点）时，双击 toolbar 区域把播放列表滚回顶部
+                    onDoubleClick = {
+                        if (currentAnchor != DragAnchor.Max) scrollPlaylistToTop()
+                    },
                 )
             }
         },
@@ -104,16 +110,17 @@ internal fun PlayerScreenContent(
                 onManualLyricsScrollingChanged = { isManuallyScrollingLyrics = it },
             )
         },
-        playlistContent = { playlistModifier ->
+        playlistContent = { playlistModifier, listState ->
             PlaylistLayout(
                 modifier = playlistModifier,
+                listState = listState,
                 items = queue,
             )
         },
         overlayContent = { scaffold ->
             // 歌词页展开且开启自动隐藏时，系统状态栏一并隐藏（桌面端 / Web 为空操作，见 actual 实现）
             SystemBarsVisibilityEffect(
-                visible = !(LPlayerKV.autoHideSeekbar.value && scaffold.currentAnchor == DragAnchor.Max),
+                visible = !(lyricSettings.value.autoHideComponents && scaffold.currentAnchor == DragAnchor.Max),
             )
 
             val controlsProgress = animateFloatAsState(
@@ -133,16 +140,18 @@ internal fun PlayerScreenContent(
             ) {
                 PlayerTransportControls(
                     modifier = Modifier
+                        // 注意 padding 必须在 hideControl 之前：hideControl 会挂上指针监听，
+                        // 放在 padding 之前会把下方留白也算进它的触摸区域（点留白会误触发进度条本身）。
+                        .padding(horizontal = 40.dp)
+                        .padding(bottom = 100.dp)
                         // 歌词页展开时隐藏其他组件：进度条不拦截点击（intercept 默认 false），
                         // 以保证其原有手势（拖动进度 / 点击切歌）不受影响
                         .hideControl(
                             enable = {
-                                LPlayerKV.autoHideSeekbar.value &&
+                                lyricSettings.value.autoHideComponents &&
                                     scaffold.currentAnchor == DragAnchor.Max
                             },
-                        )
-                        .padding(horizontal = 40.dp)
-                        .padding(bottom = 100.dp),
+                        ),
                     currentTime = currentTime,
                     duration = duration,
                     positionState = timeline,
