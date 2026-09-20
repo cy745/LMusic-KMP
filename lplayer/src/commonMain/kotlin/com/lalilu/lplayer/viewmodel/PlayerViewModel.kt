@@ -7,21 +7,15 @@ import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.LyricUtils
 import com.lalilu.llyricview.LyricContent
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.MediaContentAvailability
 import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.resolveLyricData
 import com.lalilu.lplayer.LPlayer
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.mapLatest
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 
@@ -36,6 +30,7 @@ class PlayerViewModel(
 
     val currentQueue = LPlayer.instance.queue.expandedItems
         .mapLatest { it.rearrange() }
+        .distinctUntilChanged()
 
     init {
         currentItem

@@ -19,18 +19,17 @@ import coil3.compose.LocalPlatformContext
 import com.lalilu.extensions.Item
 import com.lalilu.extensions.diff
 import com.lalilu.extensions.retrieveCacheKey
-import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.mediaKey
-import com.lalilu.lmedia.isAudioPlayable
 import com.lalilu.lmedia.audioPlaybackStatus
 import com.lalilu.lmedia.domain.model.AudioPlaybackPresentation
+import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.flowOn
+import kotlin.coroutines.resume
 
 
 @Composable
@@ -38,56 +37,72 @@ fun PlaylistLayout(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues = PaddingValues(bottom = 200.dp),
-    forceRefresh: () -> Boolean = { false },
     items: Flow<List<LAudio>>
 ) {
-    val scope = rememberCoroutineScope()
     val context = LocalPlatformContext.current
     var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
 
     LaunchedEffect(Unit) {
-        items.collect { list ->
-            val newList = actualItems.diff(
-                items = list,
-                getId = { it.mediaKey.stableKey },
-                isSameItem = { a, b -> a.mediaKey == b.mediaKey },
-                isSameContent = { a, b ->
-                    a.id == b.id
-                            && a.title == b.title
-                            && a.subtitle == b.subtitle
-                            && a.mediaSourceName == b.mediaSourceName
-                            && a.available == b.available
-                            && a.extra == b.extra
+        items.flowOn(Dispatchers.Default)
+            .collect { list ->
+                val oldList = actualItems.toMutableList()
+                val newList = oldList.diff(
+                    items = list,
+                    getId = { it.mediaKey.stableKey },
+                    isSameItem = { a, b -> a.mediaKey == b.mediaKey },
+                    isSameContent = { a, b ->
+                        a.id == b.id
+                                && a.title == b.title
+                                && a.subtitle == b.subtitle
+                                && a.mediaSourceName == b.mediaSourceName
+                                && a.available == b.available
+                                && a.extra == b.extra
+                    }
+                )
+                val newListFirst = newList.firstOrNull()
+                val oldListFirst = oldList.firstOrNull()
+
+                // 若无法获取新列表的首元素，则说明新列表为空，及时返回
+                if (newListFirst == null) {
+                    actualItems = emptyList()
+                    return@collect
                 }
-            )
-            val newListFirst = newList.firstOrNull()
-            val oldListFirst = actualItems.firstOrNull()
 
-            // 若无法获取新列表的首元素，则说明新列表为空，及时返回
-            if (newListFirst == null) {
-                actualItems = emptyList()
-                return@collect
-            }
+                withContext(Dispatchers.Main) {
+                    val visibleItemsInfo = withContext(Dispatchers.Main) {
+                        listState.layoutInfo.visibleItemsInfo
+                    }
 
-            // 判断新列表的首元素是否处于可视范围内
-            val isNewListTopVisible = listState.layoutInfo.visibleItemsInfo
-                .any { it.key == newListFirst.key }
+                    // 判断新列表的首元素是否处于可视范围内
+                    val isNewListTopVisible = visibleItemsInfo
+                        .any { it.key == newListFirst.key }
 
-            // 判断旧列表的首元素是否处于可视范围内
-            val isOldListTopVisible = oldListFirst?.let { item ->
-                listState.layoutInfo.visibleItemsInfo
-                    .any { it.key == item.key }
-            } == true
+                    // 判断旧列表的首元素是否处于可视范围内
+                    val isOldListTopVisible = oldListFirst
+                        ?.let { item -> visibleItemsInfo.any { it.key == item.key } } == true
 
-            actualItems = emptyList()
-            withContext(Dispatchers.Main) {
-                actualItems = newList
-                if (isNewListTopVisible || isOldListTopVisible || forceRefresh()) {
-                    scope.launch { listState.animateScrollToItem(0) }
+                    when {
+                        // 当新列表首元素和旧列表首元素都不在可见范围内，则不需要滚动；
+                        !isNewListTopVisible && !isOldListTopVisible -> {
+                            actualItems = newList
+                        }
+
+                        // 当新列表首元素在可视范围内，而旧列表的首元素不在，则需要确保先清除再过渡到完整列表
+                        isNewListTopVisible && !isOldListTopVisible -> {
+                            actualItems = emptyList()
+                            waitAFrame()
+                            actualItems = newList
+                            listState.scrollToItem(0)
+                        }
+
+                        else -> {
+                            actualItems = newList
+                            listState.scrollToItem(0)
+                        }
+                    }
                 }
             }
-        }
     }
 
     LazyColumn(
@@ -134,5 +149,14 @@ fun PlaylistLayout(
                 }
             )
         }
+    }
+}
+
+/**
+ * 等待经过一帧
+ */
+suspend fun CoroutineScope.waitAFrame() {
+    suspendCancellableCoroutine { continuation ->
+        launch { withFrameNanos { continuation.resume(Unit) } }
     }
 }
