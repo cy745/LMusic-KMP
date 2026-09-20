@@ -15,6 +15,18 @@ data class QueueState(
     val selectionRevision: Long = 0L,
     /** Changes made through the queue command boundary; native mirrors preserve this number. */
     val editRevision: Long = 0L,
+    /**
+     * 当前项是否为「用户显式选中并播放」（点击列表行、播放某首歌），
+     * 而不是队列自己走了一步（上一首/下一首、自动播放下一首）。
+     *
+     * 判据来自队列命令边界（`selectOrInsert` 是「播放某一项」的唯一入口），不是 UI 猜的：
+     * 队列左旋 `n-1` 位时，「点最后一行」与「上一首」得到的新旧列表完全一样，
+     * 只有成因能区分这两者。
+     *
+     * 与 [selectionRevision] 的区别：后者由 `switchTo` / `replaceAll` 打点，
+     * 上一首/下一首同样会走 `switchTo`，所以它区分不了「步进」和「选中」。
+     */
+    val currentPickedByUser: Boolean = false,
 ) {
     /** 重新排列播放列表，将当前索引处的元素及其后的元素移到列表前面。 */
     fun rearrange(): List<LAudio> {

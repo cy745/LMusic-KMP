@@ -126,25 +126,25 @@ fun <T : Any> List<Item<T>>.diff(
  * - 同一批元素在末尾以新 key 出现（淡入）。
  *
  * 唯一例外：新队首原本就是旧列表的最后一个元素（`p == n-1`）。这个位置天然有歧义——它既可能
- * 是「上一首」（队尾回到队首），也可能只是「点击了列表里的最后一行」。两种成因的列表完全一样，
- * 只看新旧列表无法区分，所以：
- * - 默认按「上一首」处理：只让新队首自己换新 key、其余整体下移（表现为「顶部淡入一行」）；若照搬
- *   常规规则，会退化成「几乎整表淡出再淡入」；
- * - 调用方知道成因时（例如记录到用户点了列表里的某一行），把 [isRowTap] 传 `true`，此时 `p == n-1`
- *   也走常规规则：被点中的那一行保留旧 key（滚动锚点不丢），它前面的整块换新 key 并在末尾出现。
+ * 是「上一首」（队尾回到队首），也可能只是「点击了列表里的最后一行」，而两种成因产生的新旧
+ * 列表完全一样（左旋 n-1 位只有这一种表示），只看这两个列表无法区分。这里统一按「上一首」处理：
+ * 只让新队首自己换新 key、其余整体下移（表现为「顶部淡入一行」）；若照搬常规规则，会退化成
+ * 「几乎整表淡出再淡入」。
+ *
+ * 因此本方法是「两个列表的纯函数」，不猜成因、也不需要调用方提供任何额外信息。点击最后一行时
+ * 出现的「列表没回到顶部、被点中的那行从视野里消失」并不是本方法的问题：那时新队首其实一直在
+ * 屏幕上，只是换了 key，调用方按「元素身份」而不是「key」判断可见性即可正确处理。
  *
  * @param items 新的数据列表
  * @param getId 生成新 key 用的稳定 id
  * @param isSameItem 是否为同一个元素，用于判断旋转关系
  * @param isSameContent 内容是否相同；相同则直接复用旧 [Item]（含旧 key），不同则保留旧 key 换新内容
- * @param isRowTap 新队首是否为「用户点击列表中的该行」的结果。仅影响 `p == n-1` 这一种歧义情形
  */
 fun <T : Any> List<Item<T>>.rotationalDiff(
     items: List<T>,
     getId: (T) -> String,
     isSameItem: (T, T) -> Boolean = { a, b -> a == b },
-    isSameContent: (T, T) -> Boolean = { a, b -> a == b },
-    isRowTap: Boolean = false
+    isSameContent: (T, T) -> Boolean = { a, b -> a == b }
 ): List<Item<T>> {
     /** 不构成旋转时统一走原有实现，保证增删 / 同步等场景行为不变 */
     fun fallback(): List<Item<T>> = diff(items, getId, isSameItem, isSameContent)
@@ -163,9 +163,8 @@ fun <T : Any> List<Item<T>>.rotationalDiff(
         if (!isSameItem(this[(pivot + i) % n].data, items[i])) return fallback()
     }
 
-    // 「上一首」：新队首原本在队尾，只让它自己换新 key。
-    // 已被证实是「点击最后一行」时不算「上一首」，照常走常规规则。
-    val singleHeadStep = pivot == n - 1 && n > 1 && !isRowTap
+    // 「上一首」：新队首原本在队尾，只让它自己换新 key
+    val singleHeadStep = pivot == n - 1 && n > 1
 
     val generation = Random.nextLong().toString()
     return List(n) { i ->

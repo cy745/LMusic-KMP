@@ -22,7 +22,6 @@ import com.lalilu.extensions.rotationalDiff
 import com.lalilu.lmedia.audioPlaybackStatus
 import com.lalilu.lmedia.domain.model.AudioPlaybackPresentation
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.MediaKey
 import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
@@ -33,33 +32,37 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
 
+/**
+ * 播放列表的输入：列表数据 + 这次变化的成因。
+ *
+ * [pickedByUser] 来自队列自身（`QueueState.currentPickedByUser`），不是 UI 猜的：
+ * 队列左旋 `n-1` 位时，「点击列表最后一行」与「按上一首」得到的新旧列表完全一样，
+ * 只有成因能区分两者——前者要把被点中的那首带回视野，后者要原地不动。
+ */
+data class PlaylistItems(
+    val items: List<LAudio>,
+    val pickedByUser: Boolean = false,
+)
+
 @Composable
 fun PlaylistLayout(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues = PaddingValues(bottom = 200.dp),
-    items: Flow<List<LAudio>>
+    items: Flow<PlaylistItems>
 ) {
     val context = LocalPlatformContext.current
     var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
 
-    // 记录「用户直接点击了列表里的哪一行」。队列左旋 p == n-1 时，「点击最后一行」与「上一首」
-    // 得到的新旧列表完全一样，只有成因能区分；行点击是在本组件内发出的，这里顺手记下来即可。
-    val tappedMediaKey = remember { mutableStateOf<MediaKey?>(null) }
-
     LaunchedEffect(Unit) {
         items.flowOn(Dispatchers.Default)
-            .collect { list ->
+            .collect { snapshot ->
                 val oldList = actualItems
-                val tappedKey = tappedMediaKey.value
-                val isRowTap = tappedKey != null && list.firstOrNull()?.mediaKey == tappedKey
-                if (isRowTap) tappedMediaKey.value = null
-
                 // 「正在播放的排在队首」的循环队列：新列表是旧列表的一次左旋，
                 // 这里固定采用「切点之前的整块搬到末尾」的语义，避免大幅跳跃时动画方向反转
                 val newList = oldList.rotationalDiff(
-                    items = list,
+                    items = snapshot.items,
                     getId = { it.mediaKey.stableKey },
                     isSameItem = { a, b -> a.mediaKey == b.mediaKey },
                     isSameContent = { a, b ->
@@ -69,44 +72,37 @@ fun PlaylistLayout(
                                 && a.mediaSourceName == b.mediaSourceName
                                 && a.available == b.available
                                 && a.extra == b.extra
-                    },
-                    isRowTap = isRowTap
+                    }
                 )
-                val newListFirst = newList.firstOrNull()
-                val oldListFirst = oldList.firstOrNull()
+                val newHead = newList.firstOrNull()
 
                 // 若无法获取新列表的首元素，则说明新列表为空，及时返回
-                if (newListFirst == null) {
+                if (newHead == null) {
                     withContext(Dispatchers.Main) { actualItems = emptyList() }
                     return@collect
                 }
 
                 withContext(Dispatchers.Main) {
-                    val visibleItemsInfo = listState.layoutInfo.visibleItemsInfo
+                    val plan = planPlaylistScroll(
+                        oldList = oldList,
+                        newHead = newHead,
+                        visibleKeys = listState.layoutInfo.visibleItemsInfo.map { it.key }.toSet(),
+                        pickedByUser = snapshot.pickedByUser,
+                    )
 
-                    // 判断新列表的首元素是否处于可视范围内
-                    val isNewListTopVisible = visibleItemsInfo
-                        .any { it.key == newListFirst.key }
+                    when (plan) {
+                        // 新旧队首都不在屏幕上：不需要滚动
+                        PlaylistScrollPlan.KeepScroll -> actualItems = newList
 
-                    // 判断旧列表的首元素是否处于可视范围内
-                    val isOldListTopVisible = oldListFirst
-                        ?.let { item -> visibleItemsInfo.any { it.key == item.key } } == true
-
-                    when {
-                        // 当新列表首元素和旧列表首元素都不在可见范围内，则不需要滚动；
-                        !isNewListTopVisible && !isOldListTopVisible -> {
-                            actualItems = newList
-                        }
-
-                        // 当新列表首元素在可视范围内，而旧列表的首元素不在，则需要确保先清除再过渡到完整列表
-                        isNewListTopVisible && !isOldListTopVisible -> {
+                        // 新队首在屏幕上、旧队首不在：先清空再恢复，才能稳定触发元素动画
+                        PlaylistScrollPlan.RebuildAtTop -> {
                             actualItems = emptyList()
                             waitAFrame()
                             actualItems = newList
                             listState.scrollToItem(0)
                         }
 
-                        else -> {
+                        PlaylistScrollPlan.JumpToTop -> {
                             actualItems = newList
                             listState.scrollToItem(0)
                         }
@@ -144,10 +140,7 @@ fun PlaylistLayout(
                 failureReason = failure?.reason?.displayMessage,
                 title = data.title,
                 subtitle = data.subtitle,
-                onClick = {
-                    tappedMediaKey.value = data.mediaKey
-                    PlayerAction.PlayByKey(data.mediaKey).action()
-                },
+                onClick = { PlayerAction.PlayByKey(data.mediaKey).action() },
                 onLongClick = { sharedMap ->
                     val coverMemoryKey = context.retrieveCacheKey(item)
 

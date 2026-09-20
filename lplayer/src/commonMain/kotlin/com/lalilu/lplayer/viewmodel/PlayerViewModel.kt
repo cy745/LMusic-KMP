@@ -12,6 +12,8 @@ import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.resolveLyricData
 import com.lalilu.lplayer.LPlayer
+import com.lalilu.lplayer.components.PlaylistItems
+import com.lalilu.lplayer.playback.QueueState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,8 +30,9 @@ class PlayerViewModel(
     val currentItem = LPlayer.instance.queue.currentItemFlow()
     val lyricContent = mutableStateOf<LyricContent>(LyricContent.Loading(null))
 
+    /** 播放列表数据 + 这次变化的成因（成因由队列命令边界给出，见 [QueueState.currentPickedByUser]） */
     val currentQueue = LPlayer.instance.queue.expandedItems
-        .mapLatest { it.rearrange() }
+        .mapLatest { PlaylistItems(items = it.rearrange(), pickedByUser = it.currentPickedByUser) }
         .distinctUntilChanged()
 
     init {

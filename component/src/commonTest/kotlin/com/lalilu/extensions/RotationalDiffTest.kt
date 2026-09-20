@@ -14,7 +14,8 @@ import kotlin.test.assertEquals
  *   其余元素沿用旧 key 整体上移。这与旋转幅度无关；
  * - 例外：新队首原本就是旧列表的最后一个元素（`p == n-1`）时，只让新队首换新 key，
  *   表现为「顶部淡入一行、其余整体下移」；否则会退化成「几乎整表淡出再淡入」。
- *   这个位置天然有歧义（也可能是「点了列表最后一行」），成因由调用方通过 `isRowTap` 告知。
+ *   这个位置天然有歧义（也可能是「点了列表最后一行」，两者数据上无法区分），
+ *   这里统一按「上一首」处理；由此带来的滚动落点问题由视图层按元素身份判断可见性解决。
  *
  * 用例名即效果描述，review 用例名就等于 review 效果。
  */
@@ -37,14 +38,12 @@ class RotationalDiffTest {
 
     private fun diffAt(
         p: Int,
-        old: List<Item<Row>> = oldList(*ids.toTypedArray()),
-        isRowTap: Boolean = false
+        old: List<Item<Row>> = oldList(*ids.toTypedArray())
     ): List<Item<Row>> = old.rotationalDiff(
         rotate(p),
         getId = { it.id },
         isSameItem = sameId,
-        isSameContent = sameContent,
-        isRowTap = isRowTap
+        isSameContent = sameContent
     )
 
     /** 换了新 key 的元素 id，即「离场后在末尾重新出现」的那一批 */
@@ -54,10 +53,6 @@ class RotationalDiffTest {
     private fun List<Item<Row>>.ids(): List<String> = map { it.data.id }
 
     private fun List<Item<Row>>.keyOf(id: String): String = first { it.data.id == id }.key
-
-    /** 把结果压成「元素 id -> 复用的旧 key 或 <fresh>」，用于跨调用比较（新 key 带随机 generation） */
-    private fun structure(result: List<Item<Row>>): List<Pair<String, String>> =
-        result.map { it.data.id to (if (it.key.startsWith("old:")) it.key else "<fresh>") }
 
     /** 断言「先删掉队首 p 段、再在末尾加回」这一效果 */
     private fun assertFreshIsHeadSegment(p: Int, result: List<Item<Row>>) {
@@ -128,35 +123,6 @@ class RotationalDiffTest {
         assertEquals(listOf("a20"), result.freshIds())
         assertEquals("old:a0", result.keyOf("a0"))
         assertEquals("old:a19", result.keyOf("a19"))
-    }
-
-    @Test
-    fun tappingTheLastRowKeepsThatRowAndReplacesEverythingElse() {
-        // 与「上一首」的列表完全相同，但成因是「点了列表最后一行」：
-        // 被点中的那一行必须保住 key（滚动锚点），其余整块换新 key 去末尾
-        val result = diffAt(20, isRowTap = true)
-
-        assertEquals("old:a20", result.keyOf("a20"))
-        assertEquals(ids.take(20), result.freshIds())
-    }
-
-    @Test
-    fun tappingTheLastRowIsTheMirrorOfPlayingPrevious() {
-        val asPrev = diffAt(20)
-        val asTap = diffAt(20, isRowTap = true)
-
-        // 两种解释下「谁换新 key」正好相反：上一首只换新队首，点击最后一行只保留被点中的那一行
-        assertEquals(listOf("a20"), asPrev.freshIds())
-        assertEquals(ids.take(20), asTap.freshIds())
-    }
-
-    @Test
-    fun rowTapFlagOnlyMattersWhenTheTappedRowIsTheOldLast() {
-        // p != n-1 时本来就没有歧义，标记不应改变任何结果
-        // （新 key 带随机 generation，所以只比较「谁新、谁复用了哪个旧 key」）
-        for (p in 0 until ids.lastIndex) {
-            assertEquals(structure(diffAt(p)), structure(diffAt(p, isRowTap = true)), "p=$p")
-        }
     }
 
     @Test
