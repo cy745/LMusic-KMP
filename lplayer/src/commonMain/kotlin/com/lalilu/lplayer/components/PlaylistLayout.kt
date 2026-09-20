@@ -17,19 +17,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
 import com.lalilu.extensions.Item
-import com.lalilu.extensions.diff
 import com.lalilu.extensions.retrieveCacheKey
+import com.lalilu.extensions.rotationalDiff
 import com.lalilu.lmedia.audioPlaybackStatus
 import com.lalilu.lmedia.domain.model.AudioPlaybackPresentation
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.MediaKey
 import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
-import kotlin.coroutines.resume
+import kotlinx.coroutines.withContext
 
 
 @Composable
@@ -43,11 +44,21 @@ fun PlaylistLayout(
     var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
 
+    // 记录「用户直接点击了列表里的哪一行」。队列左旋 p == n-1 时，「点击最后一行」与「上一首」
+    // 得到的新旧列表完全一样，只有成因能区分；行点击是在本组件内发出的，这里顺手记下来即可。
+    val tappedMediaKey = remember { mutableStateOf<MediaKey?>(null) }
+
     LaunchedEffect(Unit) {
         items.flowOn(Dispatchers.Default)
             .collect { list ->
-                val oldList = actualItems.toMutableList()
-                val newList = oldList.diff(
+                val oldList = actualItems
+                val tappedKey = tappedMediaKey.value
+                val isRowTap = tappedKey != null && list.firstOrNull()?.mediaKey == tappedKey
+                if (isRowTap) tappedMediaKey.value = null
+
+                // 「正在播放的排在队首」的循环队列：新列表是旧列表的一次左旋，
+                // 这里固定采用「切点之前的整块搬到末尾」的语义，避免大幅跳跃时动画方向反转
+                val newList = oldList.rotationalDiff(
                     items = list,
                     getId = { it.mediaKey.stableKey },
                     isSameItem = { a, b -> a.mediaKey == b.mediaKey },
@@ -58,21 +69,20 @@ fun PlaylistLayout(
                                 && a.mediaSourceName == b.mediaSourceName
                                 && a.available == b.available
                                 && a.extra == b.extra
-                    }
+                    },
+                    isRowTap = isRowTap
                 )
                 val newListFirst = newList.firstOrNull()
                 val oldListFirst = oldList.firstOrNull()
 
                 // 若无法获取新列表的首元素，则说明新列表为空，及时返回
                 if (newListFirst == null) {
-                    actualItems = emptyList()
+                    withContext(Dispatchers.Main) { actualItems = emptyList() }
                     return@collect
                 }
 
                 withContext(Dispatchers.Main) {
-                    val visibleItemsInfo = withContext(Dispatchers.Main) {
-                        listState.layoutInfo.visibleItemsInfo
-                    }
+                    val visibleItemsInfo = listState.layoutInfo.visibleItemsInfo
 
                     // 判断新列表的首元素是否处于可视范围内
                     val isNewListTopVisible = visibleItemsInfo
@@ -134,7 +144,10 @@ fun PlaylistLayout(
                 failureReason = failure?.reason?.displayMessage,
                 title = data.title,
                 subtitle = data.subtitle,
-                onClick = { PlayerAction.PlayByKey(data.mediaKey).action() },
+                onClick = {
+                    tappedMediaKey.value = data.mediaKey
+                    PlayerAction.PlayByKey(data.mediaKey).action()
+                },
                 onLongClick = { sharedMap ->
                     val coverMemoryKey = context.retrieveCacheKey(item)
 
@@ -155,8 +168,6 @@ fun PlaylistLayout(
 /**
  * 等待经过一帧
  */
-suspend fun CoroutineScope.waitAFrame() {
-    suspendCancellableCoroutine { continuation ->
-        launch { withFrameNanos { continuation.resume(Unit) } }
-    }
+suspend fun waitAFrame() {
+    withFrameNanos { }
 }

@@ -111,3 +111,78 @@ fun <T : Any> List<Item<T>>.diff(
     }
     return result
 }
+
+/**
+ * 以「新列表首元素」为切点做差分：把旧列表里排在它前面的那一整块视为「离场」，在末尾以新
+ * key 重新出现；其余元素沿用旧 key 并整体上移。
+ *
+ * 与 [diff] 的区别：[diff] 基于 LCS，总是保留更长的公共子序列。当新列表是旧列表左旋 p 位时，
+ * 它会在「保留旧前块 p 个」与「保留旧尾块 n-p 个」里挑更长的那个，于是 p > n/2 时会翻转成
+ * 「旧前块保留、旧尾块被挪到队首」；表现就是大幅跳跃时该消失的明明是队首那一段，结果却反了
+ * 过来（保留的元素整体被推到末尾，滚动锚点随之跑到列表末尾）。
+ *
+ * 本方法固定采用「切点之前的整块搬到末尾」的语义，与旋转幅度无关：
+ * - p 个元素从队首淡出（旧 key 消失），其余保持 key 上移；
+ * - 同一批元素在末尾以新 key 出现（淡入）。
+ *
+ * 唯一例外：新队首原本就是旧列表的最后一个元素（`p == n-1`）。这个位置天然有歧义——它既可能
+ * 是「上一首」（队尾回到队首），也可能只是「点击了列表里的最后一行」。两种成因的列表完全一样，
+ * 只看新旧列表无法区分，所以：
+ * - 默认按「上一首」处理：只让新队首自己换新 key、其余整体下移（表现为「顶部淡入一行」）；若照搬
+ *   常规规则，会退化成「几乎整表淡出再淡入」；
+ * - 调用方知道成因时（例如记录到用户点了列表里的某一行），把 [isRowTap] 传 `true`，此时 `p == n-1`
+ *   也走常规规则：被点中的那一行保留旧 key（滚动锚点不丢），它前面的整块换新 key 并在末尾出现。
+ *
+ * @param items 新的数据列表
+ * @param getId 生成新 key 用的稳定 id
+ * @param isSameItem 是否为同一个元素，用于判断旋转关系
+ * @param isSameContent 内容是否相同；相同则直接复用旧 [Item]（含旧 key），不同则保留旧 key 换新内容
+ * @param isRowTap 新队首是否为「用户点击列表中的该行」的结果。仅影响 `p == n-1` 这一种歧义情形
+ */
+fun <T : Any> List<Item<T>>.rotationalDiff(
+    items: List<T>,
+    getId: (T) -> String,
+    isSameItem: (T, T) -> Boolean = { a, b -> a == b },
+    isSameContent: (T, T) -> Boolean = { a, b -> a == b },
+    isRowTap: Boolean = false
+): List<Item<T>> {
+    /** 不构成旋转时统一走原有实现，保证增删 / 同步等场景行为不变 */
+    fun fallback(): List<Item<T>> = diff(items, getId, isSameItem, isSameContent)
+
+    val n = size
+    if (n == 0 || items.size != n) return fallback()
+
+    // 新列表首元素必须在旧列表中唯一存在，否则无法确定切点
+    val head = items.first()
+    val headIndex = indices.filter { isSameItem(this[it].data, head) }
+    if (headIndex.size != 1) return fallback()
+    val pivot = headIndex.first()
+
+    // 校验新列表恰好是旧列表左旋 pivot 位
+    for (i in 0 until n) {
+        if (!isSameItem(this[(pivot + i) % n].data, items[i])) return fallback()
+    }
+
+    // 「上一首」：新队首原本在队尾，只让它自己换新 key。
+    // 已被证实是「点击最后一行」时不算「上一首」，照常走常规规则。
+    val singleHeadStep = pivot == n - 1 && n > 1 && !isRowTap
+
+    val generation = Random.nextLong().toString()
+    return List(n) { i ->
+        val data = items[i]
+        // -1 表示这是需要新 key 的元素
+        val oldIndex = when {
+            // 「上一首」：新队首换新 key，其余整体下移一位、沿用旧 key
+            singleHeadStep -> i - 1
+            // 常规：切点之前的整块上移并沿用旧 key，其后的（= 旧列表的队首段）换新 key
+            i < n - pivot -> pivot + i
+            else -> -1
+        }
+        if (oldIndex < 0) {
+            Item(data = data, key = "${generation}_${getId(data)}")
+        } else {
+            val old = this[oldIndex]
+            if (isSameContent(old.data, data)) old else Item(data = data, key = old.key)
+        }
+    }
+}
