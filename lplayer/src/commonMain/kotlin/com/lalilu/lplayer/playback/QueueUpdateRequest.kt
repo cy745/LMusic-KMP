@@ -30,11 +30,18 @@ class QueueUpdateRequest(
     private var pendingIndex: Int = snapshot.index
     private val selectionRevision = snapshot.selectionRevision
     private var selectionRequested = false
+
+    /**
+     * 本次更新对「当前项是用户选中的吗」的声明：
+     * `true` = 显式选中，`false` = 队列自己走了一步，`null` = 本次没有动过当前项。
+     */
+    private var pickedByUser: Boolean? = null
     val currentIndex: Int get() = normalizeIndex(pendingIndex)
 
     /** Resolve identity and insertion against the same atomic queue snapshot. */
     fun selectOrInsert(audio: LAudio): QueueUpdateRequest {
         val existing = pendingList.indexOfFirst { it.mediaKey == audio.mediaKey }
+        pickedByUser = true
         if (existing >= 0) return switchTo(existing)
         val target = if (pendingList.isEmpty()) 0 else currentIndex + 1
         insert(target, listOf(audio))
@@ -85,6 +92,9 @@ class QueueUpdateRequest(
      */
     override fun switchTo(index: Int): QueueUpdateRequest {
         if (index in pendingList.indices) {
+            // 只有真的换了当前项才算「队列自己走了一步」；
+            // 同索引的重复切换（如 selectOrInsert 之后的 skipTo）不改写成因
+            if (index != pendingIndex && pickedByUser == null) pickedByUser = false
             pendingIndex = index
             selectionRequested = true
         }
@@ -99,7 +109,11 @@ class QueueUpdateRequest(
      *              自动在 items 中查找与当前播放项 id 匹配的元素位置作为新索引。
      */
     override fun replaceAll(items: List<LAudio>, index: Int): QueueUpdateRequest {
-        if (index >= 0) selectionRequested = true
+        // 显式指定起始索引 = 用户要求「从这一项开始播」
+        if (index >= 0) {
+            selectionRequested = true
+            pickedByUser = true
+        }
         var targetIndex = index
         if (targetIndex == -1) {
             val currentKey = pendingList.getOrNull(pendingIndex)?.mediaKey
@@ -187,18 +201,43 @@ class QueueUpdateRequest(
      * 构建最终的 [QueueState]。
      */
     fun build(updateReason: QueueUpdateReason): QueueState {
+        val nextIndex = normalizeIndex(pendingIndex)
         val result = QueueState(
             list = pendingList,
-            index = normalizeIndex(pendingIndex),
+            index = nextIndex,
             updateReason = updateReason,
             // Native mirrors and database refreshes acknowledge the selection; they do not own
             // a new playback request. Keeping their revision avoids a feedback loop.
             selectionRevision = selectionRevision + if (selectionRequested &&
                 updateReason != QueueUpdateReason.Sync && updateReason != QueueUpdateReason.HistoryRestore) 1L else 0L,
             editRevision = snapshot.editRevision,
+            currentPickedByUser = resolvePickedByUser(updateReason, nextIndex),
         )
         return if (result != snapshot && updateReason != QueueUpdateReason.Sync &&
             updateReason != QueueUpdateReason.HistoryRestore) result.copy(editRevision = snapshot.editRevision + 1)
         else result
+    }
+
+    /**
+     * 推断「当前项是用户选中的吗」。
+     *
+     * 成因只在这个边界上判定一次，UI 不需要知道是谁触发的：
+     * - 平台镜像 / 历史恢复不是新的播放请求：当前项变了说明是播放器自己在推进（自动下一首等），
+     *   没变则只是对已发起选择的确认，沿用原值；
+     * - 本次操作明确声明过成因（`selectOrInsert` 显式选中 / `switchTo` 换了一步）就采用它；
+     * - 没声明且当前项被别的操作挤走了（如删除了当前项），则不再算用户选中。
+     */
+    private fun resolvePickedByUser(updateReason: QueueUpdateReason, nextIndex: Int): Boolean {
+        val currentItemChanged = pendingList.getOrNull(nextIndex)?.mediaKey !=
+                snapshot.list.getOrNull(snapshot.index)?.mediaKey
+
+        return when {
+            updateReason == QueueUpdateReason.Sync || updateReason == QueueUpdateReason.HistoryRestore ->
+                if (currentItemChanged) false else snapshot.currentPickedByUser
+
+            pickedByUser != null -> pickedByUser == true
+
+            else -> if (currentItemChanged) false else snapshot.currentPickedByUser
+        }
     }
 }

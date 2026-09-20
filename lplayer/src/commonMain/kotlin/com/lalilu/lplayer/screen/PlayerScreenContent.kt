@@ -24,6 +24,7 @@ import com.lalilu.llyricview.obtainLyricSettings
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.components.DragAnchor
 import com.lalilu.lplayer.components.PlayerScaffold
+import com.lalilu.lplayer.components.PlaylistItems
 import com.lalilu.lplayer.components.PlaylistLayout
 import com.lalilu.lplayer.components.rememberSeekbarPositionState
 import com.lalilu.lplayer.extensions.SystemBarsVisibilityEffect
@@ -40,7 +41,7 @@ internal fun PlayerScreenContent(
     duration: State<Long>,
     isPlaying: State<Boolean>,
     lyricContent: State<LyricContent>,
-    queue: Flow<List<LAudio>>,
+    queue: Flow<PlaylistItems>,
     backgroundColor: State<Color>,
     onSeedColorChanged: (Color) -> Unit,
 ) {

@@ -15,6 +15,7 @@ import com.lalilu.LocalSeedColor
 import com.lalilu.llyricview.LyricContent
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.components.BlurBackground
+import com.lalilu.lplayer.components.PlaylistItems
 import com.lalilu.lplayer.components.rememberSeekbarPositionState
 import kotlinx.coroutines.flow.Flow
 
@@ -29,7 +30,7 @@ internal fun PlayerScreenForPadContent(
     duration: State<Long>,
     isPlaying: State<Boolean>,
     lyricContent: State<LyricContent>,
-    queue: Flow<List<LAudio>>,
+    queue: Flow<PlaylistItems>,
 ) {
     val seedColor = LocalSeedColor.current
     val playlistState = rememberLazyListState()
