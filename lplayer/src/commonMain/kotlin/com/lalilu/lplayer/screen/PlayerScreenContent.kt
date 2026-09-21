@@ -130,6 +130,7 @@ internal fun PlayerScreenContent(
                 label = "PlayerControlsVisibility",
             )
             val bottomSheetState = LocalModalBottomSheetState.current
+            val bufferedFraction = rememberBufferedFraction(currentItem)
 
             Box(
                 modifier = Modifier
@@ -157,6 +158,7 @@ internal fun PlayerScreenContent(
                     duration = duration,
                     positionState = timeline,
                     animateColor = { backgroundColor.value },
+                    bufferedFraction = bufferedFraction,
                     onDispatchDragOffset = { deltaY -> bottomSheetState.anchoredDraggableState.dispatchRawDelta(deltaY) },
                     onDragStop = { result ->
                         if (result == 0) {

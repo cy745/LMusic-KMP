@@ -110,6 +110,7 @@ fun SeekbarLayout(
     minValue: () -> Float = { 0f },
     maxValue: () -> Float = { 0f },
     dataValue: () -> Float = { 0f },
+    bufferedFraction: () -> Float = { 0f },
     switchIndex: () -> Int = { 0 },
     scrollThreadHold: Float = 200f,
     positionState: SeekbarPositionState = rememberSeekbarPositionState(),
@@ -355,6 +356,11 @@ fun SeekbarLayout(
                 text = { maxDurationText },
                 textStyle = textStyle
             )
+            // 必须画在滑块之前：滑块盖住播放头左侧，露出来的才是「已缓冲但还没播到」的那段
+            SeekbarBuffered(
+                clip = { isTouching && !isCanceled },
+                bufferedFraction = bufferedFraction,
+            )
             SeekbarThumb(
                 clip = { isTouching && !isCanceled },
                 thumbColor = animateColor,
@@ -543,6 +549,82 @@ private fun SeekbarThumb(
             )
         }
     }
+}
+
+/**
+ * 已缓冲区间。
+ *
+ * 与滑块共用同一套圆角与内缩计算，绘制顺序排在滑块之前：滑块盖住播放头左侧，
+ * 因此实际露出的部分正好是「已缓冲但还没播到」的那一段。
+ */
+@Composable
+private fun SeekbarBuffered(
+    modifier: Modifier = Modifier,
+    bufferedColor: () -> Color = { Color.White.copy(alpha = 0.3f) },
+    bufferedFraction: () -> Float = { 0f },
+    clip: () -> Boolean = { false }
+) {
+    val path = remember { Path() }
+    val clipProgress = animateFloatAsState(
+        targetValue = if (clip()) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        visibilityThreshold = 0.001f,
+        label = "SeekbarBuffered_clipProgress"
+    )
+
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val maxPadding = 4.dp.toPx()
+        val paddingValue = maxPadding * clipProgress.value
+
+        val innerRadius = 16.dp.toPx() - paddingValue
+        val innerHeight = size.height - (paddingValue * 2f)
+        val innerWidth = size.width - (paddingValue * 2f)
+
+        val geometry = bufferedBarGeometry(
+            paddingValue = paddingValue,
+            innerWidth = innerWidth,
+            fraction = bufferedFraction(),
+        ) ?: return@Canvas
+
+        path.reset()
+        path.addRoundRect(
+            RoundRect(
+                rect = Rect(
+                    offset = Offset(x = paddingValue, y = paddingValue),
+                    size = Size(width = innerWidth, height = innerHeight)
+                ),
+                cornerRadius = CornerRadius(innerRadius, innerRadius)
+            )
+        )
+
+        clipPath(path) {
+            drawRoundRect(
+                color = bufferedColor(),
+                cornerRadius = CornerRadius(innerRadius, innerRadius),
+                topLeft = Offset(x = geometry.left, y = paddingValue),
+                size = Size(width = geometry.width, height = innerHeight)
+            )
+        }
+    }
+}
+
+/** 已缓冲条的几何位置。 */
+internal data class BufferedBarGeometry(val left: Float, val width: Float)
+
+/**
+ * 计算已缓冲条的绘制范围。
+ *
+ * 比例为 0（不上报缓冲进度的数据源、或还没开始下载）时返回 null：调用方据此跳过绘制，
+ * 避免给本地文件播放画出一条恒为空的次级层。越界比例夹到轨道内，防止画到圆角之外。
+ */
+internal fun bufferedBarGeometry(
+    paddingValue: Float,
+    innerWidth: Float,
+    fraction: Float,
+): BufferedBarGeometry? {
+    val clamped = fraction.coerceIn(0f, 1f)
+    if (clamped <= 0f || innerWidth <= 0f) return null
+    return BufferedBarGeometry(left = paddingValue, width = innerWidth * clamped)
 }
 
 @Composable
