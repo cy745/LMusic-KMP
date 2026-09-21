@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import com.lalilu.RemixIcon
+import com.lalilu.lmedia.domain.source.BufferedRange
 import com.lalilu.lplayer.extensions.AccumulatedValue
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
@@ -110,7 +111,7 @@ fun SeekbarLayout(
     minValue: () -> Float = { 0f },
     maxValue: () -> Float = { 0f },
     dataValue: () -> Float = { 0f },
-    bufferedFraction: () -> Float = { 0f },
+    bufferedRanges: () -> List<BufferedRange> = { emptyList() },
     switchIndex: () -> Int = { 0 },
     scrollThreadHold: Float = 200f,
     positionState: SeekbarPositionState = rememberSeekbarPositionState(),
@@ -359,7 +360,7 @@ fun SeekbarLayout(
             // 必须画在滑块之前：滑块盖住播放头左侧，露出来的才是「已缓冲但还没播到」的那段
             SeekbarBuffered(
                 clip = { isTouching && !isCanceled },
-                bufferedFraction = bufferedFraction,
+                bufferedRanges = bufferedRanges,
             )
             SeekbarThumb(
                 clip = { isTouching && !isCanceled },
@@ -555,13 +556,14 @@ private fun SeekbarThumb(
  * 已缓冲区间。
  *
  * 与滑块共用同一套圆角与内缩计算，绘制顺序排在滑块之前：滑块盖住播放头左侧，
- * 因此实际露出的部分正好是「已缓冲但还没播到」的那一段。
+ * 因此实际露出的部分正好是「已缓冲但还没播到」的那几段。缓存可能是不连续的（跳过的部分还没下），
+ * 所以这里按段绘制而不是画一条比例。
  */
 @Composable
 private fun SeekbarBuffered(
     modifier: Modifier = Modifier,
     bufferedColor: () -> Color = { Color.White.copy(alpha = 0.3f) },
-    bufferedFraction: () -> Float = { 0f },
+    bufferedRanges: () -> List<BufferedRange> = { emptyList() },
     clip: () -> Boolean = { false }
 ) {
     val path = remember { Path() }
@@ -580,11 +582,12 @@ private fun SeekbarBuffered(
         val innerHeight = size.height - (paddingValue * 2f)
         val innerWidth = size.width - (paddingValue * 2f)
 
-        val geometry = bufferedBarGeometry(
+        val geometries = bufferedBarGeometries(
             paddingValue = paddingValue,
             innerWidth = innerWidth,
-            fraction = bufferedFraction(),
-        ) ?: return@Canvas
+            ranges = bufferedRanges(),
+        )
+        if (geometries.isEmpty()) return@Canvas
 
         path.reset()
         path.addRoundRect(
@@ -598,33 +601,44 @@ private fun SeekbarBuffered(
         )
 
         clipPath(path) {
-            drawRoundRect(
-                color = bufferedColor(),
-                cornerRadius = CornerRadius(innerRadius, innerRadius),
-                topLeft = Offset(x = geometry.left, y = paddingValue),
-                size = Size(width = geometry.width, height = innerHeight)
-            )
+            geometries.forEach { geometry ->
+                drawRoundRect(
+                    color = bufferedColor(),
+                    cornerRadius = CornerRadius(innerRadius, innerRadius),
+                    topLeft = Offset(x = geometry.left, y = paddingValue),
+                    size = Size(width = geometry.width, height = innerHeight)
+                )
+            }
         }
     }
 }
 
-/** 已缓冲条的几何位置。 */
+/** 已缓冲段在轨道上的位置。 */
 internal data class BufferedBarGeometry(val left: Float, val width: Float)
 
 /**
- * 计算已缓冲条的绘制范围。
+ * 把已缓冲的比例区间换算成轨道上的矩形。
  *
- * 比例为 0（不上报缓冲进度的数据源、或还没开始下载）时返回 null：调用方据此跳过绘制，
- * 避免给本地文件播放画出一条恒为空的次级层。越界比例夹到轨道内，防止画到圆角之外。
+ * 空区间（起点不小于终点）与越界比例都会在这里被消化：不返回矩形（不绘制）或夹到轨道内，
+ * 避免画出一条零宽/越界的次级层。入参比例按整首计，因此 `left` 要加上轨道内缩。
  */
-internal fun bufferedBarGeometry(
+internal fun bufferedBarGeometries(
     paddingValue: Float,
     innerWidth: Float,
-    fraction: Float,
-): BufferedBarGeometry? {
-    val clamped = fraction.coerceIn(0f, 1f)
-    if (clamped <= 0f || innerWidth <= 0f) return null
-    return BufferedBarGeometry(left = paddingValue, width = innerWidth * clamped)
+    ranges: List<BufferedRange>,
+): List<BufferedBarGeometry> {
+    if (innerWidth <= 0f || ranges.isEmpty()) return emptyList()
+
+    return ranges.mapNotNull { range ->
+        val start = range.startFraction.coerceIn(0f, 1f)
+        val end = range.endFraction.coerceIn(0f, 1f)
+        if (end <= start) return@mapNotNull null
+
+        BufferedBarGeometry(
+            left = paddingValue + innerWidth * start,
+            width = innerWidth * (end - start),
+        )
+    }
 }
 
 @Composable

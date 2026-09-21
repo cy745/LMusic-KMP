@@ -17,6 +17,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.unit.dp
+import com.lalilu.lmedia.domain.source.BufferedRange
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -36,7 +37,7 @@ class SeekbarBufferedUiTest {
     }
 
     @Composable
-    private fun SeekbarHost(bufferedFraction: Float, playbackPosition: Float) {
+    private fun SeekbarHost(bufferedRanges: List<BufferedRange>, playbackPosition: Float) {
         MaterialTheme {
             Box(modifier = Modifier.size(400.dp, 120.dp).background(Color.Black)) {
                 SeekbarLayout(
@@ -44,7 +45,7 @@ class SeekbarBufferedUiTest {
                     minValue = { 0f },
                     maxValue = { 100f },
                     dataValue = { playbackPosition },
-                    bufferedFraction = { bufferedFraction },
+                    bufferedRanges = { bufferedRanges },
                     animateColor = { Color(0xFFFF0000) },
                 )
             }
@@ -63,7 +64,7 @@ class SeekbarBufferedUiTest {
 
     @Test
     fun bufferedLayerCoversTheBufferedPartOnly() = runDesktopComposeUiTest(width = 400, height = 120) {
-        setContent { SeekbarHost(bufferedFraction = 0.6f, playbackPosition = 0f) }
+        setContent { SeekbarHost(bufferedRanges = listOf(BufferedRange(0f, 0.6f)), playbackPosition = 0f) }
 
         val buffered = pixelAt(0.3f).luminance()
         val unbuffered = pixelAt(0.8f).luminance()
@@ -76,7 +77,7 @@ class SeekbarBufferedUiTest {
 
     @Test
     fun noBufferedProgressDrawsNothing() = runDesktopComposeUiTest(width = 400, height = 120) {
-        setContent { SeekbarHost(bufferedFraction = 0f, playbackPosition = 0f) }
+        setContent { SeekbarHost(bufferedRanges = emptyList(), playbackPosition = 0f) }
 
         assertEquals(
             pixelAt(0.3f).luminance(),
@@ -88,7 +89,7 @@ class SeekbarBufferedUiTest {
 
     @Test
     fun bufferedLayerStaysUnderTheThumb() = runDesktopComposeUiTest(width = 400, height = 120) {
-        setContent { SeekbarHost(bufferedFraction = 0.8f, playbackPosition = 50f) }
+        setContent { SeekbarHost(bufferedRanges = listOf(BufferedRange(0f, 0.8f)), playbackPosition = 50f) }
 
         // 播放头在 50%，0.8 的缓冲层覆盖到这里；若绘制顺序反了，白色次级层会把滑块冲淡成粉色
         val overThumb = pixelAt(0.25f)
@@ -96,5 +97,23 @@ class SeekbarBufferedUiTest {
             overThumb.red > 0.9f && overThumb.green < 0.2f,
             "播放头左侧应保持滑块颜色，实际 $overThumb",
         )
+    }
+
+    @Test
+    fun fragmentedCoverageLeavesTheHoleEmpty() = runDesktopComposeUiTest(width = 400, height = 120) {
+        // 跳到 80% 之后的常态：头部一段与尾部一段已缓存，中间的 25%..75% 是空洞
+        setContent {
+            SeekbarHost(
+                bufferedRanges = listOf(BufferedRange(0f, 0.25f), BufferedRange(0.75f, 1f)),
+                playbackPosition = 0f,
+            )
+        }
+
+        val head = pixelAt(0.1f).luminance()
+        val hole = pixelAt(0.5f).luminance()
+        val tail = pixelAt(0.9f).luminance()
+
+        assertTrue(head > hole + 0.1f, "头部那段应亮于中间的洞，实际 $head vs $hole")
+        assertTrue(tail > hole + 0.1f, "尾部那段应亮于中间的洞，实际 $tail vs $hole")
     }
 }

@@ -10,6 +10,7 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.model.albumName
 import com.lalilu.lmedia.domain.model.artistName
+import com.lalilu.lmedia.domain.source.BufferedRange
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
@@ -624,11 +625,11 @@ class WebDavSource(
         val activeProxy = proxy ?: return null
         val key = cacheKeyOf(song.id)
         val url = activeProxy.audioUrl(key) ?: return null
-        // 开播即开始上报缓冲进度：先记下总长度，之后由缓存增长回调刷新已缓冲字节
+        // 开播即开始上报缓冲进度：先记下总长度与当前覆盖，之后由缓存增长回调刷新
         targetOf(song)?.let { target ->
             mutableBufferSnapshot.value = WebDavBufferSnapshot(
                 key = key,
-                filled = cache?.coveredBytes(key, target.totalSize) ?: 0L,
+                covered = cache?.coveredRanges(key, target.totalSize).orEmpty(),
                 total = target.totalSize,
             )
         }
@@ -636,24 +637,25 @@ class WebDavSource(
     }
 
     /**
-     * 当前播放项的缓冲进度：缓存覆盖率（已缓存字节 / 远端声明的总长）。
+     * 当前播放项的缓冲区间：缓存覆盖率按整首比例换算。
      *
      * 用覆盖率而不是播放器的内部缓冲：经代理播放时字节是本数据源在下载的，覆盖率才是
-     * "还有多久能听"的准确信号。远端没报总长度时发 null，由 UI 按"未知"处理。
+     * "还有多久能听"的准确信号。返回空列表表示现在没有可显示的缓冲信息（远端没报总长度、
+     * 或还没开始下载），UI 什么都不画。
      */
-    override fun bufferProgress(audioId: String): Flow<Float?> {
+    override fun bufferProgress(audioId: String): Flow<List<BufferedRange>> {
         val key = cacheKeyOf(audioId)
         return mutableBufferSnapshot
             .filter { it?.key == key }
-            .map { snapshot -> snapshot?.fraction }
+            .map { snapshot -> snapshot?.ranges.orEmpty() }
     }
 
-    /** 缓存增长后刷新"正在播的那首"的已缓冲字节；其它歌的下载不影响当前进度显示。 */
+    /** 缓存增长后刷新"正在播的那首"的已缓冲区间；其它歌的下载不影响当前进度显示。 */
     private fun publishBufferProgress(key: String) {
         val current = mutableBufferSnapshot.value ?: return
         if (current.key != key) return
         mutableBufferSnapshot.value = current.copy(
-            filled = cache?.coveredBytes(key, current.total) ?: current.filled,
+            covered = cache?.coveredRanges(key, current.total) ?: current.covered,
         )
     }
 

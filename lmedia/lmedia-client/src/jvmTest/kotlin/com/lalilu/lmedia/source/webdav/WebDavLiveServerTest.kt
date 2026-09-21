@@ -244,7 +244,7 @@ class WebDavLiveServerTest {
     }
 
     /**
-     * 缓冲进度上报：开播记 0，整首下完后到 1——进度条次级层要的就是这条数据。
+     * 缓冲区间上报：开播还没有可显示的东西，整首下完后覆盖到 100%——进度条次级层要的就是这条数据。
      *
      * 信号取自**代理自己的缓存覆盖率**，不是播放器内部缓冲（渐进式 HTTP 下后者常为 0）。
      */
@@ -258,16 +258,18 @@ class WebDavLiveServerTest {
         val media = assertNotNull(source.getMedia(audio), "代理未就绪")
         val proxyUrl = (media as MediaData.Url).url
 
-        // 开播时缓存是空的：第一帧应当是 0
-        assertEquals(0f, source.bufferProgress(audio.id).first(), "开播时应为 0")
+        // 开播时缓存是空的：没有可显示的区间
+        assertEquals(emptyList(), source.bufferProgress(audio.id).first(), "开播时应没有已缓冲区间")
 
         val whole = httpGet(proxyUrl, range = null)
         assertEquals(200, whole.status)
 
         val full = withTimeout(EXTRACTION_TIMEOUT_MILLIS) {
-            source.bufferProgress(audio.id).first { it == 1f }
+            source.bufferProgress(audio.id).first { it.any { range -> range.endFraction >= 1f } }
         }
-        assertEquals(1f, full, "整首下完后缓冲比例应为 1")
+        assertEquals(1, full.size, "整首下完后应只剩一段覆盖全曲")
+        assertEquals(0f, full.single().startFraction, "这一段应当从开头算起")
+        assertEquals(1f, full.single().endFraction, "整首下完后覆盖率应为 1")
 
         source.deactivate()
     }
