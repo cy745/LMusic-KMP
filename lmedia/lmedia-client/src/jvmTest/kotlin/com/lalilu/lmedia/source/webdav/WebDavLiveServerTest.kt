@@ -107,7 +107,19 @@ class WebDavLiveServerTest {
         source.connect(url!!, username, password, root).getOrThrow()
         val snapshot = assertNotNull(awaitSnapshot(source), "扫描未产出快照")
 
-        assertEquals(7, snapshot.audios.size, "测试库共 7 首 FLAC：${snapshot.audios.map { it.title }}")
+        // 这个库是共享的：后来为模拟器/真机补过音乐，所以只断言固定夹具都在，
+        // 不再断言总数——加歌会让总数变化，而那跟本用例要验证的"扫描 + 派生元数据"无关
+        val fixtureTitles = listOf(
+            "カタオモイワズライ",
+            "エンドロール",
+            "おじゃま虫",
+            "Friend",
+            "さよならの支度",
+            "オドループ",
+            "アンコール",
+        )
+        val titles = snapshot.audios.map { it.title }
+        assertTrue(titles.containsAll(fixtureTitles), "测试库应至少包含 7 首夹具：$titles")
         assertTrue(
             snapshot.audios.none { it.title.contains("readme") },
             "非音频文件不应进入媒体库",
@@ -236,9 +248,12 @@ class WebDavLiveServerTest {
         val cover = assertNotNull(store.readCover(key), "内嵌封面应落盘")
         assertContentEquals(reference.cover, cover, "落盘封面应与文件内嵌封面逐字节一致")
 
-        // 封面能通过数据源接口取到，供上层显示
+        // 封面能通过数据源接口取到，供上层显示。注意这条路径遵循"同目录边车优先"：
+        // HoneyComeBear/ 下有 cover.jpg，所以这里拿到的是边车图；内嵌封面已经在上面对比过落盘内容
         val picture = assertNotNull(source.getPicture(audio, MediaFetchOptions()))
-        assertContentEquals(reference.cover, (picture as MediaData.Bytes).bytes)
+        val pictureBytes = (picture as MediaData.Bytes).bytes
+        assertEquals(0xFF, pictureBytes[0].toInt() and 0xFF, "应是真正的 JPEG 数据")
+        assertEquals(0xD8, pictureBytes[1].toInt() and 0xFF)
 
         source.deactivate()
     }
