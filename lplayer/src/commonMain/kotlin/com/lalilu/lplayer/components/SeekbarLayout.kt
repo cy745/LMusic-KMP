@@ -574,6 +574,20 @@ private fun SeekbarBuffered(
         label = "SeekbarBuffered_clipProgress"
     )
 
+    // 后端按节流（~4 次/秒）上报，直接画会一顿一顿；每段的末端各自补间，看起来才连续。
+    // 动画必须在 Canvas 之外求值——Canvas 的绘制块不是 composable 作用域。
+    val ranges = bufferedRanges()
+    val animatedEnds = ranges.map { range ->
+        key(range.startFraction) {
+            animateFloatAsState(
+                targetValue = range.endFraction,
+                // 略长于后端的节流间隔，正好把两次上报之间的跳跃抹平
+                animationSpec = tween(durationMillis = 220),
+                label = "SeekbarBuffered_end",
+            ).value
+        }
+    }
+
     Canvas(modifier = modifier.fillMaxSize()) {
         val maxPadding = 4.dp.toPx()
         val paddingValue = maxPadding * clipProgress.value
@@ -585,7 +599,9 @@ private fun SeekbarBuffered(
         val geometries = bufferedBarGeometries(
             paddingValue = paddingValue,
             innerWidth = innerWidth,
-            ranges = bufferedRanges(),
+            ranges = ranges.mapIndexed { index, range ->
+                BufferedRange(range.startFraction, animatedEnds.getOrElse(index) { range.endFraction })
+            },
         )
         if (geometries.isEmpty()) return@Canvas
 
