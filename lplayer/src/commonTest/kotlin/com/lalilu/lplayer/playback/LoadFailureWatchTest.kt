@@ -2,7 +2,9 @@ package com.lalilu.lplayer.playback
 
 import com.lalilu.lmedia.domain.model.MediaKey
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -71,5 +73,35 @@ class LoadFailureWatchTest {
     @Test fun aLateErrorFromAnotherOrAlreadyReplacedSongIsNotActedOn() {
         assertFalse(shouldNavigateAfterStalledFailure(failed, other, failed, failed, false))
         assertFalse(shouldNavigateAfterStalledFailure(failed, failed, other, failed, false))
+    }
+
+    @Test fun aStalledFailureContinuesAlongTheDirectionTheSongWasLoadedWith() {
+        // 回归：iOS 原先无论怎么进入这首歌，中途失败都固定向前跳；Android 沿用最近一次导航
+        // 开启的 traversal 方向。按"上一首"进入的歌曲中途失败时必须同样向后继续。
+        assertEquals(
+            PlaybackDirection.Backward,
+            stalledFailureNavigationDirection(
+                engineStillActive = true,
+                loadedKeyStillMatches = true,
+                queueCurrentStillMatches = true,
+                loadDirection = PlaybackDirection.Backward,
+            ),
+        )
+        assertEquals(
+            PlaybackDirection.Forward,
+            stalledFailureNavigationDirection(
+                engineStillActive = true,
+                loadedKeyStillMatches = true,
+                queueCurrentStillMatches = true,
+                loadDirection = PlaybackDirection.Forward,
+            ),
+        )
+    }
+
+    @Test fun aStalledFailureIsNotActedOnOnceTheFailedItemStoppedBeingCurrent() {
+        // 三个守卫在导航真正发起时复查：迟到的错误或用户已经换歌时不能替用户做决定。
+        assertNull(stalledFailureNavigationDirection(false, true, true, PlaybackDirection.Forward))
+        assertNull(stalledFailureNavigationDirection(true, false, true, PlaybackDirection.Forward))
+        assertNull(stalledFailureNavigationDirection(true, true, false, PlaybackDirection.Forward))
     }
 }

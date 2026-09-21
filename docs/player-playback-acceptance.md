@@ -4,6 +4,60 @@
 
 当前阶段结论见 [#14 / #17 合并检查点](player-queue-issue-progress.md)。下文按时间倒序保留当时的记录，“未提交/未推送”和旧的待办描述不是最新状态。
 
+## 对账审计与本轮收口（2026-09-21）
+
+对 #14 / #17 声称的 26 个子项逐条回代码核验后发现 8 处表述与实现不符，本轮修掉其中会影响行为的 2 处，并补上 #17 验收标准里明确列出却一直没有用例的 3 项。
+
+### 修正的两处行为缺陷
+
+- **iOS 播放中途失败没有"沿方向"**（原声称"沿方向，与安卓一致"）。`navigateAfterStalledFailure` 只调 `skipToNext()`，而 `AVPlayerPlayback.skipToNext` 把方向写死 `PlaybackDirection.Forward`；Android 的 `onPlayerError` 则沿用最近一次导航开启的 traversal 方向，所以按"上一首"进入的歌曲在 iOS 上会向前跳。
+  - 改动：新增公共规则 `stalledFailureNavigationDirection`（三个守卫在导航真正发起时复查：引擎仍是同一实例、仍是被加载项、仍是队列当前项）；`AVPlayerPlayback` 记下"当前已加载项是用什么方向载入的"，失败时沿同方向继续。该字段属于已加载项的状态（同 `loadedMediaKey`/`playRequestedFor`），命令自身方向仍只随 `PlaybackNavigationContext` 走，没有引入命令间的共享可变状态。
+  - 测试：`LoadFailureWatchTest` 新增 2 项（方向跟随 + 三个守卫任一不成立即不接管）。
+- **解码失败的用户文案不可达**（原声称"解码错误也会抛出可分类异常"）。实测解码错误不抛出，只写状态并发事件；更关键的是 `PlaybackFailureReason.Decode` 全仓只被测试引用，三个分类器都不产出它，于是"音频解码失败，文件可能已损坏"这条文案永远不会出现。
+  - 改动：分类器补 `AVAudioPlayerDecodeError` → `Decode`。该标记由 `AVAudioPlayerEngine` 自己构造（`onDecodeErrorDidOccur`），是稳定判据，且位置在 `OSStatus error` 之前，按"取位置最靠前"的既有规则能压过 `UnsupportedFormat`。
+  - 测试：`IosLoadFailureTest` 新增 1 项，同时钉住"压过 OSStatus"这条优先级。
+
+### 补上 #17 验收标准里缺失的 3 个用例
+
+`SandboxSourceFileOperationsTest` 由 13 项增至 16 项（`:lmedia:lmedia-core:jvmTest` 实跑全部通过）：
+
+- `concurrentImportsSerializeWithoutLosingIndexEntriesOrLeavingHalfFiles` —— 并发导入 4 份不同内容，断言**索引条目数**等于导入数。串行化一旦丢失（索引"读-改-写"交错），文件系统看起来仍然正常，只有索引会少条，所以只数文件是测不出来的。
+- `sameNamedImportsFromDifferentFoldersAllocateNonConflictingNames` —— 不同目录下的同名文件，第二个必须落到 `external (1).mp3`。`allocateDestination` 的 `" (1)"` 分支此前没有任何用例覆盖（只有重命名冲突有）。
+- `contentThatIsNotAudioIsRejectedByMagicNumber` —— 扩展名是 mp3、内容不是音频，必须在落盘前被 MagicNumber 拒绝并清掉临时文件。已有的"解析失败"用例只模拟了 Taglib 返回 null，走不到这条分支。
+
+### 本轮验证证据
+
+- `:lmedia:lmedia-core:jvmTest`：`SandboxSourceFileOperationsTest` **16 项通过**（原 13）；`:lplayer:jvmTest` **292 项通过**（原 290，+2），失败 0、跳过 6（平台守卫）。
+- iOS 原生（Mac mini，iPhone 17 Pro / iOS 26.5 模拟器，`scripts/test-ios-player-native.sh`）：**7 个测试类 74 项、`testFailed` 0**（原 71；本轮 +3）。新增用例 `aStalledFailureContinuesAlongTheDirectionTheSongWasLoadedWith`、`aPlaybackTimeDecodeErrorIsReportedAsDecodeRatherThanAFormatProblem` 均在模拟器内实跑。
+- Android 设备测试（Android 16 / API 36 模拟器，真实 Media3）：**5 个类 22 项全部通过**（`QueueControlPlayerDeviceTest` 9、`QueueAutomaticTransitionDeviceTest` 4、`QueueDeletionRecoveryDeviceTest` 4、`QueueRecoveryControlDeviceTest` 3、`QueueFailureTraversalDeviceTest` 2）。
+  - ⚠️ `./gradlew :lplayer:connectedAndroidDeviceTest` 在本环境报告 `Starting 0 tests`，用例一个都没被发现（测试 APK 已正确生成，包名 `com.lalilu.lplayer.core.test`）。绕过方式已写进 `docs/testing-guide.md` §5.3。该任务未发现用例的原因尚未定位，不把它当作"通过"。
+- **Android 外部打开端到端（真机链路，模拟器执行）**：把一段真实 MP3 推到 `/sdcard/Download/`，用 `am start -a android.intent.action.VIEW -d file://… -t audio/mpeg` 触发冷启动，实测完整链路成立：
+  - `MainActivity` 启动 → Koin 注册 `AndroidSandboxMediaSource`；
+  - 文件落到应用私有沙箱 `files/media-sandbox/Imported/…`（240579 字节，`content_digest=e81290eb…`，`duration=30041`，`available=true`），即**外部原件未被移动**；
+  - 得到来源限定身份 `audio_…` @ `SandboxFileSystemSource`；
+  - `MServiceCallback onAddMediaItems` 收到该项，`dumpsys media_session` 报 `state=PLAYING(3), position=10458, error=null`；
+  - 截图确认播放页显示该曲、进度 00:12 / 00:30，封面位为灰色占位（该文件无内嵌封面），界面无破损。
+  - 说明：`file://` 意图在系统里同时匹配到 YouTube Music，`am start` 因此弹出选择器；改用显式组件（`-n`）绕过选择器后链路正常。清单里的 `audio/*` 过滤器本身已被系统正确解析出 `com.lalilu.lmusic.MainActivity`。
+
+### 结案：`MediaCoverRequest` 的 "Unable to create a fetcher"
+
+本轮顺手把这条一直挂着的待复核项查清了，**结论是它不是 bug**：
+
+`EngineInterceptor.fetch` 是一个循环——`components.newFetcher(data, …, searchIndex)` 从当前下标往后找工厂，全部返回 null 后 `checkNotNull` 抛出 `Unable to create a fetcher that supports: <data>`。`MediaCoverRequestFetcherFactory.create()` 确实被调用并返回了 `LAudioFetcher`，但它的 `fetch()` 在 `resolvePicture(...)` 返回 null（**这首歌没有内嵌封面**）时按 Coil 约定返回 `null` 表示"交给下一个工厂"，而没有任何其他工厂认识 `MediaCoverRequest`，于是循环走到底抛出该文案。
+
+也就是说：**注册是生效的，异常的真实含义是"这首歌没有可读封面"**，属于预期路径；界面按占位降级（截图已确认）。因此不改代码。若要减少日志噪音，属于"把 Coil 的 error 级降级"这类改动，会把真正的问题一起盖住，本轮不做。
+
+
+### 仍未完成（与核对结论一致）
+
+- iOS `AVAudioPlayerEngine` 的**解码错误路径没有设备用例**：`audioPlayerDecodeErrorDidOccur` 没有被任何测试触发过（本轮只让它的分类可达）。
+- iOS 重复投递同一个打开事件**没有加守卫**：核验后确认 iOS 只有单一 `WindowGroup` + 单个 `.onOpenURL`，无多场景/多窗口声明，重投递风险没有证据支撑；而重复导入在数据层已经幂等（内容摘要去重 + `selectOrInsert` 复用），因此按"最小改动、不引入抽象"没有加投机性守卫。Android 侧的 `savedInstanceState` 守卫已核。
+- 失败跳过整体仍在 `queueEditMutex` 内（有 60s 预算兜底），结构性解耦未做。
+- MediaBrowser / 通知栏 / Room 慢查询的完整竞争矩阵仍无用例。
+- MusicKit 迟到异步错误的 storeID / 加载代次归属未做（建议记录不改）。
+- 真机（小米 / iPhone / iPad）运行验收、Desktop 与 Web 冒烟未做。
+- 应用层 `SandboxFileOperationsImpl`（文件 + 数据库 + 队列联合事务）仍无直接用例；`ExternalAudioOpenCoordinator` 与 `MainActivity` 同样无测试。二者都依赖全局 `LPlayer.instance`，补测需要先有注入缝，本轮不做。
+
 ## 选曲不再被原生加载阻塞（Desktop 半，2026-09-14 后续轮次）
 
 - 根因与 iOS 同构但位置不同：`prepareVlcMedia` 在命令内等待原生进入 PAUSED（30s 上限）与定位确认（5s），这段位于队列编辑边界内。

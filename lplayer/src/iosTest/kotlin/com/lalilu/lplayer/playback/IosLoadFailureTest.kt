@@ -94,6 +94,17 @@ class IosLoadFailureTest {
         )
     }
 
+    @Test fun aPlaybackTimeDecodeErrorIsReportedAsDecodeRatherThanAFormatProblem() {
+        // AVAudioPlayerEngine 在 onDecodeErrorDidOccur 里构造这个带标记的异常；NSError 原文本身
+        // 往往只是 OSStatus。标记在最前面，因此按"位置最靠前"的规则应当压过 OSStatus 那组。
+        assertEquals(
+            PlaybackFailureReason.Decode,
+            classifyIosLoadFailure(IllegalStateException(
+                "AVAudioPlayerDecodeError: The operation couldn't be completed. (OSStatus error 1954115647.)"
+            )),
+        )
+    }
+
     @Test fun unknownDescriptionsAreNotGuessedEvenWhenTheyContainPathsOrCredentials() {
         val error = IllegalStateException("https://user:secret@example.com/stream.mp3 failed")
         assertEquals(PlaybackFailureReason.Unknown, classifyIosLoadFailure(error))

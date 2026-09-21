@@ -158,6 +158,34 @@ export LMUSIC_NATIVE_AUDIO_FIXTURE="$PWD/build/native-fixtures/native-audio.mp3"
 
 未设置时这些用例计为 `skipped` 而非失败。注意：设置后 `jvmTest` 不再命中 up-to-date 缓存，会真实重跑。
 
+### 5.3 设备测试（Android instrumented）
+
+`lplayer` 有一组跑在真实 Media3 上的用例，位于 `lplayer/src/androidDeviceTest/`：
+
+```bash
+./gradlew :lplayer:connectedAndroidDeviceTest
+```
+
+> ⚠️ **该 Gradle 任务在部分环境里发现不到任何用例**：会打印 `Starting 0 tests on <AVD>`，
+> 用例一个都不执行（测试 APK 本身能正常生成，包名 `com.lalilu.lplayer.core.test`）。
+> 原因尚未定位，**不要把它当成"通过"**。
+
+绕过方式（手动安装 + 指定类运行，实测可用）：
+
+```bash
+# 1. 先产出测试 APK
+./gradlew :lplayer:assembleAndroidDeviceTest
+
+# 2. 安装（-t 允许安装 testOnly 包）
+adb install -r -t lplayer/build/outputs/apk/androidTest/lplayer-androidTest.apk
+
+# 3. 指定类运行；一次传多个类（逗号分隔）可能报 failed to attach，建议逐个跑
+adb shell am instrument -w -e class com.lalilu.lplayer.extensions.QueueControlPlayerDeviceTest \
+  com.lalilu.lplayer.core.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+这些用例是**自 instrumenting** 的：manifest 里 `targetPackage` 指向测试包自身，因此不需要先装 App。
+
 ---
 
 ## 6. 覆盖率目标

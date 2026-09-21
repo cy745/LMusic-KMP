@@ -53,3 +53,21 @@ internal fun shouldNavigateAfterStalledFailure(
     failedKey == loadedKey &&
     failedKey == playRequestedKey &&
     !positionAdvanced
+
+/**
+ * 播放中途失败后继续找下一首的**方向**：跟随「加载当前项时所用的那次导航方向」。
+ *
+ * Android 的 `onPlayerError` 沿用最近一次导航开启的 traversal 方向，所以按"上一首"进入的歌曲
+ * 中途失败时同样向后继续。iOS 没有 traversal，改为把加载方向随已加载项记下来，语义与 Android 对齐。
+ *
+ * 三个守卫在**导航真正发起时**再复查一遍：失败项仍由同一个引擎持有、仍是被加载项、仍是队列当前项。
+ * 任一不成立返回 null，不接管这次错误——迟到的错误或用户已经换歌时不能替用户做决定。
+ */
+internal fun stalledFailureNavigationDirection(
+    engineStillActive: Boolean,
+    loadedKeyStillMatches: Boolean,
+    queueCurrentStillMatches: Boolean,
+    loadDirection: PlaybackDirection,
+): PlaybackDirection? = loadDirection.takeIf {
+    engineStillActive && loadedKeyStillMatches && queueCurrentStillMatches
+}
