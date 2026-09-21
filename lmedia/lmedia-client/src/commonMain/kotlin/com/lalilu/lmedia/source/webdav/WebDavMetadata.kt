@@ -18,6 +18,13 @@ internal data class WebDavMetadataRecord(
     val fingerprint: String,
     val complete: Boolean,
     val extractedAt: Long,
+    /**
+     * 上次尝试提取时缓存里已有多少字节。
+     *
+     * 用来判断"头部窗口试过但没读出东西"这件事是否已经发生过——没有它就会在每次缓存增长时
+     * 反复重试同一个读不出结果的窗口。
+     */
+    val examinedBytes: Long = 0L,
     val title: String = "",
     val artist: String = "",
     val album: String = "",
@@ -78,10 +85,12 @@ internal data class WebDavExtractedMetadata(
         fingerprint: String,
         complete: Boolean,
         extractedAt: Long,
+        examinedBytes: Long = 0L,
     ): WebDavMetadataRecord = WebDavMetadataRecord(
         fingerprint = fingerprint,
         complete = complete,
         extractedAt = extractedAt,
+        examinedBytes = examinedBytes,
         title = title,
         artist = artist,
         album = album,

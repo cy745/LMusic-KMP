@@ -60,7 +60,7 @@ internal interface WebDavProxyBackend {
 internal class WebDavProxy(
     private val cache: WebDavCache,
     private val backend: WebDavProxyBackend,
-    /** 每次缓存增长后回调，供上层判断 30% / 100% 提取节点。 */
+    /** 每次缓存增长后回调，供上层判断 头部窗口 / 100% 提取节点。 */
     private val onCacheProgress: suspend (key: String) -> Unit = {},
     /** 音频缓存容量上限；<= 0 表示不限制。每次需要时读取，改配置立即生效。 */
     private val quotaBytes: () -> Long = { 0L },

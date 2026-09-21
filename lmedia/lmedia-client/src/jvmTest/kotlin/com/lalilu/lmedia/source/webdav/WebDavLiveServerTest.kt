@@ -244,6 +244,50 @@ class WebDavLiveServerTest {
     }
 
     /**
+     * 头部窗口阈值的实测基准：**只取每首歌开头 1 MB**，标签与内嵌封面都必须能读出来。
+     *
+     * 这是"固定 1 MB 窗口够不够"这件事的硬证据——阈值调小、或素材换成"元数据在文件尾部"的容器
+     * （例如未做 faststart 的 M4A，`moov` 在尾部）都会在这里暴露。实测本机素材的元数据尾部偏移
+     * 在 0.18–0.83 MB（中位 0.26 MB）。
+     */
+    @Test
+    fun `the one megabyte head window is enough for tags and cover on every track`() = runTest {
+        assumeTrue("未配置 LMUSIC_WEBDAV_URL，跳过真实服务用例", url != null)
+        val source = newSource(cacheRoot = freshCacheRoot())
+        source.connect(url!!, username, password, root).getOrThrow()
+        val audios = assertNotNull(awaitSnapshot(source)).audios
+        assertTrue(audios.size >= 7, "测试库应有 7 首：${audios.map { it.title }}")
+
+        val client = HttpWebDavClient(config)
+        val failures = mutableListOf<String>()
+        audios.forEach { audio ->
+            val path = audio.extra?.get(WebDavSource.EXTRA_PATH).orEmpty()
+            val head = java.io.File.createTempFile("lmusic-head", ".bin").apply { deleteOnExit() }
+            try {
+                // 只取开头 1 MB：等价于"播放到头部窗口时缓存里有什么"
+                head.outputStream().use { out ->
+                    client.fetchRange(path, 0L, HEAD_WINDOW_BYTES - 1) { chunk -> out.write(chunk) }
+                }
+                val title = Taglib.readMetadata(head.absolutePath)?.title
+                val cover = runCatching { Taglib.getPicture(head.absolutePath) }.getOrNull()
+                if (title.isNullOrBlank()) failures += "${audio.title}: 读不到标题"
+                if (cover == null || cover.isEmpty()) failures += "${audio.title}: 读不到封面"
+            } catch (throwable: Throwable) {
+                failures += "${audio.title}: ${throwable.message}"
+            } finally {
+                head.delete()
+            }
+        }
+        client.close()
+        source.deactivate()
+
+        assertTrue(
+            failures.isEmpty(),
+            "1 MB 头部窗口应足够读出全部标签与封面，失败项：$failures",
+        )
+    }
+
+    /**
      * 边车解析：扫描阶段就能从 PROPFIND 结果里认出同目录封面与同名 `.lrc`，因此**不必下载整首**
      * 就能显示封面与歌词——这正是"首扫只做目录遍历"这一取舍的补偿。
      */

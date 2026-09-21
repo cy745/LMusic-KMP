@@ -52,7 +52,7 @@ import kotlin.coroutines.CoroutineContext
  * 基于 WebDAV 的媒体源。
  *
  * 首扫只做目录遍历（PROPFIND），用文件名与目录结构派生可读元数据，快照立即可用。
- * 播放统一走本机回环代理：字节顺便沉淀成本地缓存，并在缓存增长到 30% / 100% 时读取真实标签，
+ * 播放统一走本机回环代理：字节顺便沉淀成本地缓存，并在缓存达到头部窗口（默认 1 MB）与整首时读取真实标签，
  * 逐条写入数据库（[audioPatches]）并按批合并回完整快照。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
