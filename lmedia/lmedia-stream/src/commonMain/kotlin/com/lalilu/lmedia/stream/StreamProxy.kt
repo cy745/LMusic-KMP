@@ -109,6 +109,9 @@ class StreamProxy(
         /** 淘汰检查间隔：容量是稳态约束而不是硬保证，5 秒粒度足够。 */
         internal const val EVICTION_INTERVAL_MILLIS = 5_000L
 
+        /** 落盘过程中的进度回调间隔：约 4 次/秒，足够让缓冲条连续推进，又不至于每写一块就刷一次。 */
+        private const val PROGRESS_INTERVAL_MILLIS = 250L
+
         /** 播放头前瞻窗口默认 4 MB：约一两分钟的音频，足够吸收网络抖动。 */
         const val DEFAULT_LOOKAHEAD_BYTES = 4L * 1024 * 1024
     }
@@ -120,6 +123,9 @@ class StreamProxy(
     private val keyLocks = mutableMapOf<String, Mutex>()
     private val keyLocksGuard = Mutex()
     private var lastEvictionAt = 0L
+
+    /** 每个键上次上报进度的时刻；用于把落盘过程中的回调节流。 */
+    private val progressPublishedAt = mutableMapOf<String, Long>()
 
     /** 正在被读取或写入的键：淘汰时绝不动它们。 */
     private val activeKeys = mutableSetOf<String>()
@@ -330,6 +336,9 @@ class StreamProxy(
                 sink.write(bytes)
                 val absolute = prefix + stored
                 stored += bytes.size
+                // 播放器一次请求可能覆盖整首歌（开放式 Range），只在收尾回调的话，界面会在整首
+                // 下完之前一直停在"刚开播那一帧"——缓冲条不动、封面也不出来
+                if (shouldPublishProgress(key)) onCacheProgress(key)
                 served += forward(bytes, 0, absolute, serveFrom, serveTo, channel)
             }
             sink.flush()
@@ -377,6 +386,7 @@ class StreamProxy(
                         writer.write(bytes)
                         val absolute = segmentStart + fetched
                         fetched += bytes.size
+                        if (shouldPublishProgress(key)) onCacheProgress(key)
                         served += forward(bytes, 0, absolute, serveFrom, serveTo, channel)
                     }
                 }
@@ -462,8 +472,21 @@ class StreamProxy(
         return to - from.toLong()
     }
 
-    /** [position] 所在分段的末尾（受总长限制）——后台单步补齐的粒度上限。 */
-    private fun stepEnd(position: Long, totalSize: Long): Long {
+    /**
+     * 是否该现在上报一次进度（节流）。
+     *
+     * 播放器的一次请求可能覆盖整首歌，落盘过程是连续的；如果只在收尾回调，界面在整首下完之前
+     * 不会有任何更新，看起来就是"缓冲条卡住、封面也不出来"。
+     */
+    private fun shouldPublishProgress(key: String): Boolean {
+        val now = clock()
+        val last = progressPublishedAt[key] ?: 0L
+        if (now - last < PROGRESS_INTERVAL_MILLIS) return false
+        progressPublishedAt[key] = now
+        return true
+    }
+
+    /** [position] 所在分段的末尾（受总长限制）——后台单步补齐的粒度上限。 */    private fun stepEnd(position: Long, totalSize: Long): Long {
         val segmentSize = cache.segmentSize
         val segmentEnd = (position / segmentSize) * segmentSize + segmentSize - 1L
         return if (totalSize > 0L) minOf(segmentEnd, totalSize - 1L) else segmentEnd
@@ -497,6 +520,8 @@ class StreamProxy(
         val key = parameters["key"].orEmpty()
         val target = backend.resolve(key)
         if (target == null) {
+            // 播放失败时先看这一行：键解析不出来（快照里没有/来源被停用）会让播放器直接拿到 404
+            logger.w(messageString = "无法解析播放键：key=$key")
             respond(HttpStatusCode.NotFound, "Unknown media key")
             return
         }
@@ -505,6 +530,10 @@ class StreamProxy(
         val resolution = HttpRange.resolve(request.headers[HttpHeaders.Range], total)
 
         if (resolution.disposition == RangeDisposition.UNSATISFIABLE) {
+            // 声明的总长比播放器要的位置还小：通常是库里记的 file_size 与远端文件对不上
+            logger.w(
+                messageString = "请求越界：key=$key range=${request.headers[HttpHeaders.Range]} total=$total",
+            )
             response.header(HttpHeaders.ContentRange, "bytes */$total")
             respond(HttpStatusCode.RequestedRangeNotSatisfiable)
             return
