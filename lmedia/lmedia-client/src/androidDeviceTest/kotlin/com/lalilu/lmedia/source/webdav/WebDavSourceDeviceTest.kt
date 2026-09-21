@@ -192,6 +192,20 @@ class WebDavSourceDeviceTest {
                 seeked >= target - 1_000L,
                 "拖动到 ${target}ms 后播放位置应跟进：position=$seeked",
             )
+
+            // 暂停期间位置不再前进、继续后恢复前进（"暂停/继续不报错"这条验收项）
+            onMain { player.pause() }
+            val pausedAt = currentPosition(player)
+            kotlinx.coroutines.delay(1_000)
+            val stillPaused = currentPosition(player)
+            assertTrue(
+                stillPaused - pausedAt < 500L,
+                "暂停期间位置不应继续前进：$pausedAt → $stillPaused",
+            )
+
+            onMain { player.play() }
+            val resumed = awaitPosition(player) { it > stillPaused + 200L }
+            assertTrue(resumed > stillPaused, "继续播放后位置应前进：$stillPaused → $resumed")
         } finally {
             onMain { player.release() }
             source.deactivate()
