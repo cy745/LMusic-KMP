@@ -4,6 +4,7 @@ import com.lalilu.common.kv.testing.InMemoryKVSaver
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.domain.model.albumName
 import com.lalilu.lmedia.domain.model.artistName
+import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.Snapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -18,6 +19,7 @@ import org.koin.dsl.module
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -92,6 +94,7 @@ class WebDavLiveServerTest {
         assumeTrue("未配置 LMUSIC_WEBDAV_URL，跳过真实服务用例", url != null)
         val source = WebDavSource(
             clientFactory = { HttpWebDavClientFactory().create(it) },
+            cacheRootProvider = { System.getProperty("java.io.tmpdir") },
             kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
         )
 
@@ -135,6 +138,63 @@ class WebDavLiveServerTest {
 
         assertEquals(payload, readBack?.decodeToString(), "写入的内容应能原样读回")
     }
+
+    @Test
+    fun `streams a real track through the loopback proxy byte for byte`() = runTest {
+        assumeTrue("未配置 LMUSIC_WEBDAV_URL，跳过真实服务用例", url != null)
+        val source = WebDavSource(
+            clientFactory = { HttpWebDavClientFactory().create(it) },
+            cacheRootProvider = { System.getProperty("java.io.tmpdir") },
+            kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
+        )
+        source.connect(url!!, username, password, root).getOrThrow()
+        val audio = assertNotNull(awaitSnapshot(source)).audios.first { it.title == "Friend" }
+
+        // 直连取一份基准字节（本地容器，几秒内完成）
+        val directClient = HttpWebDavClient(config)
+        val expected = assertNotNull(directClient.download(audio.extra?.get("path").orEmpty()))
+        directClient.close()
+
+        val media = assertNotNull(source.getMedia(audio), "代理未就绪，无法给出播放地址")
+        val proxyUrl = (media as MediaData.Url).url
+        assertTrue(proxyUrl.startsWith("http://127.0.0.1:"), "必须走本机代理：$proxyUrl")
+
+        // 1) 中间区间：与直连字节逐字节一致
+        val middle = httpGet(proxyUrl, "bytes=1000-2000")
+        assertEquals(206, middle.status)
+        assertEquals("bytes 1000-2000/${expected.size}", middle.contentRange)
+        assertContentEquals(expected.copyOfRange(1000, 2001), middle.body)
+
+        // 2) 整文件：200 + 完整内容（同时把缓存补满）
+        val whole = httpGet(proxyUrl, null)
+        assertEquals(200, whole.status)
+        assertContentEquals(expected, whole.body)
+
+        // 3) 缓存已满之后，重复请求仍然正确
+        val again = httpGet(proxyUrl, "bytes=1000-2000")
+        assertEquals(206, again.status)
+        assertContentEquals(expected.copyOfRange(1000, 2001), again.body)
+
+        source.deactivate()
+    }
+
+    private suspend fun httpGet(url: String, range: String?): LiveResponse = withContext(Dispatchers.IO) {
+        val builder = java.net.http.HttpRequest.newBuilder(java.net.URI.create(url))
+        if (range != null) builder.header("Range", range)
+        val response = java.net.http.HttpClient.newHttpClient()
+            .send(builder.GET().build(), java.net.http.HttpResponse.BodyHandlers.ofByteArray())
+        LiveResponse(
+            status = response.statusCode(),
+            body = response.body(),
+            contentRange = response.headers().firstValue("Content-Range").orElse(null),
+        )
+    }
+
+    private class LiveResponse(
+        val status: Int,
+        val body: ByteArray,
+        val contentRange: String?,
+    )
 
     private suspend fun awaitSnapshot(source: WebDavSource, timeoutMillis: Long = 30_000): Snapshot? =
         withContext(Dispatchers.Default) {

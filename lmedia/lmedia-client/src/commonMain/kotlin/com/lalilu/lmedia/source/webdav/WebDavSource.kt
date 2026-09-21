@@ -30,6 +30,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.yield
 import org.koin.core.annotation.Single
@@ -45,6 +47,7 @@ import kotlin.coroutines.CoroutineContext
 @Single(binds = [MediaSource::class, MediaDataSource::class])
 class WebDavSource(
     private val clientFactory: WebDavClientFactory,
+    private val cacheRootProvider: WebDavCacheRootProvider,
     kv: LMediaKV,
 ) : MediaSource, MediaDataSource, CoroutineScope {
 
@@ -82,6 +85,12 @@ class WebDavSource(
     private var client: WebDavClient? = null
     private var loadingJob: Job? = null
 
+    /** 播放代理与它需要的目标表；目标表按需登记，只保存当前会话已请求过的歌曲。 */
+    private var proxy: WebDavProxy? = null
+    private val proxyMutex = Mutex()
+    private val targetMutex = Mutex()
+    private val streamTargets = mutableMapOf<String, WebDavStreamTarget>()
+
     val config: KVItem<WebDavConfig> = kv.obtain(
         key = "${name}Config",
         defaultValue = WebDavConfig.Empty,
@@ -89,6 +98,11 @@ class WebDavSource(
     private var activeConfig: WebDavConfig = config.value
 
     override fun init() {
+        if (cacheRootProvider.cacheRoot() == null) {
+            // Web 没有本地文件系统：既做不了读穿缓存，也起不了回环代理
+            stateStore.content.unavailable("当前平台不支持 WebDAV 数据源")
+            return
+        }
         if (activeConfig.isConfigured) {
             scan(isInitialize = true, preserveReady = false)
         } else {
@@ -99,6 +113,9 @@ class WebDavSource(
     override suspend fun deactivate() {
         loadingJob?.cancelAndJoin()
         loadingJob = null
+        proxy?.stop()
+        proxy = null
+        targetMutex.withLock { streamTargets.clear() }
         client?.close()
         client = null
         stateStore.reset()
@@ -111,6 +128,7 @@ class WebDavSource(
      */
     fun connect(url: String, username: String, password: String, rootPath: String): Result<Unit> =
         runCatching {
+            require(cacheRootProvider.cacheRoot() != null) { "当前平台不支持 WebDAV 数据源" }
             val current = activeConfig
             val normalizedUrl = normalizeServerUrl(url)
             val normalizedRoot = normalizeDirectoryPath(rootPath)
@@ -173,6 +191,7 @@ class WebDavSource(
 
                 client?.close()
                 val activeClient = clientFactory.create(activeConfig).also { client = it }
+                ensureProxy()
                 val audios = scanLibrary(activeClient, taskId)
 
                 if (stateStore.succeed(taskId, audios) != null) {
@@ -317,6 +336,56 @@ class WebDavSource(
         Result.failure(throwable)
     }
 
-    // 播放内容在后续阶段统一改走本机回环代理；在此之前不向播放器暴露任何直链。
-    override suspend fun getMedia(song: LAudio): MediaData? = null
+    // 播放统一走本机回环代理：播放器拿到的地址里没有凭据，字节顺便沉淀成本地缓存。
+    override suspend fun getMedia(song: LAudio): MediaData? {
+        val path = song.extra?.get(EXTRA_PATH)?.takeIf(String::isNotBlank) ?: return null
+        val activeProxy = proxy ?: return null
+        val key = cacheKeyOf(song.id)
+        val url = activeProxy.audioUrl(key) ?: return null
+
+        // 先登记再返回地址：代理收到请求时的 resolve 必须能查到它
+        targetMutex.withLock {
+            streamTargets[key] = WebDavStreamTarget(
+                path = path,
+                totalSize = song.extra?.get(EXTRA_FILE_SIZE)?.toLongOrNull() ?: 0L,
+                contentType = song.extra?.get(EXTRA_CONTENT_TYPE),
+            )
+        }
+        return MediaData.Url(url)
+    }
+
+    /** 启动回环代理；失败时抛出，让本次扫描以明确原因失败，而不是静默变成"不可播"。 */
+    private suspend fun ensureProxy(): WebDavProxy {
+        proxy?.let { return it }
+        return proxyMutex.withLock {
+            proxy?.let { return@withLock it }
+            val cacheRoot = cacheRootProvider.cacheRoot()
+                ?: throw WebDavException.Unexpected("当前平台不支持 WebDAV 数据源")
+            val created = WebDavProxy(
+                cache = WebDavCache(cacheRoot),
+                backend = ProxyBackend(),
+            )
+            created.start()
+            proxy = created
+            created
+        }
+    }
+
+    private fun cacheKeyOf(audioId: String): String = audioId.md5()
+
+    /** 传给代理的回调实现：只在数据源内部使用，因此不暴露成公开接口实现。 */
+    private inner class ProxyBackend : WebDavProxyBackend {
+        override suspend fun resolve(key: String): WebDavStreamTarget? =
+            targetMutex.withLock { streamTargets[key] }
+
+        override suspend fun fetch(
+            target: WebDavStreamTarget,
+            start: Long,
+            endInclusive: Long?,
+            onChunk: suspend (ByteArray) -> Unit,
+        ) {
+            val activeClient = client ?: throw WebDavException.Unexpected("数据源已断开")
+            activeClient.fetchRange(target.path, start, endInclusive, onChunk)
+        }
+    }
 }

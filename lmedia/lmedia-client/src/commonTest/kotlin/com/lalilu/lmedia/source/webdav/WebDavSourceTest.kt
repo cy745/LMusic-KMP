@@ -4,6 +4,8 @@ import com.lalilu.common.kv.testing.InMemoryKVSaver
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.domain.model.albumName
 import com.lalilu.lmedia.domain.model.artistName
+import com.lalilu.lmedia.domain.source.MediaContentAvailability
+import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import kotlinx.coroutines.CompletableDeferred
@@ -53,8 +55,12 @@ class WebDavSourceTest {
         stopKoin()
     }
 
-    private fun newSource(client: WebDavClient): WebDavSource = WebDavSource(
+    private fun newSource(
+        client: WebDavClient,
+        cacheRoot: String? = "build/test-webdav-cache",
+    ): WebDavSource = WebDavSource(
         clientFactory = { client },
+        cacheRootProvider = { cacheRoot },
         kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
     )
 
@@ -164,6 +170,13 @@ class WebDavSourceTest {
             }
 
             override suspend fun download(path: String): ByteArray? = null
+            override suspend fun fetchRange(
+                path: String,
+                start: Long,
+                endInclusive: Long?,
+                onChunk: suspend (ByteArray) -> Unit,
+            ): Long? = null
+
             override suspend fun put(path: String, bytes: ByteArray, contentType: String) = Unit
             override fun close() = Unit
         }
@@ -183,14 +196,36 @@ class WebDavSourceTest {
     }
 
     @Test
-    fun `refuses to play before the local proxy is wired`() = runTest {
+    fun `plays through the loopback proxy without exposing credentials`() = runTest {
         val source = newSource(FakeWebDavClient(files))
         source.connect("http://dav.local:8080", "lmusic", "pw", "/Music").getOrThrow()
         val audio = assertNotNull(awaitSnapshot(source)).audios.first()
 
-        // 阶段 2 接入回环代理前，不允许把带凭据的直链交给播放器
-        assertNull(source.getMedia(audio))
+        val media = assertNotNull(source.getMedia(audio), "代理启动后应能给出播放地址")
+        val url = (media as MediaData.Url).url
+        assertTrue(url.startsWith("http://127.0.0.1:"), "播放地址必须是本机回环：$url")
+        assertTrue(url.contains("/audio/"), "播放地址必须走代理路由：$url")
+        assertFalse(url.contains("pw"), "凭据不能出现在播放地址里：$url")
+        assertFalse(url.contains("dav.local"), "播放地址不能直接指向远端：$url")
+
         source.deactivate()
+    }
+
+    @Test
+    fun `refuses to connect on a platform without a cache directory`() = runTest {
+        val source = newSource(FakeWebDavClient(files), cacheRoot = null)
+
+        val failure = source.connect("http://dav.local:8080", "lmusic", "pw", "/Music")
+
+        assertTrue(failure.isFailure)
+        assertEquals("当前平台不支持 WebDAV 数据源", failure.exceptionOrNull()?.message)
+
+        source.init()
+        val content = source.contentState.value
+        assertTrue(
+            content.availability is MediaContentAvailability.Unavailable,
+            "平台不支持时内容状态必须是不可用，实际 $content",
+        )
     }
 
     @Test
@@ -225,6 +260,7 @@ private class FakeWebDavClient(
 ) : WebDavClient {
     private val tree = treeOf(files)
     val propfindCalls = mutableListOf<String>()
+    val fetchedRanges = mutableListOf<Pair<Long, Long?>>()
 
     override suspend fun propfind(path: String, depth: Int): List<WebDavEntry> {
         propfindCalls += path
@@ -235,6 +271,17 @@ private class FakeWebDavClient(
     }
 
     override suspend fun download(path: String): ByteArray? = null
+
+    override suspend fun fetchRange(
+        path: String,
+        start: Long,
+        endInclusive: Long?,
+        onChunk: suspend (ByteArray) -> Unit,
+    ): Long? {
+        fetchedRanges += start to endInclusive
+        return null
+    }
+
     override suspend fun put(path: String, bytes: ByteArray, contentType: String) = Unit
     override fun close() = Unit
 

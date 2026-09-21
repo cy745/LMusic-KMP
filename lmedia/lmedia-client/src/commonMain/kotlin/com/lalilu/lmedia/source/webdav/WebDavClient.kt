@@ -5,12 +5,16 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.basicAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.put
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
+import io.ktor.utils.io.readBuffer
+import kotlinx.io.readByteArray
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -29,6 +33,17 @@ interface WebDavClient {
 
     /** 读取小文件（元数据 json、封面）；不存在时返回 null。 */
     suspend fun download(path: String): ByteArray?
+
+    /**
+     * 流式拉取 `[start, endInclusive]`（闭区间；[endInclusive] 为 null 表示拉到文件末尾），
+     * 按到达顺序回调 [onChunk]。返回本次响应的总长度（可从 `Content-Range` / `Content-Length` 推断时）。
+     */
+    suspend fun fetchRange(
+        path: String,
+        start: Long,
+        endInclusive: Long?,
+        onChunk: suspend (ByteArray) -> Unit,
+    ): Long?
 
     /** 写入小文件；目标目录不存在时由调用方保证。 */
     suspend fun put(path: String, bytes: ByteArray, contentType: String)
@@ -97,6 +112,31 @@ class HttpWebDavClient(
         if (response.status == HttpStatusCode.NotFound) return null
         ensureSuccess(response)
         return response.readRawBytes()
+    }
+
+    override suspend fun fetchRange(
+        path: String,
+        start: Long,
+        endInclusive: Long?,
+        onChunk: suspend (ByteArray) -> Unit,
+    ): Long? {
+        val rangeHeader = "bytes=$start-" + (endInclusive?.toString().orEmpty())
+        var totalSize: Long? = null
+        client.prepareGet(urlOf(path)) {
+            if (hasCredentials()) basicAuth(config.username, config.password)
+            header(HttpHeaders.Range, rangeHeader)
+        }.execute { response ->
+            ensureSuccess(response)
+            totalSize = WebDavRange.totalSizeFromContentRange(response.headers[HttpHeaders.ContentRange])
+                ?: response.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+            val channel = response.bodyAsChannel()
+            while (true) {
+                val buffer = channel.readBuffer(WebDavCache.CHUNK_SIZE)
+                if (buffer.size == 0L) break
+                onChunk(buffer.readByteArray())
+            }
+        }
+        return totalSize
     }
 
     override suspend fun put(path: String, bytes: ByteArray, contentType: String) {
