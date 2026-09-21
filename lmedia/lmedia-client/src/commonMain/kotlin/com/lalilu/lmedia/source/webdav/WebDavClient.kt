@@ -48,6 +48,13 @@ interface WebDavClient {
     /** 写入小文件；目标目录不存在时由调用方保证。 */
     suspend fun put(path: String, bytes: ByteArray, contentType: String)
 
+    /**
+     * 创建集合（目录）。返回 true 表示目录可用——**已存在也算可用**。
+     *
+     * 只读挂载或没有写权限时抛 [WebDavException.Forbidden]，由调用方转成"同步不可用"的提示。
+     */
+    suspend fun mkcol(path: String): Boolean
+
     fun close()
 }
 
@@ -147,10 +154,26 @@ class HttpWebDavClient(
         ensureSuccess(response)
     }
 
+    override suspend fun mkcol(path: String): Boolean {
+        val response = client.request(urlOf(path)) {
+            method = HttpMethod("MKCOL")
+            if (hasCredentials()) basicAuth(config.username, config.password)
+        }
+        return when (response.status.value) {
+            200, 201 -> true
+            // RFC 4918：MKCOL 收到 405 表示资源已存在。但"服务器不支持 MKCOL"同样是 405，
+            // 两种情况必须区分，否则会把"不支持"误判成"已建好"，后面每个 PUT 都失败。
+            405 -> runCatching { propfind(path, depth = 0) }.isSuccess
+            else -> {
+                ensureSuccess(response)
+                true
+            }
+        }
+    }
+
     override fun close() {
         client.close()
     }
-
     /** 拼接请求地址；路径按 URL path 规则编码（保留分隔符，转义空格与中文）。 */
     private fun urlOf(path: String): String {
         val normalized = if (path.startsWith('/')) path else "/$path"

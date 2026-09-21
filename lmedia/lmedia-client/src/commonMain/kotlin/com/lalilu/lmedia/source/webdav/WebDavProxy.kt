@@ -93,6 +93,41 @@ internal class WebDavProxy(
     /** 播放地址；代理未启动时返回 null（调用方必须据此拒绝播放，不能回退到直链）。 */
     fun audioUrl(key: String): String? = baseUrl?.let { "$it$ROUTE_PREFIX$key" }
 
+    /**
+     * 主动把缓存补到 [upTo]（含）——用于"允许后台主动下载"时补全尚未播放过的歌曲。
+     *
+     * 与播放请求共用同一把 key 锁，因此不会与正在进行的播放交错；不向任何客户端发送数据。
+     * 返回补齐后的已缓存长度。
+     */
+    internal suspend fun ensureCached(
+        key: String,
+        target: WebDavStreamTarget,
+        upTo: Long,
+    ): Long = lockFor(key).withLock {
+        val last = if (target.totalSize > 0L) {
+            minOf(upTo, target.totalSize - 1)
+        } else {
+            upTo
+        }.takeIf { it >= 0L } ?: return@withLock cache.filledSize(key)
+
+        val cached = cache.filledSize(key)
+        if (cached > last) return@withLock cached
+
+        val sink = cache.openAppendSink(key)
+        try {
+            backend.fetch(
+                target = target,
+                start = cached,
+                endInclusive = if (target.totalSize > 0L) last else null,
+            ) { bytes -> sink.write(bytes) }
+            sink.flush()
+        } finally {
+            sink.close()
+        }
+        onCacheProgress(key)
+        cache.filledSize(key)
+    }
+
     private fun Application.proxyModule() {
         routing {
             get("/audio/{key}") { call.serveAudio(head = false) }

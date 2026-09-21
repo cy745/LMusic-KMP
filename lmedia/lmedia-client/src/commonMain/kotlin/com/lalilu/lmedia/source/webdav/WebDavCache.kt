@@ -44,9 +44,11 @@ internal class WebDavCache(cacheRoot: String) {
         return source
     }
 
-    /** 以追加方式打开写入端，调用方负责 flush 与 close。 */
-    fun openAppendSink(key: String): Sink =
-        SystemFileSystem.sink(audioPath(key), append = true).buffered()
+    /** 以追加方式打开写入端，调用方负责 flush 与 close。目录不存在时自动创建。 */
+    fun openAppendSink(key: String): Sink {
+        ensureReady()
+        return SystemFileSystem.sink(audioPath(key), append = true).buffered()
+    }
 
     fun appendBytes(key: String, bytes: ByteArray) {
         openAppendSink(key).use { sink -> sink.write(bytes) }
@@ -57,6 +59,14 @@ internal class WebDavCache(cacheRoot: String) {
         if (length <= 0) return ByteArray(0)
         val source = openSource(key, start) ?: return null
         return source.use { it.readByteArray(length) }
+    }
+
+    /** 交给标签解析使用的本地路径；文件不存在或为空时返回 null。 */
+    fun localPath(key: String): String? {
+        val path = audioPath(key)
+        if (!SystemFileSystem.exists(path)) return null
+        if ((SystemFileSystem.metadataOrNull(path)?.size ?: 0L) <= 0L) return null
+        return path.toString()
     }
 
     fun delete(key: String) {

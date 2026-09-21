@@ -11,7 +11,19 @@ data class WebDavEntry(
     val etag: String? = null,
     val lastModified: String? = null,
     val contentType: String? = null,
-)
+) {
+    val fileName: String get() = path.substringAfterLast('/')
+
+    /** 不含扩展名的文件名，用于匹配同名歌词。 */
+    val baseName: String get() = fileName.substringBeforeLast('.', fileName)
+
+    /**
+     * 内容指纹：服务器给出 etag 时用它，否则退到修改时间。
+     *
+     * 用于边车文件（封面/歌词）的本地缓存失效——远端换了图就得重新拉取。
+     */
+    val fingerprint: String get() = etag ?: lastModified ?: contentLength.toString()
+}
 
 /** 从路径派生的可读元数据；播放顺路提取到真 tag 后会被覆盖。 */
 data class WebDavNaming(
@@ -32,8 +44,48 @@ internal object WebDavNamingRules {
     /** 形如 `01 `、`1.`、`003-` 的曲目号前缀。 */
     private val TRACK_PREFIX = Regex("^(\\d{1,4})[\\s._-]+")
 
+    /** 可以直接当封面用的图片扩展名（小写比较）。 */
+    private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
+
+    /**
+     * 约定俗成的封面文件名（不含扩展名，小写比较）。
+     *
+     * 只有这些名字才允许"目录里有多张图"时挑一张；否则目录里唯一的一张图才会被当成封面，
+     * 避免把歌手照/内页图误当专辑封面。
+     */
+    private val COVER_BASE_NAMES = setOf(
+        "cover", "folder", "albumart", "album", "front", "artwork", "thumb", "thumbnail",
+    )
+
+    private const val LYRIC_EXTENSION = "lrc"
+
     fun isAudioFile(path: String): Boolean =
         path.substringAfterLast('/').substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS
+
+    fun isImageFile(path: String): Boolean =
+        path.substringAfterLast('/').substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS
+
+    fun isLyricFile(path: String): Boolean =
+        path.substringAfterLast('/').substringAfterLast('.', "").lowercase() == LYRIC_EXTENSION
+
+    /**
+     * 从同一目录的条目里挑专辑封面：优先约定名（cover/folder/albumart…），
+     * 其次目录里唯一的那张图。**不会**在多张无名图里随便挑。
+     */
+    fun pickCover(entries: List<WebDavEntry>): WebDavEntry? {
+        val images = entries.filterNot { it.isDirectory }.filter { isImageFile(it.path) }
+        if (images.isEmpty()) return null
+        return images.firstOrNull { it.baseName.lowercase() in COVER_BASE_NAMES }
+            ?: images.singleOrNull()
+    }
+
+    /** 与音频同名的 `.lrc`（大小写不敏感）。 */
+    fun pickLyric(entries: List<WebDavEntry>, audio: WebDavEntry): WebDavEntry? {
+        val base = audio.baseName.lowercase()
+        return entries.firstOrNull {
+            !it.isDirectory && isLyricFile(it.path) && it.baseName.lowercase() == base
+        }
+    }
 
     /**
      * 从绝对路径派生歌名/歌手/专辑/曲目号。
