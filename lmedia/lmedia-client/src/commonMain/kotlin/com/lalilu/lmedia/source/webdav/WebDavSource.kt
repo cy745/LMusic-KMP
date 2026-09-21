@@ -14,6 +14,7 @@ import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
 import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSourceBufferProgress
 import com.lalilu.lmedia.domain.source.MediaSourcePatchSource
 import com.lalilu.lmedia.domain.source.MediaSourceStateStore
 import com.lalilu.lmedia.domain.source.Snapshot
@@ -38,6 +39,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -63,7 +66,7 @@ class WebDavSource(
     private val json: Json,
     kv: LMediaKV,
     private val networkObservation: NetworkObservation,
-) : MediaSource, MediaDataSource, MediaSourcePatchSource, CoroutineScope {
+) : MediaSource, MediaDataSource, MediaSourcePatchSource, MediaSourceBufferProgress, CoroutineScope {
 
     companion object {
         private const val TAG = "WebDavSource"
@@ -110,6 +113,8 @@ class WebDavSource(
     override val audioPatches: Flow<LAudio> = patchFlow.asSharedFlow()
 
     private val mutableProgress = MutableStateFlow(WebDavExtractionState())
+
+    private val mutableBufferSnapshot = MutableStateFlow<WebDavBufferSnapshot?>(null)
 
     /** 提取进度，供源卡片展示。 */
     val extractionProgress: StateFlow<WebDavExtractionState> = mutableProgress
@@ -613,8 +618,37 @@ class WebDavSource(
     // 播放统一走本机回环代理：播放器拿到的地址里没有凭据，字节顺便沉淀成本地缓存。
     override suspend fun getMedia(song: LAudio): MediaData? {
         val activeProxy = proxy ?: return null
-        val url = activeProxy.audioUrl(cacheKeyOf(song.id)) ?: return null
+        val key = cacheKeyOf(song.id)
+        val url = activeProxy.audioUrl(key) ?: return null
+        // 开播即开始上报缓冲进度：先记下总长度，之后由缓存增长回调刷新已缓冲字节
+        targetOf(song)?.let { target ->
+            mutableBufferSnapshot.value = WebDavBufferSnapshot(
+                key = key,
+                filled = cache?.filledSize(key) ?: 0L,
+                total = target.totalSize,
+            )
+        }
         return MediaData.Url(url)
+    }
+
+    /**
+     * 当前播放项的缓冲进度：缓存覆盖率（已缓存字节 / 远端声明的总长）。
+     *
+     * 用覆盖率而不是播放器的内部缓冲：经代理播放时字节是本数据源在下载的，覆盖率才是
+     * "还有多久能听"的准确信号。远端没报总长度时发 null，由 UI 按"未知"处理。
+     */
+    override fun bufferProgress(audioId: String): Flow<Float?> {
+        val key = cacheKeyOf(audioId)
+        return mutableBufferSnapshot
+            .filter { it?.key == key }
+            .map { snapshot -> snapshot?.fraction }
+    }
+
+    /** 缓存增长后刷新"正在播的那首"的已缓冲字节；其它歌的下载不影响当前进度显示。 */
+    private fun publishBufferProgress(key: String) {
+        val current = mutableBufferSnapshot.value ?: return
+        if (current.key != key) return
+        mutableBufferSnapshot.value = current.copy(filled = cache?.filledSize(key) ?: current.filled)
     }
 
     /**
@@ -698,7 +732,10 @@ class WebDavSource(
             val created = WebDavProxy(
                 cache = cache,
                 backend = ProxyBackend(),
-                onCacheProgress = { key -> extractor?.request(key) },
+                onCacheProgress = { key ->
+                    extractor?.request(key)
+                    publishBufferProgress(key)
+                },
                 // 每次需要时读配置：改配额立即生效，不用重建代理
                 quotaBytes = { activeConfig.cacheQuotaBytes },
             )

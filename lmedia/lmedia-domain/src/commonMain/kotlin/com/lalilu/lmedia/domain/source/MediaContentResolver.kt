@@ -3,6 +3,8 @@ package com.lalilu.lmedia.domain.source
 import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /** The source is ready, but this particular song cannot be resolved. */
 class AudioMediaMissingException : IllegalStateException("Audio media is missing")
@@ -67,4 +69,15 @@ suspend fun PlatformMediaSource.resolveLyricData(
     source.awaitContentReadyOrThrow()
     if (!isEnabled(source)) return null
     return source.dataSource.getLyric(audio)
+}
+
+/**
+ * 当前歌曲的缓冲进度（0f..1f）；源不支持上报或无法判断时发 null。
+ *
+ * 只做分发，不做等待：进度条要的是"现在缓冲到哪了"，为此卡在数据源就绪判断上没有意义。
+ */
+fun PlatformMediaSource.observeBufferProgress(audio: LAudio): Flow<Float?> {
+    val source = findSource(audio.mediaSourceName) ?: return flowOf(null)
+    val progressSource = source.dataSource as? MediaSourceBufferProgress ?: return flowOf(null)
+    return progressSource.bufferProgress(audio.id)
 }

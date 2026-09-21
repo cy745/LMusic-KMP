@@ -244,6 +244,35 @@ class WebDavLiveServerTest {
     }
 
     /**
+     * 缓冲进度上报：开播记 0，整首下完后到 1——进度条次级层要的就是这条数据。
+     *
+     * 信号取自**代理自己的缓存覆盖率**，不是播放器内部缓冲（渐进式 HTTP 下后者常为 0）。
+     */
+    @Test
+    fun `reports buffer progress while the track is being fetched`() = runTest {
+        assumeTrue("未配置 LMUSIC_WEBDAV_URL，跳过真实服务用例", url != null)
+        val source = newSource(cacheRoot = freshCacheRoot())
+        source.connect(url!!, username, password, root).getOrThrow()
+        val audio = assertNotNull(awaitSnapshot(source)).audios.first { it.title == "Friend" }
+
+        val media = assertNotNull(source.getMedia(audio), "代理未就绪")
+        val proxyUrl = (media as MediaData.Url).url
+
+        // 开播时缓存是空的：第一帧应当是 0
+        assertEquals(0f, source.bufferProgress(audio.id).first(), "开播时应为 0")
+
+        val whole = httpGet(proxyUrl, range = null)
+        assertEquals(200, whole.status)
+
+        val full = withTimeout(EXTRACTION_TIMEOUT_MILLIS) {
+            source.bufferProgress(audio.id).first { it == 1f }
+        }
+        assertEquals(1f, full, "整首下完后缓冲比例应为 1")
+
+        source.deactivate()
+    }
+
+    /**
      * 头部窗口阈值的实测基准：**只取每首歌开头 1 MB**，标签与内嵌封面都必须能读出来。
      *
      * 这是"固定 1 MB 窗口够不够"这件事的硬证据——阈值调小、或素材换成"元数据在文件尾部"的容器
