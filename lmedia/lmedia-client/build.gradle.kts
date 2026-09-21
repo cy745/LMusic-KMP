@@ -65,6 +65,8 @@ kotlin {
                 implementation("androidx.test.ext:junit:1.2.1")
                 // 断言用 kotlin.test（与其它源集一致；参数顺序是 value 在前）
                 implementation(libs.kotlin.test)
+                // 真实播放链路：用真实 Media3/ExoPlayer 播代理地址并 seek
+                implementation(libs.media3.exoplayer)
             }
         }
     }

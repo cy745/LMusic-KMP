@@ -1,5 +1,8 @@
 package com.lalilu.lmedia.source.webdav
 
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.platform.app.InstrumentationRegistry
 import com.lalilu.common.kv.testing.InMemoryKVSaver
 import com.lalilu.lmedia.LMediaKV
@@ -9,6 +12,7 @@ import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.net.NetworkType
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URI
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +50,7 @@ import kotlin.test.assertTrue
  *
  * 未配置 `LMUSIC_WEBDAV_URL` 时跳过（与 JVM 侧真实服务用例同一套守卫）。
  */
+@OptIn(UnstableApi::class)
 class WebDavSourceDeviceTest {
 
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -74,14 +79,24 @@ class WebDavSourceDeviceTest {
         stopKoin()
     }
 
-    private fun newSource(): WebDavSource =
-        WebDavSource(
+    /**
+     * 每个用例（每次运行）一个独立的缓存目录。
+     *
+     * 设备上的 `cacheDir` 是跨运行保留的：共用目录会让上一轮的"完整提取记录"或半截缓存把
+     * 这一轮的提取悄悄跳过，用例随即超时——这类假失败排查起来非常费劲。
+     */
+    private fun newSource(): WebDavSource {
+        val cacheRoot = File(context.cacheDir, "webdav-${System.nanoTime()}")
+            .apply { mkdirs() }
+            .absolutePath
+        return WebDavSource(
             clientFactory = { HttpWebDavClientFactory().create(it) },
-            cacheRootProvider = { context.cacheDir.absolutePath },
+            cacheRootProvider = { cacheRoot },
             json = Json { ignoreUnknownKeys = true },
             kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
             networkObservation = { flowOf(NetworkType.WIFI) },
         )
+    }
 
     @Test
     fun scans_plays_through_the_loopback_proxy_and_extracts_real_tags() = runBlocking {
@@ -139,6 +154,82 @@ class WebDavSourceDeviceTest {
         assertContentEquals(whole.body.copyOfRange(1000, 2001), middle.body)
 
         source.deactivate()
+    }
+
+    /**
+     * 真实播放链路：把数据源给出的回环代理地址交给 Media3/ExoPlayer 播放，并拖动进度。
+     *
+     * 上一个用例保证 HTTP 层的字节一致；这条回答"能不能听"——播放器真的在解码代理喂给它的
+     * 字节，且 seek 触发的 Range 请求也被正确处理。
+     */
+    @Test
+    fun plays_the_loopback_proxy_url_through_media3_and_seeks() = runBlocking {
+        val reachable = reachable()
+        assumeTrue("WebDAV 服务不可达（$reachError），跳过设备用例", reachable)
+        val source = newSource()
+        source.connect(url!!, username, password, root).getOrThrow()
+        val friend = assertNotNull(awaitSnapshot(source)).audios.single { it.title == "Friend" }
+        val proxyUrl = (assertNotNull(source.getMedia(friend)) as MediaData.Url).url
+
+        lateinit var player: ExoPlayer
+        onMain {
+            player = ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(proxyUrl))
+                prepare()
+                play()
+            }
+        }
+
+        try {
+            val started = awaitPosition(player) { it > 0L }
+            assertTrue(started > 0L, "播放器应开始播放代理地址：position=$started")
+
+            // 向前拖动：会触发 Range 请求，代理需要补齐中间缺口
+            val target = 15_000L
+            onMain { player.seekTo(target) }
+            val seeked = awaitPosition(player) { it >= target - 1_000L }
+            assertTrue(
+                seeked >= target - 1_000L,
+                "拖动到 ${target}ms 后播放位置应跟进：position=$seeked",
+            )
+        } finally {
+            onMain { player.release() }
+            source.deactivate()
+        }
+    }
+
+    private fun onMain(block: () -> Unit) {
+        var failure: Throwable? = null
+        instrumentation.runOnMainSync {
+            try {
+                block()
+            } catch (error: Throwable) {
+                failure = error
+            }
+        }
+        failure?.let { throw it }
+    }
+
+    private fun currentPosition(player: ExoPlayer): Long {
+        var position = -1L
+        onMain { position = player.currentPosition }
+        return position
+    }
+
+    /** 轮询播放位置；超时返回最后一次读数，由调用方断言。 */
+    private suspend fun awaitPosition(
+        player: ExoPlayer,
+        timeoutMillis: Long = 20_000,
+        predicate: (Long) -> Boolean,
+    ): Long {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        var position = currentPosition(player)
+        while (System.currentTimeMillis() < deadline) {
+            if (predicate(position)) return position
+            kotlinx.coroutines.delay(200)
+            position = currentPosition(player)
+        }
+        return position
     }
 
     /** 服务不可达时跳过，而不是让用例以一个看不懂的异常失败。 */
