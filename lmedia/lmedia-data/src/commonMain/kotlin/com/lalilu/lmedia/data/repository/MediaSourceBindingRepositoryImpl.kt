@@ -8,6 +8,7 @@ import com.lalilu.lmedia.domain.repository.MediaLibrarySummary
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.repository.SnapshotCommitState
 import com.lalilu.lmedia.domain.repository.SourceStatus
+import com.lalilu.lmedia.domain.source.MediaSourcePatchSource
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.SnapshotState
 import kotlinx.coroutines.CoroutineScope
@@ -125,6 +126,34 @@ class MediaSourceBindingRepositoryImpl(
                         committer.submit(snapshot)
                     }
                     .launchIn(scope)
+
+                // 单曲增量通道：与快照提交共用源级锁，逐条入库而不用重建整个媒体库。
+                // 失败不写 commitState（那是完整快照的语义），只让"这条路坏了"可见。
+                if (source is MediaSourcePatchSource) {
+                    source.audioPatches
+                        .onEach { audio ->
+                            if (!platformSource.isEnabled(source)) return@onEach
+                            committer.submitPatch {
+                                database.mediaDao().upsertAudio(audio)
+                            }.onSuccess {
+                                updateStatus(source.name) { status ->
+                                    if (status.patchFailures == 0 && status.lastPatchError == null) {
+                                        status
+                                    } else {
+                                        status.copy(patchFailures = 0, lastPatchError = null)
+                                    }
+                                }
+                            }.onFailure { throwable ->
+                                updateStatus(source.name) { status ->
+                                    status.copy(
+                                        patchFailures = status.patchFailures + 1,
+                                        lastPatchError = throwable.message ?: "单曲入库失败",
+                                    )
+                                }
+                            }
+                        }
+                        .launchIn(scope)
+                }
 
                 try {
                     if (enabled) {

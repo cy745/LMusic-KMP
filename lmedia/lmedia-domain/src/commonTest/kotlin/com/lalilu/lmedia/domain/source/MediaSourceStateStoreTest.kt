@@ -168,5 +168,66 @@ class MediaSourceStateStoreTest {
         assertEquals(2L, store.tryBegin())
     }
 
+    @Test
+    fun publishUpdateAdvancesRevisionWithoutChangingScanState() = runTest {
+        val store = MediaSourceStateStore()
+        store.succeed(store.begin(), listOf(audio("one")))
+
+        val updated = store.publishUpdate { current ->
+            current.map { it.copy(title = "enriched") }
+        }
+
+        assertEquals(2L, updated?.revision, "发布更新必须推进 revision，否则数据库不会收到")
+        assertEquals(listOf("enriched"), updated?.audios?.map { it.title })
+        assertIs<SnapshotState.Success>(store.state.value, "补全元数据不应把状态刷成「同步中」")
+    }
+
+    @Test
+    fun publishUpdateIsIgnoredBeforeTheFirstSuccessfulSnapshot() = runTest {
+        val store = MediaSourceStateStore()
+        store.begin() // 扫描进行中，但还没有任何成功结果
+
+        val published = store.publishUpdate { listOf(audio("late")) }
+
+        assertNull(published, "首个成功快照之前不得发布，否则数据库会把该来源的歌曲全部标记为不可用")
+        assertNull(store.snapshot.value)
+        assertIs<SnapshotState.Loading>(store.state.value)
+    }
+
+    @Test
+    fun publishUpdateAppliesTransformUnderTheSameLockAsSucceed() = runTest {
+        val store = MediaSourceStateStore()
+        store.succeed(store.begin(), listOf(audio("one")))
+        val scanTask = store.begin() // 新扫描进行中
+
+        val published = store.publishUpdate { current -> current + audio("one-enriched") }
+
+        assertEquals(listOf("one", "one-enriched"), published?.audios?.map(LAudio::id))
+        assertIs<SnapshotState.Loading>(store.state.value, "扫描状态不受补丁影响")
+
+        // 扫描自己的结果仍然拥有最终解释权：它必须包含补丁，否则会把补全结果覆盖掉
+        val finalSnapshot = store.succeed(scanTask, listOf(audio("one"), audio("two")))
+        assertEquals(listOf("one", "two"), finalSnapshot?.audios?.map(LAudio::id))
+        assertEquals(3L, finalSnapshot?.revision)
+    }
+
+    @Test
+    fun publishUpdateKeepsTheFirstOccurrenceOfADuplicateIdLikeSucceed() = runTest {
+        val store = MediaSourceStateStore()
+        store.succeed(store.begin(), listOf(audio("one").copy(title = "original")))
+
+        // 追加同 id 的新值：按 succeed 的既有语义（distinctBy 保留先出现者）不会被采纳。
+        // 需要替换时，transform 必须按 id 就地替换——这条断言把该约束钉住，避免以后误用。
+        val appended = store.publishUpdate { current -> current + audio("one").copy(title = "appended") }
+        assertEquals(1, appended?.audios?.size)
+        assertEquals("original", appended?.audios?.single()?.title)
+
+        val replaced = store.publishUpdate { current ->
+            current.map { if (it.id == "one") it.copy(title = "replaced") else it }
+        }
+        assertEquals(1, replaced?.audios?.size)
+        assertEquals("replaced", replaced?.audios?.single()?.title)
+    }
+
     private fun audio(id: String) = LAudio(id = id, mediaSourceName = "test")
 }

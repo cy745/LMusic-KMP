@@ -35,6 +35,12 @@
 > 之所以放在 `commonMain`：上述实现都无平台 / Compose 依赖，
 > 放在 main 源码集既能被多模块复用，又能避免 KMP testFixtures 的样板。
 
+各模块 `commonTest` 自带的依赖（新增依赖时同步更新本表）：
+
+| 模块 | commonTest 依赖 |
+|---|---|
+| `lmedia:lmedia-client` | `kotlin.test`、`kotlinx-coroutines-test`（`runTest`）、`ktor-client-mock`（HTTP 层用例） |
+
 ---
 
 ## 3. 约定
@@ -158,6 +164,26 @@ export LMUSIC_NATIVE_AUDIO_FIXTURE="$PWD/build/native-fixtures/native-audio.mp3"
 
 未设置时这些用例计为 `skipped` 而非失败。注意：设置后 `jvmTest` 不再命中 up-to-date 缓存，会真实重跑。
 
+⚠️ **Gradle daemon 不继承新设的环境变量**：Test 任务取的是 daemon 的环境，所以设完
+`LMUSIC_*` 之后要先 `./gradlew --stop`，否则用例会静默全部跳过（看测试 XML 里的
+`tests=N skipped=N` 才是真相，控制台的 `BUILD SUCCESSFUL` 什么也证明不了）。
+
+### 5.2.1 WebDAV 真实服务用例（`lmedia:lmedia-client`）
+
+`WebDavLiveServerTest`（`src/jvmTest`）对着真实 WebDAV 服务跑全链路，由环境变量守卫：
+
+```bash
+docker run -d --name lmusic-webdav -p 8080:80 -e AUTH_TYPE=Basic \
+  -e USERNAME=lmusic -e PASSWORD=lmusic-test \
+  -v "<测试库目录>:/var/lib/dav/data" bytemark/webdav
+
+export LMUSIC_WEBDAV_URL=http://127.0.0.1:8080
+export LMUSIC_WEBDAV_USERNAME=lmusic
+export LMUSIC_WEBDAV_PASSWORD=lmusic-test
+export LMUSIC_WEBDAV_ROOT=/
+./gradlew --stop && ./gradlew :lmedia:lmedia-client:jvmTest
+```
+
 ### 5.3 设备测试（Android instrumented）
 
 `lplayer` 有一组跑在真实 Media3 上的用例，位于 `lplayer/src/androidDeviceTest/`：
@@ -185,6 +211,22 @@ adb shell am instrument -w -e class com.lalilu.lplayer.extensions.QueueControlPl
 ```
 
 这些用例是**自 instrumenting** 的：manifest 里 `targetPackage` 指向测试包自身，因此不需要先装 App。
+
+`lmedia-client` 也有一组设备用例（`lmedia/src/androidDeviceTest/`，包名
+`com.lalilu.lmedia.client.test`），跑的是 WebDAV 全链路：扫描 → 回环代理播放 → taglib JNI 提取。
+它需要**宿主上起一个 WebDAV 服务**，并且模拟器能通过 `10.0.2.2` 访问宿主：
+
+```bash
+./gradlew :lmedia:lmedia-client:assembleAndroidDeviceTest
+adb install -r lmedia/lmedia-client/build/outputs/apk/androidTest/lmedia-client-androidTest.apk
+adb shell am instrument -w -e class com.lalilu.lmedia.source.webdav.WebDavSourceDeviceTest \
+  com.lalilu.lmedia.client.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+⚠️ 测试 APK 是**独立安装**的，必须自带 `usesCleartextTraffic="true"`
+（`src/androidDeviceTest/AndroidManifest.xml`）——应用清单里的那份管不到它，否则扫描会以
+`CLEARTEXT communication ... not permitted by network security policy` 失败。
+服务不可达时用例会跳过，跳过原因（host:port + 异常）会带在 `assumption failed` 日志里。
 
 ---
 

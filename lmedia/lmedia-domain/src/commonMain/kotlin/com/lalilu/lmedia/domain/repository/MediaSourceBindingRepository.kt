@@ -42,6 +42,13 @@ data class SourceStatus(
     val commitState: SnapshotCommitState = SnapshotCommitState.Idle,
     /** Reading readiness is separate from scanning/database availability. */
     val contentAvailability: MediaContentAvailability = MediaContentAvailability.Uninitialized,
+    /**
+     * 单曲增量补丁连续失败的次数，成功一次即清零。
+     *
+     * 补丁失败不进入 [commitState]——那是完整快照的语义；这里只用来让"逐条入库这条路坏了"可见。
+     */
+    val patchFailures: Int = 0,
+    val lastPatchError: String? = null,
 )
 
 val SourceStatus.canReadContent: Boolean

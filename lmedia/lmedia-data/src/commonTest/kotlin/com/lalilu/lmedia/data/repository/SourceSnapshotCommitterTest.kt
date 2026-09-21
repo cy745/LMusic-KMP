@@ -156,4 +156,83 @@ class SourceSnapshotCommitterTest {
             )
         )
     }
+
+    @Test
+    fun patchWaitsForTheRunningFullCommit() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val order = mutableListOf<String>()
+        val committer = SourceSnapshotCommitter(
+            commit = {
+                order += "snapshot-start"
+                gate.await()
+                order += "snapshot-end"
+            },
+            onStateChanged = {},
+        )
+
+        val submitJob = launch { committer.submit(Snapshot(revision = 1)) }
+        runCurrent()
+        val patchJob = launch { committer.submitPatch { order += "patch" } }
+        runCurrent()
+
+        assertEquals(listOf("snapshot-start"), order, "补丁必须等全量提交结束，不能交错")
+
+        gate.complete(Unit)
+        submitJob.join()
+        patchJob.join()
+
+        assertEquals(listOf("snapshot-start", "snapshot-end", "patch"), order)
+    }
+
+    @Test
+    fun patchFailureIsReportedWithoutTouchingCommitState() = runTest {
+        val states = mutableListOf<SnapshotCommitState>()
+        val committer = SourceSnapshotCommitter(commit = {}, onStateChanged = states::add)
+
+        val result = committer.submitPatch { error("database busy") }
+
+        assertTrue(result.isFailure)
+        assertEquals("database busy", result.exceptionOrNull()?.message)
+        assertTrue(states.isEmpty(), "补丁失败不应写入完整快照的提交状态")
+    }
+
+    @Test
+    fun patchIsRejectedWhileTheSourceIsDeactivated() = runTest {
+        val committer = SourceSnapshotCommitter(commit = {}, onStateChanged = {})
+        committer.deactivate { }
+
+        var ran = false
+        val result = committer.submitPatch { ran = true }
+
+        assertTrue(result.isFailure)
+        assertFalse(ran, "停用后补丁不得再入库")
+    }
+
+    @Test
+    fun deactivateCoversPendingPatches() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val committer = SourceSnapshotCommitter(commit = {}, onStateChanged = {})
+        val order = mutableListOf<String>()
+
+        val patchJob = launch {
+            committer.submitPatch {
+                order += "patch-start"
+                gate.await()
+                order += "patch-end"
+            }
+        }
+        runCurrent()
+        val deactivateJob = launch {
+            committer.deactivate { order += "cleanup" }
+        }
+        runCurrent()
+
+        assertEquals(listOf("patch-start"), order, "清理必须等正在执行的补丁结束")
+
+        gate.complete(Unit)
+        patchJob.join()
+        deactivateJob.join()
+
+        assertEquals(listOf("patch-start", "patch-end", "cleanup"), order)
+    }
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  设备用例要访问宿主上的 WebDAV 服务（http://10.0.2.2:8080）与数据源起的回环代理
+  （http://127.0.0.1:随机端口），两者都是明文 HTTP。
+
+  应用 APK 的清单里已经有 usesCleartextTraffic="true"，但测试 APK 是独立安装的，
+  必须自己声明一次——否则扫描会以
+  "CLEARTEXT communication ... not permitted by network security policy" 失败。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>

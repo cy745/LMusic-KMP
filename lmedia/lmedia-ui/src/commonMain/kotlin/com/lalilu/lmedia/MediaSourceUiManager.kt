@@ -7,12 +7,15 @@ import com.lalilu.lmedia.source.RemoteSource
 import com.lalilu.lmedia.source.remoteSourceContent
 import com.lalilu.lmedia.source.subsonic.SubsonicSource
 import com.lalilu.lmedia.source.subsonicSourceContent
+import com.lalilu.lmedia.source.webdav.WebDavSource
+import com.lalilu.lmedia.source.webDavSourceContent
 
 expect fun MediaSource.platformMediaSourceContent(modifier: Modifier): LazyStaggeredGridContent?
 
 fun MediaSource.content(modifier: Modifier = Modifier): LazyStaggeredGridContent? {
     return platformMediaSourceContent(modifier) ?: when (this) {
         is SubsonicSource -> subsonicSourceContent(modifier)
+        is WebDavSource -> webDavSourceContent(modifier)
         is RemoteSource -> remoteSourceContent(modifier)
         else -> null
     }
