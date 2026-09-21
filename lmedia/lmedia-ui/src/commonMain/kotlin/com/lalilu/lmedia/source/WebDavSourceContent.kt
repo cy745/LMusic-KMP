@@ -29,6 +29,7 @@ import com.lalilu.lmedia.component.SourcePipelineCard
 import com.lalilu.lmedia.component.SourceSectionHeader
 import com.lalilu.lmedia.component.SourceTextField
 import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.net.NetworkType
 import com.lalilu.lmedia.source.webdav.WebDavExtractionState
 import com.lalilu.lmedia.source.webdav.WebDavMetadataSyncState
 import com.lalilu.lmedia.source.webdav.WebDavSource
@@ -46,6 +47,8 @@ fun WebDavSource.webDavSourceContent(
     val appliedConfig by config.flow().collectAsState(initial = config.value)
     val extraction by extractionProgress.collectAsState()
     val syncState by metadataSyncState.collectAsState()
+    val networkType by networkType.collectAsState()
+    val backgroundPaused by backgroundPaused.collectAsState()
     var password by rememberSaveable { mutableStateOf("") }
     var formError by rememberSaveable { mutableStateOf<String?>(null) }
     var optionError by rememberSaveable { mutableStateOf<String?>(null) }
@@ -204,6 +207,13 @@ fun WebDavSource.webDavSourceContent(
                         state = syncState,
                         modifier = Modifier.padding(top = 8.dp),
                     )
+                    NetworkGateNotice(
+                        networkType = networkType,
+                        paused = backgroundPaused,
+                        hasBackgroundWork = appliedConfig.backgroundFetchEnabled ||
+                            appliedConfig.metaSyncEnabled,
+                        onContinue = ::allowMeteredTransfer,
+                    )
                     optionError?.let { message ->
                         Text(
                             modifier = Modifier.padding(top = 6.dp),
@@ -318,6 +328,47 @@ private fun MetadataSyncStatusLine(
             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
         },
     )
+}
+
+/**
+ * 网络门控提示：只在"开了后台任务但当前网络不允许"时出现，并给出手动继续。
+ *
+ * 暂停不丢进度：已下载的缓存前缀与已提取的元数据都保留，恢复后从断点继续，因此文案强调
+ * "已暂停"而不是"失败"。
+ */
+@Composable
+private fun NetworkGateNotice(
+    networkType: NetworkType,
+    paused: Boolean,
+    hasBackgroundWork: Boolean,
+    onContinue: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (!paused || !hasBackgroundWork) return
+
+    val reason = when (networkType) {
+        NetworkType.MOBILE -> "当前是移动网络"
+        NetworkType.OTHER -> "当前网络类型（蓝牙共享等）"
+        NetworkType.UNKNOWN -> "无法确认当前网络类型"
+        NetworkType.WIFI, NetworkType.ETHERNET -> "当前网络"
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = "$reason：后台补全与元数据同步已暂停（默认只在 Wi-Fi / 以太网下执行）。" +
+                "已下载的部分与已提取的元数据都会保留。",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+        )
+        SourceActionButton(
+            title = "在当前网络继续",
+            style = SourceActionStyle.Quiet,
+            onClick = onContinue,
+        )
+    }
 }
 
 /** 带说明文字的开关行；用于不影响连接参数的即时生效选项。 */

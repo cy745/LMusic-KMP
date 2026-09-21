@@ -18,6 +18,8 @@ import com.lalilu.lmedia.domain.source.MediaSourcePatchSource
 import com.lalilu.lmedia.domain.source.MediaSourceStateStore
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.net.NetworkObservation
+import com.lalilu.lmedia.net.NetworkType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +37,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -59,6 +62,7 @@ class WebDavSource(
     private val cacheRootProvider: WebDavCacheRootProvider,
     private val json: Json,
     kv: LMediaKV,
+    private val networkObservation: NetworkObservation,
 ) : MediaSource, MediaDataSource, MediaSourcePatchSource, CoroutineScope {
 
     companion object {
@@ -115,6 +119,19 @@ class WebDavSource(
     /** 元数据远端同步状态；只读目录、网络失败都会在这里给出可展示的原因。 */
     val metadataSyncState: StateFlow<WebDavMetadataSyncState> = mutableMetadataSync
 
+    private val mutableNetworkType = MutableStateFlow(NetworkType.UNKNOWN)
+
+    /** 当前网络类型；卡片据此说明"为什么后台任务停了"。 */
+    val networkType: StateFlow<NetworkType> = mutableNetworkType
+
+    private val mutableBackgroundPaused = MutableStateFlow(false)
+
+    /** 后台传输是否已被网络门控暂停（移动网络/未知网络且用户没有手动放行）。 */
+    val backgroundPaused: StateFlow<Boolean> = mutableBackgroundPaused
+
+    /** 用户手动放行：只对当前网络类型有效，网络一变就重新按规则判断。 */
+    private val mutableMeteredAllowed = MutableStateFlow(false)
+
     /** 仅供测试与诊断：提取结果的本地存储。 */
     internal val metadataStoreOrNull: WebDavMetadataStore? get() = metadataStore
 
@@ -122,6 +139,7 @@ class WebDavSource(
     private var loadingJob: Job? = null
     private var backgroundJob: Job? = null
     private var syncJob: Job? = null
+    private var networkJob: Job? = null
 
     private var proxy: WebDavProxy? = null
     private var cache: WebDavCache? = null
@@ -146,6 +164,7 @@ class WebDavSource(
             stateStore.content.unavailable("当前平台不支持 WebDAV 数据源")
             return
         }
+        observeNetwork()
         if (activeConfig.isConfigured) {
             scan(isInitialize = true, preserveReady = false)
         } else {
@@ -160,6 +179,10 @@ class WebDavSource(
         backgroundJob = null
         syncJob?.cancelAndJoin()
         syncJob = null
+        networkJob?.cancelAndJoin()
+        networkJob = null
+        mutableMeteredAllowed.value = false
+        mutableBackgroundPaused.value = false
         extractor?.stop()
         extractor = null
         proxy?.stop()
@@ -230,11 +253,66 @@ class WebDavSource(
     }
 
     /**
+     * 用户要求在当前网络（通常是移动网络）上继续后台任务。
+     *
+     * 只对当前网络类型有效：网络一变就重新按规则判断，避免"一次放行"变成永久关闭门控。
+     */
+    fun allowMeteredTransfer() {
+        mutableMeteredAllowed.value = true
+        applyNetworkGate(resume = true)
+    }
+
+    /** 后台传输是否被网络门控拦住。播放请求不受影响——那是用户此刻主动要的流量。 */
+    private fun blockedByNetwork(): Boolean =
+        !mutableMeteredAllowed.value && !mutableNetworkType.value.allowsBackgroundTransfer
+
+    /** 订阅网络类型；重复调用无副作用。 */
+    private fun observeNetwork() {
+        if (networkJob != null) return
+        networkJob = launch {
+            networkObservation.observe()
+                .catch { emit(NetworkType.UNKNOWN) }
+                .collect { type ->
+                    if (mutableNetworkType.value == type) return@collect
+                    mutableNetworkType.value = type
+                    mutableMeteredAllowed.value = false
+                    logger.i(messageString = "网络类型变为 $type")
+                    applyNetworkGate(resume = true)
+                }
+        }
+    }
+
+    /**
+     * 把门控结果落到后台任务上：被拦住就停掉正在跑的，恢复了就从当前快照继续。
+     *
+     * 暂停不丢东西：已下载的缓存前缀、已提取的元数据都保留在本地，恢复后从断点继续。
+     */
+    private fun applyNetworkGate(resume: Boolean) {
+        val blocked = blockedByNetwork()
+        mutableBackgroundPaused.value = blocked
+        if (blocked) {
+            backgroundJob?.cancel()
+            backgroundJob = null
+            syncJob?.cancel()
+            syncJob = null
+            if (mutableMetadataSync.value == WebDavMetadataSyncState.Syncing) {
+                mutableMetadataSync.value = WebDavMetadataSyncState.Idle
+            }
+            return
+        }
+        if (!resume) return
+        snapshot.value?.let { startBackgroundFetch(it.audios) }
+        if (activeConfig.metaSyncEnabled) startMetadataSync()
+    }
+
+    /**
      * 更新开关类配置，立即生效。
      *
      * 两个开关语义不同：[backgroundFetchEnabled] 是"主动把没听过的歌下载下来补全"，
      * [metaSyncEnabled] 是"把提取结果与 WebDAV 目录双向同步"。后者打开时会立刻做一次
      * 增量同步，只传远端缺的那几条，并在只读目录上优雅失败。
+     *
+     * 两者都受网络门控约束：非 Wi-Fi/以太网下不启动，卡片上可手动继续。
      */
     fun updateOptions(
         backgroundFetchEnabled: Boolean = activeConfig.backgroundFetchEnabled,
@@ -277,6 +355,10 @@ class WebDavSource(
      */
     private fun startMetadataSync() {
         if (syncJob?.isActive == true) return
+        if (blockedByNetwork()) {
+            mutableBackgroundPaused.value = true
+            return
+        }
         val remote = metadataRemote ?: return
         val store = metadataStore ?: return
         syncJob = launch {
@@ -345,6 +427,7 @@ class WebDavSource(
             if (isInitialize) "Restoring connection..." else "Connecting..."
         ) ?: return
 
+        observeNetwork()
         loadingJob = launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 yield()
@@ -632,8 +715,10 @@ class WebDavSource(
         val store = metadataStore ?: WebDavMetadataStore(
             cacheRoot = cacheRoot,
             json = json,
-            // 远端层用提供者：开关随时可切，重建 store 会丢掉内存层并让提取器指向旧对象
-            remoteProvider = { metadataRemote },
+            // 远端层用提供者：开关随时可切，重建 store 会丢掉内存层并让提取器指向旧对象。
+            // 网络被门控拦住时直接返回 null——上传与远端读取同样是后台流量，必须一起停下；
+            // 记录先留在本地，网络恢复后由增量同步补传。
+            remoteProvider = { if (blockedByNetwork()) null else metadataRemote },
             onRemoteError = ::reportRemoteFailure,
         ).also {
             it.ensureReady()
@@ -695,13 +780,17 @@ class WebDavSource(
     /**
      * 允许后台主动下载时，把还没有完整元数据的歌曲依次补下来。
      *
-     * 顺序执行（并发 1）而不是并发拉取：家用 NAS 与本机磁盘都不值得为后台补全付出瞬时压力，
-     * 而且网络类型门控会在 Step 7 接进来。
+     * 顺序执行（并发 1）而不是并发拉取：家用 NAS 与本机磁盘都不值得为后台补全付出瞬时压力。
+     * 只读锁定在末尾，真正的网络约束来自 [blockedByNetwork]：非 Wi-Fi/以太网下直接不启动。
      */
     private fun startBackgroundFetch(audios: List<LAudio>) {
         backgroundJob?.cancel()
         backgroundJob = null
         if (!activeConfig.backgroundFetchEnabled) return
+        if (blockedByNetwork()) {
+            mutableBackgroundPaused.value = true
+            return
+        }
 
         backgroundJob = launch {
             val store = metadataStore ?: return@launch

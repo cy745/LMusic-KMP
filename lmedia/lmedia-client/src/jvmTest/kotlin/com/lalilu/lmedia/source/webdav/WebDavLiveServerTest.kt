@@ -10,9 +10,11 @@ import com.lalilu.lmedia.domain.model.artistName
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
 import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.net.NetworkType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -100,12 +102,7 @@ class WebDavLiveServerTest {
     @Test
     fun `scans the real server into a snapshot with derived metadata`() = runTest {
         assumeTrue("未配置 LMUSIC_WEBDAV_URL，跳过真实服务用例", url != null)
-        val source = WebDavSource(
-            clientFactory = { HttpWebDavClientFactory().create(it) },
-            cacheRootProvider = { System.getProperty("java.io.tmpdir") },
-            json = Json { ignoreUnknownKeys = true },
-            kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
-        )
+        val source = newSource()
 
         source.connect(url!!, username, password, root).getOrThrow()
         val snapshot = assertNotNull(awaitSnapshot(source), "扫描未产出快照")
@@ -151,12 +148,7 @@ class WebDavLiveServerTest {
     @Test
     fun `streams a real track through the loopback proxy byte for byte`() = runTest {
         assumeTrue("未配置 LMUSIC_WEBDAV_URL，跳过真实服务用例", url != null)
-        val source = WebDavSource(
-            clientFactory = { HttpWebDavClientFactory().create(it) },
-            cacheRootProvider = { System.getProperty("java.io.tmpdir") },
-            json = Json { ignoreUnknownKeys = true },
-            kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
-        )
+        val source = newSource()
         source.connect(url!!, username, password, root).getOrThrow()
         val audio = assertNotNull(awaitSnapshot(source)).audios.first { it.title == "Friend" }
 
@@ -346,11 +338,16 @@ class WebDavLiveServerTest {
         reader.deactivate()
     }
 
+    /**
+     * 真实服务用例统一用"Wi-Fi"网络观测：门控本身由 `WebDavSourceTest` 覆盖，
+     * 这里不该让"当前桌面网卡叫什么名字"决定用例成败。
+     */
     private fun newSource(cacheRoot: String = System.getProperty("java.io.tmpdir")) = WebDavSource(
         clientFactory = { HttpWebDavClientFactory().create(it) },
         cacheRootProvider = { cacheRoot },
         json = Json { ignoreUnknownKeys = true },
         kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
+        networkObservation = { flowOf(NetworkType.WIFI) },
     )
 
     private fun freshCacheRoot(): String =

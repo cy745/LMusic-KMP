@@ -9,10 +9,14 @@ import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
+import com.lalilu.lmedia.net.NetworkObservation
+import com.lalilu.lmedia.net.NetworkType
 import kotlin.random.Random
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -58,14 +62,29 @@ class WebDavSourceTest {
         stopKoin()
     }
 
+    /**
+     * 可手动切换的网络观测：门控要覆盖"移动网络暂停 → Wi-Fi 恢复"这类时序，靠真的切网络做不到。
+     */
+    private class FakeNetworkObservation(initial: NetworkType) : NetworkObservation {
+        private val flow = MutableStateFlow(initial)
+
+        fun emit(type: NetworkType) {
+            flow.value = type
+        }
+
+        override fun observe(): Flow<NetworkType> = flow
+    }
+
     private fun newSource(
         client: WebDavClient,
         cacheRoot: String? = freshRoot("default"),
+        network: NetworkObservation = FakeNetworkObservation(NetworkType.WIFI),
     ): WebDavSource = WebDavSource(
         clientFactory = { client },
         cacheRootProvider = { cacheRoot },
         json = Json { ignoreUnknownKeys = true },
         kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
+        networkObservation = network,
     )
 
     /**
@@ -418,6 +437,76 @@ class WebDavSourceTest {
             json = Json { ignoreUnknownKeys = true },
         )
         assertEquals("远端标题", assertNotNull(offline.read("friend")).title)
+        source.deactivate()
+    }
+
+    @Test
+    fun `pauses background transfers on a metered network and resumes on wifi`() = runTest {
+        val client = FakeWebDavClient(files)
+        val network = FakeNetworkObservation(NetworkType.MOBILE)
+        val source = newSource(client, cacheRoot = freshRoot("gate-resume"), network = network)
+        source.connect("http://dav.local:8080", "lmusic", "pw", "/Music").getOrThrow()
+        val audio = assertNotNull(awaitSnapshot(source)).audios.first { it.title == "Friend" }
+        val key = WebDavSource.cacheKeyOf(audio.id)
+        assertNotNull(source.metadataStoreOrNull).write(
+            key,
+            WebDavMetadataRecord(fingerprint = "1|\"t\"", complete = true, extractedAt = 1, title = "t"),
+            null,
+        )
+
+        source.updateOptions(metaSyncEnabled = true).getOrThrow()
+
+        assertTrue(source.backgroundPaused.value, "移动网络下后台任务应处于暂停")
+        assertEquals(NetworkType.MOBILE, source.networkType.value)
+        assertTrue(client.puts.isEmpty(), "移动网络下不该产生任何上传：${client.puts.map { it.first }}")
+
+        // 回到 Wi-Fi：自动恢复，且不需要用户再点一次开关
+        network.emit(NetworkType.WIFI)
+        val state = awaitSyncSettled(source)
+
+        assertFalse(source.backgroundPaused.value)
+        assertTrue(state is WebDavMetadataSyncState.Synced, "恢复后应完成同步，实际 $state")
+        assertTrue(client.puts.any { it.first == "/.lmusic/$key.json" })
+        source.deactivate()
+    }
+
+    @Test
+    fun `manual continue allows transfers on a metered network`() = runTest {
+        val client = FakeWebDavClient(files)
+        val network = FakeNetworkObservation(NetworkType.MOBILE)
+        val source = newSource(client, cacheRoot = freshRoot("gate-manual"), network = network)
+        source.connect("http://dav.local:8080", "lmusic", "pw", "/Music").getOrThrow()
+        val audio = assertNotNull(awaitSnapshot(source)).audios.first { it.title == "Friend" }
+        val key = WebDavSource.cacheKeyOf(audio.id)
+        assertNotNull(source.metadataStoreOrNull).write(
+            key,
+            WebDavMetadataRecord(fingerprint = "1|\"t\"", complete = true, extractedAt = 1, title = "t"),
+            null,
+        )
+        source.updateOptions(metaSyncEnabled = true).getOrThrow()
+        assertTrue(client.puts.isEmpty())
+
+        source.allowMeteredTransfer()
+        val state = awaitSyncSettled(source)
+
+        assertFalse(source.backgroundPaused.value)
+        assertTrue(state is WebDavMetadataSyncState.Synced, "手动继续后应完成同步，实际 $state")
+        assertTrue(client.puts.any { it.first == "/.lmusic/$key.json" })
+        source.deactivate()
+    }
+
+    @Test
+    fun `unknown network type stays paused until the type becomes known`() = runTest {
+        val client = FakeWebDavClient(files)
+        val network = FakeNetworkObservation(NetworkType.UNKNOWN)
+        val source = newSource(client, cacheRoot = freshRoot("gate-unknown"), network = network)
+        source.connect("http://dav.local:8080", "lmusic", "pw", "/Music").getOrThrow()
+        assertNotNull(awaitSnapshot(source))
+
+        source.updateOptions(metaSyncEnabled = true).getOrThrow()
+
+        assertTrue(source.backgroundPaused.value, "拿不到网络类型时保守暂停")
+        assertTrue(client.puts.isEmpty())
         source.deactivate()
     }
 
