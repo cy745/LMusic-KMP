@@ -106,6 +106,32 @@ class StreamCache(
         SystemFileSystem.createDirectories(audioDirectory, mustCreate = false)
     }
 
+    /**
+     * 丢掉这个命名空间下的全部缓存（前缀、分段与账目），目录保留。
+     *
+     * 供"恢复到未加载状态"用：清完之后下次播放会重新下载、重新提取。调用方必须确保没有在途请求
+     * （代理已停），否则正在读的请求会撞上被删掉的文件。
+     */
+    fun clearAll() {
+        clearDirectory(audioDirectory)
+        loadUsage()
+        usage.clear()
+        usageDirty = true
+        flushUsage()
+    }
+
+    private fun clearDirectory(directory: Path) {
+        if (!SystemFileSystem.exists(directory)) return
+        runCatching {
+            SystemFileSystem.list(directory).forEach { child ->
+                if (SystemFileSystem.metadataOrNull(child)?.isDirectory == true) {
+                    clearDirectory(child)
+                }
+                SystemFileSystem.delete(child, mustExist = false)
+            }
+        }
+    }
+
     // ── 首段连续前缀 ──
 
     /** 从 0 开始连续缓存的长度。标签解析与"缓存是否一致"都只认这一段。 */

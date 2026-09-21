@@ -818,11 +818,38 @@ class WebDavSource(
      */
     private suspend fun refreshLibraryCounts(audios: List<LAudio>) {
         val store = metadataStore ?: return
-        val extracted = audios.count { audio ->
-            val target = targetOf(audio) ?: return@count false
-            store.has(cacheKeyOf(audio.id), target.fingerprint)
+        val libraryKeys = audios.mapTo(mutableSetOf()) { cacheKeyOf(it.id) }
+        val extractedKeys = audios.mapNotNullTo(mutableSetOf()) { audio ->
+            val target = targetOf(audio) ?: return@mapNotNullTo null
+            val key = cacheKeyOf(audio.id)
+            key.takeIf { store.has(key, target.fingerprint) }
         }
-        extractor?.updateLibraryCounts(total = audios.size, extracted = extracted)
+        extractor?.updateLibraryCounts(libraryKeys = libraryKeys, extractedKeys = extractedKeys)
+    }
+
+    /**
+     * 清空这个数据源的本地状态：缓存音频、提取记录、封面与边车，回到"没加载过"的样子。
+     *
+     * 用途是反复验证（例如确认封面是不是"开播几秒就出来"，必须先回到没提取过的状态）。
+     * 已经写进歌曲快照的字段（时长 / 封面路径）不在这里动：它们会随下一次扫描或提取重新写入，
+     * 而真正决定观感的封面文件与缓存已经删掉，界面会立刻退回占位图与重新下载。
+     */
+    suspend fun clearCachedData() {
+        // 先停后台：代理与提取器都持有缓存目录里的文件，必须让它们收工再删
+        backgroundJob?.cancel()
+        backgroundJob = null
+        extractor?.stop()
+        extractor = null
+        proxy?.stop()
+        proxy = null
+
+        cache?.clearAll()
+        metadataStore?.clearAll()
+        cache = null
+        metadataStore = null
+
+        // 计数归零：下一次提取/扫描会重新统计，"元数据提取"这一行回到未加载状态
+        mutableProgress.value = WebDavExtractionState()
     }
 
     /**

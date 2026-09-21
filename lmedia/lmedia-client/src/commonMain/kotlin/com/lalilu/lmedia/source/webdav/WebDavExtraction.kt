@@ -144,7 +144,9 @@ internal class WebDavExtractor(
     val progress: StateFlow<WebDavExtractionState> = progressState.asStateFlow()
 
     fun start(scope: CoroutineScope) {
-        if (worker != null) return
+        // 判 isActive 而不是判字段是否为空：worker 内部一旦抛异常，Job 就变成已完成，
+        // 若只判 null 它就永远不会被重新拉起——入队的 key 再也没人处理，界面就会永远停在"排队 1"
+        if (worker?.isActive == true) return
         worker = scope.launch {
             coroutineScope {
                 repeat(concurrency) {
@@ -157,6 +159,15 @@ internal class WebDavExtractor(
                             progressState.update { it.copy(pending = pendingCount.value) }
                             try {
                                 process(key)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (throwable: Throwable) {
+                                // 单首失败不能让整个 worker 陪葬：那一首计一次失败，后面的 key 继续处理
+                                logger.w(
+                                    messageString = "提取失败：key=$key ${throwable.message}",
+                                    throwable = throwable,
+                                )
+                                progressState.update { it.copy(failed = it.failed + 1) }
                             } finally {
                                 progressState.update { it.copy(running = it.running - 1) }
                             }
@@ -183,10 +194,26 @@ internal class WebDavExtractor(
         }
     }
 
-    /** 更新"库里有几首"和"已有几首记录"，用于进度展示。 */
-    fun updateLibraryCounts(total: Int, extracted: Int) {
-        progressState.update { it.copy(total = total, extracted = extracted) }
+    /**
+     * 更新"库里有几首 / 其中几首已经有提取记录"。
+     *
+     * [extractedKeys] 是**已经有记录的歌曲 key 集合**，不是提取次数：同一首歌会先做头部窗口、
+     * 到整首再补一次，按次数计会让"已提取"超过库里歌曲数；已经不在库里的 key 也不再计。
+     */
+    fun updateLibraryCounts(libraryKeys: Set<String>, extractedKeys: Set<String>) {
+        this.libraryKeys = libraryKeys
+        this.extractedKeys.clear()
+        this.extractedKeys += extractedKeys.filter { it in libraryKeys }
+        progressState.update {
+            it.copy(total = libraryKeys.size, extracted = this.extractedKeys.size)
+        }
     }
+
+    /** 库里有几首（用于"已提取 ≤ 总数"的约束）。 */
+    private var libraryKeys: Set<String> = emptySet()
+
+    /** 已经有提取记录的 key：同一首提取多次只算一首。 */
+    private val extractedKeys = mutableSetOf<String>()
 
     /**
      * 等队列排空后做最后一次合并；返回是否发生过合并。
@@ -215,7 +242,7 @@ internal class WebDavExtractor(
             existingExaminedBytes = existing?.examinedBytes ?: 0L,
         )
         if (decision == ExtractionDecision.SKIP) {
-            if (existing != null) markExtracted()
+            if (existing != null) markExtracted(key)
             return
         }
 
@@ -264,7 +291,7 @@ internal class WebDavExtractor(
 
         val record = trimmed.toRecord(target.fingerprint, complete, now, examinedBytes = filled)
         store.write(key, record, trimmed.cover)
-        markExtracted()
+        markExtracted(key)
         onRecord(target, record)
 
         val shouldFlush = mergeMutex.withLock {
@@ -303,8 +330,12 @@ internal class WebDavExtractor(
         return tagReader(path, includeCover)
     }
 
-    private fun markExtracted() {
-        progressState.update { it.copy(extracted = it.extracted + 1) }
+    /** 记下"这首歌已经有记录了"：同一首提取多次只算一首，且只算库里还在的歌。 */
+    private fun markExtracted(key: String) {
+        if (key !in libraryKeys) return
+        if (extractedKeys.add(key)) {
+            progressState.update { it.copy(extracted = extractedKeys.size) }
+        }
     }
 }
 

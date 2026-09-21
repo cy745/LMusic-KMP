@@ -293,6 +293,8 @@ class WebDavExtractorTest {
             coverReads += true
             WebDavExtractedMetadata(title = "should not happen")
         }
+        // 计数口径是"库里有几首 / 其中几首已有记录"，所以先告诉它库里有这首
+        extractor.updateLibraryCounts(libraryKeys = setOf(key), extractedKeys = setOf(key))
         extractor.start(this)
         extractor.request(key)
         extractor.drain()
@@ -302,10 +304,67 @@ class WebDavExtractorTest {
         extractor.stop()
     }
 
+    @Test
+    fun `extracting the same track twice still counts as one`() = runTest {
+        val key = "song-counted-once"
+        store.delete(key)
+        cache.delete(key)
+        cache.fillHeadWindow(key)
+
+        val extractor = buildExtractor { _, _ -> WebDavExtractedMetadata(title = "Friend") }
+        extractor.updateLibraryCounts(libraryKeys = setOf(key), extractedKeys = emptySet())
+        extractor.start(this)
+
+        // 头部窗口提取一次
+        extractor.request(key)
+        extractor.drain()
+        assertEquals(1, extractor.progress.value.extracted)
+
+        // 整首到齐后再提取一次（同一首歌）：旧实现按"提取次数"自增，会让已提取大于库里歌曲数
+        cache.appendBytes(key, ByteArray((totalBytes - HEAD_WINDOW_BYTES).toInt()))
+        extractor.request(key)
+        extractor.drain()
+
+        assertEquals(1, extractor.progress.value.extracted, "同一首提取多次只算一首")
+        assertEquals(1, extractor.progress.value.total)
+        extractor.stop()
+    }
+
+    @Test
+    fun `a failing track does not stop later tracks from being extracted`() = runTest {
+        val broken = "song-broken"
+        val following = "song-following"
+        listOf(broken, following).forEach { key ->
+            store.delete(key)
+            cache.delete(key)
+            cache.fillHeadWindow(key)
+        }
+
+        val extractor = buildExtractor(
+            tagAnswer = { path, _ ->
+                WebDavExtractedMetadata(title = path.substringAfterLast('/').removeSuffix(".flac"))
+            },
+            onRecordOverride = { target, record ->
+                if (target.audio.id == broken) error("模拟这一首写入失败")
+                records += target.audio.id to record
+            },
+        )
+        extractor.start(this)
+
+        extractor.request(broken)
+        extractor.request(following)
+        extractor.drain()
+
+        assertNotNull(store.read(following), "前一首失败不该让后面的 key 没人处理")
+        assertEquals(1, extractor.progress.value.failed, "失败的那一首计一次失败")
+        extractor.stop()
+    }
+
     private fun fingerprintOf(key: String): String =
         WebDavMetadataRecord.fingerprintOf(totalBytes, "\"etag-$key\"", null)
 
     private fun buildExtractor(
+        onRecordOverride: (suspend (WebDavExtractionTarget, WebDavMetadataRecord) -> Unit)? = null,
         tagAnswer: suspend (String, Boolean) -> WebDavExtractedMetadata?,
     ): WebDavExtractor = WebDavExtractor(
         cache = cache,
@@ -319,7 +378,7 @@ class WebDavExtractorTest {
             )
         },
         progressState = MutableStateFlow(WebDavExtractionState()),
-        onRecord = { target, record -> records += target.audio.id to record },
+        onRecord = onRecordOverride ?: { target, record -> records += target.audio.id to record },
         onFlush = { batch -> flushes += batch },
         concurrency = 1,
         batchSize = 3,
