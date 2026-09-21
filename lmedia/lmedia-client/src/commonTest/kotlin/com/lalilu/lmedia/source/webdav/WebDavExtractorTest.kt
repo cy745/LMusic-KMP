@@ -1,6 +1,7 @@
 package com.lalilu.lmedia.source.webdav
 
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.stream.StreamCache
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -20,7 +21,7 @@ import kotlin.test.assertTrue
 class WebDavExtractorTest {
 
     private val cacheRoot = "build/test-webdav-extractor"
-    private val cache = WebDavCache(cacheRoot, Json { ignoreUnknownKeys = true })
+    private val cache = StreamCache(cacheRoot, "webdav", Json { ignoreUnknownKeys = true })
     private val store = WebDavMetadataStore(cacheRoot, Json { ignoreUnknownKeys = true })
 
     private val records = mutableListOf<Pair<String, WebDavMetadataRecord>>()
@@ -31,7 +32,7 @@ class WebDavExtractorTest {
     private val totalBytes = 8L * 1024 * 1024
 
     /** 头部窗口整段写入缓存，用来触发部分提取。 */
-    private fun WebDavCache.fillHeadWindow(key: String) {
+    private fun StreamCache.fillHeadWindow(key: String) {
         appendBytes(key, ByteArray(HEAD_WINDOW_BYTES.toInt()))
     }
 

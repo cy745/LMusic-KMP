@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.source.webdav
+package com.lalilu.lmedia.stream
 
 import kotlin.random.Random
 import kotlinx.serialization.json.Json
@@ -13,20 +13,21 @@ import kotlin.test.assertTrue
  * 缓存账目与淘汰的覆盖测试。
  *
  * 这里验证的是"容量上限下的取舍"——配额边界、LRU 顺序、部分缓存优先、正在播放的不动、
- * 账目跨实例保留、以及远端文件变小后的重建。真实字节流由 [WebDavProxyTest] 覆盖。
+ * 账目跨实例保留、以及远端文件变小后的重建。真实字节流由 [StreamProxyTest] 覆盖。
  */
-class WebDavCacheTest {
+class StreamCacheTest {
 
     private val json = Json { ignoreUnknownKeys = true }
     private var now = 1_000L
 
-    private fun newCache(root: String): WebDavCache =
-        WebDavCache(cacheRoot = root, json = json, clock = { now }).also { it.ensureReady() }
+    private fun newCache(root: String): StreamCache =
+        StreamCache(cacheRoot = root, namespace = "test", json = json, clock = { now })
+            .also { it.ensureReady() }
 
     /** 每个用例一个全新目录：账目文件会跨进程保留，共用目录会让断言互相污染。 */
-    private fun freshRoot(name: String): String = "build/test-webdav-cache/$name-${Random.nextLong()}"
+    private fun freshRoot(name: String): String = "build/test-stream-cache/$name-${Random.nextLong()}"
 
-    private fun WebDavCache.putComplete(key: String, size: Int, total: Long = size.toLong()) {
+    private fun StreamCache.putComplete(key: String, size: Int, total: Long = size.toLong()) {
         appendBytes(key, ByteArray(size))
         touch(key, total, at = now)
     }

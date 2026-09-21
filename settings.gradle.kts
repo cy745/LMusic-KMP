@@ -75,6 +75,7 @@ include(":lmedia:lmedia-domain")
 include(":lmedia:lmedia-ui")
 include(":lmedia:lmedia-server")
 include(":lmedia:lmedia-client")
+include(":lmedia:lmedia-stream")
 include(":lmedia:lmedia-coil")
 
 includeBuild("build-logic")

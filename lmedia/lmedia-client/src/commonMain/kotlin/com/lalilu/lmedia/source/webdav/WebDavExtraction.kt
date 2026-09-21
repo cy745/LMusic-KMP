@@ -2,6 +2,7 @@ package com.lalilu.lmedia.source.webdav
 
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.Taglib
+import com.lalilu.lmedia.stream.StreamCache
 import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -111,7 +112,7 @@ internal interface WebDavExtractionTargets {
  */
 @OptIn(ExperimentalTime::class)
 internal class WebDavExtractor(
-    private val cache: WebDavCache,
+    private val cache: StreamCache,
     private val store: WebDavMetadataStore,
     private val targets: WebDavExtractionTargets,
     private val progressState: MutableStateFlow<WebDavExtractionState>,

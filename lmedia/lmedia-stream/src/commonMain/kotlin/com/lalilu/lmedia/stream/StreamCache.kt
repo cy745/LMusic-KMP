@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.source.webdav
+package com.lalilu.lmedia.stream
 
 import kotlinx.io.Sink
 import kotlinx.io.Source
@@ -15,7 +15,7 @@ import kotlin.time.ExperimentalTime
 
 /** 一条缓存的账目：文件本身是唯一真相，这里只记"多久没用过"、有多大、期望多大。 */
 @Serializable
-internal data class WebDavCacheUsage(
+data class StreamCacheUsage(
     /** 最后一次使用（播放读取或写入）的时间戳，用于 LRU。 */
     val usedAt: Long = 0L,
     /** 最后一次记账时的已缓存长度；用于免去每次淘汰都 stat 每个文件。 */
@@ -25,7 +25,7 @@ internal data class WebDavCacheUsage(
 )
 
 /** 缓存里的一条记录（账目 + 实际磁盘长度）。 */
-internal data class WebDavCacheEntry(
+data class StreamCacheEntry(
     val key: String,
     val bytes: Long,
     val usedAt: Long,
@@ -36,7 +36,8 @@ internal data class WebDavCacheEntry(
 }
 
 /**
- * 音频字节的本地缓存。
+ * 网络媒体字节的本地缓存。与具体来源无关：WebDAV、Subsonic 或以后任何"能按区间取字节"
+ * 的来源都能用同一个缓存，各来源以 [namespace] 区分目录。
  *
  * 采用**只追加的前缀模型**：`<key>.part` 里始终是从 0 开始的一段连续前缀，已缓存长度就等于文件
  * 长度本身。这样做的好处是不需要随机写，而且进程被杀掉也不会留下"记了却没写进去"的假覆盖——
@@ -48,24 +49,31 @@ internal data class WebDavCacheEntry(
  * 只会让淘汰顺序退化到"按文件修改时间"，不影响正确性。
  */
 @OptIn(ExperimentalTime::class)
-internal class WebDavCache(
+class StreamCache(
     cacheRoot: String,
+    /** 来源命名空间（例如 `webdav`）：不同来源的缓存互不干扰，也保证已有缓存目录不失效。 */
+    namespace: String,
     private val json: Json,
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
 
     companion object {
-        internal const val CHUNK_SIZE = 64 * 1024
+        /** 读写块大小；来源侧按块读取时也应使用同一粒度。 */
+        const val CHUNK_SIZE = 64 * 1024
         private const val AUDIO_DIR = "audio"
         private const val AUDIO_SUFFIX = ".part"
         private const val USAGE_FILE = "usage.json"
     }
 
-    private val root: Path = Path(cacheRoot, "lmedia", "webdav")
+    init {
+        require(namespace.isNotBlank()) { "Stream cache namespace must not be blank" }
+    }
+
+    private val root: Path = Path(cacheRoot, "lmedia", namespace)
     private val audioDirectory: Path = Path(root, AUDIO_DIR)
     private val usagePath: Path = Path(root, USAGE_FILE)
 
-    private val usage = mutableMapOf<String, WebDavCacheUsage>()
+    private val usage = mutableMapOf<String, StreamCacheUsage>()
     private var usageLoaded = false
     private var usageDirty = false
 
@@ -135,7 +143,7 @@ internal class WebDavCache(
     fun touch(key: String, totalSize: Long? = null, at: Long = clock()) {
         loadUsage()
         val previous = usage[key]
-        usage[key] = WebDavCacheUsage(
+        usage[key] = StreamCacheUsage(
             usedAt = at,
             bytes = filledSize(key),
             totalSize = when {
@@ -153,13 +161,13 @@ internal class WebDavCache(
      * 已记账的文件直接用账目里的长度（避免每次淘汰都 stat 成千上万个文件），只有磁盘上存在但
      * 没记账的文件（账目丢失/被外部写入）才去 stat 一次。
      */
-    fun entries(): List<WebDavCacheEntry> {
+    fun entries(): List<StreamCacheEntry> {
         loadUsage()
         return keys().map { key ->
             val record = usage[key]
             val bytes = record?.bytes?.takeIf { it > 0L }
                 ?: (SystemFileSystem.metadataOrNull(audioPath(key))?.size ?: 0L)
-            WebDavCacheEntry(
+            StreamCacheEntry(
                 key = key,
                 bytes = bytes,
                 usedAt = record?.usedAt ?: 0L,
@@ -244,7 +252,7 @@ internal class WebDavCache(
         if (!SystemFileSystem.exists(usagePath)) return
         runCatching {
             val text = SystemFileSystem.source(usagePath).buffered().use { it.readString() }
-            usage.putAll(json.decodeFromString<Map<String, WebDavCacheUsage>>(text))
+            usage.putAll(json.decodeFromString<Map<String, StreamCacheUsage>>(text))
         }
     }
 

@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.source.webdav
+package com.lalilu.lmedia.stream
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
@@ -21,11 +21,11 @@ import kotlin.test.assertTrue
  * 断言状态码、`Content-Range` 与字节内容——代理最容易写错的地方（区间截取、缓存复用、
  * 416、多区间退回整文件）都在这里。
  */
-class WebDavProxyTest {
+class StreamProxyTest {
 
     private val json = Json { ignoreUnknownKeys = true }
     private val payload = ByteArray(1000) { index -> (index % 251).toByte() }
-    private lateinit var proxy: WebDavProxy
+    private lateinit var proxy: StreamProxy
     private lateinit var backend: FakeBackend
 
     @AfterTest
@@ -35,8 +35,8 @@ class WebDavProxyTest {
 
     private suspend fun startProxy(): String {
         backend = FakeBackend(payload)
-        val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy").toString()
-        proxy = WebDavProxy(WebDavCache(cacheRoot, json), backend)
+        val cacheRoot = Files.createTempDirectory("lmusic-stream-proxy").toString()
+        proxy = StreamProxy(StreamCache(cacheRoot, "test", json), backend)
         return proxy.start()
     }
 
@@ -113,9 +113,9 @@ class WebDavProxyTest {
     @Test
     fun `grows the cache prefix so the whole track becomes available offline`() = runTest {
         backend = FakeBackend(payload)
-        val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy-full").toString()
-        val cache = WebDavCache(cacheRoot, json)
-        proxy = WebDavProxy(cache, backend)
+        val cacheRoot = Files.createTempDirectory("lmusic-stream-proxy-full").toString()
+        val cache = StreamCache(cacheRoot, "test", json)
+        proxy = StreamProxy(cache, backend)
         val base = proxy.start()
 
         assertContentEquals(payload, get("$base/audio/testkey", range = null).body)
@@ -136,10 +136,10 @@ class WebDavProxyTest {
         val first = ByteArray(600) { index -> (index % 97).toByte() }
         val second = ByteArray(600) { index -> (index % 89).toByte() }
         backend = FakeBackend(mapOf("one" to first, "two" to second))
-        val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy-quota").toString()
-        val cache = WebDavCache(cacheRoot, json)
+        val cacheRoot = Files.createTempDirectory("lmusic-stream-proxy-quota").toString()
+        val cache = StreamCache(cacheRoot, "test", json)
         // 配额 900：放不下两首 600 字节的歌；节流设为 0 让淘汰在请求结束时立刻发生
-        proxy = WebDavProxy(
+        proxy = StreamProxy(
             cache = cache,
             backend = backend,
             quotaBytes = { 900L },
@@ -159,9 +159,9 @@ class WebDavProxyTest {
     @Test
     fun `rebuilds the cache when the remote file shrank`() = runTest {
         backend = FakeBackend(payload)
-        val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy-rebuild").toString()
-        val cache = WebDavCache(cacheRoot, json)
-        proxy = WebDavProxy(cache, backend)
+        val cacheRoot = Files.createTempDirectory("lmusic-stream-proxy-rebuild").toString()
+        val cache = StreamCache(cacheRoot, "test", json)
+        proxy = StreamProxy(cache, backend)
         val base = proxy.start()
 
         assertContentEquals(payload, get("$base/audio/testkey", range = null).body)
@@ -173,8 +173,8 @@ class WebDavProxyTest {
         proxy.stop()
 
         val secondRoot = cacheRoot
-        val secondCache = WebDavCache(secondRoot, json)
-        proxy = WebDavProxy(secondCache, backend)
+        val secondCache = StreamCache(secondRoot, "test", json)
+        proxy = StreamProxy(secondCache, backend)
         val secondBase = proxy.start()
         val response = get("$secondBase/audio/testkey", range = null)
 
@@ -204,15 +204,15 @@ class WebDavProxyTest {
 
     private class FakeBackend(
         private val payloads: Map<String, ByteArray>,
-    ) : WebDavProxyBackend {
+    ) : StreamBackend {
         constructor(payload: ByteArray, key: String = "testkey") : this(mapOf(key to payload))
 
         val fetched = mutableListOf<Pair<Long, Long?>>()
         var failing = false
 
-        override suspend fun resolve(key: String): WebDavStreamTarget? =
+        override suspend fun resolve(key: String): StreamTarget? =
             payloads[key]?.let { payload ->
-                WebDavStreamTarget(
+                StreamTarget(
                     path = "/music/$key.flac",
                     totalSize = payload.size.toLong(),
                     contentType = "audio/flac",
@@ -220,12 +220,12 @@ class WebDavProxyTest {
             }
 
         override suspend fun fetch(
-            target: WebDavStreamTarget,
+            target: StreamTarget,
             start: Long,
             endInclusive: Long?,
             onChunk: suspend (ByteArray) -> Unit,
         ) {
-            if (failing) throw WebDavException.Unexpected("上游不可用")
+            if (failing) throw IllegalStateException("上游不可用")
             fetched += start to endInclusive
             val payload = payloads.getValue(target.path.substringAfterLast('/').removeSuffix(".flac"))
             val last = (endInclusive ?: (payload.size - 1L)).coerceAtMost(payload.size - 1L)

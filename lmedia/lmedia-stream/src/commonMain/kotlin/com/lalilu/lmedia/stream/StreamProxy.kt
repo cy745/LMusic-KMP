@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.source.webdav
+package com.lalilu.lmedia.stream
 
 import co.touchlab.kermit.Logger
 import io.ktor.http.ContentType
@@ -24,23 +24,28 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
 /** 代理播放某个缓存键所需的信息。 */
-internal data class WebDavStreamTarget(
+data class StreamTarget(
     val path: String,
     val totalSize: Long,
     val contentType: String?,
 )
 
-/** 代理与数据源之间的回调接口；用接口而不是直接依赖 WebDavSource，便于脱离网络测试。 */
-internal interface WebDavProxyBackend {
+/**
+ * 代理与具体媒体来源之间的接口。
+ *
+ * 用接口而不是直接依赖某个数据源，既让代理与来源解耦（WebDAV / Subsonic / 以后任何能按区间
+ * 取字节的来源都能复用），也便于脱离网络测试。
+ */
+interface StreamBackend {
     /** 解析缓存键；歌曲已不在当前快照中时返回 null。 */
-    suspend fun resolve(key: String): WebDavStreamTarget?
+    suspend fun resolve(key: String): StreamTarget?
 
     /**
      * 从远端拉取 `[start, endInclusive]`（闭区间；[endInclusive] 为 null 表示到文件末尾），
      * 按到达顺序回调。[onChunk] 返回后才会继续拉取下一段。
      */
     suspend fun fetch(
-        target: WebDavStreamTarget,
+        target: StreamTarget,
         start: Long,
         endInclusive: Long?,
         onChunk: suspend (ByteArray) -> Unit,
@@ -57,9 +62,9 @@ internal interface WebDavProxyBackend {
  * 发给播放器，因为播放器没要），再把请求区间边下边发。
  */
 @OptIn(ExperimentalTime::class)
-internal class WebDavProxy(
-    private val cache: WebDavCache,
-    private val backend: WebDavProxyBackend,
+class StreamProxy(
+    private val cache: StreamCache,
+    private val backend: StreamBackend,
     /** 每次缓存增长后回调，供上层判断 头部窗口 / 100% 提取节点。 */
     private val onCacheProgress: suspend (key: String) -> Unit = {},
     /** 音频缓存容量上限；<= 0 表示不限制。每次需要时读取，改配置立即生效。 */
@@ -69,7 +74,7 @@ internal class WebDavProxy(
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
     companion object {
-        private const val TAG = "WebDavProxy"
+        private const val TAG = "StreamProxy"
         internal const val LOOPBACK = "127.0.0.1"
         internal const val ROUTE_PREFIX = "/audio/"
 
@@ -115,9 +120,9 @@ internal class WebDavProxy(
      * 与播放请求共用同一把 key 锁，因此不会与正在进行的播放交错；不向任何客户端发送数据。
      * 返回补齐后的已缓存长度。
      */
-    internal suspend fun ensureCached(
+    suspend fun ensureCached(
         key: String,
-        target: WebDavStreamTarget,
+        target: StreamTarget,
         upTo: Long,
     ): Long = lockFor(key).withLock {
         activeKeys += key
@@ -185,7 +190,7 @@ internal class WebDavProxy(
         }
 
         val total = target.totalSize
-        val resolution = WebDavRange.resolve(request.headers[HttpHeaders.Range], total)
+        val resolution = HttpRange.resolve(request.headers[HttpHeaders.Range], total)
 
         if (resolution.disposition == RangeDisposition.UNSATISFIABLE) {
             response.header(HttpHeaders.ContentRange, "bytes */$total")
@@ -204,7 +209,7 @@ internal class WebDavProxy(
             return
         }
 
-        val range = resolution.range ?: RequestedRange(0L, total - 1)
+        val range = resolution.range ?: ByteRange(0L, total - 1)
         val isPartial = resolution.disposition == RangeDisposition.SATISFIABLE
 
         // 远端文件被替换成更小的文件时，旧缓存前缀比新文件还长，必须重建
@@ -236,7 +241,7 @@ internal class WebDavProxy(
 
     private suspend fun ApplicationCall.serveUnknownLength(
         key: String,
-        target: WebDavStreamTarget,
+        target: StreamTarget,
         contentType: ContentType,
         head: Boolean,
     ) {
@@ -273,8 +278,8 @@ internal class WebDavProxy(
 
     private suspend fun serveRange(
         key: String,
-        target: WebDavStreamTarget,
-        range: RequestedRange,
+        target: StreamTarget,
+        range: ByteRange,
         channel: ByteWriteChannel,
     ) {
         lockFor(key).withLock {
@@ -289,8 +294,8 @@ internal class WebDavProxy(
 
     private suspend fun serveRangeLocked(
         key: String,
-        target: WebDavStreamTarget,
-        range: RequestedRange,
+        target: StreamTarget,
+        range: ByteRange,
         channel: ByteWriteChannel,
     ) {
         var position = range.start

@@ -1,5 +1,7 @@
 package com.lalilu.lmedia.source.webdav
 
+import com.lalilu.lmedia.stream.HttpRange
+import com.lalilu.lmedia.stream.StreamCache
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.basicAuth
@@ -134,11 +136,11 @@ class HttpWebDavClient(
             header(HttpHeaders.Range, rangeHeader)
         }.execute { response ->
             ensureSuccess(response)
-            totalSize = WebDavRange.totalSizeFromContentRange(response.headers[HttpHeaders.ContentRange])
+            totalSize = HttpRange.totalSizeFromContentRange(response.headers[HttpHeaders.ContentRange])
                 ?: response.headers[HttpHeaders.ContentLength]?.toLongOrNull()
             val channel = response.bodyAsChannel()
             while (true) {
-                val buffer = channel.readBuffer(WebDavCache.CHUNK_SIZE)
+                val buffer = channel.readBuffer(StreamCache.CHUNK_SIZE)
                 if (buffer.size == 0L) break
                 onChunk(buffer.readByteArray())
             }

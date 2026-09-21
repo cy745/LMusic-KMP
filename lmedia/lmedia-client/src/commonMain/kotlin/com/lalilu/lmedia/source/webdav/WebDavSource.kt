@@ -21,6 +21,10 @@ import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.net.NetworkObservation
 import com.lalilu.lmedia.net.NetworkType
+import com.lalilu.lmedia.stream.StreamBackend
+import com.lalilu.lmedia.stream.StreamCache
+import com.lalilu.lmedia.stream.StreamProxy
+import com.lalilu.lmedia.stream.StreamTarget
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -146,8 +150,8 @@ class WebDavSource(
     private var syncJob: Job? = null
     private var networkJob: Job? = null
 
-    private var proxy: WebDavProxy? = null
-    private var cache: WebDavCache? = null
+    private var proxy: StreamProxy? = null
+    private var cache: StreamCache? = null
     private var metadataStore: WebDavMetadataStore? = null
     private var metadataRemote: WebDavMetadataRemote? = null
     private var extractor: WebDavExtractor? = null
@@ -724,12 +728,12 @@ class WebDavSource(
         }
     }
 
-    private suspend fun ensureProxy(): WebDavProxy {
+    private suspend fun ensureProxy(): StreamProxy {
         proxy?.let { return it }
         return setupMutex.withLock {
             proxy?.let { return@withLock it }
             val (cache, _) = ensureCacheInfrastructure()
-            val created = WebDavProxy(
+            val created = StreamProxy(
                 cache = cache,
                 backend = ProxyBackend(),
                 onCacheProgress = { key ->
@@ -745,10 +749,10 @@ class WebDavSource(
         }
     }
 
-    private fun ensureCacheInfrastructure(): Pair<WebDavCache, WebDavMetadataStore> {
+    private fun ensureCacheInfrastructure(): Pair<StreamCache, WebDavMetadataStore> {
         val cacheRoot = cacheRootProvider.cacheRoot()
             ?: throw WebDavException.Unexpected("当前平台不支持 WebDAV 数据源")
-        val cache = WebDavCache(cacheRoot, json).also { this.cache = it }
+        val cache = StreamCache(cacheRoot, "webdav", json).also { this.cache = it }
         val store = metadataStore ?: WebDavMetadataStore(
             cacheRoot = cacheRoot,
             json = json,
@@ -848,7 +852,7 @@ class WebDavSource(
                 runCatchingCancellable {
                     activeProxy.ensureCached(
                         key = cacheKeyOf(audio.id),
-                        target = WebDavStreamTarget(
+                        target = StreamTarget(
                             path = target.remotePath,
                             totalSize = target.totalSize,
                             contentType = audio.extra?.get(EXTRA_CONTENT_TYPE),
@@ -884,11 +888,11 @@ class WebDavSource(
     }
 
     /** 传给代理的回调实现：只在数据源内部使用，因此不暴露成公开接口实现。 */
-    private inner class ProxyBackend : WebDavProxyBackend {
-        override suspend fun resolve(key: String): WebDavStreamTarget? {
+    private inner class ProxyBackend : StreamBackend {
+        override suspend fun resolve(key: String): StreamTarget? {
             val audio = indexMutex.withLock { keyToAudio[key] } ?: return null
             val path = audio.extra?.get(EXTRA_PATH)?.takeIf(String::isNotBlank) ?: return null
-            return WebDavStreamTarget(
+            return StreamTarget(
                 path = path,
                 totalSize = audio.extra?.get(EXTRA_FILE_SIZE)?.toLongOrNull() ?: 0L,
                 contentType = audio.extra?.get(EXTRA_CONTENT_TYPE),
@@ -896,7 +900,7 @@ class WebDavSource(
         }
 
         override suspend fun fetch(
-            target: WebDavStreamTarget,
+            target: StreamTarget,
             start: Long,
             endInclusive: Long?,
             onChunk: suspend (ByteArray) -> Unit,

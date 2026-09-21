@@ -39,6 +39,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(project(":lmedia:lmedia-core"))
+            // 回环代理与读穿缓存是与来源无关的通用能力，网络媒体源共用
+            api(project(":lmedia:lmedia-stream"))
             api(project(":common"))
             api(libs.koin.core)
             api(libs.koin.annotations)
