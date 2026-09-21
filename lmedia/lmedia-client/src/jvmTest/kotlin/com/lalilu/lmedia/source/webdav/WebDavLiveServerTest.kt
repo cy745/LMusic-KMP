@@ -147,8 +147,16 @@ class WebDavLiveServerTest {
     fun `round trips a metadata file on the real server`() = runTest {
         assumeTrue("未配置 LMUSIC_WEBDAV_URL，跳过真实服务用例", url != null)
         val client = HttpWebDavClient(config)
-        val path = "/.lmusic/live-probe.json"
+        val directory = "/.lmusic/"
+        val path = "$directory" + "live-probe.json"
         val payload = """{"probe":"lmusic"}"""
+
+        // 元数据目录由"运行过同步"来提供，可能被谁删掉；这里先确认它可用，
+        // 不可用且服务器不支持 MKCOL 时明确跳过——本用例验证的是 PUT/GET 往返，
+        // 不该因为共享库里少了个目录就变红
+        val hasDirectory = client.propfind(root, depth = 1).any { it.isDirectory && it.path.contains(".lmusic") }
+        val usable = hasDirectory || runCatching { client.mkcol(directory) }.getOrDefault(false)
+        assumeTrue("服务器上没有 .lmusic 元数据目录且 MKCOL 不可用，跳过", usable)
 
         client.put(path, payload.encodeToByteArray(), "application/json")
         val readBack = client.download(path)
