@@ -50,6 +50,9 @@ private val IOS_FAILURE_PATTERNS: List<Pair<PlaybackFailureReason, Regex>> = bui
         add(PlaybackFailureReason.Network to Regex("""Domain=NSURLErrorDomain Code=-?$code\b"""))
         add(PlaybackFailureReason.Network to Regex("""NSURLErrorDomain error -?$code\b"""))
     }
+    // AVAudioPlayer 在播放中途报的解码失败（`onDecodeErrorDidOccur`）：数据读进来了但解不开，
+    // 对应"文件可能已损坏"。这个标记由 AVAudioPlayerEngine 自己构造，是稳定可用的判据。
+    add(PlaybackFailureReason.Decode to Regex("""AVAudioPlayerDecodeError"""))
     // 播放加载路径上的 OSStatus 失败意味着数据无法解码（AVAudioPlayer 构造/解码失败等）。
     listOf(
         Regex("""Domain=NSOSStatusErrorDomain Code="""),

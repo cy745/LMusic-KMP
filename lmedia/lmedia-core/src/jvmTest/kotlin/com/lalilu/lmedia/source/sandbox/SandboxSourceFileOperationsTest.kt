@@ -4,6 +4,9 @@ import com.lalilu.lmedia.domain.model.Metadata
 import com.lalilu.lmedia.domain.source.SnapshotState
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.name
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -224,5 +227,64 @@ class SandboxSourceFileOperationsTest {
         assertTrue(root.resolve("Imported").listFiles()!!.isEmpty())
         assertTrue(cache.listFiles()!!.isEmpty())
         assertTrue(external.exists())
+    }
+
+    /**
+     * 并发导入必须按源串行：每个文件各自落名、索引一条不少、缓存区不留半成品。
+     * 串行化一旦丢失（索引"读-改-写"交错），文件系统看起来仍然正常，只有索引条目数会少，
+     * 所以这里直接断言索引里的条目数等于导入数。
+     */
+    @Test fun concurrentImportsSerializeWithoutLosingIndexEntriesOrLeavingHalfFiles() = fixture { root, cache, source ->
+        val files = (1..4).map { index ->
+            audio(root.parentFile.resolve("concurrent-$index.mp3"))
+                .apply { appendBytes(byteArrayOf(index.toByte())) }
+        }
+        val imported = coroutineScope {
+            files.map { file -> async { source.import(PlatformFile(file), emptyList()).audio } }
+        }.awaitAll()
+
+        assertEquals(4, imported.map { it.id }.toSet().size, "四份不同内容必须得到四个不同身份")
+        assertEquals(4, root.resolve("Imported").listFiles()!!.size)
+        assertTrue(cache.listFiles()!!.isEmpty(), "导入结束后缓存区不能残留临时文件")
+        val index = root.resolve(".lmusic-sandbox-index.json").readText()
+        assertEquals(4, Regex("\"audioId\"").findAll(index).count(), "索引条目数必须等于导入数：$index")
+    }
+
+    /**
+     * 不同目录下的同名文件：第二个必须让位到不冲突的名字，既不覆盖第一个也不共用身份。
+     * `allocateDestination` 的 " (1)" 分支此前没有任何用例覆盖。
+     */
+    @Test fun sameNamedImportsFromDifferentFoldersAllocateNonConflictingNames() = fixture { root, _, source ->
+        val firstDirectory = root.parentFile.resolve("first").apply { mkdirs() }
+        val secondDirectory = root.parentFile.resolve("second").apply { mkdirs() }
+        val first = audio(firstDirectory.resolve("external.mp3"))
+        val second = audio(secondDirectory.resolve("external.mp3")).apply { appendBytes(byteArrayOf(7)) }
+
+        val firstSong = source.import(PlatformFile(first), emptyList()).audio
+        val secondSong = source.import(PlatformFile(second), emptyList()).audio
+
+        assertNotEquals(firstSong.id, secondSong.id)
+        assertEquals(listOf("external (1).mp3", "external.mp3"), root.resolve("Imported").list()!!.sorted())
+        assertEquals(
+            setOf("external (1).mp3", "external.mp3"),
+            source.snapshot.value!!.audios.map { File(it.extra!!.getValue("path")).name }.toSet(),
+        )
+        assertTrue(first.exists() && second.exists(), "外部原件既不能被移动也不能被改写")
+    }
+
+    /**
+     * 扩展名像音频、内容不是音频：必须在真正落盘之前被 MagicNumber 拒绝，临时文件清理干净。
+     * 已有的"解析失败"用例只模拟了 Taglib 返回 null，走不到这条分支。
+     */
+    @Test fun contentThatIsNotAudioIsRejectedByMagicNumber() = fixture { root, cache, source ->
+        val fake = root.parentFile.resolve("fake.mp3")
+            .apply { writeBytes("this is definitely not audio".toByteArray()) }
+
+        assertFailsWith<UnsupportedExternalAudioException> { source.import(PlatformFile(fake), emptyList()) }
+
+        assertNull(source.snapshot.value)
+        assertTrue(root.resolve("Imported").listFiles()!!.isEmpty())
+        assertTrue(cache.listFiles()!!.isEmpty())
+        assertTrue(fake.exists())
     }
 }

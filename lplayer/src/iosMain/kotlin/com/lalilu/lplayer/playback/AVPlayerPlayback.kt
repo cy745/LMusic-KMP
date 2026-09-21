@@ -63,6 +63,13 @@ class AVPlayerPlayback(
      */
     private var playRequestedFor: MediaKey? = null
 
+    /**
+     * 加载**当前已加载项**时所用的导航方向。播放中途失败后沿它继续，与 Android 的 traversal 语义对齐；
+     * 它属于"已加载项的状态"（同 [loadedMediaKey]、[playRequestedFor]），不是命令之间共享的方向——
+     * 命令自身的方向仍然只随 [PlaybackNavigationContext] 走。
+     */
+    private var loadedDirection: PlaybackDirection = PlaybackDirection.Forward
+
     override suspend fun play(): Unit = withContext(Dispatchers.Main) {
         claimHistoryPlaybackControl()
         commands.run { playInternal() }
@@ -285,15 +292,22 @@ class AVPlayerPlayback(
         ?.isReady == true
 
     /**
-     * 播放中途失败后继续沿方向找下一首。用独立协程发起：观察器本身会在换歌时被取消，
-     * 不能让它把这次导航一起带走。
+     * 播放中途失败后沿**加载当前项时所用的方向**继续找下一首（与 Android 的 traversal 语义一致）。
+     * 用独立协程发起：观察器本身会在换歌时被取消，不能让它把这次导航一起带走。
      */
     private fun navigateAfterStalledFailure(engine: PlaybackEngine, key: MediaKey) {
         launch(Dispatchers.Main) {
-            if (engine !== activeEngine || loadedMediaKey != key) return@launch
-            if (queue.currentItem()?.mediaKey != key) return@launch
+            val direction = stalledFailureNavigationDirection(
+                engineStillActive = engine === activeEngine,
+                loadedKeyStillMatches = loadedMediaKey == key,
+                queueCurrentStillMatches = queue.currentItem()?.mediaKey == key,
+                loadDirection = loadedDirection,
+            ) ?: return@launch
             try {
-                skipToNext()
+                when (direction) {
+                    PlaybackDirection.Forward -> skipToNext()
+                    PlaybackDirection.Backward -> skipToPrevious()
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -369,7 +383,7 @@ class AVPlayerPlayback(
                 skipPolicy = { item -> start && !isLoadedItem(item) },
                 recordFailure = { item, failure -> persistLoadFailure(item, failureWrites.register(item.playbackId), failure) },
                 stop = { stopInternal() },
-                attempt = { target, item -> attemptLoad(item, target, start) },
+                attempt = { target, item -> attemptLoad(item, target, start, direction) },
                 outOfBudget = { navigationStartedAt.elapsedNow() > DefaultSkipNavigationBudget },
             )
         } catch (e: Exception) {
@@ -398,11 +412,13 @@ class AVPlayerPlayback(
      * 加载（并按需播放）一个槽位。失败向上抛，由导航循环决定跳过还是上报；
      * 成功返回后 [loadedMediaKey] 与队列 current 都指向该槽位。
      */
-    private suspend fun attemptLoad(item: LAudio, index: Int, start: Boolean) {
+    private suspend fun attemptLoad(item: LAudio, index: Int, start: Boolean, direction: PlaybackDirection) {
         loadedWatch?.cancel()
         loadedWatch = null
         // 只有这次加载被要求播放时才算"用户想听这首歌"。
         playRequestedFor = item.mediaKey.takeIf { start }
+        // 记下这次加载的方向：它中途失败时沿同方向继续（同 Android 的 traversal 语义）。
+        loadedDirection = direction
         val successTicket = failureWrites.register(item.playbackId)
 
         if (isLoadedItem(item)) {
