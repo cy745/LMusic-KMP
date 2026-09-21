@@ -34,9 +34,42 @@ class PlayerLyricContentTest {
 
             val content = assertIs<LyricContent.Ready>(awaitItem())
             assertEquals(audio.id, content.key)
-            assertEquals(3L, content.generation)
+            assertEquals(0L, content.generation, "不可用是稳定状态，版本固定为 0")
             assertEquals(emptyList<LyricItem>(), content.items)
             assertEquals("数据源不可用，无法加载歌词", content.emptyMessage)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /**
+     * 来源的"内容代次"会随任何快照/补丁更新自增（提取写回、进度上报都算），播放时它一直在变。
+     * 歌词页把 `key + generation` 当作页面身份，所以歌词文档的版本必须只跟着歌词内容走：
+     * 否则页面会被反复重建、`preparedForFollowing` 一次次归零——真机上表现为"歌词不跟随进度滚动"。
+     */
+    @Test
+    fun sameLyricsKeepTheSameDocumentVersionWhileSourceGenerationChurns() = runTest {
+        val source = FakeSource()
+        val audio = LAudio(id = "audio-id", mediaSourceName = source.name)
+        val items = listOf(LyricItem.NormalLyric(content = "line", time = 0, key = "0"))
+
+        observeLyricContent(audio, source) { items }.test {
+            source.contentState.value = MediaContentState(
+                availability = MediaContentAvailability.Ready,
+                generation = 1L,
+            )
+            val first = assertIs<LyricContent.Ready>(awaitItem())
+            assertEquals(items.hashCode().toLong(), first.generation, "版本应当由歌词内容决定")
+
+            source.contentState.value = MediaContentState(
+                availability = MediaContentAvailability.Ready,
+                generation = 42L,
+            )
+            val second = assertIs<LyricContent.Ready>(awaitItem())
+            assertEquals(
+                first.generation,
+                second.generation,
+                "来源代次变了但歌词没变：文档版本必须保持一致，页面才不会被重建",
+            )
             cancelAndIgnoreRemainingEvents()
         }
     }
