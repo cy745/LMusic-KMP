@@ -42,10 +42,12 @@ kotlin {
             api(libs.ktor.server.cio)
             api(libs.ktor.server.content.negotiation)
             api(libs.ktorfit)
+            api(libs.xmlutil.core)
             api(kotlincrypto.hash.md)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.client.mock)
         }
     }

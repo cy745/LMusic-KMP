@@ -35,6 +35,12 @@
 > 之所以放在 `commonMain`：上述实现都无平台 / Compose 依赖，
 > 放在 main 源码集既能被多模块复用，又能避免 KMP testFixtures 的样板。
 
+各模块 `commonTest` 自带的依赖（新增依赖时同步更新本表）：
+
+| 模块 | commonTest 依赖 |
+|---|---|
+| `lmedia:lmedia-client` | `kotlin.test`、`kotlinx-coroutines-test`（`runTest`）、`ktor-client-mock`（HTTP 层用例） |
+
 ---
 
 ## 3. 约定
