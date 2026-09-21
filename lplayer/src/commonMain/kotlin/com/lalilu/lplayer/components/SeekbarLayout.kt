@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import com.lalilu.RemixIcon
+import com.lalilu.lmedia.domain.source.BufferedRange
 import com.lalilu.lplayer.extensions.AccumulatedValue
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
@@ -110,6 +111,7 @@ fun SeekbarLayout(
     minValue: () -> Float = { 0f },
     maxValue: () -> Float = { 0f },
     dataValue: () -> Float = { 0f },
+    bufferedRanges: () -> List<BufferedRange> = { emptyList() },
     switchIndex: () -> Int = { 0 },
     scrollThreadHold: Float = 200f,
     positionState: SeekbarPositionState = rememberSeekbarPositionState(),
@@ -355,6 +357,11 @@ fun SeekbarLayout(
                 text = { maxDurationText },
                 textStyle = textStyle
             )
+            // 必须画在滑块之前：滑块盖住播放头左侧，露出来的才是「已缓冲但还没播到」的那段
+            SeekbarBuffered(
+                clip = { isTouching && !isCanceled },
+                bufferedRanges = bufferedRanges,
+            )
             SeekbarThumb(
                 clip = { isTouching && !isCanceled },
                 thumbColor = animateColor,
@@ -542,6 +549,111 @@ private fun SeekbarThumb(
                 size = Size(width = thumbWidth, height = innerHeight)
             )
         }
+    }
+}
+
+/**
+ * 已缓冲区间。
+ *
+ * 与滑块共用同一套圆角与内缩计算，绘制顺序排在滑块之前：滑块盖住播放头左侧，
+ * 因此实际露出的部分正好是「已缓冲但还没播到」的那几段。缓存可能是不连续的（跳过的部分还没下），
+ * 所以这里按段绘制而不是画一条比例。
+ */
+@Composable
+private fun SeekbarBuffered(
+    modifier: Modifier = Modifier,
+    bufferedColor: () -> Color = { Color.White.copy(alpha = 0.3f) },
+    bufferedRanges: () -> List<BufferedRange> = { emptyList() },
+    clip: () -> Boolean = { false }
+) {
+    val path = remember { Path() }
+    val clipProgress = animateFloatAsState(
+        targetValue = if (clip()) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        visibilityThreshold = 0.001f,
+        label = "SeekbarBuffered_clipProgress"
+    )
+
+    // 后端按节流（~4 次/秒）上报，直接画会一顿一顿；每段的末端各自补间，看起来才连续。
+    // 动画必须在 Canvas 之外求值——Canvas 的绘制块不是 composable 作用域。
+    val ranges = bufferedRanges()
+    val animatedEnds = ranges.map { range ->
+        key(range.startFraction) {
+            animateFloatAsState(
+                targetValue = range.endFraction,
+                // 略长于后端的节流间隔，正好把两次上报之间的跳跃抹平
+                animationSpec = tween(durationMillis = 220),
+                label = "SeekbarBuffered_end",
+            ).value
+        }
+    }
+
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val maxPadding = 4.dp.toPx()
+        val paddingValue = maxPadding * clipProgress.value
+
+        val innerRadius = 16.dp.toPx() - paddingValue
+        val innerHeight = size.height - (paddingValue * 2f)
+        val innerWidth = size.width - (paddingValue * 2f)
+
+        val geometries = bufferedBarGeometries(
+            paddingValue = paddingValue,
+            innerWidth = innerWidth,
+            ranges = ranges.mapIndexed { index, range ->
+                BufferedRange(range.startFraction, animatedEnds.getOrElse(index) { range.endFraction })
+            },
+        )
+        if (geometries.isEmpty()) return@Canvas
+
+        path.reset()
+        path.addRoundRect(
+            RoundRect(
+                rect = Rect(
+                    offset = Offset(x = paddingValue, y = paddingValue),
+                    size = Size(width = innerWidth, height = innerHeight)
+                ),
+                cornerRadius = CornerRadius(innerRadius, innerRadius)
+            )
+        )
+
+        clipPath(path) {
+            geometries.forEach { geometry ->
+                drawRoundRect(
+                    color = bufferedColor(),
+                    cornerRadius = CornerRadius(innerRadius, innerRadius),
+                    topLeft = Offset(x = geometry.left, y = paddingValue),
+                    size = Size(width = geometry.width, height = innerHeight)
+                )
+            }
+        }
+    }
+}
+
+/** 已缓冲段在轨道上的位置。 */
+internal data class BufferedBarGeometry(val left: Float, val width: Float)
+
+/**
+ * 把已缓冲的比例区间换算成轨道上的矩形。
+ *
+ * 空区间（起点不小于终点）与越界比例都会在这里被消化：不返回矩形（不绘制）或夹到轨道内，
+ * 避免画出一条零宽/越界的次级层。入参比例按整首计，因此 `left` 要加上轨道内缩。
+ */
+internal fun bufferedBarGeometries(
+    paddingValue: Float,
+    innerWidth: Float,
+    ranges: List<BufferedRange>,
+): List<BufferedBarGeometry> {
+    if (innerWidth <= 0f || ranges.isEmpty()) return emptyList()
+
+    return ranges.mapNotNull { range ->
+        val start = range.startFraction.coerceIn(0f, 1f)
+        val end = range.endFraction.coerceIn(0f, 1f)
+        if (end <= start) return@mapNotNull null
+
+        BufferedBarGeometry(
+            left = paddingValue + innerWidth * start,
+            width = innerWidth * (end - start),
+        )
     }
 }
 

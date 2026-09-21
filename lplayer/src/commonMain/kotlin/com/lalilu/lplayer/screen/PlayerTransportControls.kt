@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import co.touchlab.kermit.Logger
+import com.lalilu.lmedia.domain.source.BufferedRange
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.ClickPart
 import com.lalilu.lplayer.components.SeekbarLayout
@@ -21,6 +22,7 @@ internal fun PlayerTransportControls(
     duration: State<Long>,
     positionState: SeekbarPositionState,
     animateColor: () -> Color,
+    bufferedRanges: () -> List<BufferedRange> = { emptyList() },
     onDragStart: suspend (Offset) -> Unit = {},
     onDragStop: suspend (Int) -> Unit = {},
     onDispatchDragOffset: (Float) -> Unit = {},
@@ -31,6 +33,7 @@ internal fun PlayerTransportControls(
         positionState = positionState,
         maxValue = { duration.value.toFloat() },
         dataValue = { currentTime.longValue.toFloat() },
+        bufferedRanges = bufferedRanges,
         onDragStart = onDragStart,
         onDragStop = onDragStop,
         onDispatchDragOffset = onDispatchDragOffset,

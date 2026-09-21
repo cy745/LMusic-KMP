@@ -123,12 +123,21 @@ class XxxDialogTest {
 ./gradlew :lsettings:commonTest
 ./gradlew :lplayer:commonTest
 
+# 回环代理 / 区间覆盖缓存（与来源无关的通用模块，无需真实服务）
+./gradlew :lmedia:lmedia-stream:jvmTest
+
 # 全部（按现有 CI 习惯）
 ./gradlew commonTest
 
 # 仅 JVM
 ./gradlew :common:jvmTest
 ```
+
+> `:lmedia:lmedia-stream:jvmTest` 里有 12 个真 HTTP 用例：真的起内嵌服务器、用真 HTTP 客户端
+> 按播放器的方式发请求，断言状态码、`Content-Range` 与字节内容。它们默认关掉后台补齐
+> （`allowBackgroundFill = { false }`、`lookaheadBytes = 0`）——后台 worker 是真并发的，不关掉会让
+> "取过哪些区间"的断言变成不确定的。设计说明见
+> [stream-cache-and-prefetch-design.md](./stream-cache-and-prefetch-design.md)。
 
 ### 5.1 前置条件
 

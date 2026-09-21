@@ -2,6 +2,7 @@ package com.lalilu.lmedia.source.webdav
 
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.Taglib
+import com.lalilu.lmedia.stream.StreamCache
 import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -33,13 +34,29 @@ data class WebDavExtractionState(
 /** 提取决策。 */
 internal enum class ExtractionDecision { SKIP, PARTIAL, FULL }
 
-internal const val PARTIAL_EXTRACTION_THRESHOLD = 0.3
+/**
+ * 头部窗口：只要缓存到这么多字节，就先把标签读一遍。
+ *
+ * 用**固定字节数**而不是"文件大小的百分比"：实测本机 7 首 FLAC 的元数据（含内嵌封面）全部落在
+ * 文件开头 1 MB 以内（中位 0.26 MB，最大 0.83 MB），而 30% 阈值对 30 MB 的文件要下 9 MB——
+ * 是实际需要的十倍以上，用户要等很久才看到标题与封面。
+ */
+internal const val HEAD_WINDOW_BYTES = 1L * 1024 * 1024
+
+/**
+ * 头部窗口的兜底大小：窗口内什么都没读到时（例如内嵌封面被切断，taglib 解析失败）再扩到这么大试一次。
+ *
+ * 只扩一次：`WebDavMetadataRecord.examinedBytes` 记着上次尝试时的缓存长度，避免每次缓存增长都重试。
+ */
+internal const val HEAD_WINDOW_FALLBACK_BYTES = 4L * 1024 * 1024
 
 /**
  * 判断这一次缓存增长值不值得读一次标签。
  *
- * - 30% 节点：文件头通常已经包含 ID3v2 / FLAC 元数据块，能提前让标题与歌手可见。
- * - 100% 节点：补齐时长与内嵌封面；**部分提取成功过的记录仍然要再走一次完整提取**。
+ * - 头部窗口（[HEAD_WINDOW_BYTES]）：FLAC/MP3 的标签与内嵌封面都在文件开头，通常几百 KB 就够，
+ *   让标题/封面**远早于整首下载完成**就能显示。
+ * - 100% 节点：补齐时长与完整封面；部分提取成功过的记录仍然要再走一次完整提取。
+ * - 窗口内读不出东西时，扩到 [HEAD_WINDOW_FALLBACK_BYTES] 再试一次。
  * - 指纹变化（远端文件被替换）时缓存记录失效，允许重新提取。
  */
 internal fun decideExtraction(
@@ -48,18 +65,29 @@ internal fun decideExtraction(
     existingFingerprint: String?,
     existingComplete: Boolean,
     currentFingerprint: String,
+    /** 上一次尝试提取时缓存里有多少字节；0 表示没有可用记录。 */
+    existingExaminedBytes: Long = 0L,
 ): ExtractionDecision {
     val reachedFull = total > 0L && filled >= total
-    val reachedPartial = when {
-        total > 0L -> filled.toDouble() / total.toDouble() >= PARTIAL_EXTRACTION_THRESHOLD
-        // 服务器没给长度：只要有字节就先读一次文件头
-        else -> filled > 0L
+    val headWindow = if (total > 0L) minOf(total, HEAD_WINDOW_BYTES) else HEAD_WINDOW_BYTES
+    val fallbackWindow = if (total > 0L) {
+        minOf(total, HEAD_WINDOW_FALLBACK_BYTES)
+    } else {
+        HEAD_WINDOW_FALLBACK_BYTES
     }
-    if (!reachedFull && !reachedPartial) return ExtractionDecision.SKIP
+    // 服务器没给长度时无法按窗口判断：只要有字节就先读一次文件头
+    val reachedHead = if (total > 0L) filled >= headWindow else filled > 0L
+    if (!reachedFull && !reachedHead) return ExtractionDecision.SKIP
 
     val stale = existingFingerprint == null || existingFingerprint != currentFingerprint
     if (stale) return if (reachedFull) ExtractionDecision.FULL else ExtractionDecision.PARTIAL
     if (reachedFull && !existingComplete) return ExtractionDecision.FULL
+
+    // 头部窗口试过但没读出东西：给一次更大的窗口
+    val triedSmallerWindow = existingExaminedBytes in 1 until fallbackWindow
+    if (!existingComplete && triedSmallerWindow && filled >= fallbackWindow) {
+        return ExtractionDecision.PARTIAL
+    }
     return ExtractionDecision.SKIP
 }
 
@@ -79,12 +107,12 @@ internal interface WebDavExtractionTargets {
 /**
  * 提取编排：缓存增长 → 决策 → 读标签 → 写本地元数据 → 逐条入库 + 批量合并回快照。
  *
- * 30% / 100% 两个节点的触发来自播放代理，因此**只有听过的歌会被补全**；[request] 也用于
+ * 头部窗口 / 100% 两个节点的触发来自播放代理，因此**只有听过的歌会被补全**；[request] 也用于
  * "允许后台主动下载"时对未播放歌曲的补全。
  */
 @OptIn(ExperimentalTime::class)
 internal class WebDavExtractor(
-    private val cache: WebDavCache,
+    private val cache: StreamCache,
     private val store: WebDavMetadataStore,
     private val targets: WebDavExtractionTargets,
     private val progressState: MutableStateFlow<WebDavExtractionState>,
@@ -177,12 +205,14 @@ internal class WebDavExtractor(
     private suspend fun process(key: String) {
         val target = targets.targetOf(key) ?: return
         val existing = store.read(key)
+        val filled = cache.prefixSize(key)
         val decision = decideExtraction(
-            filled = cache.filledSize(key),
+            filled = filled,
             total = target.totalSize,
             existingFingerprint = existing?.fingerprint,
             existingComplete = existing?.complete ?: false,
             currentFingerprint = target.fingerprint,
+            existingExaminedBytes = existing?.examinedBytes ?: 0L,
         )
         if (decision == ExtractionDecision.SKIP) {
             if (existing != null) markExtracted()
@@ -205,12 +235,13 @@ internal class WebDavExtractor(
 
         val now = clock()
         if (extracted == null || extracted.isEmpty) {
-            // 没有标签的文件是合法状态：记一条空记录，避免每次都重试，但不覆盖文件名派生的信息
-            store.write(key, emptyRecord(target, complete, now), null)
+            // 没有标签的文件是合法状态：记一条空记录，避免每次都重试，但不覆盖文件名派生的信息。
+            // examinedBytes 让"头部窗口试过且没结果"这件事可判：兜底窗口只扩大一次。
+            store.write(key, emptyRecord(target, complete, now, filled), null)
             return
         }
 
-        val record = extracted.toRecord(target.fingerprint, complete, now)
+        val record = extracted.toRecord(target.fingerprint, complete, now, examinedBytes = filled)
         store.write(key, record, extracted.cover)
         markExtracted()
         onRecord(target, record)
@@ -235,10 +266,12 @@ internal class WebDavExtractor(
         target: WebDavExtractionTarget,
         complete: Boolean,
         now: Long,
+        examinedBytes: Long,
     ) = WebDavMetadataRecord(
         fingerprint = target.fingerprint,
         complete = complete,
         extractedAt = now,
+        examinedBytes = examinedBytes,
     )
 
     private suspend fun readTags(

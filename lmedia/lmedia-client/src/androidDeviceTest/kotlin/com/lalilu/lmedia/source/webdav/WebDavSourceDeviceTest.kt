@@ -184,6 +184,13 @@ class WebDavSourceDeviceTest {
             val started = awaitPosition(player) { it > 0L }
             assertTrue(started > 0L, "播放器应开始播放代理地址：position=$started")
 
+            // 时长必须由 Media3 从容器里解析出来：播放页的总时长就取这个值，取不到就一直是 00:00
+            val duration = currentDuration(player)
+            assertTrue(
+                duration > 30_000L,
+                "Media3 应从代理流里解析出真实时长：duration=$duration",
+            )
+
             // 向前拖动：会触发 Range 请求，代理需要补齐中间缺口
             val target = 15_000L
             onMain { player.seekTo(target) }
@@ -228,6 +235,12 @@ class WebDavSourceDeviceTest {
         var position = -1L
         onMain { position = player.currentPosition }
         return position
+    }
+
+    private fun currentDuration(player: ExoPlayer): Long {
+        var duration = -1L
+        onMain { duration = player.duration }
+        return duration
     }
 
     /** 轮询播放位置；超时返回最后一次读数，由调用方断言。 */
