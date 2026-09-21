@@ -322,14 +322,25 @@ class StreamCacheTest {
     }
 
     @Test
-    fun `shrinking the remote file drops the segments beyond its new length`() {
+    fun `shrinking the remote file drops every segment that no longer fits`() {
         val cache = newSegmentedCache("shrink")
+        cache.putSegment("k", 1, 100)
         cache.putSegment("k", 2, 100)
         cache.putSegment("k", 3, 100)
 
         assertTrue(cache.ensureConsistent("k", expectedTotal = 250))
 
-        assertEquals(setOf(2), cache.segments("k").keys, "起点越过新长度的分段必须清掉")
+        assertEquals(
+            setOf(1),
+            cache.segments("k").keys,
+            "起点越过新长度的分段要清掉；起点还在范围内、但长度越过新文件末尾的同样要清掉——" +
+                "只看起点会让旧文件的尾巴继续被当成有效缓存喂给播放器",
+        )
+        assertEquals(
+            listOf(CachedRange(100, 199)),
+            cache.coveredRanges("k", 250),
+            "覆盖里不能留下旧数据的尾巴",
+        )
     }
 
     @Test

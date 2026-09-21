@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -36,20 +37,29 @@ class WebDavExtractorTest {
         appendBytes(key, ByteArray(HEAD_WINDOW_BYTES.toInt()))
     }
 
+    /** 一张最小的完整 JPEG（以 `FFD9` 结尾，够过完整性判定）。 */
+    private fun completeJpeg() = byteArrayOf(
+        0xFF.toByte(), 0xD8.toByte(), 1, 2, 3, 4, 0xFF.toByte(), 0xD9.toByte(),
+    )
+
+    /** 被头部窗口切掉尾巴的 JPEG。 */
+    private fun truncatedJpeg() = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 1, 2, 3, 4, 5, 6)
+
     @Test
-    fun `extracts at the head window then upgrades to a full record at completion`() = runTest {
+    fun `reads the cover at the head window and upgrades to a full record at completion`() = runTest {
         val key = "song-partial"
         store.delete(key)
         cache.delete(key)
         cache.fillHeadWindow(key)
 
+        val cover = completeJpeg()
         val extractor = buildExtractor { _, includeCover ->
             coverReads += includeCover
             WebDavExtractedMetadata(
                 title = "Friend",
                 artist = "HoneyComeBear",
-                duration = if (includeCover) 245_000 else 0L,
-                cover = if (includeCover) byteArrayOf(1, 2, 3) else null,
+                duration = 245_000,
+                cover = if (includeCover) cover else null,
             )
         }
         extractor.start(this)
@@ -57,7 +67,11 @@ class WebDavExtractorTest {
         extractor.request(key)
         extractor.drain()
 
-        assertEquals(listOf(false), coverReads, "头部窗口只读文件头，不读封面")
+        assertEquals(
+            listOf(true),
+            coverReads,
+            "头部窗口就该连封面一起读：只在完整提取时才读的话，封面要等整首缓存完才出现",
+        )
         assertEquals(1, records.size)
         val partial = assertNotNull(store.read(key))
         assertFalse(partial.complete)
@@ -66,19 +80,55 @@ class WebDavExtractorTest {
             partial.examinedBytes,
             "要记下这次读到多少字节，兜底窗口才不会反复重试",
         )
+        assertContentEquals(cover, store.readCover(key), "头部窗口读到的封面要立刻能用")
+        assertEquals(0L, partial.duration, "半截文件的时长不可信，留给完整提取")
 
-        // 补满文件后再触发一次：必须升级为完整提取（时长与封面只有完整文件才可靠）
+        // 补满文件后再触发一次：必须升级为完整提取
         cache.appendBytes(key, ByteArray((totalBytes - HEAD_WINDOW_BYTES).toInt()))
         assertEquals(totalBytes, cache.prefixSize(key), "追加写入必须立刻反映到缓存长度")
         extractor.request(key)
         extractor.drain()
 
-        assertEquals(listOf(false, true), coverReads)
+        assertEquals(listOf(true, true), coverReads)
         val record = assertNotNull(store.read(key))
         assertTrue(record.complete)
         assertEquals(245_000L, record.duration)
         assertNotNull(store.readCover(key))
         assertEquals(2, records.size)
+        extractor.stop()
+    }
+
+    @Test
+    fun `drops a cover the head window cut in half`() = runTest {
+        val key = "song-cut-cover"
+        store.delete(key)
+        cache.delete(key)
+        cache.fillHeadWindow(key)
+
+        val extractor = buildExtractor { _, includeCover ->
+            WebDavExtractedMetadata(
+                title = "Friend",
+                artist = "HoneyComeBear",
+                cover = if (includeCover) truncatedJpeg() else null,
+            )
+        }
+        extractor.start(this)
+
+        extractor.request(key)
+        extractor.drain()
+
+        val partial = assertNotNull(store.read(key))
+        assertEquals("Friend", partial.title, "封面丢了也不该影响标题先显示")
+        assertNull(store.readCover(key), "被窗口切掉尾巴的封面拿去显示就是一张半张图")
+
+        // 完整文件里同样的字节数不再被怀疑：这时候数据已经可信，不该再凭空丢掉用户的封面
+        cache.appendBytes(key, ByteArray((totalBytes - HEAD_WINDOW_BYTES).toInt()))
+        extractor.request(key)
+        extractor.drain()
+
+        val record = assertNotNull(store.read(key))
+        assertTrue(record.complete)
+        assertNotNull(store.readCover(key))
         extractor.stop()
     }
 
@@ -206,14 +256,14 @@ class WebDavExtractorTest {
         extractor.request(key)
         extractor.drain()
 
-        assertEquals(listOf(false), coverReads)
+        assertEquals(1, coverReads.size, "头部窗口读一次")
         assertEquals(HEAD_WINDOW_BYTES, assertNotNull(store.read(key)).examinedBytes)
 
         // 缓存涨到兜底窗口：应该再读一次（窗口变大，可能这次就能读到被切断的封面）
         cache.appendBytes(key, ByteArray((HEAD_WINDOW_FALLBACK_BYTES - HEAD_WINDOW_BYTES).toInt()))
         extractor.request(key)
         extractor.drain()
-        assertEquals(listOf(false, false), coverReads, "兜底窗口再读一次文件头")
+        assertEquals(2, coverReads.size, "兜底窗口再读一次文件头")
 
         // 之后继续增长到接近整曲也不该再重试（examinedBytes 已经记在兜底窗口上）
         cache.appendBytes(key, ByteArray(1024 * 1024))

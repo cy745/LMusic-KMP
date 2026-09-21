@@ -116,7 +116,9 @@ class StreamCache(
     fun openSource(key: String, start: Long): Source? {
         val path = audioPath(key)
         if (!SystemFileSystem.exists(path)) return null
-        val source = SystemFileSystem.source(path).buffered()
+        // 打开失败与"文件不存在"同义：后台补齐与淘汰会同时动同一个文件，读取方必须把它当作
+        // "这段还没有缓存"继续走取数路径，而不是让整个播放请求断流
+        val source = runCatching { SystemFileSystem.source(path).buffered() }.getOrNull() ?: return null
         if (start > 0L) source.skip(start)
         return source
     }
@@ -259,7 +261,8 @@ class StreamCache(
 
         val path = segmentPath(key, index)
         if (!SystemFileSystem.exists(path)) return null
-        val source = SystemFileSystem.source(path).buffered()
+        // 分段提交是"临时文件 + 原子改名"：刚好在改名前后打开会失败，当作这段没缓存即可
+        val source = runCatching { SystemFileSystem.source(path).buffered() }.getOrNull() ?: return null
         if (offset > 0L) source.skip(offset)
         return CachedSpan(
             start = start,
@@ -391,8 +394,11 @@ class StreamCache(
             usable = false
         }
 
-        segments(key).keys.forEach { index ->
-            if (index.toLong() * segmentSize >= expectedTotal) deleteSegment(key, index)
+        segments(key).forEach { (index, length) ->
+            val start = index.toLong() * segmentSize
+            // 起点越界，或长度超过新文件在那个位置剩下的字节数：两种都说明这段属于旧文件。
+            // 只看起点是不够的——旧文件的分段通常从 0 开始，缩小后起点仍在范围内，但内容已经是旧的。
+            if (start >= expectedTotal || start + length > expectedTotal) deleteSegment(key, index)
         }
         return usable
     }

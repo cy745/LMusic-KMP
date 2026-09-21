@@ -114,6 +114,15 @@ class StreamProxy(
 
         /** 播放头前瞻窗口默认 4 MB：约一两分钟的音频，足够吸收网络抖动。 */
         const val DEFAULT_LOOKAHEAD_BYTES = 4L * 1024 * 1024
+
+        /**
+         * 服务播放器时每一步最多取多少字节。
+         *
+         * 取数是"先落盘、再从缓存发走"，因此这个值直接决定了播放器等第一口数据的时长：取 4 KB、
+         * 64 KB 还是整个分段，差别就是"点开就出声"和"转几秒圈"。256 KB 在弱网上也只需一两百毫秒。
+         */
+        private const val SERVE_FETCH_STEP_BYTES = 4L * StreamCache.CHUNK_SIZE
+
     }
 
     private val logger = Logger.withTag(TAG)
@@ -127,18 +136,32 @@ class StreamProxy(
     /** 每个键上次上报进度的时刻；用于把落盘过程中的回调节流。 */
     private val progressPublishedAt = mutableMapOf<String, Long>()
 
-    /** 正在被读取或写入的键：淘汰时绝不动它们。 */
-    private val activeKeys = mutableSetOf<String>()
+    /**
+     * 正在被读取或写入的键：淘汰时绝不动它们。
+     *
+     * 用**引用计数**而不是集合：播放请求与后台补齐会交错持有同一个键，集合语义下任何一方退出
+     * 都会把对方的钉住一并解除，淘汰就有机会删掉正在读的文件（表现为响应中途断流）。
+     */
+    private val activeKeys = mutableMapOf<String, Int>()
+
+    private fun pinKey(key: String) {
+        activeKeys[key] = (activeKeys[key] ?: 0) + 1
+    }
+
+    private fun unpinKey(key: String) {
+        val left = (activeKeys[key] ?: 1) - 1
+        if (left <= 0) activeKeys.remove(key) else activeKeys[key] = left
+    }
 
     /** 播放头提示：由播放器自己的 `Range` 请求暴露出来，不需要额外的状态管线。 */
     private val playheads = mutableMapOf<String, Long>()
     private val workers = mutableMapOf<String, Job>()
     private var activeKey: String? = null
 
-    /** 补齐一步的结果：落盘多少字节、按序发给播放器多少字节。 */
-    private data class FillOutcome(val stored: Long, val served: Long) {
+    /** 补齐一步的结果：落盘了多少字节（写回播放器由调用方自己从缓存读）。 */
+    private data class FillOutcome(val stored: Long) {
         companion object {
-            val NONE = FillOutcome(stored = 0L, served = 0L)
+            val NONE = FillOutcome(stored = 0L)
         }
     }
 
@@ -259,9 +282,6 @@ class StreamProxy(
             target = target,
             from = next.start,
             toInclusive = minOf(next.endInclusive, stepEnd(next.start, target.totalSize)),
-            serveFrom = 0L,
-            serveTo = -1L,
-            channel = null,
         ).stored > 0L
     }
 
@@ -278,16 +298,17 @@ class StreamProxy(
             target = target,
             from = next.start,
             toInclusive = minOf(next.endInclusive, stepEnd(next.start, target.totalSize)),
-            serveFrom = 0L,
-            serveTo = -1L,
-            channel = null,
         ).stored > 0L
     }
 
     // ── 落盘 ──
 
     /**
-     * 把 `[from, toInclusive]` 补进缓存，并把落在 `[serveFrom, serveTo]` 的字节按序交给 [channel]。
+     * 把 `[from, toInclusive]` 补进缓存。**只落盘，不写回播放器**。
+     *
+     * 调用点都持有 key 锁，因此这里绝不能碰客户端（[ByteWriteChannel]）：播放器读得慢、卡住、
+     * 或者干脆不再读时，往 socket 的写入会一直挂着，而锁被挂住就意味着后台补齐再也拿不到锁——
+     * 缓存停在原地、播放头也停住，而且换回来再播同一首依然卡（同一个锁）。
      *
      * 只有"正好接在连续前缀后面"才继续接前缀；其余一律按整分段落盘——分段必须写满才能提交
      * （可见性以文件存在为准），因此跳转点落在某分段中间时会把这一段的前面部分一起取下来，
@@ -298,9 +319,6 @@ class StreamProxy(
         target: StreamTarget,
         from: Long,
         toInclusive: Long,
-        serveFrom: Long,
-        serveTo: Long,
-        channel: ByteWriteChannel?,
     ): FillOutcome {
         val total = target.totalSize
         val last = if (total > 0L) minOf(toInclusive, total - 1L) else toInclusive
@@ -310,9 +328,9 @@ class StreamProxy(
         cache.ensureConsistent(key, total)
 
         return if (from == cache.prefixSize(key)) {
-            appendToPrefix(key, target, from, last, serveFrom, serveTo, channel)
+            appendToPrefix(key, target, from, last)
         } else {
-            writeSegments(key, target, from, last, serveFrom, serveTo, channel)
+            writeSegments(key, target, from, last)
         }
     }
 
@@ -322,24 +340,16 @@ class StreamProxy(
         target: StreamTarget,
         from: Long,
         last: Long,
-        serveFrom: Long,
-        serveTo: Long,
-        channel: ByteWriteChannel?,
     ): FillOutcome {
         val prefix = cache.prefixSize(key)
         val sink = cache.openAppendSink(key)
         var stored = 0L
-        var served = 0L
         try {
             backend.fetch(target, prefix, if (target.totalSize > 0L) last else null) { bytes ->
-                // 先落盘：即使随后客户端断开，已收到的字节依然是有效的前缀
+                // 先落盘：即使稍后请求被取消，已收到的字节依然是有效的前缀
                 sink.write(bytes)
-                val absolute = prefix + stored
                 stored += bytes.size
-                // 播放器一次请求可能覆盖整首歌（开放式 Range），只在收尾回调的话，界面会在整首
-                // 下完之前一直停在"刚开播那一帧"——缓冲条不动、封面也不出来
                 if (shouldPublishProgress(key)) onCacheProgress(key)
-                served += forward(bytes, 0, absolute, serveFrom, serveTo, channel)
             }
             sink.flush()
         } finally {
@@ -347,7 +357,7 @@ class StreamProxy(
         }
 
         cache.touch(key, target.totalSize)
-        return FillOutcome(stored = stored, served = served)
+        return FillOutcome(stored = stored)
     }
 
     /** 跳转之后按整分段写：写满才提交（原子改名），因此"文件存在"就等于"这一段完整可用"。 */
@@ -356,15 +366,11 @@ class StreamProxy(
         target: StreamTarget,
         from: Long,
         last: Long,
-        serveFrom: Long,
-        serveTo: Long,
-        channel: ByteWriteChannel?,
     ): FillOutcome {
         val total = target.totalSize
         val segmentSize = cache.segmentSize
         var position = from
         var stored = 0L
-        var served = 0L
 
         while (position <= last) {
             val index = (position / segmentSize).toInt()
@@ -380,14 +386,17 @@ class StreamProxy(
             var fetched = 0L
             try {
                 // 分段开头可能已经落在连续前缀里：从本地补，不为已有的字节再跑一趟网络
-                fetched += copyFromPrefix(key, segmentStart, expected, writer)
+                fetched += copyFromPrefix(
+                    key = key,
+                    segmentStart = segmentStart,
+                    maxBytes = expected,
+                    writer = writer,
+                )
                 if (fetched < expected) {
                     backend.fetch(target, segmentStart + fetched, segmentLast) { bytes ->
                         writer.write(bytes)
-                        val absolute = segmentStart + fetched
                         fetched += bytes.size
                         if (shouldPublishProgress(key)) onCacheProgress(key)
-                        served += forward(bytes, 0, absolute, serveFrom, serveTo, channel)
                     }
                 }
             } catch (throwable: Throwable) {
@@ -402,7 +411,7 @@ class StreamProxy(
                     messageString = "上游提前结束：key=$key 分段 $index 期望 $expected 字节，实际 $fetched",
                 )
                 cache.touch(key, target.totalSize)
-                return FillOutcome(stored = stored, served = served)
+                return FillOutcome(stored = stored)
             }
 
             writer.commit()
@@ -411,15 +420,15 @@ class StreamProxy(
         }
 
         cache.touch(key, target.totalSize)
-        return FillOutcome(stored = stored, served = served)
+        return FillOutcome(stored = stored)
     }
 
     /**
-     * 分段开头已经在前缀里时，从本地把它补进分段，返回补进去的字节数。
+     * 分段开头已经在前缀里时，从本地把它补进分段。
      *
      * 这一段字节已经在磁盘上了，再跑一趟网络纯属浪费——尤其是它恰好是播放器跳过的那部分。
      */
-    private fun copyFromPrefix(
+    private suspend fun copyFromPrefix(
         key: String,
         segmentStart: Long,
         maxBytes: Long,
@@ -441,35 +450,6 @@ class StreamProxy(
             }
             copied
         }
-    }
-
-    /**
-     * 把 [bytes] 里落在 `[serveFrom, serveTo]` 的切片写进 [channel]，返回写出的字节数。
-     *
-     * [absolute] 是这段字节在文件里的偏移。切片只发生窗口边界处，因此只有边界那几个块需要拷贝。
-     */
-    private suspend fun forward(
-        bytes: ByteArray,
-        offset: Int,
-        absolute: Long,
-        serveFrom: Long,
-        serveTo: Long,
-        channel: ByteWriteChannel?,
-    ): Long {
-        if (channel == null || serveTo < serveFrom) return 0L
-
-        val start = maxOf(absolute, serveFrom)
-        val end = minOf(absolute + bytes.size - 1L, serveTo)
-        if (end < start) return 0L
-
-        val from = maxOf((start - absolute).toInt(), offset)
-        val to = (end - absolute).toInt() + 1
-        if (from <= 0 && to == bytes.size) {
-            channel.writeFully(bytes, 0, bytes.size)
-        } else {
-            channel.writeFully(bytes.copyOfRange(from, to))
-        }
-        return to - from.toLong()
     }
 
     /**
@@ -501,7 +481,7 @@ class StreamProxy(
         val now = clock()
         if (now - lastEvictionAt < evictionIntervalMillis) return
         lastEvictionAt = now
-        val evicted = cache.evictIfNeeded(quotaBytes = quota, pinned = activeKeys)
+        val evicted = cache.evictIfNeeded(quotaBytes = quota, pinned = activeKeys.keys)
         if (evicted.isNotEmpty()) {
             logger.i(messageString = "缓存超出上限，淘汰 ${evicted.size} 首：${evicted.take(5)}")
         }
@@ -624,8 +604,14 @@ class StreamProxy(
         range: ByteRange,
         channel: ByteWriteChannel,
     ) {
-        withActiveKey(key) {
-            var position = range.start
+        // 整个请求期间都把这首钉住（淘汰不能删正在播的）。这里有一条硬约束：
+        // **写回播放器时绝不持锁，持锁时绝不写回播放器**。客户端读得慢、卡住、或者干脆不再读时，
+        // 往 socket 写会一直挂着；若那时还握着 key 锁，后台补齐就再也拿不到锁——缓存停在原地、
+        // 播放头也停住，而且换回来再播同一首照样卡（同一个锁），看起来就是"永久播不了"。
+        pinKey(key)
+        var position = range.start
+        var servedTotal = 0L
+        try {
             while (position <= range.endInclusive) {
                 val span = cache.openSpan(
                     key = key,
@@ -634,40 +620,48 @@ class StreamProxy(
                     totalSize = target.totalSize,
                 )
                 if (span != null) {
+                    // 读缓存与写回都不持锁（后台补齐只追加前缀、分段只原子改名，都不动已提交的字节）；
+                    // 代价是缓存文件可能在读取的瞬间被换掉，StreamCache 的打开操作已把这种情形当作
+                    // "这段没缓存"处理，于是下一轮会重新走取数路径
                     span.source.use { source -> channel.writeBuffer(source, span.length) }
                     position += span.length
+                    servedTotal += span.length
                     continue
                 }
 
-                val outcome = fillRange(
-                    key = key,
-                    target = target,
-                    from = position,
-                    toInclusive = range.endInclusive,
-                    serveFrom = position,
-                    serveTo = range.endInclusive,
-                    channel = channel,
+                // 这一步要的字节还没有：取数落盘（持锁），下一轮再从缓存读出来发给播放器。
+                // 步长压得比一个分段小，读得慢的客户端也不会等太久才有数据。
+                val to = minOf(
+                    range.endInclusive,
+                    stepEnd(position, target.totalSize),
+                    position + SERVE_FETCH_STEP_BYTES - 1L,
                 )
-                // 取不到新字节就停下：再循环只会把同一件事重试一遍
-                if (outcome.served <= 0L) {
+                val stored = lockFor(key).withLock {
+                    fillRange(key = key, target = target, from = position, toInclusive = to).stored
+                }
+                if (stored <= 0L) {
                     logger.w(messageString = "上游提前结束：key=$key 位置 $position 起没取到字节")
                     break
                 }
-                position += outcome.served
             }
 
+            // 淘汰必须发生在**还钉着这个键**的时候：解钉之后再淘汰，刚刚服务的这一首自己就成了
+            // 最久未使用的候选，会被自己的请求删掉（正在播的歌就不该被淘汰清掉）
             cache.touch(key, target.totalSize)
             onCacheProgress(key)
             evictIfNeeded()
+        } finally {
+            unpinKey(key)
         }
     }
 
+
     private suspend fun <T> withActiveKey(key: String, block: suspend () -> T): T = lockFor(key).withLock {
-        activeKeys += key
+        pinKey(key)
         try {
             block()
         } finally {
-            activeKeys -= key
+            unpinKey(key)
         }
     }
 

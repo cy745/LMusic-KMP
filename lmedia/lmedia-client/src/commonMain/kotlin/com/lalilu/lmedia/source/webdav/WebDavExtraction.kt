@@ -121,7 +121,7 @@ internal class WebDavExtractor(
     private val concurrency: Int = 2,
     private val batchSize: Int = BATCH_SIZE,
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
-    tagReaderOverride: (suspend (path: String, includeCoverAndDuration: Boolean) -> WebDavExtractedMetadata?)? = null,
+    tagReaderOverride: (suspend (path: String, includeCover: Boolean) -> WebDavExtractedMetadata?)? = null,
 ) {
     companion object {
         private const val TAG = "WebDavExtractor"
@@ -138,7 +138,7 @@ internal class WebDavExtractor(
     private var worker: Job? = null
 
     /** 标签读取做成可替换的依赖：默认走 taglib，测试可以注入确定性结果。 */
-    private val tagReader: suspend (path: String, includeCoverAndDuration: Boolean) -> WebDavExtractedMetadata? =
+    private val tagReader: suspend (path: String, includeCover: Boolean) -> WebDavExtractedMetadata? =
         tagReaderOverride ?: ::readTagsFromFile
 
     val progress: StateFlow<WebDavExtractionState> = progressState.asStateFlow()
@@ -221,7 +221,10 @@ internal class WebDavExtractor(
 
         val complete = decision == ExtractionDecision.FULL
         val extracted = try {
-            readTags(key, includeCoverAndDuration = complete)
+            // 头部窗口也读封面：窗口原本就是按"标签与内嵌封面都落在文件开头"校准的（实测 7 首 FLAC
+            // 的元数据尾部偏移 ≤ 0.83 MB）。只在完整提取时才读的话，封面要等整首缓存完才出现——而
+            // 用户恰恰就在开头这几十秒盯着封面看。
+            readTags(key, includeCover = true)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (throwable: Throwable) {
@@ -229,20 +232,38 @@ internal class WebDavExtractor(
             if (complete) {
                 logger.w(messageString = "提取失败 key=$key：${throwable.message}", throwable = throwable)
                 progressState.update { it.copy(failed = it.failed + 1) }
+                return
             }
-            return
+            // 窗口把封面切成两半时 taglib 可能整个解析失败：退回只读标签，至少先显示标题/艺术家
+            val tagsOnly = try {
+                readTags(key, includeCover = false)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                null
+            }
+            tagsOnly ?: return
         }
 
         val now = clock()
-        if (extracted == null || extracted.isEmpty) {
+        // 半截文件里有两样东西不可信，都要等到完整提取才采用：
+        // - 时长：MP3 按位率 × 截断后的长度估算，会明显偏短（播放页的时长来自真实流的 timeline）
+        // - 封面：可能被窗口切成半张图，宁可为空也不能显示半张
+        val trimmed = if (complete || extracted == null) {
+            extracted
+        } else {
+            extracted.copy(duration = 0L, cover = extracted.cover?.takeIf(::isCompleteImage))
+        }
+
+        if (trimmed == null || trimmed.isEmpty) {
             // 没有标签的文件是合法状态：记一条空记录，避免每次都重试，但不覆盖文件名派生的信息。
             // examinedBytes 让"头部窗口试过且没结果"这件事可判：兜底窗口只扩大一次。
             store.write(key, emptyRecord(target, complete, now, filled), null)
             return
         }
 
-        val record = extracted.toRecord(target.fingerprint, complete, now, examinedBytes = filled)
-        store.write(key, record, extracted.cover)
+        val record = trimmed.toRecord(target.fingerprint, complete, now, examinedBytes = filled)
+        store.write(key, record, trimmed.cover)
         markExtracted()
         onRecord(target, record)
 
@@ -276,10 +297,10 @@ internal class WebDavExtractor(
 
     private suspend fun readTags(
         key: String,
-        includeCoverAndDuration: Boolean,
+        includeCover: Boolean,
     ): WebDavExtractedMetadata? {
         val path = cache.localPath(key) ?: return null
-        return tagReader(path, includeCoverAndDuration)
+        return tagReader(path, includeCover)
     }
 
     private fun markExtracted() {
@@ -287,13 +308,40 @@ internal class WebDavExtractor(
     }
 }
 
+/** PNG 文件末尾的 IEND 块（长度 + 类型 + CRC）。 */
+private val PNG_END = byteArrayOf(0x49, 0x45, 0x4E, 0x44, 0xAE.toByte(), 0x42, 0x60, 0x82.toByte())
+
+/**
+ * 图片看起来是否完整。
+ *
+ * 头部窗口可能把内嵌封面切成两半，而 taglib 对这种输入不一定报错——直接拿去显示就会是一张半张的
+ * 图。这里只做便宜的尾部标记判定：JPEG 要求以 `FFD9` 结尾，PNG 要求以 IEND 块结尾；认不出的
+ * 格式一律认为完整（宁可先显示，也不要凭空丢掉用户的封面）。
+ */
+internal fun isCompleteImage(bytes: ByteArray): Boolean = when {
+    bytes.size < PNG_END.size -> false
+    bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() ->
+        bytes[bytes.size - 2] == 0xFF.toByte() && bytes[bytes.size - 1] == 0xD9.toByte()
+
+    bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+        bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() ->
+        PNG_END.indices.all { bytes[bytes.size - PNG_END.size + it] == PNG_END[it] }
+
+    else -> true
+}
+
 /** 默认的标签读取实现：直接读本地缓存文件（taglib 只接受本地路径 / 文件描述符）。 */
+/**
+ * 默认的标签读取实现：直接读本地缓存文件（taglib 只接受本地路径 / 文件描述符）。
+ *
+ * 时长照读，但是否采用由调用方按 complete 决定：半截文件的时长不可信（见 [WebDavExtractor.process]）。
+ */
 internal suspend fun readTagsFromFile(
     path: String,
-    includeCoverAndDuration: Boolean,
+    includeCover: Boolean,
 ): WebDavExtractedMetadata? {
     val metadata = Taglib.readMetadata(path) ?: return null
-    val cover = if (includeCoverAndDuration) {
+    val cover = if (includeCover) {
         runCatching { Taglib.getPicture(path) }.getOrNull()
     } else {
         null
@@ -307,8 +355,7 @@ internal suspend fun readTagsFromFile(
         disc = metadata.disc,
         date = metadata.date,
         genre = metadata.genre,
-        // 只有完整文件才有可信时长
-        duration = if (includeCoverAndDuration) metadata.duration else 0L,
+        duration = metadata.duration,
         cover = cover,
     )
 }
