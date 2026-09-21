@@ -20,7 +20,7 @@ import kotlin.test.assertTrue
 class WebDavExtractorTest {
 
     private val cacheRoot = "build/test-webdav-extractor"
-    private val cache = WebDavCache(cacheRoot)
+    private val cache = WebDavCache(cacheRoot, Json { ignoreUnknownKeys = true })
     private val store = WebDavMetadataStore(cacheRoot, Json { ignoreUnknownKeys = true })
 
     private val records = mutableListOf<Pair<String, WebDavMetadataRecord>>()

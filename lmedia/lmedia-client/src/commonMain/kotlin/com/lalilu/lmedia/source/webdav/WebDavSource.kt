@@ -616,6 +616,8 @@ class WebDavSource(
                 cache = cache,
                 backend = ProxyBackend(),
                 onCacheProgress = { key -> extractor?.request(key) },
+                // 每次需要时读配置：改配额立即生效，不用重建代理
+                quotaBytes = { activeConfig.cacheQuotaBytes },
             )
             created.start()
             proxy = created
@@ -626,7 +628,7 @@ class WebDavSource(
     private fun ensureCacheInfrastructure(): Pair<WebDavCache, WebDavMetadataStore> {
         val cacheRoot = cacheRootProvider.cacheRoot()
             ?: throw WebDavException.Unexpected("当前平台不支持 WebDAV 数据源")
-        val cache = WebDavCache(cacheRoot).also { this.cache = it }
+        val cache = WebDavCache(cacheRoot, json).also { this.cache = it }
         val store = metadataStore ?: WebDavMetadataStore(
             cacheRoot = cacheRoot,
             json = json,

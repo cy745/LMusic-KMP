@@ -20,6 +20,8 @@ import io.ktor.utils.io.writeBuffer
 import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /** 代理播放某个缓存键所需的信息。 */
 internal data class WebDavStreamTarget(
@@ -54,16 +56,25 @@ internal interface WebDavProxyBackend {
  * 缓存是只追加的前缀：请求落在已缓存区间内直接读本地；落在后面则先补齐中间那段（写进缓存但不
  * 发给播放器，因为播放器没要），再把请求区间边下边发。
  */
+@OptIn(ExperimentalTime::class)
 internal class WebDavProxy(
     private val cache: WebDavCache,
     private val backend: WebDavProxyBackend,
     /** 每次缓存增长后回调，供上层判断 30% / 100% 提取节点。 */
     private val onCacheProgress: suspend (key: String) -> Unit = {},
+    /** 音频缓存容量上限；<= 0 表示不限制。每次需要时读取，改配置立即生效。 */
+    private val quotaBytes: () -> Long = { 0L },
+    /** 淘汰检查的最小间隔：跳过它只为避免每次请求都扫一遍缓存目录。 */
+    private val evictionIntervalMillis: Long = EVICTION_INTERVAL_MILLIS,
+    private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
     companion object {
         private const val TAG = "WebDavProxy"
         internal const val LOOPBACK = "127.0.0.1"
         internal const val ROUTE_PREFIX = "/audio/"
+
+        /** 淘汰检查间隔：容量是稳态约束而不是硬保证，5 秒粒度足够。 */
+        internal const val EVICTION_INTERVAL_MILLIS = 5_000L
     }
 
     private val logger = Logger.withTag(TAG)
@@ -71,6 +82,10 @@ internal class WebDavProxy(
     private var baseUrl: String? = null
     private val keyLocks = mutableMapOf<String, Mutex>()
     private val keyLocksGuard = Mutex()
+    private var lastEvictionAt = 0L
+
+    /** 正在被读取或写入的键：淘汰时绝不动它们。 */
+    private val activeKeys = mutableSetOf<String>()
 
     /** 启动代理并返回基地址；重复调用返回同一地址。 */
     suspend fun start(): String {
@@ -88,6 +103,7 @@ internal class WebDavProxy(
         server?.stopSuspend()
         server = null
         baseUrl = null
+        cache.persistUsage()
     }
 
     /** 播放地址；代理未启动时返回 null（调用方必须据此拒绝播放，不能回退到直链）。 */
@@ -104,28 +120,53 @@ internal class WebDavProxy(
         target: WebDavStreamTarget,
         upTo: Long,
     ): Long = lockFor(key).withLock {
-        val last = if (target.totalSize > 0L) {
-            minOf(upTo, target.totalSize - 1)
-        } else {
-            upTo
-        }.takeIf { it >= 0L } ?: return@withLock cache.filledSize(key)
-
-        val cached = cache.filledSize(key)
-        if (cached > last) return@withLock cached
-
-        val sink = cache.openAppendSink(key)
+        activeKeys += key
         try {
-            backend.fetch(
-                target = target,
-                start = cached,
-                endInclusive = if (target.totalSize > 0L) last else null,
-            ) { bytes -> sink.write(bytes) }
-            sink.flush()
+            val last = if (target.totalSize > 0L) {
+                minOf(upTo, target.totalSize - 1)
+            } else {
+                upTo
+            }.takeIf { it >= 0L } ?: return@withLock cache.filledSize(key)
+
+            // 远端文件被换成更小的文件时，旧缓存的前缀比新文件还长，必须重建
+            cache.ensureConsistent(key, target.totalSize)
+            val cached = cache.filledSize(key)
+            if (cached > last) {
+                cache.touch(key, target.totalSize)
+                return@withLock cached
+            }
+
+            val sink = cache.openAppendSink(key)
+            try {
+                backend.fetch(
+                    target = target,
+                    start = cached,
+                    endInclusive = if (target.totalSize > 0L) last else null,
+                ) { bytes -> sink.write(bytes) }
+                sink.flush()
+            } finally {
+                sink.close()
+            }
+            cache.touch(key, target.totalSize)
+            onCacheProgress(key)
+            evictIfNeeded()
+            cache.filledSize(key)
         } finally {
-            sink.close()
+            activeKeys -= key
         }
-        onCacheProgress(key)
-        cache.filledSize(key)
+    }
+
+    /** 按配额淘汰；调用点做节流，避免每次请求都扫一遍缓存目录。 */
+    private fun evictIfNeeded() {
+        val quota = quotaBytes()
+        if (quota <= 0L) return
+        val now = clock()
+        if (now - lastEvictionAt < evictionIntervalMillis) return
+        lastEvictionAt = now
+        val evicted = cache.evictIfNeeded(quotaBytes = quota, pinned = activeKeys)
+        if (evicted.isNotEmpty()) {
+            logger.i(messageString = "缓存超出上限，淘汰 ${evicted.size} 首：${evicted.take(5)}")
+        }
     }
 
     private fun Application.proxyModule() {
@@ -166,6 +207,10 @@ internal class WebDavProxy(
         val range = resolution.range ?: RequestedRange(0L, total - 1)
         val isPartial = resolution.disposition == RangeDisposition.SATISFIABLE
 
+        // 远端文件被替换成更小的文件时，旧缓存前缀比新文件还长，必须重建
+        cache.ensureConsistent(key, total)
+        cache.touch(key, total)
+
         if (isPartial) {
             response.header(
                 HttpHeaders.ContentRange,
@@ -200,19 +245,28 @@ internal class WebDavProxy(
             return
         }
         respondBytesWriter(contentType = contentType, status = HttpStatusCode.OK) {
-            val cached = cache.filledSize(key)
-            if (cached > 0L) {
-                cache.openSource(key, 0L)?.use { source -> writeBuffer(source, cached) }
-            }
-            val sink = cache.openAppendSink(key)
+            activeKeys += key
             try {
-                backend.fetch(target, cached, endInclusive = null) { bytes ->
-                    sink.write(bytes)
-                    writeFully(bytes)
+                cache.touch(key, target.totalSize)
+                val cached = cache.filledSize(key)
+                if (cached > 0L) {
+                    cache.openSource(key, 0L)?.use { source -> writeBuffer(source, cached) }
                 }
-                sink.flush()
+                val sink = cache.openAppendSink(key)
+                try {
+                    backend.fetch(target, cached, endInclusive = null) { bytes ->
+                        sink.write(bytes)
+                        writeFully(bytes)
+                    }
+                    sink.flush()
+                } finally {
+                    sink.close()
+                }
+                cache.touch(key, target.totalSize)
+                onCacheProgress(key)
+                evictIfNeeded()
             } finally {
-                sink.close()
+                activeKeys -= key
             }
         }
     }
@@ -224,52 +278,68 @@ internal class WebDavProxy(
         channel: ByteWriteChannel,
     ) {
         lockFor(key).withLock {
-            var position = range.start
-            val cached = cache.filledSize(key)
-
-            // 已缓存的前缀部分：直接读本地，不产生网络请求
-            if (position < cached) {
-                val available = minOf(range.endInclusive, cached - 1) - position + 1
-                cache.openSource(key, position)?.use { source -> channel.writeBuffer(source, available) }
-                position += available
-            }
-
-            if (position > range.endInclusive) {
-                onCacheProgress(key)
-                return@withLock
-            }
-
-            // 剩余部分：远端从"已缓存前缀"继续拉，保持缓存仍是连续前缀。
-            // 落在 [cached, position) 的字节写进缓存但不发给播放器——播放器没要它们。
-            val sink = cache.openAppendSink(key)
-            var served = 0L
+            activeKeys += key
             try {
-                var toDrop = position - cached
-                backend.fetch(target, cached, range.endInclusive) { bytes ->
-                    // 先落盘：即使随后客户端断开，已收到的字节依然是有效的缓存前缀
-                    sink.write(bytes)
-                    var from = 0
-                    if (toDrop > 0L) {
-                        val drop = minOf(toDrop, bytes.size.toLong()).toInt()
-                        toDrop -= drop
-                        from = drop
-                    }
-                    if (from < bytes.size) {
-                        channel.writeFully(bytes, from, bytes.size)
-                        served += bytes.size - from
-                    }
-                }
-                sink.flush()
+                serveRangeLocked(key, target, range, channel)
             } finally {
-                sink.close()
+                activeKeys -= key
             }
-
-            val expected = range.endInclusive - position + 1
-            if (served < expected) {
-                logger.w(messageString = "上游提前结束：key=$key 期望 $expected 字节，实际 $served")
-            }
-            onCacheProgress(key)
         }
+    }
+
+    private suspend fun serveRangeLocked(
+        key: String,
+        target: WebDavStreamTarget,
+        range: RequestedRange,
+        channel: ByteWriteChannel,
+    ) {
+        var position = range.start
+        val cached = cache.filledSize(key)
+
+        // 已缓存的前缀部分：直接读本地，不产生网络请求
+        if (position < cached) {
+            val available = minOf(range.endInclusive, cached - 1) - position + 1
+            cache.openSource(key, position)?.use { source -> channel.writeBuffer(source, available) }
+            position += available
+        }
+
+        if (position > range.endInclusive) {
+            onCacheProgress(key)
+            return
+        }
+
+        // 剩余部分：远端从"已缓存前缀"继续拉，保持缓存仍是连续前缀。
+        // 落在 [cached, position) 的字节写进缓存但不发给播放器——播放器没要它们。
+        val sink = cache.openAppendSink(key)
+        var served = 0L
+        try {
+            var toDrop = position - cached
+            backend.fetch(target, cached, range.endInclusive) { bytes ->
+                // 先落盘：即使随后客户端断开，已收到的字节依然是有效的缓存前缀
+                sink.write(bytes)
+                var from = 0
+                if (toDrop > 0L) {
+                    val drop = minOf(toDrop, bytes.size.toLong()).toInt()
+                    toDrop -= drop
+                    from = drop
+                }
+                if (from < bytes.size) {
+                    channel.writeFully(bytes, from, bytes.size)
+                    served += bytes.size - from
+                }
+            }
+            sink.flush()
+        } finally {
+            sink.close()
+        }
+
+        val expected = range.endInclusive - position + 1
+        if (served < expected) {
+            logger.w(messageString = "上游提前结束：key=$key 期望 $expected 字节，实际 $served")
+        }
+        cache.touch(key, target.totalSize)
+        onCacheProgress(key)
+        evictIfNeeded()
     }
 
     private suspend fun lockFor(key: String): Mutex = keyLocksGuard.withLock {
