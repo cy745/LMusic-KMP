@@ -24,7 +24,16 @@ ktorfit {
 }
 
 kotlin {
-    setupMultiplatform()
+    setupMultiplatform(
+        setupAndroidTarget = {
+            // 真实设备/模拟器上的端到端用例：回环代理 + 读穿缓存 + taglib 提取在真机 Android
+            // 运行时上的行为（JVM 单测覆盖不到 FileKit 缓存目录与 taglib JNI 绑定）。
+            withDeviceTest {
+                instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+                multidex.enable = true
+            }
+        },
+    )
     setupKoin()
 
     sourceSets {
@@ -49,6 +58,14 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.client.mock)
+        }
+        val androidDeviceTest by getting {
+            dependencies {
+                implementation("androidx.test:runner:1.6.2")
+                implementation("androidx.test.ext:junit:1.2.1")
+                // 断言用 kotlin.test（与其它源集一致；参数顺序是 value 在前）
+                implementation(libs.kotlin.test)
+            }
         }
     }
 }
