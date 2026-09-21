@@ -12,6 +12,7 @@ import com.lalilu.lmedia.domain.model.artistName
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
 import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSourcePatchSource
 import com.lalilu.lmedia.domain.source.MediaSourceStateStore
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
@@ -27,7 +28,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.Mutex
@@ -49,7 +53,7 @@ class WebDavSource(
     private val clientFactory: WebDavClientFactory,
     private val cacheRootProvider: WebDavCacheRootProvider,
     kv: LMediaKV,
-) : MediaSource, MediaDataSource, CoroutineScope {
+) : MediaSource, MediaDataSource, MediaSourcePatchSource, CoroutineScope {
 
     companion object {
         private const val TAG = "WebDavSource"
@@ -81,6 +85,10 @@ class WebDavSource(
     override val state: StateFlow<SnapshotState> = stateStore.state
     override val snapshot: StateFlow<Snapshot?> = stateStore.snapshot
     override val contentState = stateStore.contentState
+
+    /** 逐条补全的元数据走这条通道入库；完整快照的整源对账代价与库大小相关，不适合单曲更新。 */
+    private val patchFlow = MutableSharedFlow<LAudio>(extraBufferCapacity = 64)
+    override val audioPatches: Flow<LAudio> = patchFlow.asSharedFlow()
 
     private var client: WebDavClient? = null
     private var loadingJob: Job? = null
@@ -354,8 +362,7 @@ class WebDavSource(
         return MediaData.Url(url)
     }
 
-    /** 启动回环代理；失败时抛出，让本次扫描以明确原因失败，而不是静默变成"不可播"。 */
-    private suspend fun ensureProxy(): WebDavProxy {
+    /** 启动回环代理；失败时抛出，让本次扫描以明确原因失败，而不是静默变成"不可播"。 */    private suspend fun ensureProxy(): WebDavProxy {
         proxy?.let { return it }
         return proxyMutex.withLock {
             proxy?.let { return@withLock it }
@@ -369,6 +376,15 @@ class WebDavSource(
             proxy = created
             created
         }
+    }
+
+    /**
+     * 把补全后的单曲结果逐条发布出去（由提取流程调用）。
+     *
+     * 只负责送到增量通道；把它合并回完整快照由提取流程按批处理，否则下一次全量对账会把补丁覆盖回去。
+     */
+    internal suspend fun emitAudioPatch(audio: LAudio) {
+        patchFlow.emit(audio)
     }
 
     private fun cacheKeyOf(audioId: String): String = audioId.md5()

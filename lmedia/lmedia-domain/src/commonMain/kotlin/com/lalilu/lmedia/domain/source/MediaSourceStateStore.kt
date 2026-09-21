@@ -121,4 +121,28 @@ class MediaSourceStateStore {
         activeTaskId = null
         mutableState.value = SnapshotState.Idle
     }
+
+    /**
+     * 在没有扫描任务的情况下发布一次新结果：把 [transform] 应用到当前歌曲列表上，`revision` 递增，
+     * 而 [state] 保持不变。
+     *
+     * 用于「后台补全元数据」这类既不改变媒体库构成、也不该把数据源卡片刷成「同步中」的更新。
+     * 变换在锁内执行，因此与并发的 [succeed] 不会互相丢更新。
+     *
+     * 还没有任何成功快照时返回 null 而不发布空列表——数据库会把空快照理解为「这个来源没有歌了」，
+     * 从而把该来源已有的歌曲全部标记为不可用。
+     *
+     * ⚠️ 与 [succeed] 保持一致：重复 id 保留**先出现**的那条。需要替换既有歌曲时，[transform] 必须
+     * 按 id 就地替换（例如以 id 建 map 再覆盖），直接追加一条同 id 的新值是无效的。
+     */
+    suspend fun publishUpdate(
+        transform: (List<LAudio>) -> List<LAudio>,
+    ): Snapshot? = mutex.withLock {
+        val current = mutableSnapshot.value ?: return@withLock null
+        currentRevision += 1
+        Snapshot(
+            audios = transform(current.audios).distinctBy { it.id },
+            revision = currentRevision,
+        ).also { mutableSnapshot.value = it }
+    }
 }
