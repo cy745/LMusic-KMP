@@ -744,6 +744,9 @@ class WebDavSource(
                 },
                 // 每次需要时读配置：改配额立即生效，不用重建代理
                 quotaBytes = { activeConfig.cacheQuotaBytes },
+                // 开播就主动把这首补齐（播放头及前瞻最优先、其后顺序铺满、跳过的空洞最低）。
+                // 计费网络只做播放头那一档——那是用户此刻正在听的部分，不是"还没要"的字节。
+                allowBackgroundFill = { !blockedByNetwork() },
             )
             created.start()
             proxy = created
