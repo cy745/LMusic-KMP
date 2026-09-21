@@ -69,7 +69,7 @@ class WebDavExtractorTest {
 
         // 补满文件后再触发一次：必须升级为完整提取（时长与封面只有完整文件才可靠）
         cache.appendBytes(key, ByteArray((totalBytes - HEAD_WINDOW_BYTES).toInt()))
-        assertEquals(totalBytes, cache.filledSize(key), "追加写入必须立刻反映到缓存长度")
+        assertEquals(totalBytes, cache.prefixSize(key), "追加写入必须立刻反映到缓存长度")
         extractor.request(key)
         extractor.drain()
 

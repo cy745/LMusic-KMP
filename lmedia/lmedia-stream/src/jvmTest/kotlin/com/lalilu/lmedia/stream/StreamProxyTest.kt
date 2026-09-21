@@ -120,7 +120,7 @@ class StreamProxyTest {
 
         assertContentEquals(payload, get("$base/audio/testkey", range = null).body)
 
-        assertEquals(1000L, cache.filledSize("testkey"))
+        assertEquals(1000L, cache.prefixSize("testkey"))
         assertNotNull(cache.readBytes("testkey", 0, 1000))
         assertContentEquals(payload, cache.readBytes("testkey", 0, 1000))
 
@@ -148,12 +148,12 @@ class StreamProxyTest {
         val base = proxy.start()
 
         assertContentEquals(first, get("$base/audio/one", range = null).body)
-        assertEquals(600L, cache.filledSize("one"))
+        assertEquals(600L, cache.prefixSize("one"))
 
         assertContentEquals(second, get("$base/audio/two", range = null).body)
 
-        assertEquals(0L, cache.filledSize("one"), "超出配额后最久未使用的应被淘汰")
-        assertEquals(600L, cache.filledSize("two"), "正在播放的这首不能被删")
+        assertEquals(0L, cache.prefixSize("one"), "超出配额后最久未使用的应被淘汰")
+        assertEquals(600L, cache.prefixSize("two"), "正在播放的这首不能被删")
     }
 
     @Test
@@ -165,7 +165,7 @@ class StreamProxyTest {
         val base = proxy.start()
 
         assertContentEquals(payload, get("$base/audio/testkey", range = null).body)
-        assertEquals(1000L, cache.filledSize("testkey"))
+        assertEquals(1000L, cache.prefixSize("testkey"))
 
         // 远端换成更小的文件：旧前缀比新文件还长，必须整段重下而不是复用旧字节
         val shrunk = ByteArray(400) { 7 }
@@ -179,7 +179,7 @@ class StreamProxyTest {
         val response = get("$secondBase/audio/testkey", range = null)
 
         assertContentEquals(shrunk, response.body, "变小后必须返回新文件内容")
-        assertEquals(400L, secondCache.filledSize("testkey"))
+        assertEquals(400L, secondCache.prefixSize("testkey"))
     }
 
     private suspend fun get(url: String, range: String?): Response = withContext(Dispatchers.IO) {

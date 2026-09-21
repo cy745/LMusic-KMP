@@ -205,7 +205,7 @@ internal class WebDavExtractor(
     private suspend fun process(key: String) {
         val target = targets.targetOf(key) ?: return
         val existing = store.read(key)
-        val filled = cache.filledSize(key)
+        val filled = cache.prefixSize(key)
         val decision = decideExtraction(
             filled = filled,
             total = target.totalSize,

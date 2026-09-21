@@ -131,11 +131,11 @@ class StreamProxy(
                 minOf(upTo, target.totalSize - 1)
             } else {
                 upTo
-            }.takeIf { it >= 0L } ?: return@withLock cache.filledSize(key)
+            }.takeIf { it >= 0L } ?: return@withLock cache.prefixSize(key)
 
             // 远端文件被换成更小的文件时，旧缓存的前缀比新文件还长，必须重建
             cache.ensureConsistent(key, target.totalSize)
-            val cached = cache.filledSize(key)
+            val cached = cache.prefixSize(key)
             if (cached > last) {
                 cache.touch(key, target.totalSize)
                 return@withLock cached
@@ -155,7 +155,7 @@ class StreamProxy(
             cache.touch(key, target.totalSize)
             onCacheProgress(key)
             evictIfNeeded()
-            cache.filledSize(key)
+            cache.prefixSize(key)
         } finally {
             activeKeys -= key
         }
@@ -253,7 +253,7 @@ class StreamProxy(
             activeKeys += key
             try {
                 cache.touch(key, target.totalSize)
-                val cached = cache.filledSize(key)
+                val cached = cache.prefixSize(key)
                 if (cached > 0L) {
                     cache.openSource(key, 0L)?.use { source -> writeBuffer(source, cached) }
                 }
@@ -299,7 +299,7 @@ class StreamProxy(
         channel: ByteWriteChannel,
     ) {
         var position = range.start
-        val cached = cache.filledSize(key)
+        val cached = cache.prefixSize(key)
 
         // 已缓存的前缀部分：直接读本地，不产生网络请求
         if (position < cached) {

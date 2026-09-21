@@ -628,7 +628,7 @@ class WebDavSource(
         targetOf(song)?.let { target ->
             mutableBufferSnapshot.value = WebDavBufferSnapshot(
                 key = key,
-                filled = cache?.filledSize(key) ?: 0L,
+                filled = cache?.coveredBytes(key, target.totalSize) ?: 0L,
                 total = target.totalSize,
             )
         }
@@ -652,7 +652,9 @@ class WebDavSource(
     private fun publishBufferProgress(key: String) {
         val current = mutableBufferSnapshot.value ?: return
         if (current.key != key) return
-        mutableBufferSnapshot.value = current.copy(filled = cache?.filledSize(key) ?: current.filled)
+        mutableBufferSnapshot.value = current.copy(
+            filled = cache?.coveredBytes(key, current.total) ?: current.filled,
+        )
     }
 
     /**
