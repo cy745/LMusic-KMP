@@ -8,10 +8,12 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.debug.DebugSwitches
 import com.lalilu.lmedia.domain.source.MediaCacheDebugControl
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lmedia.domain.source.observeBufferProgress
 import com.lalilu.lplayer.LPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.mp.KoinPlatform
 
@@ -110,8 +112,32 @@ class DebugCommandReceiver : BroadcastReceiver() {
                         "queueIndex=${queue.index}/${queue.list.size} " +
                         "item=${item?.id} source=${item?.mediaSourceName}"
                 }
+                logBufferRanges(item)
             }
             else -> logger.w { "DebugCmd: 未知命令 '$cmd'" }
+        }
+    }
+
+    /**
+     * 单独一行打印当前这首**数据源上报的缓冲区间**。
+     *
+     * 为什么和 `state` 分开：`state` 里的 bufferedMs 是播放器自己的缓冲位置，而渐进式 HTTP 下
+     * 它常常是 0——真正能看出"还有多久能听"的是数据源的缓存覆盖率（字节比例），要挂起去取，
+     * 所以另起一行、晚一点到，而不是把 state 变成挂起调用。
+     */
+    private fun logBufferRanges(item: com.lalilu.lmedia.domain.model.LAudio?) {
+        if (item == null) return
+        scope.launch {
+            runCatching {
+                KoinPlatform.getKoin().get<PlatformMediaSource>()
+                    .observeBufferProgress(item)
+                    .first()
+            }.onSuccess { ranges ->
+                logger.i {
+                    "DebugCmd: buffer audio=${item.id} ranges=" +
+                        ranges.joinToString { "%.3f~%.3f".format(it.startFraction, it.endFraction) }
+                }
+            }.onFailure { logger.w(it) { "DebugCmd: buffer 读取失败" } }
         }
     }
 
