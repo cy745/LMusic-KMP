@@ -8,10 +8,14 @@ import coil3.request.Options
 import coil3.size.pxOrElse
 import coil3.toUri
 import com.lalilu.lmedia.MediaCoverRequest
+import com.lalilu.lmedia.domain.debug.DebugSwitches
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.*
+import kotlinx.coroutines.delay
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+
+private val logger = co.touchlab.kermit.Logger.withTag("LAudioFetcher")
 
 class LAudioFetcher(
     val audio: LAudio,
@@ -27,13 +31,34 @@ class LAudioFetcher(
             return fetcher.fetch()
         }
 
+        // ── 调试埋点：封面这条链是「切歌闪底色」的嫌疑区 ──
+        // 把每次解析的输入与结果打出来（logcat 自带毫秒时间戳，用不着自己计时）。
+        // 只在调试通道打开时输出，正式包零噪音、零分支开销。
+        if (DebugSwitches.enabled) {
+            logger.i {
+                "DebugCover: start audio=${audio.id} title='${audio.title}' " +
+                    "size=${options.size.width}x${options.size.height} extra=${audio.extra?.keys?.toList()}"
+            }
+        }
+        if (DebugSwitches.fakeCoverDelayMs > 0L) {
+            delay(DebugSwitches.fakeCoverDelayMs)
+        }
+        if (DebugSwitches.fakeCoverFail) {
+            logger.w { "DebugCover: fakeCoverFail=true -> 强制返回 null audio=${audio.id}" }
+            return null
+        }
+
         // Coil 3 Size.width/height 是 Dimension 类型，
         // pxOrElse { 0 } 提取像素值，未指定时回退 0
         val fetchOptions = MediaFetchOptions(
             width = options.size.width.pxOrElse { 0 },
             height = options.size.height.pxOrElse { 0 },
         )
-        val pictureData = resolvePicture(audio, fetchOptions) ?: return null
+        val pictureData = resolvePicture(audio, fetchOptions)
+        if (DebugSwitches.enabled) {
+            logger.i { "DebugCover: result=${pictureData ?: "null"} audio=${audio.id}" }
+        }
+        if (pictureData == null) return null
 
         val data = when (pictureData) {
             is MediaData.Bytes -> pictureData.bytes

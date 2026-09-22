@@ -102,6 +102,9 @@ if (upxEnabled) {
 
 dependencies {
     implementation(project(":composeApp"))
+    // 调试通道要用播放动作与调试开关；composeApp 是 implementation 依赖它们，这里得显式声明
+    implementation(project(":lplayer"))
+    implementation(project(":lmedia:lmedia-domain"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.kermit)

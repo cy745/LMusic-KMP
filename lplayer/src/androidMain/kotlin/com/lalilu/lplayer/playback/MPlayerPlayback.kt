@@ -25,6 +25,7 @@ import com.lalilu.lmedia.domain.model.PlaybackFailureReason
 import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
 import com.lalilu.lmedia.domain.repository.getPlaybackSlots
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
+import com.lalilu.lmedia.domain.debug.DebugSwitches
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
@@ -478,7 +479,10 @@ class MPlayerPlayback(
         val browser = browserInstance ?: return
         val fromMetadata = browser.mediaMetadata.durationMs?.takeIf { it > 0L }
         val fromPlayer = browser.duration.takeIf { it != C.TIME_UNSET && it > 0L }
-        _currentDuration.value = fromMetadata ?: fromPlayer ?: 0L
+        // 注意：Android 这条链是**直接写** _currentDuration 的，不经过 AbstractPlayback 的引擎镜像，
+        // 所以"强制时长未知"的调试开关必须在这里也拦一道，否则复现不出那个状态。
+        val resolved = fromMetadata ?: fromPlayer ?: 0L
+        _currentDuration.value = if (DebugSwitches.fakeDurationUnknown) 0L else resolved
     }
 
     override fun onPlaylistMetadataChanged(mediaMetadata: MediaMetadata) {
