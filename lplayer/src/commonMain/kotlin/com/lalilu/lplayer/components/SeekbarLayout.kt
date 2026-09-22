@@ -112,6 +112,8 @@ fun SeekbarLayout(
     maxValue: () -> Float = { 0f },
     dataValue: () -> Float = { 0f },
     bufferedRanges: () -> List<BufferedRange> = { emptyList() },
+    /** 总时长未知时（网络源还没解析出时长）显示 `--:--` 并隐藏填充，而不是显示 00:00。 */
+    durationUnknown: () -> Boolean = { false },
     switchIndex: () -> Int = { 0 },
     scrollThreadHold: Float = 200f,
     positionState: SeekbarPositionState = rememberSeekbarPositionState(),
@@ -162,7 +164,12 @@ fun SeekbarLayout(
         val isCanceled by remember { derivedStateOf { seekbarState.value.isCanceled() } }
         val snap = remember { derivedStateOf { !(isSwitching || !isTouching || isCanceled) } }
 
-        val maxDurationText = remember(maxValue()) { maxValue().toLong().durationToTime() }
+        // 时长未知时用 `--:--` 占位：比显示 00:00 诚实（0 是合法值，不能拿来表示"还不知道"）。
+        // 此时 maxValue 也是 0 → normalize 会把填充算成 0，正好等于"不画填充"。
+        val isDurationUnknown = durationUnknown()
+        val maxDurationText = remember(maxValue(), isDurationUnknown) {
+            if (isDurationUnknown) "--:--" else maxValue().toLong().durationToTime()
+        }
         val currentTimeText = durationToText(duration = { positionState.position.toLong() })
         val animationJob = remember { mutableStateOf<Job?>(null) }
 

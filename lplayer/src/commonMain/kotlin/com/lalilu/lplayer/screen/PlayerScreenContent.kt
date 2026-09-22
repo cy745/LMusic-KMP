@@ -6,6 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -50,6 +51,15 @@ internal fun PlayerScreenContent(
     val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     val timeline = rememberSeekbarPositionState {
         currentTime.longValue.toFloat()
+    }
+    // 切歌过渡：先沿用上一首的显示值（A），超过阈值还没拿到新时长就切 `--:--` 占位（B）。
+    // 不这么做的后果就是"切歌时填充/缓冲/总时长一起塌成空轨道，然后硬切回来"。
+    val switchTransition = rememberSwitchTransition(
+        playbackKey = currentItem.value?.id,
+        duration = duration.value,
+    )
+    val displayDuration = remember(switchTransition) {
+        derivedStateOf { switchTransition.displayDuration }
     }
     var isManuallyScrollingLyrics by remember { mutableStateOf(false) }
     // 「歌词页展开时隐藏其他组件」与歌词设置页 / 播放页弹窗共用同一份设置
@@ -155,7 +165,8 @@ internal fun PlayerScreenContent(
                             },
                         ),
                     currentTime = currentTime,
-                    duration = duration,
+                    duration = displayDuration,
+                    durationUnknown = { switchTransition.unknown },
                     positionState = timeline,
                     animateColor = { backgroundColor.value },
                     bufferedRanges = bufferedRanges,
