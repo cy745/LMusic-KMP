@@ -15,6 +15,7 @@ import com.lalilu.lmedia.domain.source.MediaCacheDebugControl
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
+import com.lalilu.lmedia.domain.source.MediaItemContentPending
 import com.lalilu.lmedia.domain.source.MediaSource
 import com.lalilu.lmedia.domain.source.MediaSourceBufferProgress
 import com.lalilu.lmedia.domain.source.MediaSourcePatchSource
@@ -72,7 +73,7 @@ class WebDavSource(
     private val json: Json,
     kv: LMediaKV,
     private val networkObservation: NetworkObservation,
-) : MediaSource, MediaDataSource, MediaSourcePatchSource, MediaSourceBufferProgress, MediaCacheDebugControl, CoroutineScope {
+) : MediaSource, MediaDataSource, MediaSourcePatchSource, MediaSourceBufferProgress, MediaCacheDebugControl, MediaItemContentPending, CoroutineScope {
 
     companion object {
         private const val TAG = "WebDavSource"
@@ -851,6 +852,21 @@ class WebDavSource(
 
         // 计数归零：下一次提取/扫描会重新统计，"元数据提取"这一行回到未加载状态
         mutableProgress.value = WebDavExtractionState()
+    }
+
+    /**
+     * 封面/歌词这类"要等它到了才有"的内容，是否还在路上。
+     *
+     * 判据是**有没有提取记录**：提取在播放头落到这首歌时就开始跑，跑完必定落一条记录
+     * （哪怕是"提取过但没有封面"的空记录）。所以
+     * - 没有记录 → 还没提取过，封面可能马上就出来 → 值得等；
+     * - 有记录 → 有就是有、没有就是没有 → 立刻给结论，别让界面一直显示上一张。
+     *
+     * 刻意只查本地文件是否存在（一次 stat）：解析器会在等待期间反复调用它。
+     */
+    override fun isItemContentPending(audio: LAudio): Boolean {
+        val store = metadataStore ?: return false
+        return !store.hasRecord(cacheKeyOf(audio.id))
     }
 
     /**

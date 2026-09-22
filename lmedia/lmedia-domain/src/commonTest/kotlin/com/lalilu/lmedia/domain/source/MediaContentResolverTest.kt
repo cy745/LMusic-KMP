@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MediaContentResolverTest {
@@ -164,9 +165,52 @@ class MediaContentResolverTest {
         assertEquals(0, target.pictureRequests)
     }
 
+    @Test
+    fun pictureStillComingIsWaitedForInsteadOfBeingReportedMissing() = runTest {
+        // 网络歌曲的封面要等提取跑完才有：第一次读不到不代表"没有"，界面这时已经在按失败渲染了，
+        // 而用户看到的就是"切歌先闪一下底色，再跳成封面"。
+        val target = FakeSource("target", MediaData.Url("file:///cover.jpg"), pictureFromRequest = 2)
+        target.store.content.ready()
+        val platform = PlatformMediaSource(listOf(target))
+        val audio = LAudio(id = "song", title = "Song", mediaSourceName = "target")
+
+        assertEquals(
+            MediaData.Url("file:///cover.jpg"),
+            platform.resolvePictureData(audio, timeoutMillis = 5_000L),
+        )
+        assertEquals(2, target.pictureRequests)
+    }
+
+    @Test
+    fun pictureThatNeverComesGivesUpAfterTheBudget() = runTest {
+        val target = FakeSource("target", pictureFromRequest = Int.MAX_VALUE)
+        target.store.content.ready()
+        val platform = PlatformMediaSource(listOf(target))
+        val audio = LAudio(id = "song", title = "Song", mediaSourceName = "target")
+
+        assertNull(platform.resolvePictureData(audio, timeoutMillis = 1_000L))
+        // 预算内至少试过不止一次，而不是读完一次就下结论
+        assertTrue(target.pictureRequests > 1, "expected retries, got ${target.pictureRequests}")
+    }
+
+    @Test
+    fun pictureKnownToBeMissingIsNotWaitedFor() = runTest {
+        // 来源明确说"这首歌就是没有封面"时，等下去只会让界面多显示一会儿上一张
+        val target = FakeSource("target", pictureFromRequest = Int.MAX_VALUE, pending = false)
+        target.store.content.ready()
+        val platform = PlatformMediaSource(listOf(target))
+        val audio = LAudio(id = "song", title = "Song", mediaSourceName = "target")
+
+        assertNull(platform.resolvePictureData(audio, timeoutMillis = 5_000L))
+        assertEquals(1, target.pictureRequests)
+    }
+
     private class FakeSource(
         override val name: String,
         private val media: MediaData? = null,
+        /** 第几次请求开始返回封面（模拟"封面要等一会儿才出现"）。 */
+        private val pictureFromRequest: Int = 1,
+        private val pending: Boolean = true,
     ) : MediaSource {
         val store = MediaSourceStateStore()
         var mediaRequests = 0
@@ -176,7 +220,9 @@ class MediaContentResolverTest {
         override val state = store.state
         override val snapshot = store.snapshot
         override val contentState = store.contentState
-        override val dataSource = object : MediaDataSource {
+        override val dataSource: MediaDataSource = object : MediaDataSource, MediaItemContentPending {
+            override fun isItemContentPending(audio: LAudio): Boolean = pending
+
             override suspend fun getMedia(song: LAudio): MediaData? {
                 mediaRequests++
                 return media
@@ -187,7 +233,7 @@ class MediaContentResolverTest {
                 options: MediaFetchOptions,
             ): MediaData? {
                 pictureRequests++
-                return media
+                return media.takeIf { pictureRequests >= pictureFromRequest }
             }
 
             override suspend fun getLyric(song: LAudio): String? {

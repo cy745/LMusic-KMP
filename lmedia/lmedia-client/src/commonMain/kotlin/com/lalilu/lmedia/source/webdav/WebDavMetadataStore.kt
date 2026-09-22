@@ -107,6 +107,16 @@ internal class WebDavMetadataStore(
                 .toSet()
         }.getOrDefault(emptySet())
 
+    /**
+     * 这个键是否已经有提取记录。
+     *
+     * 记录里会写明"提取过但确实没有封面"，所以「有记录」就等于「封面有没有已经有定论了」，
+     * 而「没记录」等于「还没提取过，封面可能还在路上」——WebDavSource 用它回答
+     * `MediaItemContentPending.isItemContentPending`。
+     */
+    fun hasRecord(key: String): Boolean =
+        memory.containsKey(key) || SystemFileSystem.exists(metaPath(key))
+
     suspend fun read(key: String): WebDavMetadataRecord? {
         memory[key]?.let { return it }
 
