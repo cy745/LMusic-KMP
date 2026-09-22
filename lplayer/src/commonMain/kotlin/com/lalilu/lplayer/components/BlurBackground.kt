@@ -6,9 +6,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -16,6 +18,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.compositeOver
@@ -36,6 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
@@ -75,15 +79,17 @@ class BlurBackgroundViewModel : ViewModel() {
 
             ensureActive()
 
-            val image = result.image
-            val color = image?.toBitmap()?.toImageBitmap()
+            // 取不到图时**不要**退回中性色：那会让底色当着用户的面跳一下。
+            // 拿不到就保持上一次的配色，等真的解析出来再换。
+            val color = result.image?.toBitmap()?.toImageBitmap()
                 ?.themeColorOrNull(maxColors = 8)
-                ?: Color.DarkGray
 
             ensureActive()
 
-            bgColorState.value = color
-            contentColorState.value = Color.White.compositeOver(color)
+            if (color != null) {
+                bgColorState.value = color
+                contentColorState.value = Color.White.compositeOver(color)
+            }
         }
 
         val coverFetch = async(Dispatchers.io) {
@@ -99,9 +105,18 @@ class BlurBackgroundViewModel : ViewModel() {
 
             ensureActive()
 
-            imageState.value = result.image
+            // ★ 只在**成功**时写入。
+            // 之前这里是 `imageState.value = result.image?...`：失败会把上一张抹成 null，
+            // 于是 AnimatedContent 只能画占位/空 → 用户看到的"先闪一下底色再切到新封面"。
+            // 下面 AnimatedContent 的 transitionSpec 本来就是为"旧封面保留、新封面淡入"写的，
+            // 把这一行改成只在成功时写入，那个淡入才真正生效。
+            val bitmap = result.image
                 ?.toBitmap()
                 ?.toImageBitmap()
+
+            if (bitmap != null) {
+                imageState.value = bitmap
+            }
         }
 
         paletteFetch.await()
@@ -123,8 +138,10 @@ fun DefaultBlurBackground(
 
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
         LaunchedEffect(Unit) {
+            // 只在真的解析出配色时才回调：`it ?: Color.DarkGray` 会让底色在失败时跳成中性灰
             vm.bgColorState
-                .onEach { onColorPairFetched(it ?: Color.DarkGray, Color.White) }
+                .filterNotNull()
+                .onEach { onColorPairFetched(it, Color.White) }
                 .launchIn(this)
         }
 
@@ -153,7 +170,20 @@ fun DefaultBlurBackground(
             }
         ) { cover ->
             if (cover == null) {
-                Spacer(modifier = Modifier.fillMaxSize())
+                // 首次还没有任何封面（不是切歌）：给一个明确的底色占位，而不是一片空。
+                // 用主题色做一层渐变，读起来是"背景正在准备"，而不是"这里坏了"。
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primaryContainer,
+                                    MaterialTheme.colorScheme.surface,
+                                )
+                            )
+                        )
+                )
                 return@AnimatedContent
             }
 
