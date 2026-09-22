@@ -6,6 +6,7 @@ import com.lalilu.common.ext.md5
 import com.lalilu.common.kv.KVItem
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.Taglib
+import com.lalilu.lmedia.domain.debug.DebugSwitches
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.model.albumName
@@ -669,6 +670,8 @@ class WebDavSource(
      */
     override suspend fun getPicture(song: LAudio, options: MediaFetchOptions): MediaData? {
         val key = cacheKeyOf(song.id)
+        // 调试埋点：解析器在等待期间会反复调这里，所以这行同时能看出重试节奏。
+        if (DebugSwitches.enabled) logger.i { "DebugPicture: getPicture audio=${song.id}" }
         sidecarBytes(song, key, WebDavSidecarKind.COVER)?.let { return MediaData.Bytes(it) }
         val bytes = metadataStore?.readCover(key) ?: return null
         return MediaData.Bytes(bytes)
@@ -868,8 +871,19 @@ class WebDavSource(
      * 刻意只查本地文件是否存在（一次 stat）：解析器会在等待期间反复调用它。
      */
     override fun isItemContentPending(audio: LAudio): Boolean {
-        val store = metadataStore ?: return true
-        return !store.hasRecord(cacheKeyOf(audio.id))
+        val store = metadataStore
+        if (store == null) {
+            // 只在"会改变等待行为"的两个分支打日志：正常等待本身不刷屏。
+            if (DebugSwitches.enabled) {
+                logger.i { "DebugPicture: 缓存设施未装配 → 按'在路上' audio=${audio.id}" }
+            }
+            return true
+        }
+        val hasRecord = store.hasRecord(cacheKeyOf(audio.id))
+        if (hasRecord && DebugSwitches.enabled) {
+            logger.i { "DebugPicture: 已有提取记录 → 不再等待 audio=${audio.id}" }
+        }
+        return !hasRecord
     }
 
     /**
