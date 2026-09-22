@@ -574,15 +574,18 @@ private fun SeekbarBuffered(
         label = "SeekbarBuffered_clipProgress"
     )
 
-    // 后端按节流（~4 次/秒）上报，直接画会一顿一顿；每段的末端各自补间，看起来才连续。
+    // 后端按节流（2 次/秒）上报，直接画会一顿一顿；每段的末端各自补间，看起来才连续。
     // 动画必须在 Canvas 之外求值——Canvas 的绘制块不是 composable 作用域。
+    //
+    // 补间时长要明显短于上报间隔：若两者接近，缓冲条会一直处在动画里（近似连续重绘），全屏/大窗口下
+    // 这些重绘足以抢占其它动画（例如播放页 BottomSheet 的开关）的帧预算。160ms 补间 + 500ms 上报 = 
+    // 每轮有四成时间静止。
     val ranges = bufferedRanges()
     val animatedEnds = ranges.map { range ->
         key(range.startFraction) {
             animateFloatAsState(
                 targetValue = range.endFraction,
-                // 略长于后端的节流间隔，正好把两次上报之间的跳跃抹平
-                animationSpec = tween(durationMillis = 220),
+                animationSpec = tween(durationMillis = 160),
                 label = "SeekbarBuffered_end",
             ).value
         }

@@ -109,8 +109,14 @@ class StreamProxy(
         /** 淘汰检查间隔：容量是稳态约束而不是硬保证，5 秒粒度足够。 */
         internal const val EVICTION_INTERVAL_MILLIS = 5_000L
 
-        /** 落盘过程中的进度回调间隔：约 4 次/秒，足够让缓冲条连续推进，又不至于每写一块就刷一次。 */
-        private const val PROGRESS_INTERVAL_MILLIS = 250L
+        /**
+         * 落盘过程中的进度回调间隔。
+         *
+         * 这个值同时决定界面缓冲条"多久动一次"：前端对每段缓冲区间做补间动画，回调若比补间还密，
+         * 进度条就一直处在动画里（近似连续重绘）——全屏/大窗口下这些重绘的代价会被放大，抢占其它
+         * 动画（例如播放页 BottomSheet 的开关）的帧预算。500ms 配 160ms 补间既看得出在推进，也留出静止时间。
+         */
+        private const val PROGRESS_INTERVAL_MILLIS = 500L
 
         /** 播放头前瞻窗口默认 4 MB：约一两分钟的音频，足够吸收网络抖动。 */
         const val DEFAULT_LOOKAHEAD_BYTES = 4L * 1024 * 1024
