@@ -6,11 +6,14 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.debug.DebugSwitches
+import com.lalilu.lmedia.domain.source.MediaCacheDebugControl
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lplayer.LPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import org.koin.mp.KoinPlatform
 
 private val logger = Logger.withTag("DebugCmd")
 
@@ -19,7 +22,7 @@ private val logger = Logger.withTag("DebugCmd")
  *
  * 为什么需要它：像"切歌瞬间封面闪一下底色"这种问题，窗口只有 ~100ms，
  * 靠人手点出来再复现既慢又不稳定；而"这首歌还没提取过封面"这种前提更是没法手工保证。
- * 有了这个通道，脚本可以先 `cover_clear` 把某首的缓存清掉、再 `index` 切过去，
+ * 有了这个通道，脚本可以先 `clear_cache` 把某首的缓存清掉、再 `index` 切过去，
  * 状态就确定可复现了。
  *
  * 用法（应用需已在前台运行）：
@@ -29,6 +32,9 @@ private val logger = Logger.withTag("DebugCmd")
  * adb shell am broadcast -a com.lalilu.lmusic.DEBUG --es cmd cover_fail --ez on true
  * adb shell am broadcast -a com.lalilu.lmusic.DEBUG --es cmd cover_delay --el ms 1500
  * adb shell am broadcast -a com.lalilu.lmusic.DEBUG --es cmd duration_unknown --ez on true
+ * adb shell am broadcast -a com.lalilu.lmusic.DEBUG --es cmd clear_cache --ei index 4
+ * adb shell am broadcast -a com.lalilu.lmusic.DEBUG --es cmd clear_cache --ez all true
+ * adb shell am broadcast -a com.lalilu.lmusic.DEBUG --es cmd queue
  * adb shell am broadcast -a com.lalilu.lmusic.DEBUG --es cmd state
  * adb shell am broadcast -a com.lalilu.lmusic.DEBUG --es cmd reset
  * ```
@@ -77,17 +83,32 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 DebugSwitches.fakeDurationUnknown = i.boolExtra(true)
                 logger.i { "DebugCmd: fakeDurationUnknown=${DebugSwitches.fakeDurationUnknown}" }
             }
+            "clear_cache" -> clearCache(i)
+            "queue" -> {
+                val state = LPlayer.instance.queue.stateSnapshot()
+                logger.i { "DebugCmd: queue size=${state.list.size} index=${state.index}" }
+                state.list.forEachIndexed { idx, audio ->
+                    logger.i {
+                        "DebugCmd: queue[$idx] source=${audio.mediaSourceName} " +
+                            "id=${audio.id} title='${audio.title}'"
+                    }
+                }
+            }
             "reset" -> {
                 DebugSwitches.reset()
                 logger.i { "DebugCmd: 开关已复位" }
             }
             "state" -> {
                 val p = LPlayer.instance
+                val queue = p.queue.stateSnapshot()
+                val item = queue.currentItem()
                 logger.i {
                     "DebugCmd: state switches=[${DebugSwitches.describe()}] " +
                         "isPlaying=${p.isPlaying.value} durationMs=${p.currentDuration.value} " +
                         "positionMs=${p.currentPosition()} " +
-                        "bufferedMs=${p.currentBufferedPosition.value}"
+                        "bufferedMs=${p.currentBufferedPosition.value} " +
+                        "queueIndex=${queue.index}/${queue.list.size} " +
+                        "item=${item?.id} source=${item?.mediaSourceName}"
                 }
             }
             else -> logger.w { "DebugCmd: 未知命令 '$cmd'" }
@@ -96,6 +117,48 @@ class DebugCommandReceiver : BroadcastReceiver() {
 
     private fun Intent.boolExtra(default: Boolean): Boolean =
         if (hasExtra(EXTRA_ON)) getBooleanExtra(EXTRA_ON, default) else default
+
+    /**
+     * 清掉某首歌（或整个来源）的本地缓存，把它打回"没加载过"的样子。
+     *
+     * 三种指定方式，必须显式给出一种：`--es id <audioId>`、`--ei index <队列下标>`、
+     * `--ez all true`。什么都不给时**不清任何东西**——"顺手清全部"会让脚本的一次笔误把
+     * 整个媒体库的缓存抹掉，代价太大。
+     */
+    private fun clearCache(i: Intent) {
+        val id = i.getStringExtra(EXTRA_ID)?.takeIf { it.isNotBlank() }
+        val index = if (i.hasExtra(EXTRA_INDEX)) i.getIntExtra(EXTRA_INDEX, -1) else -1
+        val all = i.boolExtra(default = false)
+
+        if (id == null && index < 0 && !all) {
+            logger.w { "DebugCmd: clear_cache 需要 --es id / --ei index / --ez all true 之一" }
+            return
+        }
+
+        scope.launch {
+            runCatching {
+                val audioId = when {
+                    all -> null
+                    id != null -> id
+                    else -> LPlayer.instance.queue.stateSnapshot().list.getOrNull(index)?.id
+                }
+                if (!all && audioId == null) {
+                    logger.w { "DebugCmd: clear_cache 队列里没有 index=$index" }
+                    return@runCatching
+                }
+
+                val sources = KoinPlatform.getKoin().get<PlatformMediaSource>().sources
+                sources.forEach { source ->
+                    val control = source as? MediaCacheDebugControl ?: return@forEach
+                    runCatching { control.clearLocalCache(audioId) }
+                        .onSuccess {
+                            logger.i { "DebugCmd: clear_cache source=${source.name} target=${audioId ?: "ALL"}" }
+                        }
+                        .onFailure { logger.e(it) { "DebugCmd: clear_cache source=${source.name} 失败" } }
+                }
+            }.onFailure { logger.e(it) { "DebugCmd: clear_cache 失败" } }
+        }
+    }
 
     private fun playback(block: suspend (com.lalilu.lplayer.playback.Playback) -> Unit) {
         scope.launch {
@@ -110,6 +173,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
         const val EXTRA_ON = "on"
         const val EXTRA_MS = "ms"
         const val EXTRA_INDEX = "index"
+        const val EXTRA_ID = "id"
 
         private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 

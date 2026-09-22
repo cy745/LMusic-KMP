@@ -11,6 +11,7 @@ import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.model.albumName
 import com.lalilu.lmedia.domain.model.artistName
 import com.lalilu.lmedia.domain.source.BufferedRange
+import com.lalilu.lmedia.domain.source.MediaCacheDebugControl
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
@@ -71,7 +72,7 @@ class WebDavSource(
     private val json: Json,
     kv: LMediaKV,
     private val networkObservation: NetworkObservation,
-) : MediaSource, MediaDataSource, MediaSourcePatchSource, MediaSourceBufferProgress, CoroutineScope {
+) : MediaSource, MediaDataSource, MediaSourcePatchSource, MediaSourceBufferProgress, MediaCacheDebugControl, CoroutineScope {
 
     companion object {
         private const val TAG = "WebDavSource"
@@ -850,6 +851,25 @@ class WebDavSource(
 
         // 计数归零：下一次提取/扫描会重新统计，"元数据提取"这一行回到未加载状态
         mutableProgress.value = WebDavExtractionState()
+    }
+
+    /**
+     * 调试通道入口：见 [MediaCacheDebugControl]。
+     *
+     * 只清一首走"删掉这首歌的记录"而不是"停掉整个来源"：代理、提取器、后台补全都还在跑，
+     * 只把这一首的提取记录、封面、边车与音频分段删掉。下次切到它时，时长与封面都得重新取，
+     * 「还没加载出来」的那段窗口就确定可复现了。
+     */
+    override suspend fun clearLocalCache(audioId: String?) {
+        if (audioId == null) {
+            clearCachedData()
+            return
+        }
+
+        val key = cacheKeyOf(audioId)
+        metadataStore?.delete(key)
+        cache?.delete(key)
+        logger.i { "DebugCache: 已清除 audioId=$audioId key=$key" }
     }
 
     /**
