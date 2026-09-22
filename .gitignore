@@ -30,3 +30,5 @@ node_modules
 
 # VLC native libraries downloaded by vlc-setup plugin
 lplayer/src/jvmMain/assets/*/vlc/
+# 本地构建/测试输出（我自己的临时日志，不该进仓库）
+.tmp-*.log
