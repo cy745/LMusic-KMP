@@ -862,10 +862,13 @@ class WebDavSource(
      * - 没有记录 → 还没提取过，封面可能马上就出来 → 值得等；
      * - 有记录 → 有就是有、没有就是没有 → 立刻给结论，别让界面一直显示上一张。
      *
+     * 缓存设施还没装配好（还没 connect）时也算"在路上"：这时**不可能**有记录，回答"就是没有"
+     * 等于让上层立刻判失败，而封面很可能在预算内就到位。
+     *
      * 刻意只查本地文件是否存在（一次 stat）：解析器会在等待期间反复调用它。
      */
     override fun isItemContentPending(audio: LAudio): Boolean {
-        val store = metadataStore ?: return false
+        val store = metadataStore ?: return true
         return !store.hasRecord(cacheKeyOf(audio.id))
     }
 

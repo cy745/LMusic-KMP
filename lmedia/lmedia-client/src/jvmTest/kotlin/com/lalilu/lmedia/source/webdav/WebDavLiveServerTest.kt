@@ -9,7 +9,9 @@ import com.lalilu.lmedia.domain.model.albumName
 import com.lalilu.lmedia.domain.model.artistName
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.Snapshot
+import com.lalilu.lmedia.domain.source.resolvePictureData
 import com.lalilu.lmedia.net.NetworkType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -28,6 +30,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -262,6 +265,80 @@ class WebDavLiveServerTest {
         val pictureBytes = (picture as MediaData.Bytes).bytes
         assertEquals(0xFF, pictureBytes[0].toInt() and 0xFF, "应是真正的 JPEG 数据")
         assertEquals(0xD8, pictureBytes[1].toInt() and 0xFF)
+
+        source.deactivate()
+    }
+
+    /**
+     * 「封面还在路上」不能被当成「没有封面」：解析器要在预算内等它落盘。
+     *
+     * 这是「切歌先闪一下底色」的根因——`getPicture` 在这首歌的提取记录落盘前只能返回 null，
+     * 而 null 对 Coil 等于**失败**，界面于是在封面到达之前就按失败渲染了（封面其实再等一两秒就有）。
+     *
+     * 刻意挑一首**没有同目录边车封面**的歌：有边车时 `getPicture` 直接下载边车就返回了，
+     * 不经过提取这条路径，测不到"等它落盘"。
+     */
+    @Test
+    fun `a cover that is still coming is waited for instead of reported missing`() = runTest {
+        assumeTrue("未配置 LMUSIC_WEBDAV_URL，跳过真实服务用例", url != null)
+        val source = newSource(cacheRoot = freshCacheRoot())
+        source.connect(url!!, username, password, root).getOrThrow()
+        val audios = assertNotNull(awaitSnapshot(source)).audios
+        val audio = audios.firstOrNull {
+            it.title == "エンドロール" && it.extra?.get(WebDavSource.EXTRA_COVER_PATH) == null
+        }
+        assertNotNull(audio, "夹具里应有不带同目录封面的《エンドロール》：${audios.map { it.title }}")
+
+        val store = assertNotNull(source.metadataStoreOrNull, "提取存储应已装配")
+        val key = WebDavSource.cacheKeyOf(audio.id)
+        assertNull(store.read(key), "全新缓存根不该有这首的提取记录")
+
+        // ① 没有提取记录 → 数据源必须说"还在路上"，而不是"没有"
+        assertTrue(source.isItemContentPending(audio), "没有提取记录时应判定为仍在准备")
+
+        // ② 此刻直接读只能得到 null：这就是修复前上层唯一能拿到的答案
+        assertNull(source.getPicture(audio, MediaFetchOptions()), "提取记录还没落盘，此刻读不到封面")
+
+        // ③ 一边等封面出现，一边让播放头那一档字节就位（头部窗口一到，提取才会把封面写进记录）
+        val platform = PlatformMediaSource(listOf(source))
+        val waiting = async(Dispatchers.Default) {
+            platform.resolvePictureData(audio, timeoutMillis = EXTRACTION_TIMEOUT_MILLIS)
+        }
+        val media = assertNotNull(source.getMedia(audio), "代理未就绪，无法给出播放地址")
+        val head = httpGet((media as MediaData.Url).url, range = "bytes=0-${HEAD_WINDOW_BYTES - 1}")
+        assertTrue(head.status == 200 || head.status == 206, "取头部窗口失败：${head.status}")
+
+        val picture = assertNotNull(
+            waiting.await(),
+            "封面还在路上时不该报告没有——那正是界面先闪一下底色的原因",
+        )
+        val bytes = (picture as MediaData.Bytes).bytes
+        assertEquals(0xFF, bytes[0].toInt() and 0xFF, "应是真正的 JPEG 数据")
+        assertEquals(0xD8, bytes[1].toInt() and 0xFF)
+
+        // ④ 落盘之后不该再判定为"在路上"
+        assertFalse(source.isItemContentPending(audio), "记录已落盘，不该还判定为在路上")
+        assertNotNull(store.readCover(key), "封面应已落在本地缓存目录")
+
+        source.deactivate()
+    }
+
+    /**
+     * 对照：预算为零时**不做等待**，立刻给结论——本地来源、以及"确实没有封面"走的就是这条。
+     */
+    @Test
+    fun `a zero budget answers immediately without waiting`() = runTest {
+        assumeTrue("未配置 LMUSIC_WEBDAV_URL，跳过真实服务用例", url != null)
+        val source = newSource(cacheRoot = freshCacheRoot())
+        source.connect(url!!, username, password, root).getOrThrow()
+        val audio = assertNotNull(awaitSnapshot(source)).audios.first { it.title == "エンドロール" }
+        assertTrue(source.isItemContentPending(audio))
+
+        val platform = PlatformMediaSource(listOf(source))
+        assertNull(
+            platform.resolvePictureData(audio),
+            "没有预算时不该等待，直接返回 null 让界面走占位",
+        )
 
         source.deactivate()
     }
@@ -508,5 +585,8 @@ class WebDavLiveServerTest {
     private companion object {
         /** 30MB 级文件在本地容器上几秒内下完，留足余量给标签与封面解析。 */
         const val EXTRACTION_TIMEOUT_MILLIS = 120_000L
+
+        /** 头部窗口：提取标签与内嵌封面只需要开头这一档字节（见下面那条实测基准用例）。 */
+        const val HEAD_WINDOW_BYTES = 1024L * 1024L
     }
 }

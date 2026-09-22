@@ -8,6 +8,7 @@ import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.platform.*
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import com.lalilu.lmedia.domain.debug.DebugSwitches
 import com.lalilu.lmusic.window.WindowFrame
 import io.github.vinceglb.filekit.FileKit
 import org.jetbrains.skiko.hostOs
@@ -26,6 +27,14 @@ fun main(args: Array<String>) {
         return
     }
     DesktopOfflineSentryReporter.install()
+
+    // 桌面端没有 adb 通道，调试开关走环境变量：`LMUSIC_DEBUG=1 ./gradlew :composeApp:run`。
+    // 打开后 LAudioFetcher / 播放时长会打 DebugCover / DebugDuration，行为和 Android 调试通道一致，
+    // 用来在桌面复现"切到一首还没加载过的网络歌"这类场景（清缓存可以直接删
+    // `%LOCALAPPDATA%\LMusic\Cache\lmedia\webdav\{meta,covers}\<key>.*`）。
+    if (System.getenv("LMUSIC_DEBUG") == "1") {
+        DebugSwitches.enabled = true
+    }
 
     FileKit.init(appId = "LMusic")
     startKoin { koinSetup() }

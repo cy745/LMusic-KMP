@@ -2,6 +2,7 @@ package com.lalilu.lmedia.source.webdav
 
 import com.lalilu.common.kv.testing.InMemoryKVSaver
 import com.lalilu.lmedia.LMediaKV
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.albumName
 import com.lalilu.lmedia.domain.model.artistName
 import com.lalilu.lmedia.domain.source.MediaContentAvailability
@@ -336,6 +337,33 @@ class WebDavSourceTest {
         assertNull(source.getPicture(audio, MediaFetchOptions()))
         // 没有边车、音频也没缓存到本地 → 没有歌词可读
         assertNull(source.getLyric(audio))
+        source.deactivate()
+    }
+
+    /**
+     * 「封面还在路上」的判据就是"还没有提取记录"——包括**缓存设施还没装配好**的那一小段时间。
+     *
+     * 后面这条是桌面端实测出来的：启动时首页先渲染一轮封面、数据源随后才 connect，
+     * 那时回答"就是没有"会让这批请求 23ms 内全部判失败，首屏封面全空着。
+     */
+    @Test
+    fun `treats a track as pending until its extraction record exists`() = runTest {
+        val source = newSource(FakeWebDavClient(files), cacheRoot = freshRoot("pending"))
+        val unconnected = LAudio(id = "audio_x", mediaSourceName = "WebDavSource")
+        assertTrue(source.isItemContentPending(unconnected), "还没 connect 时不可能有记录，不能回答'就是没有'")
+
+        source.connect("http://dav.local:8080", "lmusic", "pw", "/Music").getOrThrow()
+        val friend = assertNotNull(awaitSnapshot(source)).audios.first { it.title == "Friend" }
+        assertTrue(source.isItemContentPending(friend), "没有提取记录 = 封面可能还在路上")
+
+        // 记录一落盘（哪怕里面没有封面）就不再是"在路上"：有就是有，没有就是没有
+        assertNotNull(source.metadataStoreOrNull).write(
+            key = WebDavSource.cacheKeyOf(friend.id),
+            record = WebDavMetadataRecord(fingerprint = "test", complete = true, extractedAt = 1L),
+            cover = null,
+        )
+        assertFalse(source.isItemContentPending(friend))
+
         source.deactivate()
     }
 
