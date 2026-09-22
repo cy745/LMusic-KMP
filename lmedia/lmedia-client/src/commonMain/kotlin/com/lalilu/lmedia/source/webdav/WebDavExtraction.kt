@@ -152,6 +152,7 @@ internal class WebDavExtractor(
                 repeat(concurrency) {
                     launch {
                         for (key in queue) {
+                            queuedKeys.remove(key)
                             // 先占住 running 再减 pending：两个计数器不会同时归零，
                             // drain() 因此不可能在任务在途时误判为"已排空"
                             progressState.update { it.copy(running = it.running + 1) }
@@ -182,17 +183,28 @@ internal class WebDavExtractor(
         queue.close()
         worker?.cancel()
         worker = null
+        queuedKeys.clear()
         pendingCount.value = 0
         mergeMutex.withLock { pendingMerges.clear() }
     }
 
     /** 请求提取（非阻塞）：缓存刚增长、或开启了后台主动下载时按 key 入队。 */
     fun request(key: String) {
-        if (queue.trySend(key).isSuccess) {
-            pendingCount.update { it + 1 }
-            progressState.update { it.copy(pending = pendingCount.value) }
+        // **必须按 key 去重**：进度回调是每 250ms 一次（缓冲条平滑推进就靠它），若每次回调都往
+        // 队列里塞一份同一个 key，而队列是无界的 Channel.UNLIMITED，播放期间它就只会涨——一个小
+        // 对象约百来字节、每秒 4 个，几小时就是几百 MB，堆吃满后 OOM（真机上跑十小时崩掉的就是
+        // 这个）；同一批重复项还会把"排队"计数撑得降不下来。
+        if (!queuedKeys.add(key)) return
+        if (queue.trySend(key).isFailure) {
+            queuedKeys.remove(key)
+            return
         }
+        pendingCount.update { it + 1 }
+        progressState.update { it.copy(pending = pendingCount.value) }
     }
+
+    /** 已经在队列里等着被取走的 key（去重用）；worker 取走时移除，因此处理中的 key 仍可再次入队。 */
+    private val queuedKeys = mutableSetOf<String>()
 
     /**
      * 更新"库里有几首 / 其中几首已经有提取记录"。

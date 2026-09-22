@@ -360,6 +360,29 @@ class WebDavExtractorTest {
         extractor.stop()
     }
 
+    @Test
+    fun `repeated requests for the same track queue it once`() = runTest {
+        val key = "song-chatty-progress"
+        store.delete(key)
+        cache.delete(key)
+        cache.fillHeadWindow(key)
+
+        val extractor = buildExtractor { _, _ -> WebDavExtractedMetadata(title = "Friend") }
+        extractor.updateLibraryCounts(libraryKeys = setOf(key), extractedKeys = emptySet())
+        extractor.start(this)
+
+        // 进度回调每 250ms 一次：没有去重时这些请求会全部堆在无界队列里，播放几小时就把堆吃满
+        repeat(500) { extractor.request(key) }
+        assertTrue(
+            extractor.progress.value.pending <= 1,
+            "同一首歌不应重复排队，实际排队 ${extractor.progress.value.pending}",
+        )
+
+        extractor.drain()
+        assertEquals(0, extractor.progress.value.pending, "处理完队列应当排空")
+        extractor.stop()
+    }
+
     private fun fingerprintOf(key: String): String =
         WebDavMetadataRecord.fingerprintOf(totalBytes, "\"etag-$key\"", null)
 
