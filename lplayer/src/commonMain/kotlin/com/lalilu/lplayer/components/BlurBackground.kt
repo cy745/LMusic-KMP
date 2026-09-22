@@ -43,6 +43,9 @@ import kotlin.math.roundToInt
 
 expect fun Bitmap.toImageBitmap(): ImageBitmap
 
+/** 模糊背景的解码尺寸上限（px）：它最终会被整体模糊，超过这个尺寸肉眼和性能都不划算。 */
+private const val BLUR_BACKGROUND_MAX_DECODE_PX = 720
+
 @Composable
 expect fun BlurBackground(
     modifier: Modifier = Modifier,
@@ -128,7 +131,14 @@ fun DefaultBlurBackground(
         LaunchedEffect(imageData()) {
             // loadImage 是结构化挂起任务：连续切歌时 LaunchedEffect 会取消上一张尚未完成的
             // 解码和首帧准备，不再让过期任务继续争用 CPU，或反过来覆盖最新歌曲。
-            val size = constraints.maxWidth.coerceAtMost(windowInfo.containerSize.width)
+            //
+            // 解码尺寸必须封顶：这是一张会被整体模糊铺满窗口的背景，按窗口宽度取意味着全屏下
+            // 动辄两三千像素的大图，而模糊/合成是逐帧做的，代价随之翻几倍。
+            val size = minOf(
+                constraints.maxWidth,
+                windowInfo.containerSize.width,
+                BLUR_BACKGROUND_MAX_DECODE_PX,
+            )
             vm.loadImage(context = context, imageData = imageData(), size = size)
         }
 
@@ -152,7 +162,9 @@ fun DefaultBlurBackground(
                     .fillMaxSize()
                     .scaleBlur(
                         scale = 0.4f,
-                        radius = (blur.value * 50f).roundToInt().dp,
+                        // 半径按 1/8 量化：模糊是逐帧的重活，半径连续变化等于每帧都重算一遍。
+                        // 8 档视觉上看不出跳变，却把重算次数压到零头——面板拖拽时尤其明显。
+                        radius = ((blur.value * 8f).roundToInt() / 8f * 50f).roundToInt().dp,
                     )
                     .drawWithContent {
                         drawContent()
