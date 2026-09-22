@@ -17,6 +17,15 @@ kotlin {
     setupMultiplatform()
 
     sourceSets {
+        // 引擎实现按平台分：只有 JVM 用 Netty（避开 CIO 写阻塞时的忙等，见 ProxyServer.kt 与 issue #30），
+        // Android / iOS / Web 共用这一份 CIO 实现，行为跟改动前一致。
+        val nonJvmMain by creating {
+            dependsOn(commonMain.get())
+        }
+        androidMain.get().dependsOn(nonJvmMain)
+        wasmJsMain.get().dependsOn(nonJvmMain)
+        nativeMain.get().dependsOn(nonJvmMain)
+
         commonMain.dependencies {
             api(libs.kotlinx.coroutines.core)
             api(libs.kotlinx.io)
@@ -25,6 +34,10 @@ kotlin {
             // 回环代理本体：把远端字节转成本机 HTTP 流
             api(libs.ktor.server.core)
             api(libs.ktor.server.cio)
+        }
+        jvmMain.dependencies {
+            // 桌面端改用 Netty 服务引擎：CIO 在写阻塞（客户端读得慢/停读）时会忙等跑满一个核
+            api(libs.ktor.server.netty)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -6,9 +6,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
-import io.ktor.server.cio.CIO
 import io.ktor.server.engine.EmbeddedServer
-import io.ktor.server.engine.embeddedServer
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytesWriter
@@ -176,7 +174,8 @@ class StreamProxy(
         baseUrl?.let { return it }
         cache.ensureReady()
 
-        val started = embeddedServer(CIO, port = 0, host = LOOPBACK) { proxyModule() }
+        // 引擎按平台选（JVM=Netty，其余=CIO）：CIO 在写阻塞时会忙等跑满一个核，见 ProxyServer.kt
+        val started = createProxyServer(host = LOOPBACK, port = 0) { proxyModule() }
         started.startSuspend(wait = false)
         val port = started.engine.resolvedConnectors().first().port
         server = started
