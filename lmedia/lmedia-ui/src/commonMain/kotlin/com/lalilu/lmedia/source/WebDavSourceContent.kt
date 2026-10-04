@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +35,7 @@ import com.lalilu.lmedia.source.webdav.WebDavExtractionState
 import com.lalilu.lmedia.source.webdav.WebDavMetadataSyncState
 import com.lalilu.lmedia.source.webdav.WebDavSource
 import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.launch
 
 /**
  * WebDAV 数据源的配置卡片。
@@ -53,6 +55,7 @@ fun WebDavSource.webDavSourceContent(
     var formError by rememberSaveable { mutableStateOf<String?>(null) }
     var optionError by rememberSaveable { mutableStateOf<String?>(null) }
     var editing by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     return@LazyStaggeredGridContent {
         item(key = this@webDavSourceContent.name) {
@@ -252,6 +255,18 @@ fun WebDavSource.webDavSourceContent(
                                 password = ""
                                 formError = null
                                 editing = true
+                            },
+                        )
+                        SourceActionButton(
+                            title = "清空缓存与提取数据",
+                            enabled = !uiState.isLoading,
+                            style = SourceActionStyle.Quiet,
+                            onClick = {
+                                scope.launch {
+                                    runCatching { clearCachedData() }
+                                        .onFailure { optionError = it.message ?: "清空失败" }
+                                        .onSuccess { optionError = null }
+                                }
                             },
                         )
                     }

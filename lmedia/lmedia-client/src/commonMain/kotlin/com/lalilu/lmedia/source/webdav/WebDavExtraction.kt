@@ -2,6 +2,7 @@ package com.lalilu.lmedia.source.webdav
 
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.Taglib
+import com.lalilu.lmedia.stream.StreamCache
 import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -33,13 +34,29 @@ data class WebDavExtractionState(
 /** 提取决策。 */
 internal enum class ExtractionDecision { SKIP, PARTIAL, FULL }
 
-internal const val PARTIAL_EXTRACTION_THRESHOLD = 0.3
+/**
+ * 头部窗口：只要缓存到这么多字节，就先把标签读一遍。
+ *
+ * 用**固定字节数**而不是"文件大小的百分比"：实测本机 7 首 FLAC 的元数据（含内嵌封面）全部落在
+ * 文件开头 1 MB 以内（中位 0.26 MB，最大 0.83 MB），而 30% 阈值对 30 MB 的文件要下 9 MB——
+ * 是实际需要的十倍以上，用户要等很久才看到标题与封面。
+ */
+internal const val HEAD_WINDOW_BYTES = 1L * 1024 * 1024
+
+/**
+ * 头部窗口的兜底大小：窗口内什么都没读到时（例如内嵌封面被切断，taglib 解析失败）再扩到这么大试一次。
+ *
+ * 只扩一次：`WebDavMetadataRecord.examinedBytes` 记着上次尝试时的缓存长度，避免每次缓存增长都重试。
+ */
+internal const val HEAD_WINDOW_FALLBACK_BYTES = 4L * 1024 * 1024
 
 /**
  * 判断这一次缓存增长值不值得读一次标签。
  *
- * - 30% 节点：文件头通常已经包含 ID3v2 / FLAC 元数据块，能提前让标题与歌手可见。
- * - 100% 节点：补齐时长与内嵌封面；**部分提取成功过的记录仍然要再走一次完整提取**。
+ * - 头部窗口（[HEAD_WINDOW_BYTES]）：FLAC/MP3 的标签与内嵌封面都在文件开头，通常几百 KB 就够，
+ *   让标题/封面**远早于整首下载完成**就能显示。
+ * - 100% 节点：补齐时长与完整封面；部分提取成功过的记录仍然要再走一次完整提取。
+ * - 窗口内读不出东西时，扩到 [HEAD_WINDOW_FALLBACK_BYTES] 再试一次。
  * - 指纹变化（远端文件被替换）时缓存记录失效，允许重新提取。
  */
 internal fun decideExtraction(
@@ -48,18 +65,29 @@ internal fun decideExtraction(
     existingFingerprint: String?,
     existingComplete: Boolean,
     currentFingerprint: String,
+    /** 上一次尝试提取时缓存里有多少字节；0 表示没有可用记录。 */
+    existingExaminedBytes: Long = 0L,
 ): ExtractionDecision {
     val reachedFull = total > 0L && filled >= total
-    val reachedPartial = when {
-        total > 0L -> filled.toDouble() / total.toDouble() >= PARTIAL_EXTRACTION_THRESHOLD
-        // 服务器没给长度：只要有字节就先读一次文件头
-        else -> filled > 0L
+    val headWindow = if (total > 0L) minOf(total, HEAD_WINDOW_BYTES) else HEAD_WINDOW_BYTES
+    val fallbackWindow = if (total > 0L) {
+        minOf(total, HEAD_WINDOW_FALLBACK_BYTES)
+    } else {
+        HEAD_WINDOW_FALLBACK_BYTES
     }
-    if (!reachedFull && !reachedPartial) return ExtractionDecision.SKIP
+    // 服务器没给长度时无法按窗口判断：只要有字节就先读一次文件头
+    val reachedHead = if (total > 0L) filled >= headWindow else filled > 0L
+    if (!reachedFull && !reachedHead) return ExtractionDecision.SKIP
 
     val stale = existingFingerprint == null || existingFingerprint != currentFingerprint
     if (stale) return if (reachedFull) ExtractionDecision.FULL else ExtractionDecision.PARTIAL
     if (reachedFull && !existingComplete) return ExtractionDecision.FULL
+
+    // 头部窗口试过但没读出东西：给一次更大的窗口
+    val triedSmallerWindow = existingExaminedBytes in 1 until fallbackWindow
+    if (!existingComplete && triedSmallerWindow && filled >= fallbackWindow) {
+        return ExtractionDecision.PARTIAL
+    }
     return ExtractionDecision.SKIP
 }
 
@@ -79,12 +107,12 @@ internal interface WebDavExtractionTargets {
 /**
  * 提取编排：缓存增长 → 决策 → 读标签 → 写本地元数据 → 逐条入库 + 批量合并回快照。
  *
- * 30% / 100% 两个节点的触发来自播放代理，因此**只有听过的歌会被补全**；[request] 也用于
+ * 头部窗口 / 100% 两个节点的触发来自播放代理，因此**只有听过的歌会被补全**；[request] 也用于
  * "允许后台主动下载"时对未播放歌曲的补全。
  */
 @OptIn(ExperimentalTime::class)
 internal class WebDavExtractor(
-    private val cache: WebDavCache,
+    private val cache: StreamCache,
     private val store: WebDavMetadataStore,
     private val targets: WebDavExtractionTargets,
     private val progressState: MutableStateFlow<WebDavExtractionState>,
@@ -93,7 +121,7 @@ internal class WebDavExtractor(
     private val concurrency: Int = 2,
     private val batchSize: Int = BATCH_SIZE,
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
-    tagReaderOverride: (suspend (path: String, includeCoverAndDuration: Boolean) -> WebDavExtractedMetadata?)? = null,
+    tagReaderOverride: (suspend (path: String, includeCover: Boolean) -> WebDavExtractedMetadata?)? = null,
 ) {
     companion object {
         private const val TAG = "WebDavExtractor"
@@ -110,18 +138,21 @@ internal class WebDavExtractor(
     private var worker: Job? = null
 
     /** 标签读取做成可替换的依赖：默认走 taglib，测试可以注入确定性结果。 */
-    private val tagReader: suspend (path: String, includeCoverAndDuration: Boolean) -> WebDavExtractedMetadata? =
+    private val tagReader: suspend (path: String, includeCover: Boolean) -> WebDavExtractedMetadata? =
         tagReaderOverride ?: ::readTagsFromFile
 
     val progress: StateFlow<WebDavExtractionState> = progressState.asStateFlow()
 
     fun start(scope: CoroutineScope) {
-        if (worker != null) return
+        // 判 isActive 而不是判字段是否为空：worker 内部一旦抛异常，Job 就变成已完成，
+        // 若只判 null 它就永远不会被重新拉起——入队的 key 再也没人处理，界面就会永远停在"排队 1"
+        if (worker?.isActive == true) return
         worker = scope.launch {
             coroutineScope {
                 repeat(concurrency) {
                     launch {
                         for (key in queue) {
+                            queuedKeys.remove(key)
                             // 先占住 running 再减 pending：两个计数器不会同时归零，
                             // drain() 因此不可能在任务在途时误判为"已排空"
                             progressState.update { it.copy(running = it.running + 1) }
@@ -129,6 +160,15 @@ internal class WebDavExtractor(
                             progressState.update { it.copy(pending = pendingCount.value) }
                             try {
                                 process(key)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (throwable: Throwable) {
+                                // 单首失败不能让整个 worker 陪葬：那一首计一次失败，后面的 key 继续处理
+                                logger.w(
+                                    messageString = "提取失败：key=$key ${throwable.message}",
+                                    throwable = throwable,
+                                )
+                                progressState.update { it.copy(failed = it.failed + 1) }
                             } finally {
                                 progressState.update { it.copy(running = it.running - 1) }
                             }
@@ -143,22 +183,49 @@ internal class WebDavExtractor(
         queue.close()
         worker?.cancel()
         worker = null
+        queuedKeys.clear()
         pendingCount.value = 0
         mergeMutex.withLock { pendingMerges.clear() }
     }
 
     /** 请求提取（非阻塞）：缓存刚增长、或开启了后台主动下载时按 key 入队。 */
     fun request(key: String) {
-        if (queue.trySend(key).isSuccess) {
-            pendingCount.update { it + 1 }
-            progressState.update { it.copy(pending = pendingCount.value) }
+        // **必须按 key 去重**：进度回调是每 250ms 一次（缓冲条平滑推进就靠它），若每次回调都往
+        // 队列里塞一份同一个 key，而队列是无界的 Channel.UNLIMITED，播放期间它就只会涨——一个小
+        // 对象约百来字节、每秒 4 个，几小时就是几百 MB，堆吃满后 OOM（真机上跑十小时崩掉的就是
+        // 这个）；同一批重复项还会把"排队"计数撑得降不下来。
+        if (!queuedKeys.add(key)) return
+        if (queue.trySend(key).isFailure) {
+            queuedKeys.remove(key)
+            return
+        }
+        pendingCount.update { it + 1 }
+        progressState.update { it.copy(pending = pendingCount.value) }
+    }
+
+    /** 已经在队列里等着被取走的 key（去重用）；worker 取走时移除，因此处理中的 key 仍可再次入队。 */
+    private val queuedKeys = mutableSetOf<String>()
+
+    /**
+     * 更新"库里有几首 / 其中几首已经有提取记录"。
+     *
+     * [extractedKeys] 是**已经有记录的歌曲 key 集合**，不是提取次数：同一首歌会先做头部窗口、
+     * 到整首再补一次，按次数计会让"已提取"超过库里歌曲数；已经不在库里的 key 也不再计。
+     */
+    fun updateLibraryCounts(libraryKeys: Set<String>, extractedKeys: Set<String>) {
+        this.libraryKeys = libraryKeys
+        this.extractedKeys.clear()
+        this.extractedKeys += extractedKeys.filter { it in libraryKeys }
+        progressState.update {
+            it.copy(total = libraryKeys.size, extracted = this.extractedKeys.size)
         }
     }
 
-    /** 更新"库里有几首"和"已有几首记录"，用于进度展示。 */
-    fun updateLibraryCounts(total: Int, extracted: Int) {
-        progressState.update { it.copy(total = total, extracted = extracted) }
-    }
+    /** 库里有几首（用于"已提取 ≤ 总数"的约束）。 */
+    private var libraryKeys: Set<String> = emptySet()
+
+    /** 已经有提取记录的 key：同一首提取多次只算一首。 */
+    private val extractedKeys = mutableSetOf<String>()
 
     /**
      * 等队列排空后做最后一次合并；返回是否发生过合并。
@@ -177,21 +244,26 @@ internal class WebDavExtractor(
     private suspend fun process(key: String) {
         val target = targets.targetOf(key) ?: return
         val existing = store.read(key)
+        val filled = cache.prefixSize(key)
         val decision = decideExtraction(
-            filled = cache.filledSize(key),
+            filled = filled,
             total = target.totalSize,
             existingFingerprint = existing?.fingerprint,
             existingComplete = existing?.complete ?: false,
             currentFingerprint = target.fingerprint,
+            existingExaminedBytes = existing?.examinedBytes ?: 0L,
         )
         if (decision == ExtractionDecision.SKIP) {
-            if (existing != null) markExtracted()
+            if (existing != null) markExtracted(key)
             return
         }
 
         val complete = decision == ExtractionDecision.FULL
         val extracted = try {
-            readTags(key, includeCoverAndDuration = complete)
+            // 头部窗口也读封面：窗口原本就是按"标签与内嵌封面都落在文件开头"校准的（实测 7 首 FLAC
+            // 的元数据尾部偏移 ≤ 0.83 MB）。只在完整提取时才读的话，封面要等整首缓存完才出现——而
+            // 用户恰恰就在开头这几十秒盯着封面看。
+            readTags(key, includeCover = true)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (throwable: Throwable) {
@@ -199,20 +271,39 @@ internal class WebDavExtractor(
             if (complete) {
                 logger.w(messageString = "提取失败 key=$key：${throwable.message}", throwable = throwable)
                 progressState.update { it.copy(failed = it.failed + 1) }
+                return
             }
-            return
+            // 窗口把封面切成两半时 taglib 可能整个解析失败：退回只读标签，至少先显示标题/艺术家
+            val tagsOnly = try {
+                readTags(key, includeCover = false)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                null
+            }
+            tagsOnly ?: return
         }
 
         val now = clock()
-        if (extracted == null || extracted.isEmpty) {
-            // 没有标签的文件是合法状态：记一条空记录，避免每次都重试，但不覆盖文件名派生的信息
-            store.write(key, emptyRecord(target, complete, now), null)
+        // 半截文件里有两样东西不可信，都要等到完整提取才采用：
+        // - 时长：MP3 按位率 × 截断后的长度估算，会明显偏短（播放页的时长来自真实流的 timeline）
+        // - 封面：可能被窗口切成半张图，宁可为空也不能显示半张
+        val trimmed = if (complete || extracted == null) {
+            extracted
+        } else {
+            extracted.copy(duration = 0L, cover = extracted.cover?.takeIf(::isCompleteImage))
+        }
+
+        if (trimmed == null || trimmed.isEmpty) {
+            // 没有标签的文件是合法状态：记一条空记录，避免每次都重试，但不覆盖文件名派生的信息。
+            // examinedBytes 让"头部窗口试过且没结果"这件事可判：兜底窗口只扩大一次。
+            store.write(key, emptyRecord(target, complete, now, filled), null)
             return
         }
 
-        val record = extracted.toRecord(target.fingerprint, complete, now)
-        store.write(key, record, extracted.cover)
-        markExtracted()
+        val record = trimmed.toRecord(target.fingerprint, complete, now, examinedBytes = filled)
+        store.write(key, record, trimmed.cover)
+        markExtracted(key)
         onRecord(target, record)
 
         val shouldFlush = mergeMutex.withLock {
@@ -235,32 +326,65 @@ internal class WebDavExtractor(
         target: WebDavExtractionTarget,
         complete: Boolean,
         now: Long,
+        examinedBytes: Long,
     ) = WebDavMetadataRecord(
         fingerprint = target.fingerprint,
         complete = complete,
         extractedAt = now,
+        examinedBytes = examinedBytes,
     )
 
     private suspend fun readTags(
         key: String,
-        includeCoverAndDuration: Boolean,
+        includeCover: Boolean,
     ): WebDavExtractedMetadata? {
         val path = cache.localPath(key) ?: return null
-        return tagReader(path, includeCoverAndDuration)
+        return tagReader(path, includeCover)
     }
 
-    private fun markExtracted() {
-        progressState.update { it.copy(extracted = it.extracted + 1) }
+    /** 记下"这首歌已经有记录了"：同一首提取多次只算一首，且只算库里还在的歌。 */
+    private fun markExtracted(key: String) {
+        if (key !in libraryKeys) return
+        if (extractedKeys.add(key)) {
+            progressState.update { it.copy(extracted = extractedKeys.size) }
+        }
     }
 }
 
+/** PNG 文件末尾的 IEND 块（长度 + 类型 + CRC）。 */
+private val PNG_END = byteArrayOf(0x49, 0x45, 0x4E, 0x44, 0xAE.toByte(), 0x42, 0x60, 0x82.toByte())
+
+/**
+ * 图片看起来是否完整。
+ *
+ * 头部窗口可能把内嵌封面切成两半，而 taglib 对这种输入不一定报错——直接拿去显示就会是一张半张的
+ * 图。这里只做便宜的尾部标记判定：JPEG 要求以 `FFD9` 结尾，PNG 要求以 IEND 块结尾；认不出的
+ * 格式一律认为完整（宁可先显示，也不要凭空丢掉用户的封面）。
+ */
+internal fun isCompleteImage(bytes: ByteArray): Boolean = when {
+    bytes.size < PNG_END.size -> false
+    bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() ->
+        bytes[bytes.size - 2] == 0xFF.toByte() && bytes[bytes.size - 1] == 0xD9.toByte()
+
+    bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+        bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() ->
+        PNG_END.indices.all { bytes[bytes.size - PNG_END.size + it] == PNG_END[it] }
+
+    else -> true
+}
+
 /** 默认的标签读取实现：直接读本地缓存文件（taglib 只接受本地路径 / 文件描述符）。 */
+/**
+ * 默认的标签读取实现：直接读本地缓存文件（taglib 只接受本地路径 / 文件描述符）。
+ *
+ * 时长照读，但是否采用由调用方按 complete 决定：半截文件的时长不可信（见 [WebDavExtractor.process]）。
+ */
 internal suspend fun readTagsFromFile(
     path: String,
-    includeCoverAndDuration: Boolean,
+    includeCover: Boolean,
 ): WebDavExtractedMetadata? {
     val metadata = Taglib.readMetadata(path) ?: return null
-    val cover = if (includeCoverAndDuration) {
+    val cover = if (includeCover) {
         runCatching { Taglib.getPicture(path) }.getOrNull()
     } else {
         null
@@ -274,8 +398,7 @@ internal suspend fun readTagsFromFile(
         disc = metadata.disc,
         date = metadata.date,
         genre = metadata.genre,
-        // 只有完整文件才有可信时长
-        duration = if (includeCoverAndDuration) metadata.duration else 0L,
+        duration = metadata.duration,
         cover = cover,
     )
 }

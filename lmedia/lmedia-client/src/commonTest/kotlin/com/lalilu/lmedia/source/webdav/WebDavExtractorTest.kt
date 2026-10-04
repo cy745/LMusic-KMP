@@ -1,10 +1,12 @@
 package com.lalilu.lmedia.source.webdav
 
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.stream.StreamCache
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -12,35 +14,52 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * 提取编排的覆盖测试：阈值触发、只提取一次、按批合并、失败计数与重试空间。
+ * 提取编排的覆盖测试：窗口触发、只提取一次、按批合并、失败计数与重试空间。
  *
- * 标签读取被替换成确定性实现，因此这里验证的是编排语义；真实标签解析由
- * [WebDavLiveServerTest] 对着真实服务器与本机音乐文件验证。
+ * 标签读取被替换成确定性实现，因此这里验证的是编排语义；真实标签解析（以及"1 MB 窗口够不够"）
+ * 由 [WebDavLiveServerTest] 对着真实服务器与本机音乐文件验证。
  */
 class WebDavExtractorTest {
 
     private val cacheRoot = "build/test-webdav-extractor"
-    private val cache = WebDavCache(cacheRoot, Json { ignoreUnknownKeys = true })
+    private val cache = StreamCache(cacheRoot, "webdav", Json { ignoreUnknownKeys = true })
     private val store = WebDavMetadataStore(cacheRoot, Json { ignoreUnknownKeys = true })
 
     private val records = mutableListOf<Pair<String, WebDavMetadataRecord>>()
     private val flushes = mutableListOf<Map<String, WebDavMetadataRecord>>()
     private val coverReads = mutableListOf<Boolean>()
 
+    /** 远大于头部窗口的整曲大小，用于区分"部分提取"与"完整提取"两条路径。 */
+    private val totalBytes = 8L * 1024 * 1024
+
+    /** 头部窗口整段写入缓存，用来触发部分提取。 */
+    private fun StreamCache.fillHeadWindow(key: String) {
+        appendBytes(key, ByteArray(HEAD_WINDOW_BYTES.toInt()))
+    }
+
+    /** 一张最小的完整 JPEG（以 `FFD9` 结尾，够过完整性判定）。 */
+    private fun completeJpeg() = byteArrayOf(
+        0xFF.toByte(), 0xD8.toByte(), 1, 2, 3, 4, 0xFF.toByte(), 0xD9.toByte(),
+    )
+
+    /** 被头部窗口切掉尾巴的 JPEG。 */
+    private fun truncatedJpeg() = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 1, 2, 3, 4, 5, 6)
+
     @Test
-    fun `extracts at thirty percent then upgrades to a full record at completion`() = runTest {
+    fun `reads the cover at the head window and upgrades to a full record at completion`() = runTest {
         val key = "song-partial"
         store.delete(key)
         cache.delete(key)
-        cache.appendBytes(key, ByteArray(300)) // 1000 字节的 30%
+        cache.fillHeadWindow(key)
 
+        val cover = completeJpeg()
         val extractor = buildExtractor { _, includeCover ->
             coverReads += includeCover
             WebDavExtractedMetadata(
                 title = "Friend",
                 artist = "HoneyComeBear",
-                duration = if (includeCover) 245_000 else 0L,
-                cover = if (includeCover) byteArrayOf(1, 2, 3) else null,
+                duration = 245_000,
+                cover = if (includeCover) cover else null,
             )
         }
         extractor.start(this)
@@ -48,17 +67,29 @@ class WebDavExtractorTest {
         extractor.request(key)
         extractor.drain()
 
-        assertEquals(listOf(false), coverReads, "30% 时只读文件头，不读封面")
+        assertEquals(
+            listOf(true),
+            coverReads,
+            "头部窗口就该连封面一起读：只在完整提取时才读的话，封面要等整首缓存完才出现",
+        )
         assertEquals(1, records.size)
-        assertFalse(assertNotNull(store.read(key)).complete)
+        val partial = assertNotNull(store.read(key))
+        assertFalse(partial.complete)
+        assertEquals(
+            HEAD_WINDOW_BYTES,
+            partial.examinedBytes,
+            "要记下这次读到多少字节，兜底窗口才不会反复重试",
+        )
+        assertContentEquals(cover, store.readCover(key), "头部窗口读到的封面要立刻能用")
+        assertEquals(0L, partial.duration, "半截文件的时长不可信，留给完整提取")
 
-        // 补满文件后再触发一次：必须升级为完整提取（时长与封面只有完整文件才可靠）
-        cache.appendBytes(key, ByteArray(700))
-        assertEquals(1000L, cache.filledSize(key), "追加写入必须立刻反映到缓存长度")
+        // 补满文件后再触发一次：必须升级为完整提取
+        cache.appendBytes(key, ByteArray((totalBytes - HEAD_WINDOW_BYTES).toInt()))
+        assertEquals(totalBytes, cache.prefixSize(key), "追加写入必须立刻反映到缓存长度")
         extractor.request(key)
         extractor.drain()
 
-        assertEquals(listOf(false, true), coverReads)
+        assertEquals(listOf(true, true), coverReads)
         val record = assertNotNull(store.read(key))
         assertTrue(record.complete)
         assertEquals(245_000L, record.duration)
@@ -68,11 +99,45 @@ class WebDavExtractorTest {
     }
 
     @Test
+    fun `drops a cover the head window cut in half`() = runTest {
+        val key = "song-cut-cover"
+        store.delete(key)
+        cache.delete(key)
+        cache.fillHeadWindow(key)
+
+        val extractor = buildExtractor { _, includeCover ->
+            WebDavExtractedMetadata(
+                title = "Friend",
+                artist = "HoneyComeBear",
+                cover = if (includeCover) truncatedJpeg() else null,
+            )
+        }
+        extractor.start(this)
+
+        extractor.request(key)
+        extractor.drain()
+
+        val partial = assertNotNull(store.read(key))
+        assertEquals("Friend", partial.title, "封面丢了也不该影响标题先显示")
+        assertNull(store.readCover(key), "被窗口切掉尾巴的封面拿去显示就是一张半张图")
+
+        // 完整文件里同样的字节数不再被怀疑：这时候数据已经可信，不该再凭空丢掉用户的封面
+        cache.appendBytes(key, ByteArray((totalBytes - HEAD_WINDOW_BYTES).toInt()))
+        extractor.request(key)
+        extractor.drain()
+
+        val record = assertNotNull(store.read(key))
+        assertTrue(record.complete)
+        assertNotNull(store.readCover(key))
+        extractor.stop()
+    }
+
+    @Test
     fun `drain waits for a just enqueued key instead of returning immediately`() = runTest {
         val key = "song-drain"
         store.delete(key)
         cache.delete(key)
-        cache.appendBytes(key, ByteArray(1000))
+        cache.fillHeadWindow(key)
 
         val extractor = buildExtractor { _, _ -> WebDavExtractedMetadata(title = "drained") }
         extractor.start(this)
@@ -94,7 +159,7 @@ class WebDavExtractorTest {
         keys.forEach { key ->
             store.delete(key)
             cache.delete(key)
-            cache.appendBytes(key, ByteArray(1000))
+            cache.fillHeadWindow(key)
         }
 
         val extractor = buildExtractor { _, _ ->
@@ -116,7 +181,7 @@ class WebDavExtractorTest {
         val key = "song-no-tags"
         store.delete(key)
         cache.delete(key)
-        cache.appendBytes(key, ByteArray(1000))
+        cache.appendBytes(key, ByteArray(totalBytes.toInt()))
 
         val extractor = buildExtractor { _, includeCover ->
             coverReads += includeCover
@@ -145,7 +210,7 @@ class WebDavExtractorTest {
         val key = "song-failing"
         store.delete(key)
         cache.delete(key)
-        cache.appendBytes(key, ByteArray(1000))
+        cache.appendBytes(key, ByteArray(totalBytes.toInt()))
 
         val extractor = buildExtractor { _, _ -> error("taglib exploded") }
         extractor.start(this)
@@ -163,7 +228,7 @@ class WebDavExtractorTest {
         val key = "song-partial-failing"
         store.delete(key)
         cache.delete(key)
-        cache.appendBytes(key, ByteArray(400))
+        cache.fillHeadWindow(key)
 
         val extractor = buildExtractor { _, _ -> error("incomplete file") }
         extractor.start(this)
@@ -176,10 +241,43 @@ class WebDavExtractorTest {
     }
 
     @Test
+    fun `grows the window once when the head read produced nothing`() = runTest {
+        val key = "song-fallback"
+        store.delete(key)
+        cache.delete(key)
+        cache.fillHeadWindow(key)
+
+        // 头部窗口什么都没读到 → 记一条空的部分记录
+        val extractor = buildExtractor { _, includeCover ->
+            coverReads += includeCover
+            null
+        }
+        extractor.start(this)
+        extractor.request(key)
+        extractor.drain()
+
+        assertEquals(1, coverReads.size, "头部窗口读一次")
+        assertEquals(HEAD_WINDOW_BYTES, assertNotNull(store.read(key)).examinedBytes)
+
+        // 缓存涨到兜底窗口：应该再读一次（窗口变大，可能这次就能读到被切断的封面）
+        cache.appendBytes(key, ByteArray((HEAD_WINDOW_FALLBACK_BYTES - HEAD_WINDOW_BYTES).toInt()))
+        extractor.request(key)
+        extractor.drain()
+        assertEquals(2, coverReads.size, "兜底窗口再读一次文件头")
+
+        // 之后继续增长到接近整曲也不该再重试（examinedBytes 已经记在兜底窗口上）
+        cache.appendBytes(key, ByteArray(1024 * 1024))
+        extractor.request(key)
+        extractor.drain()
+        assertEquals(2, coverReads.size, "兜底窗口只扩大一次")
+        extractor.stop()
+    }
+
+    @Test
     fun `skips a track whose complete record already matches`() = runTest {
         val key = "song-ready"
         cache.delete(key)
-        cache.appendBytes(key, ByteArray(1000))
+        cache.fillHeadWindow(key)
         store.write(
             key,
             WebDavMetadataRecord(
@@ -195,6 +293,8 @@ class WebDavExtractorTest {
             coverReads += true
             WebDavExtractedMetadata(title = "should not happen")
         }
+        // 计数口径是"库里有几首 / 其中几首已有记录"，所以先告诉它库里有这首
+        extractor.updateLibraryCounts(libraryKeys = setOf(key), extractedKeys = setOf(key))
         extractor.start(this)
         extractor.request(key)
         extractor.drain()
@@ -204,10 +304,90 @@ class WebDavExtractorTest {
         extractor.stop()
     }
 
+    @Test
+    fun `extracting the same track twice still counts as one`() = runTest {
+        val key = "song-counted-once"
+        store.delete(key)
+        cache.delete(key)
+        cache.fillHeadWindow(key)
+
+        val extractor = buildExtractor { _, _ -> WebDavExtractedMetadata(title = "Friend") }
+        extractor.updateLibraryCounts(libraryKeys = setOf(key), extractedKeys = emptySet())
+        extractor.start(this)
+
+        // 头部窗口提取一次
+        extractor.request(key)
+        extractor.drain()
+        assertEquals(1, extractor.progress.value.extracted)
+
+        // 整首到齐后再提取一次（同一首歌）：旧实现按"提取次数"自增，会让已提取大于库里歌曲数
+        cache.appendBytes(key, ByteArray((totalBytes - HEAD_WINDOW_BYTES).toInt()))
+        extractor.request(key)
+        extractor.drain()
+
+        assertEquals(1, extractor.progress.value.extracted, "同一首提取多次只算一首")
+        assertEquals(1, extractor.progress.value.total)
+        extractor.stop()
+    }
+
+    @Test
+    fun `a failing track does not stop later tracks from being extracted`() = runTest {
+        val broken = "song-broken"
+        val following = "song-following"
+        listOf(broken, following).forEach { key ->
+            store.delete(key)
+            cache.delete(key)
+            cache.fillHeadWindow(key)
+        }
+
+        val extractor = buildExtractor(
+            tagAnswer = { path, _ ->
+                WebDavExtractedMetadata(title = path.substringAfterLast('/').removeSuffix(".flac"))
+            },
+            onRecordOverride = { target, record ->
+                if (target.audio.id == broken) error("模拟这一首写入失败")
+                records += target.audio.id to record
+            },
+        )
+        extractor.start(this)
+
+        extractor.request(broken)
+        extractor.request(following)
+        extractor.drain()
+
+        assertNotNull(store.read(following), "前一首失败不该让后面的 key 没人处理")
+        assertEquals(1, extractor.progress.value.failed, "失败的那一首计一次失败")
+        extractor.stop()
+    }
+
+    @Test
+    fun `repeated requests for the same track queue it once`() = runTest {
+        val key = "song-chatty-progress"
+        store.delete(key)
+        cache.delete(key)
+        cache.fillHeadWindow(key)
+
+        val extractor = buildExtractor { _, _ -> WebDavExtractedMetadata(title = "Friend") }
+        extractor.updateLibraryCounts(libraryKeys = setOf(key), extractedKeys = emptySet())
+        extractor.start(this)
+
+        // 进度回调每 250ms 一次：没有去重时这些请求会全部堆在无界队列里，播放几小时就把堆吃满
+        repeat(500) { extractor.request(key) }
+        assertTrue(
+            extractor.progress.value.pending <= 1,
+            "同一首歌不应重复排队，实际排队 ${extractor.progress.value.pending}",
+        )
+
+        extractor.drain()
+        assertEquals(0, extractor.progress.value.pending, "处理完队列应当排空")
+        extractor.stop()
+    }
+
     private fun fingerprintOf(key: String): String =
-        WebDavMetadataRecord.fingerprintOf(1000L, "\"etag-$key\"", null)
+        WebDavMetadataRecord.fingerprintOf(totalBytes, "\"etag-$key\"", null)
 
     private fun buildExtractor(
+        onRecordOverride: (suspend (WebDavExtractionTarget, WebDavMetadataRecord) -> Unit)? = null,
         tagAnswer: suspend (String, Boolean) -> WebDavExtractedMetadata?,
     ): WebDavExtractor = WebDavExtractor(
         cache = cache,
@@ -216,12 +396,12 @@ class WebDavExtractorTest {
             override suspend fun targetOf(key: String) = WebDavExtractionTarget(
                 audio = LAudio(id = key, mediaSourceName = "test"),
                 remotePath = "/music/$key.flac",
-                totalSize = 1000L,
+                totalSize = totalBytes,
                 fingerprint = fingerprintOf(key),
             )
         },
         progressState = MutableStateFlow(WebDavExtractionState()),
-        onRecord = { target, record -> records += target.audio.id to record },
+        onRecord = onRecordOverride ?: { target, record -> records += target.audio.id to record },
         onFlush = { batch -> flushes += batch },
         concurrency = 1,
         batchSize = 3,

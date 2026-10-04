@@ -6,20 +6,29 @@ import com.lalilu.common.ext.md5
 import com.lalilu.common.kv.KVItem
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.Taglib
+import com.lalilu.lmedia.domain.debug.DebugSwitches
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.model.albumName
 import com.lalilu.lmedia.domain.model.artistName
+import com.lalilu.lmedia.domain.source.BufferedRange
+import com.lalilu.lmedia.domain.source.MediaCacheDebugControl
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaDataSource
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
+import com.lalilu.lmedia.domain.source.MediaItemContentPending
 import com.lalilu.lmedia.domain.source.MediaSource
+import com.lalilu.lmedia.domain.source.MediaSourceBufferProgress
 import com.lalilu.lmedia.domain.source.MediaSourcePatchSource
 import com.lalilu.lmedia.domain.source.MediaSourceStateStore
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.net.NetworkObservation
 import com.lalilu.lmedia.net.NetworkType
+import com.lalilu.lmedia.stream.StreamBackend
+import com.lalilu.lmedia.stream.StreamCache
+import com.lalilu.lmedia.stream.StreamProxy
+import com.lalilu.lmedia.stream.StreamTarget
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +47,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -52,7 +63,7 @@ import kotlin.coroutines.CoroutineContext
  * 基于 WebDAV 的媒体源。
  *
  * 首扫只做目录遍历（PROPFIND），用文件名与目录结构派生可读元数据，快照立即可用。
- * 播放统一走本机回环代理：字节顺便沉淀成本地缓存，并在缓存增长到 30% / 100% 时读取真实标签，
+ * 播放统一走本机回环代理：字节顺便沉淀成本地缓存，并在缓存达到头部窗口（默认 1 MB）与整首时读取真实标签，
  * 逐条写入数据库（[audioPatches]）并按批合并回完整快照。
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -63,7 +74,7 @@ class WebDavSource(
     private val json: Json,
     kv: LMediaKV,
     private val networkObservation: NetworkObservation,
-) : MediaSource, MediaDataSource, MediaSourcePatchSource, CoroutineScope {
+) : MediaSource, MediaDataSource, MediaSourcePatchSource, MediaSourceBufferProgress, MediaCacheDebugControl, MediaItemContentPending, CoroutineScope {
 
     companion object {
         private const val TAG = "WebDavSource"
@@ -111,6 +122,8 @@ class WebDavSource(
 
     private val mutableProgress = MutableStateFlow(WebDavExtractionState())
 
+    private val mutableBufferSnapshot = MutableStateFlow<WebDavBufferSnapshot?>(null)
+
     /** 提取进度，供源卡片展示。 */
     val extractionProgress: StateFlow<WebDavExtractionState> = mutableProgress
 
@@ -141,8 +154,8 @@ class WebDavSource(
     private var syncJob: Job? = null
     private var networkJob: Job? = null
 
-    private var proxy: WebDavProxy? = null
-    private var cache: WebDavCache? = null
+    private var proxy: StreamProxy? = null
+    private var cache: StreamCache? = null
     private var metadataStore: WebDavMetadataStore? = null
     private var metadataRemote: WebDavMetadataRemote? = null
     private var extractor: WebDavExtractor? = null
@@ -613,8 +626,40 @@ class WebDavSource(
     // 播放统一走本机回环代理：播放器拿到的地址里没有凭据，字节顺便沉淀成本地缓存。
     override suspend fun getMedia(song: LAudio): MediaData? {
         val activeProxy = proxy ?: return null
-        val url = activeProxy.audioUrl(cacheKeyOf(song.id)) ?: return null
+        val key = cacheKeyOf(song.id)
+        val url = activeProxy.audioUrl(key) ?: return null
+        // 开播即开始上报缓冲进度：先记下总长度与当前覆盖，之后由缓存增长回调刷新
+        targetOf(song)?.let { target ->
+            mutableBufferSnapshot.value = WebDavBufferSnapshot(
+                key = key,
+                covered = cache?.coveredRanges(key, target.totalSize).orEmpty(),
+                total = target.totalSize,
+            )
+        }
         return MediaData.Url(url)
+    }
+
+    /**
+     * 当前播放项的缓冲区间：缓存覆盖率按整首比例换算。
+     *
+     * 用覆盖率而不是播放器的内部缓冲：经代理播放时字节是本数据源在下载的，覆盖率才是
+     * "还有多久能听"的准确信号。返回空列表表示现在没有可显示的缓冲信息（远端没报总长度、
+     * 或还没开始下载），UI 什么都不画。
+     */
+    override fun bufferProgress(audioId: String): Flow<List<BufferedRange>> {
+        val key = cacheKeyOf(audioId)
+        return mutableBufferSnapshot
+            .filter { it?.key == key }
+            .map { snapshot -> snapshot?.ranges.orEmpty() }
+    }
+
+    /** 缓存增长后刷新"正在播的那首"的已缓冲区间；其它歌的下载不影响当前进度显示。 */
+    private fun publishBufferProgress(key: String) {
+        val current = mutableBufferSnapshot.value ?: return
+        if (current.key != key) return
+        mutableBufferSnapshot.value = current.copy(
+            covered = cache?.coveredRanges(key, current.total) ?: current.covered,
+        )
     }
 
     /**
@@ -625,6 +670,8 @@ class WebDavSource(
      */
     override suspend fun getPicture(song: LAudio, options: MediaFetchOptions): MediaData? {
         val key = cacheKeyOf(song.id)
+        // 调试埋点：解析器在等待期间会反复调这里，所以这行同时能看出重试节奏。
+        if (DebugSwitches.enabled) logger.i { "DebugPicture: getPicture audio=${song.id}" }
         sidecarBytes(song, key, WebDavSidecarKind.COVER)?.let { return MediaData.Bytes(it) }
         val bytes = metadataStore?.readCover(key) ?: return null
         return MediaData.Bytes(bytes)
@@ -690,17 +737,23 @@ class WebDavSource(
         }
     }
 
-    private suspend fun ensureProxy(): WebDavProxy {
+    private suspend fun ensureProxy(): StreamProxy {
         proxy?.let { return it }
         return setupMutex.withLock {
             proxy?.let { return@withLock it }
             val (cache, _) = ensureCacheInfrastructure()
-            val created = WebDavProxy(
+            val created = StreamProxy(
                 cache = cache,
                 backend = ProxyBackend(),
-                onCacheProgress = { key -> extractor?.request(key) },
+                onCacheProgress = { key ->
+                    extractor?.request(key)
+                    publishBufferProgress(key)
+                },
                 // 每次需要时读配置：改配额立即生效，不用重建代理
                 quotaBytes = { activeConfig.cacheQuotaBytes },
+                // 开播就主动把这首补齐（播放头及前瞻最优先、其后顺序铺满、跳过的空洞最低）。
+                // 计费网络只做播放头那一档——那是用户此刻正在听的部分，不是"还没要"的字节。
+                allowBackgroundFill = { !blockedByNetwork() },
             )
             created.start()
             proxy = created
@@ -708,10 +761,10 @@ class WebDavSource(
         }
     }
 
-    private fun ensureCacheInfrastructure(): Pair<WebDavCache, WebDavMetadataStore> {
+    private fun ensureCacheInfrastructure(): Pair<StreamCache, WebDavMetadataStore> {
         val cacheRoot = cacheRootProvider.cacheRoot()
             ?: throw WebDavException.Unexpected("当前平台不支持 WebDAV 数据源")
-        val cache = WebDavCache(cacheRoot, json).also { this.cache = it }
+        val cache = StreamCache(cacheRoot, "webdav", json).also { this.cache = it }
         val store = metadataStore ?: WebDavMetadataStore(
             cacheRoot = cacheRoot,
             json = json,
@@ -770,11 +823,86 @@ class WebDavSource(
      */
     private suspend fun refreshLibraryCounts(audios: List<LAudio>) {
         val store = metadataStore ?: return
-        val extracted = audios.count { audio ->
-            val target = targetOf(audio) ?: return@count false
-            store.has(cacheKeyOf(audio.id), target.fingerprint)
+        val libraryKeys = audios.mapTo(mutableSetOf()) { cacheKeyOf(it.id) }
+        val extractedKeys = audios.mapNotNullTo(mutableSetOf()) { audio ->
+            val target = targetOf(audio) ?: return@mapNotNullTo null
+            val key = cacheKeyOf(audio.id)
+            key.takeIf { store.has(key, target.fingerprint) }
         }
-        extractor?.updateLibraryCounts(total = audios.size, extracted = extracted)
+        extractor?.updateLibraryCounts(libraryKeys = libraryKeys, extractedKeys = extractedKeys)
+    }
+
+    /**
+     * 清空这个数据源的本地状态：缓存音频、提取记录、封面与边车，回到"没加载过"的样子。
+     *
+     * 用途是反复验证（例如确认封面是不是"开播几秒就出来"，必须先回到没提取过的状态）。
+     * 已经写进歌曲快照的字段（时长 / 封面路径）不在这里动：它们会随下一次扫描或提取重新写入，
+     * 而真正决定观感的封面文件与缓存已经删掉，界面会立刻退回占位图与重新下载。
+     */
+    suspend fun clearCachedData() {
+        // 先停后台：代理与提取器都持有缓存目录里的文件，必须让它们收工再删
+        backgroundJob?.cancel()
+        backgroundJob = null
+        extractor?.stop()
+        extractor = null
+        proxy?.stop()
+        proxy = null
+
+        cache?.clearAll()
+        metadataStore?.clearAll()
+        cache = null
+        metadataStore = null
+
+        // 计数归零：下一次提取/扫描会重新统计，"元数据提取"这一行回到未加载状态
+        mutableProgress.value = WebDavExtractionState()
+    }
+
+    /**
+     * 封面/歌词这类"要等它到了才有"的内容，是否还在路上。
+     *
+     * 判据是**有没有提取记录**：提取在播放头落到这首歌时就开始跑，跑完必定落一条记录
+     * （哪怕是"提取过但没有封面"的空记录）。所以
+     * - 没有记录 → 还没提取过，封面可能马上就出来 → 值得等；
+     * - 有记录 → 有就是有、没有就是没有 → 立刻给结论，别让界面一直显示上一张。
+     *
+     * 缓存设施还没装配好（还没 connect）时也算"在路上"：这时**不可能**有记录，回答"就是没有"
+     * 等于让上层立刻判失败，而封面很可能在预算内就到位。
+     *
+     * 刻意只查本地文件是否存在（一次 stat）：解析器会在等待期间反复调用它。
+     */
+    override fun isItemContentPending(audio: LAudio): Boolean {
+        val store = metadataStore
+        if (store == null) {
+            // 只在"会改变等待行为"的两个分支打日志：正常等待本身不刷屏。
+            if (DebugSwitches.enabled) {
+                logger.i { "DebugPicture: 缓存设施未装配 → 按'在路上' audio=${audio.id}" }
+            }
+            return true
+        }
+        val hasRecord = store.hasRecord(cacheKeyOf(audio.id))
+        if (hasRecord && DebugSwitches.enabled) {
+            logger.i { "DebugPicture: 已有提取记录 → 不再等待 audio=${audio.id}" }
+        }
+        return !hasRecord
+    }
+
+    /**
+     * 调试通道入口：见 [MediaCacheDebugControl]。
+     *
+     * 只清一首走"删掉这首歌的记录"而不是"停掉整个来源"：代理、提取器、后台补全都还在跑，
+     * 只把这一首的提取记录、封面、边车与音频分段删掉。下次切到它时，时长与封面都得重新取，
+     * 「还没加载出来」的那段窗口就确定可复现了。
+     */
+    override suspend fun clearLocalCache(audioId: String?) {
+        if (audioId == null) {
+            clearCachedData()
+            return
+        }
+
+        val key = cacheKeyOf(audioId)
+        metadataStore?.delete(key)
+        cache?.delete(key)
+        logger.i { "DebugCache: 已清除 audioId=$audioId key=$key" }
     }
 
     /**
@@ -811,7 +939,7 @@ class WebDavSource(
                 runCatchingCancellable {
                     activeProxy.ensureCached(
                         key = cacheKeyOf(audio.id),
-                        target = WebDavStreamTarget(
+                        target = StreamTarget(
                             path = target.remotePath,
                             totalSize = target.totalSize,
                             contentType = audio.extra?.get(EXTRA_CONTENT_TYPE),
@@ -847,11 +975,11 @@ class WebDavSource(
     }
 
     /** 传给代理的回调实现：只在数据源内部使用，因此不暴露成公开接口实现。 */
-    private inner class ProxyBackend : WebDavProxyBackend {
-        override suspend fun resolve(key: String): WebDavStreamTarget? {
+    private inner class ProxyBackend : StreamBackend {
+        override suspend fun resolve(key: String): StreamTarget? {
             val audio = indexMutex.withLock { keyToAudio[key] } ?: return null
             val path = audio.extra?.get(EXTRA_PATH)?.takeIf(String::isNotBlank) ?: return null
-            return WebDavStreamTarget(
+            return StreamTarget(
                 path = path,
                 totalSize = audio.extra?.get(EXTRA_FILE_SIZE)?.toLongOrNull() ?: 0L,
                 contentType = audio.extra?.get(EXTRA_CONTENT_TYPE),
@@ -859,7 +987,7 @@ class WebDavSource(
         }
 
         override suspend fun fetch(
-            target: WebDavStreamTarget,
+            target: StreamTarget,
             start: Long,
             endInclusive: Long?,
             onChunk: suspend (ByteArray) -> Unit,

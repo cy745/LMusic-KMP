@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.source.webdav
+package com.lalilu.lmedia.stream
 
 /**
  * 单区间 `Range` 请求（闭区间）。
@@ -6,14 +6,14 @@ package com.lalilu.lmedia.source.webdav
  * 只支持单区间：ExoPlayer / AVPlayer / VLC 都只发单区间，多区间属于罕见场景，
  * 遇到时退回整文件响应比猜一个合并区间更安全。
  */
-internal data class RequestedRange(
+data class ByteRange(
     val start: Long,
     val endInclusive: Long,
 ) {
     val length: Long get() = endInclusive - start + 1
 }
 
-internal enum class RangeDisposition {
+enum class RangeDisposition {
     /** 没有 `Range` 头或无法理解：按整文件响应。 */
     WHOLE_FILE,
 
@@ -24,12 +24,13 @@ internal enum class RangeDisposition {
     UNSATISFIABLE,
 }
 
-internal data class RangeResolution(
+data class RangeResolution(
     val disposition: RangeDisposition,
-    val range: RequestedRange? = null,
+    val range: ByteRange? = null,
 )
 
-internal object WebDavRange {
+/** 本机回环代理的 `Range` 头解析；与具体媒体来源无关。 */
+object HttpRange {
     private const val PREFIX = "bytes="
 
     /**
@@ -60,7 +61,7 @@ internal object WebDavRange {
             val suffix = endText.toLongOrNull() ?: return RangeResolution(RangeDisposition.WHOLE_FILE)
             if (suffix <= 0L) return RangeResolution(RangeDisposition.WHOLE_FILE)
             val start = (totalSize - suffix).coerceAtLeast(0L)
-            return RangeResolution(RangeDisposition.SATISFIABLE, RequestedRange(start, totalSize - 1))
+            return RangeResolution(RangeDisposition.SATISFIABLE, ByteRange(start, totalSize - 1))
         }
 
         val start = startText.toLongOrNull() ?: return RangeResolution(RangeDisposition.WHOLE_FILE)
@@ -74,7 +75,7 @@ internal object WebDavRange {
         if (requestedEnd < start) return RangeResolution(RangeDisposition.WHOLE_FILE)
 
         val endInclusive = minOf(requestedEnd, totalSize - 1)
-        return RangeResolution(RangeDisposition.SATISFIABLE, RequestedRange(start, endInclusive))
+        return RangeResolution(RangeDisposition.SATISFIABLE, ByteRange(start, endInclusive))
     }
 
     /** 从 `Content-Range: bytes 0-1/32239619` 取出总长度。 */

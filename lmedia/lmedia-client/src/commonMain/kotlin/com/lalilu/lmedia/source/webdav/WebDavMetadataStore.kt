@@ -72,6 +72,31 @@ internal class WebDavMetadataStore(
         SystemFileSystem.createDirectories(sidecarDirectory, mustCreate = false)
     }
 
+    /**
+     * 丢掉全部本地提取记录、封面与边车缓存，并清空进程内缓存。
+     *
+     * 供"恢复到未加载状态"用：清完之后界面退回文件名派生的信息，播放时重新提取标签与封面。
+     * 远端那份记录不动（那是"新设备也能取回"的共享数据，删它得另说）。
+     */
+    fun clearAll() {
+        clearDirectory(metaDirectory)
+        clearDirectory(coverDirectory)
+        clearDirectory(sidecarDirectory)
+        memory.clear()
+    }
+
+    private fun clearDirectory(directory: Path) {
+        if (!SystemFileSystem.exists(directory)) return
+        runCatching {
+            SystemFileSystem.list(directory).forEach { child ->
+                if (SystemFileSystem.metadataOrNull(child)?.isDirectory == true) {
+                    clearDirectory(child)
+                }
+                SystemFileSystem.delete(child, mustExist = false)
+            }
+        }
+    }
+
     /** 本地已有记录的键（用于把历史记录补传到远端）。 */
     fun localKeys(): Set<String> =
         runCatching {
@@ -81,6 +106,16 @@ internal class WebDavMetadataStore(
                 .map { it.removeSuffix(META_SUFFIX) }
                 .toSet()
         }.getOrDefault(emptySet())
+
+    /**
+     * 这个键是否已经有提取记录。
+     *
+     * 记录里会写明"提取过但确实没有封面"，所以「有记录」就等于「封面有没有已经有定论了」，
+     * 而「没记录」等于「还没提取过，封面可能还在路上」——WebDavSource 用它回答
+     * `MediaItemContentPending.isItemContentPending`。
+     */
+    fun hasRecord(key: String): Boolean =
+        memory.containsKey(key) || SystemFileSystem.exists(metaPath(key))
 
     suspend fun read(key: String): WebDavMetadataRecord? {
         memory[key]?.let { return it }

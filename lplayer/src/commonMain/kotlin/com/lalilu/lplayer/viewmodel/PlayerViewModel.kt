@@ -86,19 +86,27 @@ internal fun observeLyricContent(
     source: MediaSource,
     retrieve: suspend () -> List<LyricItem>,
 ): Flow<LyricContent> = source.contentState.transformLatest { contentState ->
-    when (val availability = contentState.availability) {
-        MediaContentAvailability.Ready -> emit(
-            LyricContent.Ready(
-                key = audio.id,
-                generation = contentState.generation,
-                items = retrieve(),
+    when (contentState.availability) {
+        MediaContentAvailability.Ready -> {
+            val items = retrieve()
+            emit(
+                LyricContent.Ready(
+                    key = audio.id,
+                    // generation 必须是"歌词文档的版本"，不能直接用来源的内容代次：代次会随任何
+                    // 快照/补丁更新自增（提取写回、进度上报都会触发），而歌词页把 key+generation
+                    // 当作页面身份——于是播放时页面被反复重建、跟随状态一次次归零，表现就是
+                    // "歌词不跟随播放进度滚动"。改用歌词内容本身做版本：同一份歌词永远同一个值。
+                    generation = items.hashCode().toLong(),
+                    items = items,
+                )
             )
-        )
+        }
 
         is MediaContentAvailability.Unavailable -> emit(
             LyricContent.Ready(
                 key = audio.id,
-                generation = contentState.generation,
+                // 明确不可用也是稳定状态：内容为空，版本固定为 0
+                generation = 0L,
                 items = emptyList(),
                 emptyMessage = "数据源不可用，无法加载歌词",
             )

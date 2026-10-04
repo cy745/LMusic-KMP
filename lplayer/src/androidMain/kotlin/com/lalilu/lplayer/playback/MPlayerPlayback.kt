@@ -8,6 +8,7 @@ import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
@@ -24,6 +25,7 @@ import com.lalilu.lmedia.domain.model.PlaybackFailureReason
 import com.lalilu.lmedia.domain.repository.getAudioByPlaybackId
 import com.lalilu.lmedia.domain.repository.getPlaybackSlots
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
+import com.lalilu.lmedia.domain.debug.DebugSwitches
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
@@ -464,7 +466,23 @@ class MPlayerPlayback(
     }
 
     override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-        _currentDuration.value = mediaMetadata.durationMs ?: browserInstance?.duration ?: 0L
+        refreshDuration()
+    }
+
+    /**
+     * 时长以"播放器实际解析出来的"为准。
+     *
+     * 网络媒体源首扫拿不到时长（要等标签提取完才知道），此时 MediaItem 里带的就是 0；如果让这个 0
+     * 盖住 Media3 从容器里读出的真实时长，进度条的总时长会一直停在 00:00，缓冲进度也就无从对照。
+     */
+    private fun refreshDuration() {
+        val browser = browserInstance ?: return
+        val fromMetadata = browser.mediaMetadata.durationMs?.takeIf { it > 0L }
+        val fromPlayer = browser.duration.takeIf { it != C.TIME_UNSET && it > 0L }
+        // 注意：Android 这条链是**直接写** _currentDuration 的，不经过 AbstractPlayback 的引擎镜像，
+        // 所以"强制时长未知"的调试开关必须在这里也拦一道，否则复现不出那个状态。
+        val resolved = fromMetadata ?: fromPlayer ?: 0L
+        _currentDuration.value = if (DebugSwitches.fakeDurationUnknown) 0L else resolved
     }
 
     override fun onPlaylistMetadataChanged(mediaMetadata: MediaMetadata) {
@@ -472,6 +490,8 @@ class MPlayerPlayback(
     }
 
     override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+        // 时长会在准备过程中被解析出来（网络源尤其如此）：时间线更新时重新读一次
+        refreshDuration()
         failureTraversal.observeQueue(timeline.toMediaItems().map { it.mediaId })
         updateItems(timeline)
     }

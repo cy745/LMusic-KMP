@@ -3,6 +3,7 @@ package com.lalilu.lplayer.playback
 import co.touchlab.kermit.Logger
 import com.lalilu.lplayer.action.launchPlayerAction
 import com.lalilu.common.ext.io
+import com.lalilu.lmedia.domain.debug.DebugSwitches
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lmedia.domain.repository.AudioRepository
@@ -112,7 +113,15 @@ abstract class AbstractPlayback(
             .flatMapLatest { it?.state ?: flowOf(PlaybackEngineState.EMPTY) }
             .onEach { state ->
                 _isPlaying.value = state.isPlaying
-                _currentDuration.value = state.duration
+                // 调试开关：把时长强制成"未知"，用来按需复现「切歌时进度条塌成空轨道」那一段。
+                // 只在调试通道打开时才打印转换，正式包完全静默。
+                val duration = if (DebugSwitches.fakeDurationUnknown) 0L else state.duration
+                if (DebugSwitches.enabled && duration != _currentDuration.value) {
+                    logger.i {
+                        "DebugDuration: ${_currentDuration.value} -> $duration (engine=${state.duration})"
+                    }
+                }
+                _currentDuration.value = duration
                 _currentBufferedPosition.value = state.bufferedPosition
             }
             .launchIn(coroutineScope)

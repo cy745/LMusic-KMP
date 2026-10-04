@@ -96,6 +96,7 @@ internal fun PadNowPlayingPanel(
             duration = duration,
             positionState = positionState,
             animateColor = { accentColor },
+            bufferedRanges = rememberBufferedRanges(currentItem),
         )
     }
 }
