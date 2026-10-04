@@ -1,9 +1,15 @@
 package com.lalilu.lplayer.screen
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReusableContent
 import androidx.compose.runtime.ReusableContentHost
 import androidx.compose.runtime.SideEffect
@@ -11,6 +17,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -27,6 +34,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.dp
 import com.lalilu.llyricview.LyricContent
 import com.lalilu.llyricview.LyricLayout
 import com.lalilu.lplayer.action.PlayerAction
@@ -34,9 +42,13 @@ import com.lalilu.lplayer.components.DragAnchor
 import com.lalilu.lplayer.components.LyricGestureOverlay
 import com.lalilu.lplayer.components.PlayerScaffoldScope
 import com.lalilu.lplayer.components.SeekbarPositionState
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.pow
+
+/** 歌词等待门槛：超过它仍未就绪，才把旧正文当作离场残影。 */
+private const val LyricWaitingGateMillis = 150L
 
 /**
  * 播放页歌词区域。
@@ -52,6 +64,8 @@ internal fun PlayerLyricsPane(
     currentTime: () -> Long,
     sampledPlaybackKey: () -> Any?,
     lyricContent: State<LyricContent>,
+    lyricsPending: Boolean,
+    engineBuffering: State<Boolean>,
     screenConstraints: Constraints,
     onManualScrollingChanged: (Boolean) -> Unit,
 ) {
@@ -78,6 +92,38 @@ internal fun PlayerLyricsPane(
     }
     val arcTranslation: (Float) -> Float = remember {
         { value -> -2f * (value - 0.5f).pow(2) + 0.5f }
+    }
+    val latestCurrentTime by rememberUpdatedState(currentTime)
+
+    // 新歌词未就绪时保留旧正文：冻结绝对定位、停用交互，只做失焦呼吸。
+    val lyricBlur = remember { Animatable(0f) }
+    var frozenLyricTime by remember { mutableLongStateOf(0L) }
+    var lyricArrivalBlur by remember { mutableStateOf(false) }
+
+    SideEffect { if (!lyricsPending) frozenLyricTime = latestCurrentTime() }
+
+    LaunchedEffect(lyricsPending) {
+        if (lyricsPending) {
+            delay(LyricWaitingGateMillis)
+            // 超过门槛才认为资源迟到：新正文到达后需要 600ms 由模糊到清晰。
+            lyricArrivalBlur = true
+            lyricBlur.animateTo(8f, tween(180))
+            lyricBlur.animateTo(
+                targetValue = 12f,
+                animationSpec = infiniteRepeatable(
+                    tween(1200, easing = LinearEasing),
+                    RepeatMode.Reverse,
+                ),
+            )
+        } else {
+            if (lyricArrivalBlur) {
+                lyricBlur.snapTo(12f)
+                lyricBlur.animateTo(0f, tween(600))
+            } else {
+                lyricBlur.snapTo(0f)
+            }
+            lyricArrivalBlur = false
+        }
     }
 
     SideEffect {
@@ -113,15 +159,18 @@ internal fun PlayerLyricsPane(
                         else Modifier,
                     ),
                 currentTime = {
-                    timeline.positionFor(currentTime().toFloat()).toLong()
+                    if (lyricsPending) frozenLyricTime
+                    else timeline.positionFor(currentTime().toFloat()).toLong()
                 },
                 sampledPlaybackKey = sampledPlaybackKey,
                 screenConstraints = screenConstraints,
                 lyricContent = lyricContent,
-                isUserClickEnable = { true },
+                isUserClickEnable = { !lyricsPending && !engineBuffering.value },
                 isUserScrollEnable = {
                     state.isManualScrolling(scaffold.currentAnchor)
                 },
+                isContentInteractive = { !lyricsPending },
+                resourceBlur = { lyricBlur.value.dp },
                 onPositionReset = state::followPlayback,
                 onItemClick = { PlayerAction.SeekTo(it.time).action() },
                 onItemLongClick = { state.enterManualScrolling() },

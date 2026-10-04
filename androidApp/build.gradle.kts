@@ -101,6 +101,7 @@ if (upxEnabled) {
 }
 
 dependencies {
+    debugImplementation(project(":lplayer"))
     implementation(project(":composeApp"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)

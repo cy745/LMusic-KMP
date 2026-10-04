@@ -10,6 +10,8 @@ import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -19,11 +21,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.retain.retain
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.FrameRateCategory
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.preferredFrameRate
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntryDecorator
@@ -46,6 +50,7 @@ import com.lalilu.lmedia.LocalMediaSourceStatuses
 import com.lalilu.lmedia.LocalPlaybackFailures
 import com.lalilu.lmedia.domain.repository.PlaybackFailureRepository
 import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
+import com.lalilu.lplayer.debug.PlayerDebugPanelHost
 import com.lalilu.lmusic.component.SourceRecoveryPresenter
 import com.lalilu.extensions.ProvideLocalToaster
 import com.lalilu.lfont.manager.FontManager
@@ -161,6 +166,15 @@ fun App() = ScreenModeHandler {
                                 onDismiss = recoveryPresenter::dismiss,
                             )
                         }
+
+                        // 设置页「悬浮加载测试面板」开启时，在任意页面右上角显示时序注入面板。
+                        // 默认关闭；只注入展示层时序，不参与真实取源与播放判定。
+                        PlayerDebugPanelHost(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .statusBarsPadding()
+                                .padding(8.dp)
+                        )
                     }
                 }
             }

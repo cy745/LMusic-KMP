@@ -3,6 +3,8 @@ package com.lalilu.llyricview
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 /**
  * 歌词组件的上下文环境
@@ -19,4 +21,5 @@ data class LyricContext(
     val isUserScrolling: () -> Boolean,
     val screenConstraints: Constraints,
     val textMeasurer: TextMeasurer,
+    val resourceBlur: () -> Dp = { 0.dp },
 )

@@ -24,6 +24,8 @@ internal fun PlayerDynamicHeader(
     currentTime: () -> Long,
     sampledPlaybackKey: () -> Any?,
     lyricContent: State<LyricContent>,
+    lyricsPending: Boolean,
+    engineBuffering: State<Boolean>,
     onSeedColorChanged: (Color) -> Unit,
     onManualLyricsScrollingChanged: (Boolean) -> Unit,
 ) {
@@ -82,6 +84,8 @@ internal fun PlayerDynamicHeader(
             currentTime = currentTime,
             sampledPlaybackKey = sampledPlaybackKey,
             lyricContent = lyricContent,
+            lyricsPending = lyricsPending,
+            engineBuffering = engineBuffering,
             screenConstraints = constraints,
             onManualScrollingChanged = onManualLyricsScrollingChanged,
         )

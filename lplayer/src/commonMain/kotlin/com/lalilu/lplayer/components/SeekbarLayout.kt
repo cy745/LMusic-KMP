@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.*
 import androidx.compose.ui.graphics.*
@@ -37,9 +38,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
+import androidx.compose.ui.zIndex
 import com.lalilu.RemixIcon
 import com.lalilu.lplayer.extensions.AccumulatedValue
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -81,6 +84,7 @@ internal class SeekbarProgressKeeper(
     }
 
     fun updateValueByDelta(delta: Float) {
+        if (!sizeWidth().isFinite() || sizeWidth() <= 0f) return
         val value = nowValue + delta / sizeWidth() * (maxValue() - minValue()) * scrollSensitivity
         updateValue(value)
     }
@@ -111,6 +115,9 @@ fun SeekbarLayout(
     maxValue: () -> Float = { 0f },
     dataValue: () -> Float = { 0f },
     switchIndex: () -> Int = { 0 },
+    mediaIdentity: () -> Any? = { null },
+    bufferedValue: () -> Float = { 0f },
+    isBuffering: () -> Boolean = { false },
     scrollThreadHold: Float = 200f,
     positionState: SeekbarPositionState = rememberSeekbarPositionState(),
     animateColor: () -> Color = { Color.DarkGray },
@@ -160,8 +167,69 @@ fun SeekbarLayout(
         val isCanceled by remember { derivedStateOf { seekbarState.value.isCanceled() } }
         val snap = remember { derivedStateOf { !(isSwitching || !isTouching || isCanceled) } }
 
-        val maxDurationText = remember(maxValue()) { maxValue().toLong().durationToTime() }
-        val currentTimeText = durationToText(duration = { positionState.position.toLong() })
+        val currentIdentity = mediaIdentity()
+        // 未知时长（0、负值、NaN、Inf）不参与任何比例计算：既不能算填充，也不能做百分比 seek。
+        val durationKnown = maxValue().isFinite() && minValue().isFinite() && maxValue() > minValue()
+        val latestDurationKnown by rememberUpdatedState(durationKnown)
+        val latestBufferedValue by rememberUpdatedState(bufferedValue)
+        var observedIdentity by remember { mutableStateOf(currentIdentity) }
+        var lastPlayed by remember { mutableFloatStateOf(0f) }
+        var lastBuffered by remember { mutableFloatStateOf(0f) }
+        var lastColor by remember { mutableStateOf(animateColor()) }
+        var residue by remember { mutableStateOf<ProgressResidue?>(null) }
+        val residuePhase = remember { Animatable(0f) }
+        val reveal = remember { Animatable(if (durationKnown) 1f else 0f) }
+        var delayedUnknown by remember(currentIdentity) { mutableStateOf(false) }
+        val pulse = rememberInfiniteTransition(label = "SeekbarLoading")
+        val pulseAlpha by pulse.animateFloat(
+            initialValue = 0.06f,
+            targetValue = 0.16f,
+            animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Reverse),
+            label = "SeekbarLoadingAlpha"
+        )
+
+        SideEffect {
+            // 只有在身份与时长都可信时才记录几何，供下一次切歌冻结使用。
+            if (observedIdentity == currentIdentity && durationKnown) {
+                lastPlayed = positionState.position.normalize(minValue(), maxValue())
+                lastBuffered = latestBufferedValue().normalize(minValue(), maxValue())
+                lastColor = animateColor()
+            }
+        }
+        LaunchedEffect(currentIdentity) {
+            val changed = observedIdentity != currentIdentity
+            observedIdentity = currentIdentity
+            if (changed && !latestDurationKnown) {
+                // 150ms 仍未拿到新时长：旧填充冻结为残影，480ms 内失焦淡出。
+                residue = ProgressResidue(lastPlayed, lastBuffered, lastColor)
+                residuePhase.snapTo(0f)
+                delay(150)
+                if (!latestDurationKnown) {
+                    delayedUnknown = true
+                    residuePhase.animateTo(1f, tween(480))
+                }
+                residue = null
+            } else {
+                residue = null
+            }
+        }
+        LaunchedEffect(currentIdentity, durationKnown) {
+            if (!durationKnown) {
+                reveal.snapTo(0f)
+            } else if (delayedUnknown) {
+                // 正时长到达：先按真实比例定位，再 240ms 淡入，不从 0 扫到目标。
+                reveal.animateTo(1f, tween(240))
+            } else {
+                reveal.snapTo(1f)
+            }
+        }
+        val maxDurationText = remember(maxValue()) {
+            maxValue().takeIf { durationKnown }?.toLong()?.durationToTime().orEmpty()
+        }
+        val currentTimeText = durationToText(duration = {
+            (if (durationKnown) positionState.position else dataValue())
+                .takeIf { it.isFinite() }?.coerceAtLeast(0f)?.toLong() ?: 0L
+        })
         val animationJob = remember { mutableStateOf<Job?>(null) }
 
         LaunchedEffect(positionState) {
@@ -206,7 +274,8 @@ fun SeekbarLayout(
                 }
 
                 oldState == SeekbarState.ProgressBar -> {
-                    progressKeeper.updateValueByDelta(delta = deltaX)
+                    // 未知总时长只允许上下手势，不做百分比横拖。
+                    if (latestDurationKnown) progressKeeper.updateValueByDelta(delta = deltaX)
                 }
             }
 
@@ -277,7 +346,7 @@ fun SeekbarLayout(
                                 }
 
                                 PointerEventType.Release -> {
-                                    if (isMoved && !isCanceled && !isSwitching) {
+                                    if (isMoved && !isCanceled && !isSwitching && latestDurationKnown) {
                                         onSeekTo(progressKeeper.nowValue)
                                     }
                                     isTouching = false
@@ -348,20 +417,80 @@ fun SeekbarLayout(
         ) {
             SeekbarBackground(visible = { isTouching && !isCanceled })
             SeekbarContentMask(clip = { isTouching && !isCanceled })
+            // 时长未知或正在等待音频：胶囊底色轻呼吸，只表达等待，不代表播放比例。
+            if ((!durationKnown && delayedUnknown) || isBuffering()) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = pulseAlpha }
+                        .clip(RoundedCornerShape(16.dp))
+                ) {
+                    Canvas(Modifier.fillMaxSize()) { drawRect(Color.White) }
+                }
+            }
+            SeekbarThumb(
+                modifier = Modifier.graphicsLayer { alpha = reveal.value },
+                clip = { isTouching && !isCanceled },
+                thumbColor = { Color.White.copy(alpha = 0.15f) },
+                progress = {
+                    if (durationKnown) latestBufferedValue().normalize(minValue(), maxValue()) else 0f
+                }
+            )
+            if (!durationKnown && !isSwitching) {
+                // 未知总时长用短条替代表达，不显示 --:-- 也不画百分比。
+                Canvas(
+                    Modifier
+                        .zIndex(1f)
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 16.dp)
+                        .size(42.dp, 8.dp)
+                        .graphicsLayer { alpha = (pulseAlpha * 3f).coerceIn(0f, 1f) }
+                ) {
+                    drawRoundRect(Color.White, cornerRadius = CornerRadius(4.dp.toPx()))
+                }
+            }
             SeekbarDuration(
                 modifier = Modifier
-                    .align(Alignment.CenterEnd),
-                visible = { !isSwitching },
+                    .align(Alignment.CenterEnd)
+                    .zIndex(1f),
+                visible = { !isSwitching && durationKnown },
                 text = { maxDurationText },
                 textStyle = textStyle
             )
             SeekbarThumb(
+                modifier = Modifier.graphicsLayer { alpha = if (isSwitching) 1f else reveal.value },
                 clip = { isTouching && !isCanceled },
                 thumbColor = animateColor,
-                progress = { positionState.position.normalize(minValue(), maxValue()) },
+                progress = {
+                    if (durationKnown) positionState.position.normalize(minValue(), maxValue()) else 0f
+                },
                 switching = { isSwitching },
                 switchModeX = { switchModeX.floatValue }
             )
+            val pendingResidue = observedIdentity != currentIdentity && !durationKnown
+            val frozenProgress = if (pendingResidue) {
+                ProgressResidue(lastPlayed, lastBuffered, lastColor)
+            } else {
+                residue
+            }
+            frozenProgress?.let { frozen ->
+                val phase = if (pendingResidue) 0f else residuePhase.value
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = 1f - phase }
+                        .blur((10f * phase).dp)
+                ) {
+                    SeekbarThumb(
+                        thumbColor = { Color.White.copy(alpha = 0.15f) },
+                        progress = { frozen.buffered }
+                    )
+                    SeekbarThumb(
+                        thumbColor = { frozen.color },
+                        progress = { frozen.played }
+                    )
+                }
+            }
             SeekbarDuration(
                 modifier = Modifier
                     .align(Alignment.CenterStart),
@@ -609,17 +738,11 @@ private fun Modifier.combineDetectDrag(
         )
     }
 
-private fun Float.normalize(minValue: Float, maxValue: Float): Float {
-    val min = minOf(minValue, maxValue)
-    val max = maxOf(minValue, maxValue)
+private fun Float.normalize(minValue: Float, maxValue: Float): Float =
+    seekbarFraction(this, minValue, maxValue)
 
-    if (min == max) return 0f
-    if (this <= min) return 0f
-    if (this >= max) return 1f
-
-    return ((this - min) / (max - min))
-        .coerceIn(0f, 1f)
-}
+/** 旧媒体的填充残影：保持宽度与颜色，只做失焦淡出，不向 0 倒扫。 */
+private data class ProgressResidue(val played: Float, val buffered: Float, val color: Color)
 
 private fun Long.durationToTime(): String {
     val hour = this / 3600000

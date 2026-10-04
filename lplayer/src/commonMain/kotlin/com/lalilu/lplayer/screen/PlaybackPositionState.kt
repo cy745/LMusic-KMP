@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -48,8 +49,10 @@ internal class PlaybackPositionState(
 internal fun rememberPlaybackPositionState(
     isPlaying: Boolean,
     playbackKey: Any?,
+    frozen: () -> Boolean = { false },
 ): PlaybackPositionState {
     val scope = rememberCoroutineScope()
+    val latestFrozen by rememberUpdatedState(frozen)
     val state = remember {
         PlaybackPositionState(
             initialPosition = LPlayer.instance.currentPosition(),
@@ -61,7 +64,10 @@ internal fun rememberPlaybackPositionState(
         val job = scope.launch {
             state.synchronize(playbackKey, LPlayer.instance.currentPosition())
             while (isActive) {
-                if (isPlaying) withFrameMillis {
+                // 再缓冲期间保留最后位置，不倒扫也不假前进。
+                if (latestFrozen()) {
+                    delay(200)
+                } else if (isPlaying) withFrameMillis {
                     state.updatePosition(LPlayer.instance.currentPosition())
                 } else {
                     // A paused history restore or seek can finish after the first composition.

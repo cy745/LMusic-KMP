@@ -39,6 +39,10 @@ internal fun PlayerScreenContent(
     currentTime: MutableLongState,
     sampledPlaybackKey: () -> Any?,
     duration: State<Long>,
+    bufferedValue: () -> Float,
+    engineBuffering: State<Boolean>,
+    isBuffering: () -> Boolean,
+    lyricsPending: Boolean,
     isPlaying: State<Boolean>,
     lyricContent: State<LyricContent>,
     queue: Flow<PlaylistItems>,
@@ -107,6 +111,8 @@ internal fun PlayerScreenContent(
                 currentTime = { currentTime.longValue },
                 sampledPlaybackKey = sampledPlaybackKey,
                 lyricContent = lyricContent,
+                lyricsPending = lyricsPending,
+                engineBuffering = engineBuffering,
                 onSeedColorChanged = onSeedColorChanged,
                 onManualLyricsScrollingChanged = { isManuallyScrollingLyrics = it },
             )
@@ -157,6 +163,9 @@ internal fun PlayerScreenContent(
                     duration = duration,
                     positionState = timeline,
                     animateColor = { backgroundColor.value },
+                    mediaIdentity = { currentItem.value?.playbackId ?: currentItem.value?.id },
+                    bufferedValue = bufferedValue,
+                    isBuffering = isBuffering,
                     onDispatchDragOffset = { deltaY -> bottomSheetState.anchoredDraggableState.dispatchRawDelta(deltaY) },
                     onDragStop = { result ->
                         if (result == 0) {
