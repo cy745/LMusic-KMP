@@ -30,3 +30,5 @@ node_modules
 
 # VLC native libraries downloaded by vlc-setup plugin
 lplayer/src/jvmMain/assets/*/vlc/
+# Rive 设计稿与渲染产物（本地审阅用，不提交）
+design/
