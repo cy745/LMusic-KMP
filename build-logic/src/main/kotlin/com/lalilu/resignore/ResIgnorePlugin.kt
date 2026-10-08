@@ -76,6 +76,8 @@ class ResIgnorePlugin : Plugin<Project> {
 
     private fun configureAssetsDeletion(project: Project, patterns: List<String>) {
         val matchers = patterns.map { compileGlob(it) }
+        // 提前取出 logger：任务执行时不能再访问 Task.project（配置缓存下不支持）
+        val logger = project.logger
 
         val assetsTaskSpec: Spec<Task> = object : Spec<Task> {
             override fun isSatisfiedBy(element: Task): Boolean =
@@ -105,7 +107,7 @@ class ResIgnorePlugin : Plugin<Project> {
 
                             if (removed.isNotEmpty()) {
                                 val sample = removed.take(10).joinToString(", ")
-                                project.logger.lifecycle(
+                                logger.lifecycle(
                                     "[resignore] ${t.name}: 剔除 ${removed.size} 个 assets 文件 (${if (removed.size > 10) "示例: " else ""}$sample${if (removed.size > 10) " ..." else ""})"
                                 )
                             }

@@ -4,6 +4,7 @@ import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.logging.Logger
 import org.gradle.api.specs.Spec
 import java.io.File
 import java.nio.file.Files
@@ -13,7 +14,10 @@ import kotlin.streams.asSequence
 /**
  * CMP 资源 shrink 插件（grep 白名单方案）：
  * 扫描源码中的 RemixIcon.<Category>.<Name> 字面量引用，转换为资源文件名，
- * 在 merge*Assets 后删除目标目录中未被引用的资源（remixicon 图标 XML）。
+ * 在 release 的 merge*Assets 后删除目标目录中未被引用的资源（remixicon 图标 XML）。
+ *
+ * 生效范围：默认仅 release 变体（`releaseOnly = true`），
+ * debug 等非 release 变体既不扫描源码也不注册任务钩子（见 [CmpShrinkExtension.releaseOnly]）。
  *
  * 命名规则（已验证 36/36）：
  *   camelCase → snake_case：每个大写字母/数字前插入下划线并转小写
@@ -33,6 +37,7 @@ class CmpShrinkPlugin : Plugin<Project> {
         extension.sourceDirs.convention(listOf("src"))
         extension.resourcePrefix.convention("composeResources/com.lalilu.remixicon.generated.resources/drawable")
         extension.enabled.convention(true)
+        extension.releaseOnly.convention(true)
 
         target.pluginManager.withPlugin("com.android.application") {
             configure(target, extension)
@@ -43,20 +48,22 @@ class CmpShrinkPlugin : Plugin<Project> {
         if (!extension.enabled.get()) return
 
         val resourcePrefix = extension.resourcePrefix.get()
+        val releaseOnly = extension.releaseOnly.get()
         // 引用扫描：递归扫描项目根下所有 .kt 源码（覆盖嵌套模块如 lmedia/lmedia-ui）
         val scanRoot = project.rootDir
+        // 提前取出 logger：任务执行时不能再访问 Task.project（配置缓存下不支持）
+        val logger = project.logger
 
-        // 扫描前先解析引用（配置阶段执行，失败则禁用插件）
-        val keepFiles = collectReferencedResources(scanRoot, resourcePrefix)
-        if (keepFiles.isEmpty()) {
-            project.logger.warn("[cmpshrink] 未解析到 RemixIcon 引用（扫描根: $scanRoot），跳过资源剔除")
-            return
+        if (releaseOnly) {
+            logger.lifecycle("[cmpshrink] 仅对 release 变体生效（releaseOnly = true）")
         }
-        project.logger.lifecycle("[cmpshrink] 解析到 ${keepFiles.size} 个引用的图标，目标目录: $resourcePrefix")
 
+        // merge*Assets 任务：releaseOnly 时只匹配 release 变体（如 mergeReleaseAssets / mergeFreeReleaseAssets）
         val mergeAssetsSpec: Spec<Task> = object : Spec<Task> {
-            override fun isSatisfiedBy(element: Task): Boolean =
-                element.name.startsWith("merge") && element.name.endsWith("Assets")
+            override fun isSatisfiedBy(element: Task): Boolean {
+                if (!element.name.startsWith("merge") || !element.name.endsWith("Assets")) return false
+                return !releaseOnly || isReleaseVariant(element.name)
+            }
         }
 
         project.tasks.matching(mergeAssetsSpec)
@@ -64,14 +71,31 @@ class CmpShrinkPlugin : Plugin<Project> {
                 override fun execute(task: Task) {
                     task.doLast(object : Action<Task> {
                         override fun execute(t: Task) {
-                            shrinkAssets(t, resourcePrefix, keepFiles)
+                            // 扫描推迟到任务执行时：debug 变体不匹配任务，因此完全不扫描、不剔除
+                            val keepFiles = collectReferencedResources(scanRoot, resourcePrefix)
+                            if (keepFiles.isEmpty()) {
+                                logger.warn("[cmpshrink] 未解析到 RemixIcon 引用（扫描根: $scanRoot），跳过资源剔除")
+                                return
+                            }
+                            logger.lifecycle("[cmpshrink] 解析到 ${keepFiles.size} 个引用的图标，目标目录: $resourcePrefix")
+                            shrinkAssets(t, resourcePrefix, keepFiles, logger)
                         }
                     })
                 }
             })
     }
 
-    private fun shrinkAssets(task: Task, resourcePrefix: String, keepFiles: Set<String>) {
+    /**
+     * 判断 `merge<Variant>Assets` 任务是否属于 release 变体。
+     * 变体名会被 AGP 首字母大写（release → Release、freeRelease → FreeRelease），
+     * 因此以 "Release" 结尾即为 release（或 flavor + release）变体，debug 等不匹配。
+     */
+    private fun isReleaseVariant(taskName: String): Boolean {
+        val variantName = taskName.removePrefix("merge").removeSuffix("Assets")
+        return variantName.endsWith("Release")
+    }
+
+    private fun shrinkAssets(task: Task, resourcePrefix: String, keepFiles: Set<String>, logger: Logger) {
         for (root in task.outputs.files.filter { it.isDirectory }) {
             val targetDir: Path = root.toPath().resolve(resourcePrefix)
             if (!Files.isDirectory(targetDir)) continue
@@ -96,7 +120,7 @@ class CmpShrinkPlugin : Plugin<Project> {
             }
 
             if (removed > 0) {
-                task.project.logger.lifecycle(
+                logger.lifecycle(
                     "[cmpshrink] ${task.name}: 剔除 $removed 个未引用图标，保留 $kept 个 (${if (removed > 10) "示例: " else ""}${removedSample.joinToString(", ")}${if (removed > 10) " ..." else ""})"
                 )
             }
