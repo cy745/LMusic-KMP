@@ -22,6 +22,7 @@ import com.lalilu.llyricview.LyricLayout
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.PlaylistItems
 import com.lalilu.lplayer.components.PlaylistLayout
+import kotlinx.coroutines.flow.Flow
 
 /**
  * 抽屉双锚点：
@@ -39,7 +40,7 @@ internal fun PadContentPanel(
     currentTime: () -> Long,
     sampledPlaybackKey: () -> Any?,
     lyricContent: State<LyricContent>,
-    queue: State<PlaylistItems?>,
+    queue: Flow<PlaylistItems>,
     playlistState: LazyListState,
 ) {
     BoxWithConstraints(modifier = modifier) {
@@ -138,7 +139,7 @@ internal fun LyricPanel(
 @Composable
 internal fun PlaylistPanel(
     modifier: Modifier = Modifier,
-    queue: State<PlaylistItems?>,
+    queue: Flow<PlaylistItems>,
     playlistState: LazyListState,
 ) {
     val contentPadding = WindowInsets.statusBars.asPaddingValues() +

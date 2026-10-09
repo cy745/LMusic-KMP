@@ -37,6 +37,7 @@ import com.lalilu.lplayer.extensions.SystemBarsVisibilityEffect
 import com.lalilu.lplayer.extensions.hideControl
 import com.lalilu.navigation.LocalModalBottomSheetState
 import com.skydoves.compose.stability.runtime.TraceRecomposition
+import kotlinx.coroutines.flow.Flow
 
 @TraceRecomposition(tag = "PlayerScreenContent", traceStates = true)
 @Composable
@@ -48,7 +49,7 @@ internal fun PlayerScreenContent(
     duration: State<Long>,
     isPlaying: State<Boolean>,
     lyricContent: State<LyricContent>,
-    queue: State<PlaylistItems?>,
+    queue: Flow<PlaylistItems>,
     backgroundColor: () -> Color,
     onSeedColorChanged: (Color) -> Unit,
 ) {
