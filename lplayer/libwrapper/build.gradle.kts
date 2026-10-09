@@ -2,6 +2,12 @@ plugins {
     kotlin("jvm")
 }
 
+// 与全项目一致锁定 JVM 21：本机 Gradle 跑在 JDK 25/26 上，不指定 toolchain 会让
+// compileJava 用 25、compileKotlin 用 21，触发 "Inconsistent JVM Target Compatibility" 而构建失败
+kotlin {
+    jvmToolchain(21)
+}
+
 dependencies {
     api("net.java.dev.jna:jna:5.17.0")
 }

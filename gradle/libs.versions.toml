@@ -1,5 +1,5 @@
 [versions]
-agp = "9.0.0"
+agp = "9.4.1"
 android-targetSdk = "36"
 android-minSdk = "23"
 android-ndk = "27.0.12077973"
@@ -185,7 +185,7 @@ dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
 osdetector = { id = "com.google.osdetector", version = "1.7.3" }
 vlcSetup = { id = "ir.mahozad.vlc-setup", version.ref = "vlcSetup" }
 ktorfit = { id = "de.jensklingenberg.ktorfit", version.ref = "ktorfit" }
-stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.6.0" }
+stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.8.0" }
 shadowJar = { id = "com.gradleup.shadow", version = "9.3.0" }
 room3 = { id = "androidx.room3", version.ref = "room3" }
 
