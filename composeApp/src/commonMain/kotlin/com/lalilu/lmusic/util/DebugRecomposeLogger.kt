@@ -10,17 +10,34 @@ object DebugRecomposeLogger : RecompositionLogger {
 
     override fun log(event: RecompositionEvent) {
         val tagSuffix = if (event.tag.isNotEmpty()) " (tag: ${event.tag})" else ""
+        val durationStr = if (event.durationNanos > 0) {
+            val ms = event.durationNanos / 1_000_000
+            val fraction = (event.durationNanos % 1_000_000) / 10_000
+            " ($ms.${fraction.toString().padStart(2, '0')}ms)"
+        } else {
+            ""
+        }
 
         Logger.i(
             tag = tag,
-            messageString = "[Recomposition #${event.recompositionCount}] ${event.composableName}$tagSuffix",
+            messageString = "[Recomposition #${event.recompositionCount}] " +
+                    "${event.composableName}$tagSuffix$durationStr",
         )
 
-        // Log parameter changes
-        event.parameterChanges.forEachIndexed { index, change ->
-            val isLast = index == event.parameterChanges.size - 1
-            val prefix = if (isLast) "  └─" else "  ├─"
+        val lines = buildTreeLines(event)
+        lines.forEachIndexed { index, line ->
+            val prefix = if (index == lines.size - 1) "  └─" else "  ├─"
+            Logger.i(
+                tag = tag,
+                messageString = "$prefix $line"
+            )
+        }
+    }
 
+    private fun buildTreeLines(event: RecompositionEvent): List<String> {
+        val lines = mutableListOf<String>()
+
+        event.parameterChanges.forEach { change ->
             val status = when {
                 change.changed -> {
                     val oldStr = safeToString(change.oldValue)
@@ -31,18 +48,29 @@ object DebugRecomposeLogger : RecompositionLogger {
                 change.stable -> "stable (${safeToString(change.newValue)})"
                 else -> "unstable (${safeToString(change.newValue)})"
             }
-
-            Logger.i(tag = tag, messageString = "$prefix ${change.name}: ${change.type} $status")
+            lines.add("[param] ${change.name}: ${change.type} $status")
         }
 
-        // Log unstable parameters summary
+        event.stateChanges.filter { it.changed }.forEach { change ->
+            val oldStr = safeToString(change.oldValue)
+            val newStr = safeToString(change.newValue)
+            lines.add("[state] ${change.name}: ${change.type} changed ($oldStr → $newStr)")
+        }
+
         if (event.unstableParameters.isNotEmpty()) {
-            Logger.i(tag = tag, messageString = "  └─ Unstable parameters: ${event.unstableParameters}")
+            lines.add("Unstable parameters: ${event.unstableParameters}")
         }
+
+        val changedStates = event.stateChanges.filter { it.changed }.map { it.name }
+        if (changedStates.isNotEmpty()) {
+            lines.add("State changes: $changedStates")
+        }
+
+        return lines
     }
 
     /**
-     * Safely converts a value to string, handling reflection errors.
+     * Safely converts a value to string, handling function types and reflection errors.
      * Falls back to a simple representation if toString() throws an exception.
      */
     private fun safeToString(value: Any?): String {
@@ -52,7 +80,8 @@ object DebugRecomposeLogger : RecompositionLogger {
             value.toString()
         } catch (e: Throwable) {
             // Fallback for any toString() failures (including reflection errors)
-            "${value::class.qualifiedName}@${value.hashCode().toString(16)}"
+            // On iOS/native, we don't have javaClass.simpleName, so use a simpler approach
+            "Object@${value.hashCode().toString(16)}"
         }
     }
 }

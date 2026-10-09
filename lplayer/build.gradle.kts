@@ -15,11 +15,16 @@ plugins {
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.stability.analyzer)
 }
 
 group = "com.lalilu.lplayer"
 version = "1.0.0"
 extra.set("artifactId", "core")
+
+composeStabilityAnalyzer {
+    enabled = true
+}
 
 kotlin {
     setupMultiplatform(
