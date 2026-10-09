@@ -3,6 +3,7 @@ package com.lalilu.lplayer.viewmodel
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.*
 import com.lalilu.common.ext.io
+import com.lalilu.extensions.toState
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.LyricUtils
 import com.lalilu.llyricview.LyricContent
@@ -34,6 +35,7 @@ class PlayerViewModel(
     val currentQueue = LPlayer.instance.queue.expandedItems
         .mapLatest { PlaylistItems(items = it.rearrange(), pickedByUser = it.currentPickedByUser) }
         .distinctUntilChanged()
+        .toState(viewModelScope)
 
     init {
         currentItem

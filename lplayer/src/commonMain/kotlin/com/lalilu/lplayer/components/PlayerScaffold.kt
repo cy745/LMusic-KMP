@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -132,8 +133,9 @@ internal fun PlayerScaffold(
         )
     }
 
+    val enableBackHandler = remember { derivedStateOf { draggable.state.value == DragAnchor.Max } }
     ClassicBackHandler(
-        enabled = draggable.state.value == DragAnchor.Max,
+        enabled = enableBackHandler.value,
         onBack = {
             if (draggable.state.value == DragAnchor.Max) {
                 draggable.animateToState(DragAnchor.Middle)

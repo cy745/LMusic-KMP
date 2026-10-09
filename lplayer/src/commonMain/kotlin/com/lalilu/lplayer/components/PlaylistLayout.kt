@@ -27,8 +27,6 @@ import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.navigation.AppRouter
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
 
@@ -49,66 +47,68 @@ fun PlaylistLayout(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues = PaddingValues(bottom = 200.dp),
-    items: Flow<PlaylistItems>
+    items: State<PlaylistItems?>
 ) {
     val context = LocalPlatformContext.current
     var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
 
-    LaunchedEffect(Unit) {
-        items.flowOn(Dispatchers.Default)
-            .collect { snapshot ->
-                val oldList = actualItems
-                // 「正在播放的排在队首」的循环队列：新列表是旧列表的一次左旋，
-                // 这里固定采用「切点之前的整块搬到末尾」的语义，避免大幅跳跃时动画方向反转
-                val newList = oldList.rotationalDiff(
-                    items = snapshot.items,
-                    getId = { it.mediaKey.stableKey },
-                    isSameItem = { a, b -> a.mediaKey == b.mediaKey },
-                    isSameContent = { a, b ->
-                        a.id == b.id
-                                && a.title == b.title
-                                && a.subtitle == b.subtitle
-                                && a.mediaSourceName == b.mediaSourceName
-                                && a.available == b.available
-                                && a.extra == b.extra
-                    }
-                )
-                val newHead = newList.firstOrNull()
+    LaunchedEffect(items.value) {
+        val snapshot = items.value ?: return@LaunchedEffect
+        val oldList = actualItems
+        // 「正在播放的排在队首」的循环队列：新列表是旧列表的一次左旋，
+        // 这里固定采用「切点之前的整块搬到末尾」的语义，避免大幅跳跃时动画方向反转
+        // 差分是纯计算且随队列长度增长：放到 Default 上算，别占着主线程
+        // （改用 State 之前这里是 items.flowOn(Dispatchers.Default)）
+        val newList = withContext(Dispatchers.Default) {
+            oldList.rotationalDiff(
+                items = snapshot.items,
+                getId = { it.mediaKey.stableKey },
+                isSameItem = { a, b -> a.mediaKey == b.mediaKey },
+                isSameContent = { a, b ->
+                    a.id == b.id
+                            && a.title == b.title
+                            && a.subtitle == b.subtitle
+                            && a.mediaSourceName == b.mediaSourceName
+                            && a.available == b.available
+                            && a.extra == b.extra
+                }
+            )
+        }
+        val newHead = newList.firstOrNull()
 
-                // 若无法获取新列表的首元素，则说明新列表为空，及时返回
-                if (newHead == null) {
-                    withContext(Dispatchers.Main) { actualItems = emptyList() }
-                    return@collect
+        // 若无法获取新列表的首元素，则说明新列表为空，及时返回
+        if (newHead == null) {
+            withContext(Dispatchers.Main) { actualItems = emptyList() }
+            return@LaunchedEffect
+        }
+
+        withContext(Dispatchers.Main) {
+            val plan = planPlaylistScroll(
+                oldList = oldList,
+                newHead = newHead,
+                visibleKeys = listState.layoutInfo.visibleItemsInfo.map { it.key }.toSet(),
+                pickedByUser = snapshot.pickedByUser,
+            )
+
+            when (plan) {
+                // 新旧队首都不在屏幕上：不需要滚动
+                PlaylistScrollPlan.KeepScroll -> actualItems = newList
+
+                // 新队首在屏幕上、旧队首不在：先清空再恢复，才能稳定触发元素动画
+                PlaylistScrollPlan.RebuildAtTop -> {
+                    actualItems = emptyList()
+                    waitAFrame()
+                    actualItems = newList
+                    listState.scrollToItem(0)
                 }
 
-                withContext(Dispatchers.Main) {
-                    val plan = planPlaylistScroll(
-                        oldList = oldList,
-                        newHead = newHead,
-                        visibleKeys = listState.layoutInfo.visibleItemsInfo.map { it.key }.toSet(),
-                        pickedByUser = snapshot.pickedByUser,
-                    )
-
-                    when (plan) {
-                        // 新旧队首都不在屏幕上：不需要滚动
-                        PlaylistScrollPlan.KeepScroll -> actualItems = newList
-
-                        // 新队首在屏幕上、旧队首不在：先清空再恢复，才能稳定触发元素动画
-                        PlaylistScrollPlan.RebuildAtTop -> {
-                            actualItems = emptyList()
-                            waitAFrame()
-                            actualItems = newList
-                            listState.scrollToItem(0)
-                        }
-
-                        PlaylistScrollPlan.JumpToTop -> {
-                            actualItems = newList
-                            listState.scrollToItem(0)
-                        }
-                    }
+                PlaylistScrollPlan.JumpToTop -> {
+                    actualItems = newList
+                    listState.scrollToItem(0)
                 }
             }
+        }
     }
 
     LazyColumn(

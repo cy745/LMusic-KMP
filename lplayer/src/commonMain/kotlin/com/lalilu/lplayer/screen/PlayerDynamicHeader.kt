@@ -19,7 +19,7 @@ internal fun PlayerDynamicHeader(
     modifier: Modifier = Modifier,
     scaffold: PlayerScaffoldScope,
     timeline: SeekbarPositionState,
-    backgroundColor: State<Color>,
+    backgroundColor: () -> Color,
     coverData: () -> Any?,
     currentTime: () -> Long,
     sampledPlaybackKey: () -> Any?,
@@ -31,49 +31,41 @@ internal fun PlayerDynamicHeader(
         modifier = modifier
             .fillMaxSize()
             .clipToBounds()
-            .drawBehind { drawRect(color = backgroundColor.value) },
+            .drawBehind { drawRect(color = backgroundColor()) },
     ) {
-        val decelerate: (Float) -> Float = remember {
-            { value -> 1f - (1f - value) * (1f - value) }
-        }
-        val arcTranslation: (Float) -> Float = remember {
-            { value -> -2f * (value - 0.5f).pow(2) + 0.5f }
-        }
-        val cover = coverData()
-        if (cover == null) {
-            Spacer(modifier = Modifier.fillMaxSize())
-        } else {
-            BlurBackground(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .graphicsLayer {
-                        val middleToMax = scaffold.middleToMaxProgress
-                        val minToMiddle = scaffold.minToMiddleProgress
-                        val minOffset = lerp(-size.width / 2f, 0f, decelerate(minToMiddle))
-                        val maxOffset = lerp(
-                            0f,
-                            (constraints.maxHeight - constraints.maxWidth) / 2f,
-                            decelerate(middleToMax),
-                        )
-                        val layoutCompensation = constraints.maxHeight - scaffold.position
-                        val gestureEmphasis = arcTranslation(middleToMax) * 200f
-                        val coverScale = lerp(
-                            1f,
-                            constraints.maxHeight.toFloat() / constraints.maxWidth.toFloat(),
-                            middleToMax,
-                        )
+        val decelerate: (Float) -> Float = remember { { value -> 1f - (1f - value) * (1f - value) } }
+        val arcTranslation: (Float) -> Float = remember { { value -> -2f * (value - 0.5f).pow(2) + 0.5f } }
 
-                        translationY = minOffset + maxOffset + layoutCompensation + gestureEmphasis
-                        alpha = scaffold.minToMiddleProgress
-                        scaleX = coverScale
-                        scaleY = coverScale
-                    },
-                blurProgress = { scaffold.middleToMaxProgress },
-                onColorPairFetched = { color, _ -> onSeedColorChanged(color) },
-                imageData = { cover },
-            )
-        }
+        BlurBackground(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .graphicsLayer {
+                    val middleToMax = scaffold.middleToMaxProgress
+                    val minToMiddle = scaffold.minToMiddleProgress
+                    val minOffset = lerp(-size.width / 2f, 0f, decelerate(minToMiddle))
+                    val maxOffset = lerp(
+                        0f,
+                        (constraints.maxHeight - constraints.maxWidth) / 2f,
+                        decelerate(middleToMax),
+                    )
+                    val layoutCompensation = constraints.maxHeight - scaffold.position
+                    val gestureEmphasis = arcTranslation(middleToMax) * 200f
+                    val coverScale = lerp(
+                        1f,
+                        constraints.maxHeight.toFloat() / constraints.maxWidth.toFloat(),
+                        middleToMax,
+                    )
+
+                    translationY = minOffset + maxOffset + layoutCompensation + gestureEmphasis
+                    alpha = scaffold.minToMiddleProgress
+                    scaleX = coverScale
+                    scaleY = coverScale
+                },
+            blurProgress = { scaffold.middleToMaxProgress },
+            onColorPairFetched = { color, _ -> onSeedColorChanged(color) },
+            imageData = coverData,
+        )
 
         PlayerLyricsPane(
             modifier = Modifier.fillMaxSize(),

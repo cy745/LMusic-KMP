@@ -3,7 +3,13 @@ package com.lalilu.lplayer.screen
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableLongState
@@ -30,8 +36,9 @@ import com.lalilu.lplayer.components.rememberSeekbarPositionState
 import com.lalilu.lplayer.extensions.SystemBarsVisibilityEffect
 import com.lalilu.lplayer.extensions.hideControl
 import com.lalilu.navigation.LocalModalBottomSheetState
-import kotlinx.coroutines.flow.Flow
+import com.skydoves.compose.stability.runtime.TraceRecomposition
 
+@TraceRecomposition(tag = "PlayerScreenContent", traceStates = true)
 @Composable
 internal fun PlayerScreenContent(
     currentItem: State<LAudio?>,
@@ -41,13 +48,12 @@ internal fun PlayerScreenContent(
     duration: State<Long>,
     isPlaying: State<Boolean>,
     lyricContent: State<LyricContent>,
-    queue: Flow<PlaylistItems>,
-    backgroundColor: State<Color>,
+    queue: State<PlaylistItems?>,
+    backgroundColor: () -> Color,
     onSeedColorChanged: (Color) -> Unit,
 ) {
     val density = LocalDensity.current
     val navigationBar = WindowInsets.navigationBars
-    val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     val timeline = rememberSeekbarPositionState {
         currentTime.longValue.toFloat()
     }
@@ -56,6 +62,11 @@ internal fun PlayerScreenContent(
     val lyricSettings = remember { obtainLyricSettings() }
     PlayerScaffold(
         toolbarContent = {
+            // colorScheme 只在这个 @Composable lambda 的作用域里读：MaterialKolor 的主题动画
+            // 会逐帧重建 ColorScheme，若在 screen 作用域读，整个播放页（含 header / BlurBackground
+            // / 封面内容）都会跟着逐帧重组
+            val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+
             Column(
                 modifier = Modifier
                     // 歌词页展开时隐藏其他组件：toolbar 需要"先点击一下显示，再点击才触发按钮"，
@@ -156,7 +167,7 @@ internal fun PlayerScreenContent(
                     currentTime = currentTime,
                     duration = duration,
                     positionState = timeline,
-                    animateColor = { backgroundColor.value },
+                    animateColor = backgroundColor,
                     onDispatchDragOffset = { deltaY -> bottomSheetState.anchoredDraggableState.dispatchRawDelta(deltaY) },
                     onDragStop = { result ->
                         if (result == 0) {

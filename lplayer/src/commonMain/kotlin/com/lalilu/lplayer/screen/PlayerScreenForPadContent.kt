@@ -17,7 +17,6 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.components.BlurBackground
 import com.lalilu.lplayer.components.PlaylistItems
 import com.lalilu.lplayer.components.rememberSeekbarPositionState
-import kotlinx.coroutines.flow.Flow
 
 
 @Composable
@@ -30,7 +29,7 @@ internal fun PlayerScreenForPadContent(
     duration: State<Long>,
     isPlaying: State<Boolean>,
     lyricContent: State<LyricContent>,
-    queue: Flow<PlaylistItems>,
+    queue: State<PlaylistItems?>,
 ) {
     val seedColor = LocalSeedColor.current
     val playlistState = rememberLazyListState()
@@ -90,15 +89,12 @@ private fun PadPlayerBackground(
     onSeedColorChanged: (Color) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        val cover = coverData()
-        if (cover != null) {
-            BlurBackground(
-                modifier = Modifier.fillMaxSize(),
-                imageData = { cover },
-                onColorPairFetched = { color, _ -> onSeedColorChanged(color) },
-                blurProgress = { 1f },
-            )
-        }
+        BlurBackground(
+            modifier = Modifier.fillMaxSize(),
+            imageData = coverData,
+            onColorPairFetched = { color, _ -> onSeedColorChanged(color) },
+            blurProgress = { 1f },
+        )
         Spacer(
             modifier = Modifier
                 .fillMaxSize()

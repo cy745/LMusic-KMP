@@ -11,7 +11,7 @@ actual fun Bitmap.toImageBitmap() = asComposeImageBitmap()
 @Composable
 actual fun BlurBackground(
     modifier: Modifier,
-    imageData: () -> Any,
+    imageData: () -> Any?,
     onColorPairFetched: (bgColor: Color, contentColor: Color) -> Unit,
     blurProgress: () -> Float
 ) {

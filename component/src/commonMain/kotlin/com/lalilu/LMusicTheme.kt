@@ -76,7 +76,7 @@ fun LMusicTheme(
     lyricFontFamily: FontFamily? = null,
     content: @Composable () -> Unit,
 ) {
-    val seedColorState = remember { mutableStateOf(Color.Red) }
+    val seedColorState = remember { mutableStateOf(Color.DarkGray) }
     val defaultFontFamily = platformDefaultFontFamily()
     val appliedGlobalFont = globalFontFamily ?: defaultFontFamily
     // 歌词字体未配置时使用平台默认字体，不跟随界面字体
