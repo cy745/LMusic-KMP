@@ -24,8 +24,7 @@ fun KotlinMultiplatformExtension.setupMultiplatform(
 ) {
     applyDefaultHierarchyTemplate()
 
-    // Java 与 Kotlin 都锁到 JVM 21：Gradle 跑在 JDK 25/26 上时，不指定 toolchain 会让
-    // compileJava 用 25、compileKotlin 用 21，触发 "Inconsistent JVM Target Compatibility"
+    // Java 与 Kotlin 都使用 JDK 21 toolchain，保持编译环境与 JVM target 一致。
     jvmToolchain(21)
 
     val artifactId = project.extra.runCatching { get("artifactId") }.getOrNull() as? String?

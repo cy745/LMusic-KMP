@@ -6,11 +6,14 @@
 
 ### 环境要求
 
-- JDK 21+
-- Gradle 8.11.1
+- JDK 21（Gradle daemon、JVM 编译和测试统一使用 21）
+- 使用仓库自带的 Gradle Wrapper，无需单独安装 Gradle
 - Android Studio 2024+ 或 IntelliJ IDEA 2024+
 - macOS (iOS 开发)
 - Xcode 15+ (iOS 开发)
+
+将 `JAVA_HOME` 和 IDE 的 Gradle JDK 设置为 JDK 21。
+Gradle daemon 的版本由 `gradle/gradle-daemon-jvm.properties` 固定；缺少 JDK 21 时，Gradle 可自动下载。
 
 ### 快速开始
 

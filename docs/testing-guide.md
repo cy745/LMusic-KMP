@@ -126,8 +126,11 @@ class XxxDialogTest {
 
 ### 5.1 前置条件
 
-- **JDK 21**：`vlc-setup` 插件要求 JVM ≥ 21，JDK 17 会在配置阶段直接失败。本机有多个 JDK 时用
-  `JAVA_HOME` 指定，例如 `JAVA_HOME=~/.jdks/corretto-21.0.11`。
+- **JDK 21**：Gradle daemon、JVM 编译和测试统一使用 21。daemon 的版本由
+  `gradle/gradle-daemon-jvm.properties` 固定，其优先级高于 `JAVA_HOME`。
+  将 `JAVA_HOME` 和 IDE 的 Gradle JDK 也设置为已安装的 JDK 21，保持启动环境一致。
+  缺少 JDK 21 时，Gradle 可自动下载。
+  使用仓库自带的 `./gradlew` 执行测试。
 - **VLC 原生资源**：桌面端原生播放用例依赖仓库内的 VLC 二进制
   （`lplayer/src/jvmMain/assets/<os>/vlc/`，被 `.gitignore` 排除，不随克隆分发）。
   首次运行或资源过期（改了 `composeApp` 的 `vlcSetup` 配置）时先执行：
