@@ -1,6 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.*
 import org.jetbrains.kotlin.gradle.plugin.KotlinMultiplatformPluginWrapper
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
+import com.skydoves.compose.stability.gradle.StabilityAnalyzerExtension
 
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
@@ -21,10 +22,36 @@ plugins {
     id("build-logic")
 }
 
-// 配置注入遍历的起点项目
 ext {
     set("targetInjectProjectName", "composeApp")
     set("krouter.collect.annotations", "org.koin.core.annotation.ModuleProvide")
+}
+
+// Analyzer 0.15.0's name-based task selection also includes Wasm library linking
+// and Binaryen optimization, which produce no stability reports. Compile sources
+// only, including AGP's compileAndroidMain task that its Kotlin-name filter misses.
+subprojects {
+    pluginManager.withPlugin("com.github.skydoves.compose.stability.analyzer") {
+        afterEvaluate {
+            val analyzer = extensions.getByType<StabilityAnalyzerExtension>()
+            tasks.matching { it.name == "stabilityDump" || it.name == "stabilityCheck" }.configureEach {
+                // Reports share a build/stability parent directory with test compilation
+                // outputs. Gradle requires ordering when tests are in the same invocation,
+                // even with includeTests=false; this does not schedule the tests itself.
+                mustRunAfter(tasks.matching {
+                    it.name.startsWith("compile") && it.name.contains("Test")
+                })
+                setDependsOn(tasks.matching { task ->
+                    val name = task.name.lowercase()
+                    name.startsWith("compile") &&
+                            (name.contains("kotlin") || name == "compileandroidmain") &&
+                            listOf("sync", "webpack", "executable", "library", "optimize", "link", "assemble")
+                                .none { name.contains(it) } &&
+                            (analyzer.stabilityValidation.includeTests.get() || !name.contains("test"))
+                })
+            }
+        }
+    }
 }
 
 // 子项目都开启 wasm-kclass-fqn
