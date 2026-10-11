@@ -90,15 +90,12 @@ private fun PadPlayerBackground(
     onSeedColorChanged: (Color) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        val cover = coverData()
-        if (cover != null) {
-            BlurBackground(
-                modifier = Modifier.fillMaxSize(),
-                imageData = { cover },
-                onColorPairFetched = { color, _ -> onSeedColorChanged(color) },
-                blurProgress = { 1f },
-            )
-        }
+        BlurBackground(
+            modifier = Modifier.fillMaxSize(),
+            imageData = coverData,
+            onColorPairFetched = { color, _ -> onSeedColorChanged(color) },
+            blurProgress = { 1f },
+        )
         Spacer(
             modifier = Modifier
                 .fillMaxSize()

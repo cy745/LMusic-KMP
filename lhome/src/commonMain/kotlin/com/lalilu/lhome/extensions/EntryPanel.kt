@@ -67,6 +67,7 @@ object EntryPanel : LazyGridContent {
                     "/log",
                     "/settings"
                 ).mapNotNull { AppRouter.route(it).get() }
+                    .distinctBy { it.key }
             }
         }
 

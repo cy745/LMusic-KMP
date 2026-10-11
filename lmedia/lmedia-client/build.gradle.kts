@@ -20,7 +20,7 @@ version = "1.0.0"
 extra.set("artifactId", "client")
 
 ktorfit {
-    compilerPluginVersion.set("2.3.3")
+    compilerPluginVersion.set(libs.versions.ktorfit.compiler.get())
 }
 
 kotlin {

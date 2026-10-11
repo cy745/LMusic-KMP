@@ -30,3 +30,7 @@ node_modules
 
 # VLC native libraries downloaded by vlc-setup plugin
 lplayer/src/jvmMain/assets/*/vlc/
+# Rive 设计稿与渲染产物（本地审阅用，不提交）
+design/
+# 本地重组诊断采样；长期结论与复现方法保留在 docs 的分析文档中
+/docs/recomposition/

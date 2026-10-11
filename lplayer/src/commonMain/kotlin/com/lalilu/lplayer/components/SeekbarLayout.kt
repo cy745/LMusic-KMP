@@ -41,6 +41,7 @@ import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
 import com.lalilu.RemixIcon
 import com.lalilu.lplayer.extensions.AccumulatedValue
+import com.skydoves.compose.stability.runtime.TraceRecomposition
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
@@ -107,6 +108,7 @@ internal fun rememberSeekbarProgressKeeper(
     }
 }
 
+@TraceRecomposition(tag = "SeekbarLayout", traceStates = true)
 @Preview
 @Composable
 fun SeekbarLayout(

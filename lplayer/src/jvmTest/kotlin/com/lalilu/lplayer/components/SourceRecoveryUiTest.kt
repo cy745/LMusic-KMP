@@ -13,14 +13,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
 import com.lalilu.extensions.DynamicTipsHost
-import com.lalilu.lmedia.component.AudioItemCard
-import com.lalilu.lmedia.LocalMediaSourceStatuses
-import com.lalilu.lmedia.LocalPlaybackFailures
-import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.PlaybackFailure
-import com.lalilu.lmedia.domain.model.PlaybackFailureReason
-import com.lalilu.lmedia.domain.repository.SourceStatus
-import com.lalilu.lmedia.domain.source.MediaContentAvailability
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -29,112 +21,6 @@ import java.io.File
 
 @OptIn(ExperimentalTestApi::class)
 class SourceRecoveryUiTest {
-    @Test fun sameRawIdFromDifferentSourcesKeepsIndependentFailureAndEnablement() = runComposeUiTest {
-        val local = LAudio(id = "42", mediaSourceName = "local")
-        val remote = local.copy(mediaSourceName = "remote")
-        val enabled = mutableStateOf(true)
-        val failures = mutableStateOf(mapOf(remote.playbackId to PlaybackFailure(PlaybackFailureReason.PermissionDenied, 1)))
-        val plays = mutableListOf<String>()
-        setContent {
-            MaterialTheme {
-                CompositionLocalProvider(
-                    LocalInspectionMode provides true,
-                    LocalMediaSourceStatuses provides mapOf(
-                        "local" to SourceStatus(contentAvailability = MediaContentAvailability.Ready),
-                        "remote" to SourceStatus(enabled = enabled.value, contentAvailability = MediaContentAvailability.Ready),
-                    ),
-                    LocalPlaybackFailures provides failures.value,
-                ) {
-                    Column {
-                        listOf(local, remote).forEach { audio ->
-                            AudioItemCard(modifier = Modifier.testTag(audio.mediaSourceName),
-                                id = audio.playbackId, title = audio.mediaSourceName, subtitle = "同一个原始 ID",
-                                imageData = audio, onPlay = { plays += audio.playbackId })
-                        }
-                    }
-                }
-            }
-        }
-        val message = "播放失败 · ${PlaybackFailureReason.PermissionDenied.displayMessage} · 点击重试"
-        onNodeWithTag("local").assertIsEnabled().performClick()
-        onNodeWithTag("remote").assertIsEnabled().performClick()
-        assertEquals(listOf(local.playbackId, remote.playbackId), plays)
-        onNodeWithText(message).assertIsDisplayed()
-        runOnIdle { enabled.value = false }
-        onNodeWithTag("remote").assertIsNotEnabled().performTouchInput { click(); longClick() }
-        onNodeWithContentDescription("Cover for remote", useUnmergedTree = true)
-            .assertIsNotEnabled().performTouchInput { click(); longClick() }
-        onNodeWithTag("local").assertIsEnabled()
-        onNodeWithText(message).assertDoesNotExist()
-        assertEquals(2, plays.size)
-        runOnIdle { enabled.value = true }
-        onNodeWithText(message).assertIsDisplayed()
-        runOnIdle { failures.value = emptyMap() }
-        onNodeWithText(message).assertDoesNotExist()
-        onNodeWithTag("remote").assertIsEnabled()
-    }
-
-    @Test fun failedSongCanRetryButUnreadySourceCannotAndRecoveryKeepsTheFailure() = runDesktopComposeUiTest(width = 360, height = 800) {
-        val audio = LAudio(id = "a", mediaSourceName = "local")
-        val ready = mutableStateOf(true)
-        val failures = mutableStateOf(mapOf(audio.playbackId to PlaybackFailure(PlaybackFailureReason.Network, 1)))
-        var plays = 0
-        val message = "播放失败 · ${PlaybackFailureReason.Network.displayMessage} · 点击重试"
-        setContent {
-            MaterialTheme {
-                CompositionLocalProvider(
-                    LocalInspectionMode provides true,
-                    LocalMediaSourceStatuses provides mapOf("local" to SourceStatus(
-                        contentAvailability = if (ready.value) MediaContentAvailability.Ready else MediaContentAvailability.Uninitialized,
-                    )),
-                    LocalPlaybackFailures provides failures.value,
-                ) {
-                    Surface {
-                        AudioItemCard(modifier = Modifier.testTag("song"), id = audio.playbackId,
-                            title = "失败歌曲", subtitle = "测试来源", imageData = audio,
-                            onPlay = { plays++ })
-                    }
-                }
-            }
-        }
-        onNodeWithText(message).assertIsDisplayed()
-        onNodeWithTag("song").assertIsEnabled().performClick()
-        assertEquals(1, plays)
-        saveScreenshot("failed-song-phone.png", captureToImage())
-        runOnIdle { ready.value = false }
-        onNodeWithText(message).assertDoesNotExist()
-        onNodeWithTag("song").assertIsNotEnabled().performTouchInput { click() }
-        assertEquals(1, plays)
-        runOnIdle { ready.value = true }
-        onNodeWithText(message).assertIsDisplayed()
-        onNodeWithTag("song").assertIsEnabled()
-        runOnIdle { failures.value = emptyMap() }
-        onNodeWithText(message).assertDoesNotExist()
-        onNodeWithTag("song").assertIsEnabled()
-    }
-
-    @Test fun unavailableLibraryRowAndCoverIgnoreClickAndLongPress() = runComposeUiTest {
-        var actions = 0
-        val enabled = mutableStateOf(false)
-        setContent {
-            CompositionLocalProvider(LocalInspectionMode provides true) {
-                AudioItemCard(
-                    modifier = Modifier.testTag("song"), id = "a", title = "歌曲", subtitle = "来源",
-                    enabled = enabled.value,
-                    onPlay = { actions++ }, onSelect = { actions++ }, onEnterSelect = { actions++ },
-                    onNavigateToDetail = { actions++ },
-                )
-            }
-        }
-        onNodeWithTag("song").assertIsNotEnabled().performTouchInput { click(); longClick() }
-        onNodeWithContentDescription("Cover for 歌曲", useUnmergedTree = true)
-            .assertIsNotEnabled().performTouchInput { click(); longClick() }
-        assertEquals(0, actions)
-        runOnIdle { enabled.value = true }
-        onNodeWithTag("song").assertIsEnabled().performTouchInput { click() }
-        assertEquals(1, actions)
-    }
-
     @Test fun unavailableQueueRowAndCoverIgnoreClickAndLongPress() = runComposeUiTest {
         var actions = 0
         setContent {

@@ -1,36 +1,28 @@
 package com.lalilu.lplayer.components
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.*
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -38,90 +30,130 @@ import coil3.Bitmap
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
+import coil3.request.ErrorResult
 import coil3.request.ImageRequest
+import coil3.request.SuccessResult
 import coil3.toBitmap
+import com.lalilu.RemixIcon
 import com.lalilu.common.ext.io
 import com.lalilu.lplayer.debug.PlayerLoadTestHarness
 import com.materialkolor.ktx.themeColorOrNull
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.vectorResource
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * 等待门槛：超过它仍未解码，才把旧封面当作离场残影。
+ * 把解码结果转成 Compose 的 [ImageBitmap]。
  *
- * 等待态的表达方式（2026-10-04 评审确认）：
- * - 旧封面只做**一次** 180ms 静态失焦，之后 blur 数值不再变化。原先让 blur 在 16↔22 之间
- *   呼吸，半径一变，裁剪边上的透出量跟着变，观感就是封面边缘在闪。
- * - 等待感改由一层白色遮罩的透明度呼吸承担（[CoverMaskMinAlpha] ↔ [CoverMaskMaxAlpha]）。
- * - 失焦层按 [CoverWaitingScale] 放大，让模糊的透明溢出落在容器之外；
- *   解析（新图由模糊到清晰）时缩放与解糊同步收缩，保证每帧留白都大于等于当前 blur 半径，
- *   否则解析头几帧的边缘会透出下面的旧图。
+ * 各平台实现（Android 的 `asImageBitmap`、其余的 `asComposeImageBitmap`）都是重新包一层，
+ * [DefaultBlurBackground] 用 `cover === veilOwner` 判断"遮罩归属哪张图"，依赖的正是
+ * "不同次加载得到不同实例"这一点——同一张图重复加载也不会误领旧封面的遮罩。
  */
-private const val CoverWaitingGateMillis = 150L
-private const val CoverDefocusRadius = 16f
-
-/** 旧封面进入等待失焦的时长；放大与失焦共用同一条曲线。 */
-private const val CoverDefocusMillis = 180
-private const val CoverWaitingScale = 1.09f
-private const val CoverArrivalRadius = 18f
-private const val CoverArrivalScale = 1.10f
-private const val CoverResolveMillis = 500
-private const val CoverMaskMinAlpha = 0.30f
-private const val CoverMaskMaxAlpha = 0.45f
-
-/** 单程时长；配合 [RepeatMode.Reverse] 构成 2.4s 一个来回的呼吸。 */
-private const val CoverMaskBreatheMillis = 1200
-private const val CoverFailedRadius = 16f
-
 expect fun Bitmap.toImageBitmap(): ImageBitmap
 
+/**
+ * 平台相关的封面背景入口。
+ *
+ * @param imageData 当前歌曲对应的封面数据（Coil 的 data），变化时会触发一次新的加载
+ * @param onColorPairFetched 从封面取到的主色回调（背景色，前景色）
+ * @param blurProgress 外部驱动的基础模糊进度 `0f..1f`，会映射成最多 50dp 的模糊与压黑
+ */
 @Composable
 expect fun BlurBackground(
     modifier: Modifier = Modifier,
-    imageData: () -> Any,
+    imageData: () -> Any?,
     onColorPairFetched: (bgColor: Color, contentColor: Color) -> Unit,
     blurProgress: () -> Float,
 )
 
+/** 快路径阈值：150ms 内加载完成就只是一次普通的淡入 + 模糊切换，不出现任何加载中提示。 */
+private val FastPathThreshold = 150.milliseconds
+
+/** 加载超时：超过它仍未拿到图片就取消本次请求并进入失败态。 */
+private val LoadTimeout = 10_000.milliseconds
+
+/**
+ * 加载中在旧封面上额外叠加的模糊半径。
+ *
+ * 刻意与封面进入时的起始模糊（[EnterExitState.PreEnter] 对应的 10dp）取同一个值：
+ * 旧封面从清晰变糊、新封面从糊变清晰，两端用同一个值衔接，切换瞬间不会出现模糊量跳变。
+ */
+private val LoadingBlur = 10.dp
+
+/** 加载中白色遮罩的最大不透明度。 */
+private const val LoadingVeilAlpha = 0.35f
+
+private const val LoadingVeilFadeInMillis = 300
+private const val LoadingVeilFadeOutMillis = 400
+
+/**
+ * 加载失败的记录对象；只写进 [BlurBackgroundViewModel.errorState]，不会被抛出。
+ *
+ * 两种失败共用它：请求本身失败或超时（拿不到结果），以及拿到了结果却取不到位图。
+ */
+private class CoverLoadTimeoutException : Exception("cover load timed out")
+
+/**
+ * 封面加载相位。
+ *
+ * 它与 [BlurBackgroundViewModel.imageState]（"当前该显示哪张图"）是正交的两件事：
+ * 相位只驱动"加载中"的附加视觉（旧封面加糊 + 白色遮罩），不参与 [AnimatedContent] 的转场身份，
+ * 所以相位的来回变化不会产生任何多余的淡入淡出——转场始终只由"位图换了没"触发。
+ * 失败态不在相位里：它由 [BlurBackgroundViewModel.imageState] 置 null 切到占位背景表达。
+ *
+ * @param source 进入加载时仍在显示的那张旧封面，用来判定"遮罩归属哪张图"。
+ *               冷启动时没有旧封面，这里为 null，也就没有可归属的遮罩。
+ */
+data class LoadingPhase(val source: ImageBitmap?)
+
 class BlurBackgroundViewModel : ViewModel() {
+    /**
+     * 当前该显示的封面。
+     *
+     * null 有两种来源：冷启动还没有任何加载结果，以及本次加载失败/超时。
+     * 两种情况都会让 [DefaultBlurBackground] 显示占位背景。
+     */
     val imageState = mutableStateOf<ImageBitmap?>(null)
+
+    /**
+     * 非空表示正在加载中（[LoadingPhase.source] 是此刻仍在显示的旧封面）。
+     *
+     * 连续切歌时，上一次加载可能在下一次 [loadImage] 出结果之前就被取消，
+     * 相位会短暂停留在上一次的值；此时 owner 仍是当前展示的那张图，遮罩归属依然成立。
+     */
+    val loadingState = mutableStateOf<LoadingPhase?>(null)
+
+    /**
+     * 非空表示本次加载失败，保持到下一次 [loadImage] 开始。
+     *
+     * 目前只作可观测性记录：UI 的失败态由 [imageState] 置 null 驱动，没有消费方。
+     */
+    val errorState = mutableStateOf<Throwable?>(null)
+
     val bgColorState = MutableStateFlow<Color?>(null)
     val contentColorState = MutableStateFlow<Color?>(null)
 
-    /** 150ms 仍未解码：旧封面进入静态失焦，等待感交给白色遮罩呼吸。 */
-    val waiting = mutableStateOf(false)
-
-    /** 解码失败：保持中性占位，主题沿用最后一次稳定色。 */
-    val failed = mutableStateOf(false)
-
-    /** 资源确实迟到过（不是缓存快路径）：到达后需要由模糊到清晰。 */
-    val slowArrival = mutableStateOf(false)
-
     suspend fun loadImage(
         context: PlatformContext,
-        imageData: Any,
+        imageData: Any?,
         size: Int = 1200
-    ) = coroutineScope {
-        failed.value = false
-        waiting.value = false
-        slowArrival.value = false
+    ) = withContext(Dispatchers.Unconfined) {
         val test = PlayerLoadTestHarness.profile.value
-        val gate = launch {
-            delay(CoverWaitingGateMillis)
-            waiting.value = true
-            slowArrival.value = true
+        errorState.value = null
+        if (imageData == null) {
+            loadingState.value = null
+            imageState.value = null
+            return@withContext
         }
+
+        // 本次加载开始前先记下"此刻仍在显示的那张图"：加载期间 imageState 不动，旧封面继续显示，
+        // 它同时也是加载遮罩（LoadingPhase.source）的归属对象；
+        // 只有真的拿到新图才会替换它，失败/超时则走 imageState = null 的占位背景。
+        val lastDisplayed = imageState.value
 
         val paletteFetch = async(Dispatchers.io) {
             val request = ImageRequest.Builder(context)
@@ -129,14 +161,21 @@ class BlurBackgroundViewModel : ViewModel() {
                 .size(400)
                 .build()
 
-            if (test.enabled) delay(test.paletteDelayMs)
             val imageLoader = SingletonImageLoader.get(context)
+            if (test.enabled) delay(test.paletteDelayMs)
             val result = imageLoader.execute(request)
 
             ensureActive()
 
             val image = result.image
-            image?.toBitmap()?.toImageBitmap()?.themeColorOrNull(maxColors = 8)
+            val color = image?.toBitmap()?.toImageBitmap()
+                ?.themeColorOrNull(maxColors = 8)
+                ?: Color.DarkGray
+
+            ensureActive()
+
+            bgColorState.value = color
+            contentColorState.value = Color.White.compositeOver(color)
         }
 
         val coverFetch = async(Dispatchers.io) {
@@ -147,83 +186,123 @@ class BlurBackgroundViewModel : ViewModel() {
 
             ensureActive()
 
-            if (test.enabled) delay(test.coverDelayMs)
             val imageLoader = SingletonImageLoader.get(context)
-            val result = imageLoader.execute(request)
 
-            ensureActive()
-
-            val decoded = result.image?.toBitmap()?.toImageBitmap()
-            ensureActive()
-
-            withContext(Dispatchers.Main.immediate) {
-                ensureActive()
-                gate.cancel()
-                failed.value = decoded == null
-                if (decoded == null) slowArrival.value = true
-                waiting.value = false
-                if (decoded != null) imageState.value = decoded
-            }
-            decoded
+            // 歌曲切换后的加载分两条路径，动效按三个时间节点表达加载状态：
+            // 1. 快路径：本地图片或已缓存，通常 150ms 内完成 —— 只做淡入 + 模糊切换，不出现加载提示；
+            // 2. 慢路径：需要网络加载（这里不关心它的实现），通常超过 150ms；
+            //    - 150ms 仍未完成：旧封面变糊并淡入一层白色遮罩（LoadingBlur / veilAlpha）；
+            //    - 10s 内完成：新图带着模糊淡入并逐渐清晰，旧封面与遮罩随后淡出；
+            //    - 超过 10s：放弃本次加载，切到占位背景。
+            // 请求只在这里发起，计时与相位判断全部交给下面的 fastPath / slowPath。
+            if (test.enabled) delay(test.coverDelayMs)
+            imageLoader.execute(request)
         }
 
-        val image = coverFetch.await()
-        val color = paletteFetch.await()
-        // 取色只在当前封面成功后提交：旧曲主题不得回写；取色失败保留最后稳定主题。
-        if (image != null && color != null) {
-            bgColorState.value = color
-            contentColorState.value = Color.White.compositeOver(color)
+        // 150ms 的观察窗口只负责把视觉切到"加载中"：它既不取消、也不打断图片请求，
+        // 请求本身继续在 coverFetch 里跑。这里刻意不使用独立的计时协程，
+        // 否则计时器与下面的超时会同时到期，两个协程谁后写 loadingState 是不确定的。
+        val fastPath = withTimeoutOrNull(FastPathThreshold) { coverFetch.await() }
+        if (fastPath == null) {
+            loadingState.value = LoadingPhase(lastDisplayed)
         }
+
+        // withTimeoutOrNull 只会取消"等待者"，不会取消 coverFetch 本身，所以这次超时判断不会
+        // 掐掉已经在进行的网络请求，慢路径依然有机会在 10s 内返回。
+        val slowPath = fastPath
+            ?: withTimeoutOrNull(LoadTimeout - FastPathThreshold) { coverFetch.await() }
+
+        // 超时即放弃本次加载（按约定失败态保持到下次切歌）。
+        // 若慢路径恰好与超时同一刻完成，coverFetch 已经完成，这里补一次等待即可立即拿到结果。
+        val result =
+            fastPath ?: slowPath ?: if (coverFetch.isCompleted) coverFetch.await() else null
+        if (result == null) coverFetch.cancel()
+
+        val bitmap = (result as? SuccessResult)
+            ?.image
+            ?.toBitmap()
+            ?.toImageBitmap()
+
+        loadingState.value = null
+        if (bitmap != null) {
+            imageState.value = bitmap
+        } else {
+            // 失败或超时：清掉封面让占位背景接手（旧封面只在 500ms 转场期间垫底），
+            // 失败态一直保持到下一次 loadImage 开始。
+            imageState.value = null
+            errorState.value = (result as? ErrorResult)?.throwable ?: CoverLoadTimeoutException()
+        }
+
+        paletteFetch.await()
     }
 }
 
+/**
+ * 全屏模糊封面背景。
+ *
+ * 转场身份只由 [BlurBackgroundViewModel.imageState]（当前该显示哪张图）决定：
+ * 新封面淡入绘制在上层，旧封面保留到转场结束，因此加载相位的变化不会额外产生一次淡入淡出。
+ * 模糊半径统一取 `max(外部 blurProgress、槽位进出模糊、加载相位模糊)`，不相加。
+ *
+ * 半径、压黑、遮罩这些"每帧都在变"的输入全部在**绘制期/图层期**读取
+ * （`rememberUpdatedState(blurProgress)` 存的是 lambda，`animateDp`/`animateDpAsState` 存的是 State），
+ * 所以拖动展开、转场、遮罩淡入淡出都只触发重绘，不会让本组件逐帧重组。
+ * 可以配合 `recomposeHighlighter` 验证：这些动画期间计数不应增长，
+ * 只有换图、加载相位真正变化时才会 +1。
+ */
 @Composable
 fun DefaultBlurBackground(
     modifier: Modifier = Modifier,
-    imageData: () -> Any,
+    imageData: () -> Any?,
     onColorPairFetched: (bgColor: Color, contentColor: Color) -> Unit,
     blurProgress: () -> Float,
 ) {
-    val context = LocalPlatformContext.current
-    val blur = rememberUpdatedState(blurProgress())
-    val vm = viewModel { BlurBackgroundViewModel() }
-    val windowInfo = LocalWindowInfo.current
-    val testProfile by PlayerLoadTestHarness.profile.collectAsState()
-    val latestImageData by rememberUpdatedState(imageData())
-
-    // 白色遮罩的呼吸：只动 alpha，不牵动任何模糊半径。
-    // 旧封面的失焦由每张图自己的 defocus 动画负责（见下方内容 lambda），这里不再集中驱动，
-    // 否则失焦会在 waiting 翻转的瞬间跳变，且离场旧图无法保持住已失焦的状态。
-    val maskAlpha = remember { Animatable(0f) }
-    LaunchedEffect(vm.waiting.value) {
-        if (vm.waiting.value) {
-            maskAlpha.animateTo(CoverMaskMinAlpha, tween(CoverDefocusMillis))
-            maskAlpha.animateTo(
-                targetValue = CoverMaskMaxAlpha,
-                animationSpec = infiniteRepeatable(
-                    tween(CoverMaskBreatheMillis, easing = LinearEasing),
-                    RepeatMode.Reverse,
-                ),
-            )
-        } else {
-            maskAlpha.snapTo(0f)
-        }
-    }
-
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
+        val context = LocalPlatformContext.current
+        // 存的是 lambda 而不是它的值：真正的读取发生在绘制期，拖动展开时只重绘、不重组
+        val currentBlurProgress = rememberUpdatedState(blurProgress)
+        val testProfile by PlayerLoadTestHarness.profile.collectAsState()
+        val vm = viewModel { BlurBackgroundViewModel() }
+        val windowInfo = LocalWindowInfo.current
+
         LaunchedEffect(Unit) {
             vm.bgColorState
-                .filterNotNull()
-                .onEach { onColorPairFetched(it, Color.White) }
+                .onEach { onColorPairFetched(it ?: Color.DarkGray, Color.White) }
                 .launchIn(this)
         }
 
-        LaunchedEffect(latestImageData, testProfile) {
-            // loadImage 是结构化挂起任务：连续切歌时 LaunchedEffect 会取消上一张尚未完成的
-            // 解码和首帧准备，不再让过期任务继续争用 CPU，或反过来覆盖最新歌曲。
+        LaunchedEffect(imageData(), testProfile) {
+            // loadImage 是结构化挂起任务：连续切歌时 LaunchedEffect 会取消上一张尚未完成的解码，
+            // 过期任务不会再继续争用 CPU，也不会反过来覆盖最新歌曲
+            // （唯一残留的是上一次的加载相位，见 BlurBackgroundViewModel.loadingState）。
             val size = constraints.maxWidth.coerceAtMost(windowInfo.containerSize.width)
-            vm.loadImage(context = context, imageData = latestImageData, size = size)
+            vm.loadImage(context = context, imageData = imageData(), size = size)
         }
+
+        // 加载中遮罩的归属引用。它必须活到淡出动画结束：如果直接读 loadingState 判断归属，
+        // 加载成功的那一帧归属条件就会失效，遮罩会在仍然接近满不透明时整片消失，形成一次闪跳。
+        var veilOwner by remember { mutableStateOf<ImageBitmap?>(null) }
+        val veilAlpha = remember { Animatable(0f) }
+        val isLoading = vm.loadingState.value != null
+
+        LaunchedEffect(isLoading) {
+            if (isLoading) {
+                veilOwner = vm.loadingState.value?.source
+                veilAlpha.animateTo(1f, tween(LoadingVeilFadeInMillis))
+            } else {
+                veilAlpha.animateTo(0f, tween(LoadingVeilFadeOutMillis))
+                veilOwner = null
+            }
+        }
+
+        // 加载相位带来的额外模糊。它与槽位的进出模糊取 max 而不是相加：两者语义相同（都是
+        // "这张图该有多糊"），取 max 天然幂等，新封面进入时不会被叠加成双重模糊。
+        // 占位背景同样吃这三个值，所以冷启动加载中时占位图标也会一起变糊。
+        val loadingBlur = animateDpAsState(
+            targetValue = if (isLoading) LoadingBlur else 0.dp,
+            animationSpec = tween(LoadingVeilFadeOutMillis),
+            label = "LoadingBlur",
+        )
 
         AnimatedContent(
             label = "",
@@ -235,84 +314,95 @@ fun DefaultBlurBackground(
                     .apply { targetContentZIndex = 1f }
             }
         ) { cover ->
-            if (cover == null) {
-                Spacer(modifier = Modifier.fillMaxSize())
-                return@AnimatedContent
-            }
-
-            val isOutgoing = cover !== vm.imageState.value
-            // 新图一律由模糊到清晰（快慢路径一致）：blur 18dp→0 与缩放 1.10→1 同步收缩。
-            val entryBlur = remember(cover) { Animatable(CoverArrivalRadius) }
-            val entryScale = remember(cover) { Animatable(CoverArrivalScale) }
-            LaunchedEffect(cover) {
-                coroutineScope {
-                    launch { entryBlur.animateTo(0f, tween(CoverResolveMillis)) }
-                    launch { entryScale.animateTo(1f, tween(CoverResolveMillis)) }
+            // 槽位进出的模糊：新封面从 10dp 逐渐清晰，旧封面在退出阶段停在同一档 10dp
+            // （与 LoadingBlur 同值，所以"加载中变糊"到"新封面进场"不会出现模糊量跳变）。
+            val blurTransition = transition.animateDp(
+                transitionSpec = { spring(stiffness = Spring.StiffnessLow) },
+                label = "CoverBlur",
+            ) { state ->
+                when (state) {
+                    EnterExitState.Visible -> 0.dp
+                    EnterExitState.PreEnter -> 10.dp
+                    EnterExitState.PostExit -> 10.dp
                 }
             }
 
-            // 等待失焦：每张图各自持有，用 180ms 渐变而不是跳变。
-            // 覆盖「正在等待的这一张」与「等待过、正在离场的旧图」：后者保持住已失焦的值，
-            // 直到新图清晰后退出，避免交接瞬间突然变清晰或突然缩回。
-            val shouldDefocus = vm.waiting.value || (isOutgoing && vm.slowArrival.value)
-            val defocus = remember(cover) { Animatable(0f) }
-            LaunchedEffect(cover, shouldDefocus) {
-                defocus.animateTo(
-                    targetValue = if (shouldDefocus) CoverDefocusRadius else 0f,
-                    animationSpec = tween(CoverDefocusMillis),
-                )
+            // 模糊半径是**绘制期**输入：三个来源（外部进度、槽位进出、加载相位）都在绘制期读取，
+            // 只有真正改变转场/加载相位的重组才会走到这里，动画本身只触发重绘。
+            val targetBlur: () -> Dp = remember(currentBlurProgress, blurTransition, loadingBlur) {
+                {
+                    maxOf(
+                        (currentBlurProgress.value() * 50f).roundToInt().dp,
+                        blurTransition.value,
+                        loadingBlur.value,
+                    )
+                }
             }
 
-            // 过渡期间的额外模糊（等待失焦 / 解析解糊）。失败占位单独给值。
-            val resourceBlur = when {
-                vm.failed.value -> CoverFailedRadius
-                else -> maxOf(entryBlur.value, defocus.value)
+            // 占位背景：冷启动还没有任何图，或本次加载失败/超时（imageState 被置 null）。
+            // 与图片分支共用同一套模糊与压黑，切换时亮度不会跳；图标随 blurProgress 一起淡出。
+            if (cover == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(color = MaterialTheme.colorScheme.primaryContainer)
+                        // 与 Modifier.blur(Unbounded) 等价，但半径在图层阶段求值（只重绘不重组）
+                        .graphicsLayer {
+                            val radiusPx = targetBlur().toPx().coerceAtLeast(0f)
+                            renderEffect = if (radiusPx > 0f) {
+                                BlurEffect(
+                                    radiusX = radiusPx,
+                                    radiusY = radiusPx,
+                                    edgeTreatment = TileMode.Decal,
+                                )
+                            } else {
+                                null
+                            }
+                        }
+                        .drawBehind {
+                            drawRect(
+                                color = Color.Black.copy(alpha = currentBlurProgress.value() * (100f / 255f)),
+                            )
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = vectorResource(RemixIcon.Media.music2Line),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier
+                            .size(72.dp)
+                            .graphicsLayer {
+                                alpha = 1f - currentBlurProgress.value(); clip = false
+                            },
+                    )
+                }
+                return@AnimatedContent
             }
-            // 放大与失焦同步推进：既把模糊的溢出推出容器，也避免「先模糊再放大」的边界抖动。
-            val waitingScale = 1f + (CoverWaitingScale - 1f) * (defocus.value / CoverDefocusRadius)
-            val resourceScale = maxOf(entryScale.value, waitingScale)
-            // 两级模糊合并进同一次 scaleBlur，而不是再叠一层裸 Modifier.blur。
-            // scaleBlur 内部是「3σ 外扩 + TileMode.Clamp」：内容按外扩尺寸铺满后，
-            // 边界外采样命中的是自身像素而不是透明区，所以不会出现边缘发白/发灰。
-            // 裸 Modifier.blur 没有这层保护，边界必然透出底色——这正是之前边缘变透明的原因。
-            // 平方和合并等价于「先模糊 a 再模糊 b」的等效半径；播放器自身的模糊占主导，
-            // 因此在歌词页那种 50dp 场景下，过渡模糊只会带来物理上合理的轻微增强。
-            val playerBlur = blur.value * 50f
-            val totalBlur = sqrt(playerBlur * playerBlur + resourceBlur * resourceBlur)
 
             Image(
                 modifier = Modifier
                     .fillMaxSize()
                     .scaleBlur(
                         scale = 0.4f,
-                        radius = totalBlur.roundToInt().dp,
+                        radius = targetBlur,
                     )
                     .drawWithContent {
-                        // 缩放必须放在绘制阶段，不能额外套一层 graphicsLayer：
-                        // 在 scaleBlur 外面再加 graphicsLayer 会让它的模糊失效
-                        // （实测：切歌后歌词页背景从 50dp 模糊变成清晰）。
-                        // 绘制期变换不产生图层，scaleBlur 记录的仍是缩放后的内容。
-                        if (resourceScale != 1f) {
-                            scale(scaleX = resourceScale, scaleY = resourceScale) {
-                                this@drawWithContent.drawContent()
-                            }
-                        } else {
-                            drawContent()
+                        drawContent()
+                        drawRect(
+                            color = Color.Black.copy(alpha = currentBlurProgress.value() * (100f / 255f)),
+                        )
+                        // 白色遮罩只归属"正在被替换的那张旧封面"。新封面拿不到归属，
+                        // 因此不会出现新旧两份遮罩叠加导致的中段变亮。
+                        // 这里在绘制期读取状态，遮罩淡入淡出只触发重绘，不会逐帧重组内容。
+                        val owner = veilOwner
+                        if (owner != null && cover === owner) {
+                            drawRect(color = Color.White.copy(alpha = LoadingVeilAlpha * veilAlpha.value))
                         }
-                        drawRect(color = Color.Black.copy(alpha = blur.value * (100f / 255f)))
                     },
                 bitmap = cover,
                 contentScale = ContentScale.Crop,
                 contentDescription = ""
-            )
-        }
-
-        // 等待态的表达：一层白色遮罩呼吸。放在最上层，不参与任何模糊计算。
-        if (maskAlpha.value > 0f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White.copy(alpha = maskAlpha.value))
             )
         }
     }

@@ -1,5 +1,5 @@
 [versions]
-agp = "9.0.0"
+agp = "9.4.1"
 android-targetSdk = "36"
 android-minSdk = "23"
 android-ndk = "27.0.12077973"
@@ -10,11 +10,11 @@ androidx-lifecycle = "2.10.0"
 composeMultiplatform = "1.11.0"
 kotlinx-serialization = "1.11.0"
 junit = "4.13.2"
-kotlin = "2.3.21"
-kotlin-test = "2.3.21"
-ksp = "2.3.6"
+kotlin = "2.4.20"
+kotlin-test = "2.4.20"
+ksp = "2.3.7"
 kotlinx-coroutines = "1.11.0"
-krouter = "0.0.8"
+krouter = "0.0.9"
 filekit = "0.12.0"
 koin = "4.1.1"
 koin-ksp = "2.3.1"
@@ -25,6 +25,7 @@ sentry = "8.41.0"
 krpc = "0.9.1"
 ktor = "3.3.0"
 ktorfit = "2.7.2"
+ktorfit-compiler = "2.3.5"
 kotlinx-io = "0.8.0"
 kotlinx-datetime = "0.7.1"
 kotlinx-browser = "0.5.0"
@@ -185,7 +186,7 @@ dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
 osdetector = { id = "com.google.osdetector", version = "1.7.3" }
 vlcSetup = { id = "ir.mahozad.vlc-setup", version.ref = "vlcSetup" }
 ktorfit = { id = "de.jensklingenberg.ktorfit", version.ref = "ktorfit" }
-stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.6.0" }
+stability-analyzer = { id = "com.github.skydoves.compose.stability.analyzer", version = "0.15.0" }
 shadowJar = { id = "com.gradleup.shadow", version = "9.3.0" }
 room3 = { id = "androidx.room3", version.ref = "room3" }
 

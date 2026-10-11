@@ -22,7 +22,7 @@ version = "1.0.0"
 extra.set("artifactId", "ui")
 
 ktorfit {
-    compilerPluginVersion.set("2.3.3")
+    compilerPluginVersion.set(libs.versions.ktorfit.compiler.get())
 }
 
 kotlin {
@@ -45,6 +45,13 @@ kotlin {
             api(libs.filekit.dialogs.compose)
             api(libs.bundles.settings)
             api(kotlincrypto.hash.md)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
+        jvmTest.dependencies {
+            implementation(libs.compose.ui.test)
+            runtimeOnly(compose.desktop.currentOs)
         }
     }
 }

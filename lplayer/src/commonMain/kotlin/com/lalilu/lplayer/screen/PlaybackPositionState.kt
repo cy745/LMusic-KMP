@@ -3,6 +3,7 @@ package com.lalilu.lplayer.screen
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,37 +48,52 @@ internal class PlaybackPositionState(
 
 @Composable
 internal fun rememberPlaybackPositionState(
-    isPlaying: Boolean,
+    isPlaying: State<Boolean>,
     playbackKey: Any?,
+    readPosition: () -> Long = { LPlayer.instance.currentPosition() },
     frozen: () -> Boolean = { false },
 ): PlaybackPositionState {
-    val scope = rememberCoroutineScope()
-    val latestFrozen by rememberUpdatedState(frozen)
     val state = remember {
         PlaybackPositionState(
-            initialPosition = LPlayer.instance.currentPosition(),
+            initialPosition = readPosition(),
             initialPlaybackKey = playbackKey,
         )
     }
+    PlaybackPositionEffect(state, isPlaying, playbackKey, readPosition, frozen)
+    return state
+}
 
-    LifecycleResumeEffect(isPlaying, playbackKey) {
+/** Unit 返回值为时钟任务提供独立 restart scope，播放状态只在这里读取。 */
+@Composable
+internal fun PlaybackPositionEffect(
+    state: PlaybackPositionState,
+    isPlaying: State<Boolean>,
+    playbackKey: Any?,
+    readPosition: () -> Long,
+    frozen: () -> Boolean,
+) {
+    val playing = isPlaying.value
+    val currentReadPosition = rememberUpdatedState(readPosition)
+    val currentFrozen = rememberUpdatedState(frozen)
+    val scope = rememberCoroutineScope()
+
+    LifecycleResumeEffect(playing, playbackKey) {
         val job = scope.launch {
-            state.synchronize(playbackKey, LPlayer.instance.currentPosition())
+            state.synchronize(playbackKey, currentReadPosition.value())
             while (isActive) {
-                // 再缓冲期间保留最后位置，不倒扫也不假前进。
-                if (latestFrozen()) {
+                // 展示层注入的再缓冲保留最后位置；读取发生在协程中，不订阅父组合。
+                if (currentFrozen.value()) {
                     delay(200)
-                } else if (isPlaying) withFrameMillis {
-                    state.updatePosition(LPlayer.instance.currentPosition())
+                } else if (playing) withFrameMillis {
+                    // 等待帧期间也可能进入冻结，提交位置前再次确认。
+                    if (!currentFrozen.value()) state.updatePosition(currentReadPosition.value())
                 } else {
                     // A paused history restore or seek can finish after the first composition.
                     delay(200)
-                    state.updatePosition(LPlayer.instance.currentPosition())
+                    if (!currentFrozen.value()) state.updatePosition(currentReadPosition.value())
                 }
             }
         }
         onPauseOrDispose { job.cancel() }
     }
-
-    return state
 }

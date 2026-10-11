@@ -15,11 +15,26 @@ plugins {
     alias(libs.plugins.vanniktech.pulish)
     alias(libs.plugins.dokka)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.stability.analyzer)
 }
 
 group = "com.lalilu.lplayer"
 version = "1.0.0"
 extra.set("artifactId", "core")
+
+composeStabilityAnalyzer {
+    enabled = true
+    // Opt in for a diagnosis build; normal builds keep the narrower annotations.
+    traceAll {
+        enabled.set(providers.gradleProperty("lmusic.trace.player").map { it.toBooleanStrict() }.orElse(false))
+        threshold.set(1)
+    }
+}
+
+composeCompiler {
+    reportsDestination = layout.buildDirectory.dir("compose-reports")
+    metricsDestination = layout.buildDirectory.dir("compose-metrics")
+}
 
 kotlin {
     setupMultiplatform(
@@ -90,7 +105,6 @@ kotlin {
                 // compose-sonner 这类库在发布时把发布者平台(macos-arm64)焊进了元数据，
                 // 会把 macOS 的原生库带给所有宿主，故此处显式补回宿主平台的一份。
                 runtimeOnly(compose.desktop.currentOs)
-                implementation(project(":lmedia:lmedia-ui"))
                 implementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
                 implementation("org.junit.jupiter:junit-jupiter-engine:5.13.4")
                 implementation("org.junit.platform:junit-platform-launcher:1.13.4")

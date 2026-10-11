@@ -1,0 +1,2 @@
+# Stability Analyzer adds a trailing blank line; preserve its generated baseline format.
+**/stability/*.stability whitespace=-blank-at-eof

@@ -24,6 +24,9 @@ fun KotlinMultiplatformExtension.setupMultiplatform(
 ) {
     applyDefaultHierarchyTemplate()
 
+    // Java 与 Kotlin 都使用 JDK 21 toolchain，保持编译环境与 JVM target 一致。
+    jvmToolchain(21)
+
     val artifactId = project.extra.runCatching { get("artifactId") }.getOrNull() as? String?
     val targetNamespace = if (artifactId.isNullOrBlank()) "${project.group}" else "${project.group}.$artifactId"
     val targetCompileSdk = project.libs.version("android.targetSdk")?.displayName?.toIntOrNull()

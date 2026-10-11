@@ -74,7 +74,10 @@ internal fun PadContentPanel(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        val progress = drawerState.progress(from = PadDrawerAnchor.Lyrics, to = PadDrawerAnchor.Queue)
+                        val progress = drawerState.progress(
+                            from = PadDrawerAnchor.Lyrics,
+                            to = PadDrawerAnchor.Queue
+                        )
                         alpha = 1f - (progress * 1.5f)
                     },
                 constraints = constraints,
@@ -89,7 +92,8 @@ internal fun PadContentPanel(
                     .height(56.dp)
                     .width(4.dp)
                     .graphicsLayer {
-                        val offset = drawerState.anchors.positionOf(PadDrawerAnchor.Lyrics) - drawerState.offset
+                        val offset =
+                            drawerState.anchors.positionOf(PadDrawerAnchor.Lyrics) - drawerState.offset
                         translationX = -offset
                         alpha = 1f - (offset / 36.dp.toPx()).coerceIn(0f..1f)
                     }

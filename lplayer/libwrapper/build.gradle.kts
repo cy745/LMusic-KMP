@@ -2,6 +2,11 @@ plugins {
     kotlin("jvm")
 }
 
+// 与全项目一致使用 JDK 21 toolchain，保持 Java 与 Kotlin 的编译环境和 JVM target 一致。
+kotlin {
+    jvmToolchain(21)
+}
+
 dependencies {
     api("net.java.dev.jna:jna:5.17.0")
 }
