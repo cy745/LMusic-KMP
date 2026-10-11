@@ -91,7 +91,8 @@ fun LMusicTheme(
             seedColor = seedColorState.value,
             typography = createTypography(MaterialTheme.typography, appliedGlobalFont),
             isDark = isDarkTheme,
-            animate = true,
+            // 全局主题只发布最终颜色；需要过渡的视觉元素在局部绘制阶段读取动画 State。
+            animate = false,
             content = content,
         )
     }

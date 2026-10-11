@@ -52,22 +52,27 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
         val currentCover = rememberMediaCoverRequestState(currentItem.value)
         val duration = LPlayer.instance.currentDuration.collectAsState(0L)
         val playbackPosition = rememberPlaybackPositionState(
-            isPlaying = isPlaying.value,
+            isPlaying = isPlaying,
             playbackKey = currentItem.value?.id,
         )
         val backgroundColor = rememberPlayerBackgroundColor()
+        // Keep callback identities across item/playback updates; values remain read at use sites.
+        val coverProvider = remember(currentCover) { { currentCover.value } }
+        val sampledKeyProvider = remember(playbackPosition) { { playbackPosition.sampledPlaybackKey } }
+        val backgroundProvider = remember(backgroundColor) { { backgroundColor.value } }
+        val updateSeedColor = remember(seedColor) { { color: Color -> seedColor.value = color } }
 
         PlayerScreenContent(
             currentItem = currentItem,
-            currentCover = { currentCover.value },
+            currentCover = coverProvider,
             currentTime = playbackPosition.position,
-            sampledPlaybackKey = { playbackPosition.sampledPlaybackKey },
+            sampledPlaybackKey = sampledKeyProvider,
             duration = duration,
             isPlaying = isPlaying,
             lyricContent = vm.lyricContent,
             queue = vm.currentQueue,
-            backgroundColor = { backgroundColor.value },
-            onSeedColorChanged = { seedColor.value = it },
+            backgroundColor = backgroundProvider,
+            onSeedColorChanged = updateSeedColor,
         )
     }
 }
@@ -75,13 +80,12 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
 /**
  * 播放页背景色：跟随主题的 `primaryContainer` 做弹簧过渡。
  *
- * 单独抽成一个 composable 是必须的：MaterialKolor 的主题动画（`animate = true`）会逐帧重建
- * ColorScheme，若在 [PlayerScreen] 的组合作用域里读 `MaterialTheme.colorScheme`，
- * 每帧都会重组整个播放页——连同 `PlayerDynamicHeader`、`BlurBackground` 与封面内容。
- * 收进这里之后，逐帧重组只发生在这一个小作用域内。
+ * 此函数返回 State，编译器不会为它生成独立的 restart scope。
+ * 全局 MaterialKolor 颜色动画已关闭，主题只在目标方案变化时更新。
+ * 此处保留局部背景过渡，动画 State 在绘制期读取，避免逐帧使页面组合失效。
  */
 @Composable
-private fun rememberPlayerBackgroundColor(): State<Color> = animateColorAsState(
+internal fun rememberPlayerBackgroundColor(): State<Color> = animateColorAsState(
     targetValue = MaterialTheme.colorScheme.primaryContainer,
     animationSpec = spring(stiffness = Spring.StiffnessLow),
     label = "PlayerBackgroundColor",

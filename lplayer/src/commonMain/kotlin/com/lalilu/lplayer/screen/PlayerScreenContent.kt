@@ -63,9 +63,7 @@ internal fun PlayerScreenContent(
     val lyricSettings = remember { obtainLyricSettings() }
     PlayerScaffold(
         toolbarContent = {
-            // colorScheme 只在这个 @Composable lambda 的作用域里读：MaterialKolor 的主题动画
-            // 会逐帧重建 ColorScheme，若在 screen 作用域读，整个播放页（含 header / BlurBackground
-            // / 封面内容）都会跟着逐帧重组
+            // 全局主题发布最终方案；工具栏在自己的内容作用域读取所需的前景色。
             val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
 
             Column(

@@ -3,11 +3,13 @@ package com.lalilu.lplayer.screen
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -46,32 +48,45 @@ internal class PlaybackPositionState(
 
 @Composable
 internal fun rememberPlaybackPositionState(
-    isPlaying: Boolean,
+    isPlaying: State<Boolean>,
     playbackKey: Any?,
+    readPosition: () -> Long = { LPlayer.instance.currentPosition() },
 ): PlaybackPositionState {
-    val scope = rememberCoroutineScope()
     val state = remember {
         PlaybackPositionState(
-            initialPosition = LPlayer.instance.currentPosition(),
+            initialPosition = readPosition(),
             initialPlaybackKey = playbackKey,
         )
     }
+    PlaybackPositionEffect(state, isPlaying, playbackKey, readPosition)
+    return state
+}
 
-    LifecycleResumeEffect(isPlaying, playbackKey) {
+/** Unit 返回值为时钟任务提供独立 restart scope，播放状态只在这里读取。 */
+@Composable
+internal fun PlaybackPositionEffect(
+    state: PlaybackPositionState,
+    isPlaying: State<Boolean>,
+    playbackKey: Any?,
+    readPosition: () -> Long,
+) {
+    val playing = isPlaying.value
+    val currentReadPosition = rememberUpdatedState(readPosition)
+    val scope = rememberCoroutineScope()
+
+    LifecycleResumeEffect(playing, playbackKey) {
         val job = scope.launch {
-            state.synchronize(playbackKey, LPlayer.instance.currentPosition())
+            state.synchronize(playbackKey, currentReadPosition.value())
             while (isActive) {
-                if (isPlaying) withFrameMillis {
-                    state.updatePosition(LPlayer.instance.currentPosition())
+                if (playing) withFrameMillis {
+                    state.updatePosition(currentReadPosition.value())
                 } else {
                     // A paused history restore or seek can finish after the first composition.
                     delay(200)
-                    state.updatePosition(LPlayer.instance.currentPosition())
+                    state.updatePosition(currentReadPosition.value())
                 }
             }
         }
         onPauseOrDispose { job.cancel() }
     }
-
-    return state
 }
