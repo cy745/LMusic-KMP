@@ -24,6 +24,16 @@ extra.set("artifactId", "core")
 
 composeStabilityAnalyzer {
     enabled = true
+    // Opt in for a diagnosis build; normal builds keep the narrower annotations.
+    traceAll {
+        enabled.set(providers.gradleProperty("lmusic.trace.player").map { it.toBooleanStrict() }.orElse(false))
+        threshold.set(1)
+    }
+}
+
+composeCompiler {
+    reportsDestination = layout.buildDirectory.dir("compose-reports")
+    metricsDestination = layout.buildDirectory.dir("compose-metrics")
 }
 
 kotlin {

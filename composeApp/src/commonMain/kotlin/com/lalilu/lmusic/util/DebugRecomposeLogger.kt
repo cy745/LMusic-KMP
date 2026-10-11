@@ -1,6 +1,7 @@
 package com.lalilu.lmusic.util
 
 import co.touchlab.kermit.Logger
+import androidx.compose.runtime.snapshots.Snapshot
 import com.skydoves.compose.stability.runtime.RecompositionEvent
 import com.skydoves.compose.stability.runtime.RecompositionLogger
 
@@ -8,7 +9,10 @@ object DebugRecomposeLogger : RecompositionLogger {
 
     private val tag = "Recomposition"
 
-    override fun log(event: RecompositionEvent) {
+    override fun log(event: RecompositionEvent) = Snapshot.withoutReadObservation {
+        // Tracing runs inside composition. State.toString() (and model formatting)
+        // can read Snapshot values, accidentally subscribing the traced scope to
+        // playback/animation frames. Diagnostic reads must not affect the UI.
         val tagSuffix = if (event.tag.isNotEmpty()) " (tag: ${event.tag})" else ""
         val durationStr = if (event.durationNanos > 0) {
             val ms = event.durationNanos / 1_000_000
@@ -21,7 +25,7 @@ object DebugRecomposeLogger : RecompositionLogger {
         Logger.i(
             tag = tag,
             messageString = "[Recomposition #${event.recompositionCount}] " +
-                    "${event.composableName}$tagSuffix$durationStr",
+                    "${event.composableName}$tagSuffix$durationStr (fq: ${event.fqName})",
         )
 
         val lines = buildTreeLines(event)
@@ -45,6 +49,7 @@ object DebugRecomposeLogger : RecompositionLogger {
                     "changed ($oldStr → $newStr)"
                 }
 
+                change.referenceChanged -> "reference changed (equals unchanged)"
                 change.stable -> "stable (${safeToString(change.newValue)})"
                 else -> "unstable (${safeToString(change.newValue)})"
             }
@@ -54,7 +59,8 @@ object DebugRecomposeLogger : RecompositionLogger {
         event.stateChanges.filter { it.changed }.forEach { change ->
             val oldStr = safeToString(change.oldValue)
             val newStr = safeToString(change.newValue)
-            lines.add("[state] ${change.name}: ${change.type} changed ($oldStr → $newStr)")
+            val writeSite = change.writeSite?.let { " ← $it" }.orEmpty()
+            lines.add("[state] ${change.name}: ${change.type} changed ($oldStr → $newStr)$writeSite")
         }
 
         if (event.unstableParameters.isNotEmpty()) {
