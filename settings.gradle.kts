@@ -3,7 +3,6 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
     repositories {
-        maven("https://jitpack.io")
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")
@@ -14,6 +13,14 @@ pluginManagement {
         mavenLocal()
         mavenCentral()
         gradlePluginPortal()
+        // Only the forked VLC plugin is hosted on JitPack. Do not query it for
+        // Central plugins or their transitive dependencies (CI can hit HTTP 429).
+        maven("https://jitpack.io") {
+            content {
+                includeModule("com.github.cy745", "vlc-setup")
+                includeModule("com.github.cy745.vlc-setup", "vlc-setup")
+            }
+        }
     }
     resolutionStrategy {
         eachPlugin {
@@ -35,7 +42,9 @@ dependencyResolutionManagement {
         }
         mavenLocal()
         mavenCentral()
-        maven("https://jitpack.io")
+        maven("https://jitpack.io") {
+            content { includeGroup("com.github.cy745.rococoa") }
+        }
     }
 
     versionCatalogs {
