@@ -1,0 +1,67 @@
+name: Retry TestFlight Beta Distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: '已有 IPA 的 Snapshot Build run ID（不是构建号）'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  distribute:
+    name: Distribute existing build to Beta
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate source Snapshot
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
+          gh run view "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --json number,headBranch,workflowName > "$RUNNER_TEMP/source-run.json"
+          python3 - <<'PY'
+          import json, os
+          with open(os.path.join(os.environ['RUNNER_TEMP'], 'source-run.json')) as file:
+              run = json.load(file)
+          if run['headBranch'] != 'dev' or run['workflowName'] != 'Snapshot Build':
+              raise SystemExit('Source must be a dev Snapshot Build from this repository')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as file:
+              file.write(f"build={int(run['number'])}\n")
+          PY
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: LMusic-snapshot-ios
+          path: ${{ runner.temp }}/ipa
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3.11'
+          working-directory: iosApp
+          bundler-cache: true
+
+      - name: Retry Beta distribution without uploading
+        working-directory: iosApp
+        run: bundle exec fastlane ios beta distribute_only:true
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          TESTFLIGHT_IPA: ${{ runner.temp }}/ipa/LMusic-KMP.ipa
+          TESTFLIGHT_EXPECTED_BUILD: ${{ steps.source.outputs.build }}
+          TESTFLIGHT_CHANGELOG: "Snapshot ${{ steps.source.outputs.build }}. Please test startup, library browsing and playback."
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_HIDE_CHANGELOG: '1'
+          FASTLANE_OPT_OUT_USAGE: '1'

@@ -79,8 +79,10 @@ App Store Connect 配置。出口合规声明从实际 IPA 读取。
 CI 摘要会区分“等待 Apple 审核”和“外部测试者可安装”。Apple 审核时间不计为上传失败；
 同一版本同时只能有一个构建送审，若 Apple 拒绝提交，需要在当前审核结束后重试。
 已上传的准确构建会复用，重跑 iOS job 可继续分发而无需重复上传。
+也可运行 **Retry TestFlight Beta Distribution** 工作流，填写原 Snapshot 的 run ID
+（Actions URL 最后的数字），直接下载其 IPA 并重试分发，不重新编译或上传。
 
-本地检查：`cd iosApp && bundle install && bundle exec ruby fastlane/test/beta_test.rb`。
+本地需 Ruby 3.3；检查命令：`cd iosApp && bundle install && bundle exec ruby fastlane/test/beta_test.rb`。
 
 欢迎贡献代码！请先阅读 [贡献指南](CONTRIBUTING.md)。
 
