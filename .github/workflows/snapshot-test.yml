@@ -25,10 +25,14 @@ on:
         description: '跳过 iOS 构建与 TestFlight 上传（push 时可在 commit message 写 [skip ios]）'
         type: boolean
         default: false
+      testflight_source_run:
+        description: '仅重试指定 Snapshot run ID 的 Beta 分发；留空则完整构建'
+        type: string
+        default: ''
 
 concurrency:
-  group: snapshot-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ inputs.testflight_source_run && format('testflight-beta-{0}', inputs.testflight_source_run) || format('snapshot-{0}', github.ref) }}
+  cancel-in-progress: ${{ !inputs.testflight_source_run }}
 
 env:
   SNAPSHOT_OWNER: cy745
@@ -40,6 +44,7 @@ jobs:
   # 构建各平台产物
   # ──────────────────────────────────────────────
   build-android:
+    if: ${{ !inputs.testflight_source_run }}
     name: Android
     runs-on: ubuntu-latest
     steps:
@@ -97,6 +102,7 @@ jobs:
           compression-level: 9
 
   build-windows:
+    if: ${{ !inputs.testflight_source_run }}
     name: Windows
     runs-on: windows-latest
     steps:
@@ -127,6 +133,7 @@ jobs:
           path: ${{ github.workspace }}\composeApp\build\compose\binaries\main-release\msi\*.msi
 
   build-macos:
+    if: ${{ !inputs.testflight_source_run }}
     name: macOS
     runs-on: macos-26
     steps:
@@ -165,6 +172,7 @@ jobs:
           path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/dmg/*.dmg
 
   build-linux:
+    if: ${{ !inputs.testflight_source_run }}
     name: Linux
     runs-on: ubuntu-latest
     steps:
@@ -199,7 +207,7 @@ jobs:
     # 默认总是构建并上传 TestFlight；以下情况跳过：
     #   - push 时任一 commit message 包含 [skip ios]
     #   - 手动触发时勾选 skip_ios
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_ios == 'true') && !(github.event_name == 'push' && contains(join(github.event.commits.*.message, ' '), '[skip ios]')) }}
+    if: ${{ !inputs.testflight_source_run && !(github.event_name == 'workflow_dispatch' && inputs.skip_ios == 'true') && !(github.event_name == 'push' && contains(join(github.event.commits.*.message, ' '), '[skip ios]')) }}
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -319,6 +327,17 @@ jobs:
           path: ${{ runner.temp }}/ipa/*.ipa
 
   # ──────────────────────────────────────────────
+  # 仅分发重试复用 IPA，不运行平台编译，也不取消正在进行的完整构建。
+  retry-testflight-beta:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.testflight_source_run != '' }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/testflight-beta.yml
+    with:
+      source_run_id: ${{ inputs.testflight_source_run }}
+    secrets: inherit
+
   # 汇总产物 → 发布到 snapshot release
   # ──────────────────────────────────────────────
   publish-snapshot:
