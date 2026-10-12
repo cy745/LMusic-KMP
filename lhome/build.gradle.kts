@@ -38,5 +38,9 @@ kotlin {
                 implementation(libs.kotlin.test)
             }
         }
+        jvmTest.dependencies {
+            implementation(libs.compose.ui.test)
+            runtimeOnly(compose.desktop.currentOs)
+        }
     }
 }

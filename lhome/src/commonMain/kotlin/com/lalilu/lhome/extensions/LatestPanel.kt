@@ -21,6 +21,7 @@ import com.lalilu.lhome.component.RecommendCard
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
 import com.lalilu.lhome.viewmodel.HomeScreenModel
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.isAudioPlayable
 import com.lalilu.navigation.AppRouter
 import org.koin.compose.viewmodel.koinViewModel
@@ -29,7 +30,6 @@ object LatestPanel : LazyGridContent {
 
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
-        val context = LocalPlatformContext.current
         val vm = koinViewModel<HomeScreenModel>()
         val items = vm.recentlyAdded.collectAsState().value
 
@@ -74,30 +74,38 @@ object LatestPanel : LazyGridContent {
                     return@item
                 }
 
-                RecommendRow(
-                    items = { items },
-                    getId = { it.id }
-                ) { item ->
-                    RecommendCard(
-                        modifier = Modifier.width(120.dp),
-                        id = item.playbackId,
-                        title = item.title,
-                        subTitle = item.subtitle,
-                        imageData = item,
-                        enabled = isAudioPlayable(item),
-                        onClick = { sharedMap ->
-                            val coverMemoryKey = context.retrieveCacheKey(item)
-
-                            AppRouter.route("/song/detail")
-                                .with("mediaId", item.playbackId)
-                                .with("song", item)
-                                .with("sharedMap", sharedMap)
-                                .with("coverCacheKey", coverMemoryKey)
-                                .jump()
-                        }
-                    )
-                }
+                RecentlyAddedRow(items)
             }
         }
+    }
+}
+
+
+@Composable
+internal fun RecentlyAddedRow(items: List<LAudio>) {
+    val context = LocalPlatformContext.current
+    RecommendRow(
+        items = { items },
+        // 系统音乐库与 MusicKit 可以提供相同的原始 ID，需要包含来源才能作为列表键。
+        getId = { it.playbackId }
+    ) { item ->
+        RecommendCard(
+            modifier = Modifier.width(120.dp),
+            id = item.playbackId,
+            title = item.title,
+            subTitle = item.subtitle,
+            imageData = item,
+            enabled = isAudioPlayable(item),
+            onClick = { sharedMap ->
+                val coverMemoryKey = context.retrieveCacheKey(item)
+
+                AppRouter.route("/song/detail")
+                    .with("mediaId", item.playbackId)
+                    .with("song", item)
+                    .with("sharedMap", sharedMap)
+                    .with("coverCacheKey", coverMemoryKey)
+                    .jump()
+            }
+        )
     }
 }
