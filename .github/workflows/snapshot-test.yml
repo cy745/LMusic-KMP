@@ -192,7 +192,7 @@ jobs:
           path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/deb/*.deb
 
   # ──────────────────────────────────────────────
-  # iOS → TestFlight（Apple-Actions 官方最佳实践）
+  # iOS → TestFlight → Beta（Fastlane 自动上传、分组与送审）
   # ──────────────────────────────────────────────
   build-ios:
     name: iOS + TestFlight
@@ -209,6 +209,21 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - run: chmod +x gradlew
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3.11'
+          working-directory: iosApp
+          bundler-cache: true
+
+      - name: Validate TestFlight automation
+        working-directory: iosApp
+        run: |
+          bundle exec ruby fastlane/test/beta_test.rb
+          bundle exec fastlane lanes
+        env:
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_OPT_OUT_USAGE: '1'
 
       # 安装 xcbeautify（格式化 xcodebuild 输出，支持 GitHub Actions 注解）
       - name: Install xcbeautify
@@ -279,17 +294,25 @@ jobs:
             | xcbeautify --renderer github-actions
         shell: /bin/bash -o pipefail {0}
 
-      # 6. 上传到 TestFlight
-      - uses: apple-actions/upload-testflight-build@v5
-        with:
-          app-path: ${{ runner.temp }}/ipa/LMusic-KMP.ipa
-          app-type: ios
-          issuer-id: ${{ secrets.ASC_ISSUER_ID }}
-          api-key-id: ${{ secrets.ASC_KEY_ID }}
-          api-private-key: ${{ secrets.ASC_PRIVATE_KEY }}
+      # 6. 上传准确构建，关联现有 Beta 外部组并自动提交 Beta 审核。
+      - name: Upload and distribute to TestFlight Beta
+        working-directory: iosApp
+        timeout-minutes: 45
+        run: bundle exec fastlane ios beta
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          TESTFLIGHT_IPA: ${{ runner.temp }}/ipa/LMusic-KMP.ipa
+          TESTFLIGHT_EXPECTED_BUILD: ${{ github.run_number }}
+          TESTFLIGHT_CHANGELOG: "Snapshot ${{ github.run_number }} (${{ github.sha }}). Please test startup, library browsing and playback."
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_HIDE_CHANGELOG: '1'
+          FASTLANE_OPT_OUT_USAGE: '1'
 
       # 7. 保留 IPA 作为构建产物
       - name: Upload IPA
+        if: ${{ always() && !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: LMusic-snapshot-ios

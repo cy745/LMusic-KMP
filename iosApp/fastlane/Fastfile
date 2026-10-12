@@ -1,0 +1,68 @@
+require_relative "beta_delivery"
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Upload the IPA and distribute its exact build to the existing Beta external group"
+  lane :beta do |options|
+    ipa = File.expand_path(ENV.fetch("TESTFLIGHT_IPA"))
+    UI.user_error!("IPA does not exist: #{ipa}") unless File.file?(ipa)
+    info = FastlaneCore::IpaFileAnalyser.fetch_info_plist_file(ipa)
+    identity = BetaDelivery.identity(info, ENV["TESTFLIGHT_EXPECTED_BUILD"])
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_PRIVATE_KEY").gsub('\\n', "\n"),
+      duration: 1200,
+      in_house: false
+    )
+    app = Spaceship::ConnectAPI::App.find(identity[:identifier])
+    UI.user_error!("LMusic not found or inaccessible with this API key") unless app
+    group = BetaDelivery.external_group(app.get_beta_groups)
+
+    existing = Spaceship::ConnectAPI::Build.all(
+      app_id: app.id, version: identity[:version],
+      build_number: identity[:build], platform: "IOS"
+    ).first
+    if existing && existing.processing_state != "VALID"
+      UI.user_error!("Existing build is #{existing.processing_state}; retry after Apple processing completes")
+    end
+    UI.message("Build already uploaded; retrying distribution only") if existing
+
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ipa,
+      app_identifier: identity[:identifier],
+      app_version: identity[:version],
+      build_number: identity[:build],
+      distribute_only: !existing.nil? || options[:distribute_only].to_s == "true",
+      groups: [group.id],
+      distribute_external: true,
+      submit_beta_review: true,
+      notify_external_testers: true,
+      skip_submission: false,
+      skip_waiting_for_build_processing: false,
+      wait_processing_timeout_duration: 1800,
+      changelog: ENV.fetch("TESTFLIGHT_CHANGELOG"),
+      uses_non_exempt_encryption: info.fetch("ITSAppUsesNonExemptEncryption"),
+      expire_previous_builds: false,
+      reject_build_waiting_for_review: false
+    )
+
+    # Pilot can return success while Apple review is pending; verify the group too.
+    build = Spaceship::ConnectAPI::Build.all(
+      app_id: app.id, version: identity[:version],
+      build_number: identity[:build], platform: "IOS"
+    ).first
+    UI.user_error!("Uploaded build not found in App Store Connect") unless build
+    linked = group.fetch_builds.any? { |item| item.id == build.id }
+    state = build.build_beta_detail&.external_build_state
+    status = BetaDelivery.status(state, linked)
+    summary = "TestFlight #{identity[:version]} (#{identity[:build]}) → Beta: #{status} [#{state}]"
+    UI.success(summary)
+    if ENV["GITHUB_STEP_SUMMARY"]
+      File.open(ENV.fetch("GITHUB_STEP_SUMMARY"), "a") { |file| file.puts(summary) }
+    end
+  end
+end

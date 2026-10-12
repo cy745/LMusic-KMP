@@ -34,3 +34,9 @@ lplayer/src/jvmMain/assets/*/vlc/
 design/
 # 本地重组诊断采样；长期结论与复现方法保留在 docs 的分析文档中
 /docs/recomposition/
+
+# Fastlane local dependency cache and generated reports
+/iosApp/.bundle/
+/iosApp/vendor/bundle/
+/iosApp/fastlane/report.xml
+/iosApp/fastlane/README.md

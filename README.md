@@ -66,6 +66,22 @@ LMusic-KMP/
 
 ## 贡献指南
 
+### iOS TestFlight 自动分发
+
+Snapshot CI 在归档和导出 IPA 后运行 `bundle exec fastlane ios beta`，自动上传、
+关联现有的 **Beta 外部测试组**、提交 Beta 审核，并配置获批后自动通知测试者。
+Ruby 和 Fastlane 的版本在 CI、`iosApp/Gemfile` 与 lockfile 中固定。
+
+沿用 `ASC_ISSUER_ID`、`ASC_KEY_ID`、`ASC_PRIVATE_KEY` 三个 Secrets；
+API key 需要 App Manager 或 Admin 权限。测试说明、审核联系信息和 Beta 组须已在
+App Store Connect 配置。出口合规声明从实际 IPA 读取。
+
+CI 摘要会区分“等待 Apple 审核”和“外部测试者可安装”。Apple 审核时间不计为上传失败；
+同一版本同时只能有一个构建送审，若 Apple 拒绝提交，需要在当前审核结束后重试。
+已上传的准确构建会复用，重跑 iOS job 可继续分发而无需重复上传。
+
+本地检查：`cd iosApp && bundle install && bundle exec ruby fastlane/test/beta_test.rb`。
+
 欢迎贡献代码！请先阅读 [贡献指南](CONTRIBUTING.md)。
 
 ### 开发流程
