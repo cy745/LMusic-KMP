@@ -179,6 +179,7 @@ private fun MediaSource.displayName(): String = when (name) {
     "MediaStore" -> "系统媒体库"
     "MediaStoreSource" -> "系统媒体库"
     "SubsonicSource" -> "Subsonic / Navidrome"
+    "WebDavSource" -> "WebDAV"
     "RemoteSource" -> "Remote Server"
     "SandboxFileSystemSource" -> "沙盒文件"
     "MediaLibrarySource" -> "系统媒体库"
