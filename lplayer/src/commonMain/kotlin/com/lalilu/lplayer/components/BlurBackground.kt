@@ -30,11 +30,14 @@ import coil3.Bitmap
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
+import coil3.ImageLoader
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
+import coil3.request.ImageResult
 import coil3.request.SuccessResult
 import coil3.toBitmap
 import com.lalilu.RemixIcon
+import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.materialkolor.ktx.themeColorOrNull
 import kotlinx.coroutines.*
@@ -43,7 +46,9 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import org.jetbrains.compose.resources.vectorResource
 import kotlin.math.roundToInt
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /**
  * 把解码结果转成 Compose 的 [ImageBitmap]。
@@ -74,6 +79,15 @@ private val FastPathThreshold = 150.milliseconds
 
 /** 加载超时：超过它仍未拿到图片就取消本次请求并进入失败态。 */
 private val LoadTimeout = 10_000.milliseconds
+
+/**
+ * 失败重试的退避区间。
+ *
+ * 封面"立刻失败"通常不是真的没有封面：远端源的封面要等元数据提取完成、边车图片要等下载、
+ * 数据源可能刚好在重连。第一次请求就打上失败标记会让旧封面在切歌瞬间被占位背景顶掉。
+ */
+private val RetryInitialDelay = 250.milliseconds
+private val RetryMaxDelay = 1_000.milliseconds
 
 /**
  * 加载中在旧封面上额外叠加的模糊半径。
@@ -110,6 +124,7 @@ private class CoverLoadTimeoutException : Exception("cover load timed out")
 data class LoadingPhase(val source: ImageBitmap?)
 
 class BlurBackgroundViewModel : ViewModel() {
+    private val logger = Logger.withTag("BlurBackground")
     /**
      * 当前该显示的封面。
      *
@@ -160,7 +175,7 @@ class BlurBackgroundViewModel : ViewModel() {
                 .build()
 
             val imageLoader = SingletonImageLoader.get(context)
-            val result = imageLoader.execute(request)
+            val result = imageLoader.fetchWithRetry(request)
 
             ensureActive()
 
@@ -192,7 +207,8 @@ class BlurBackgroundViewModel : ViewModel() {
             //    - 10s 内完成：新图带着模糊淡入并逐渐清晰，旧封面与遮罩随后淡出；
             //    - 超过 10s：放弃本次加载，切到占位背景。
             // 请求只在这里发起，计时与相位判断全部交给下面的 fastPath / slowPath。
-            imageLoader.execute(request)
+            // 窗口内的失败会重试：真正决定"没有封面"的是加载超时，不是第一次请求的结果。
+            imageLoader.fetchWithRetry(request)
         }
 
         // 150ms 的观察窗口只负责把视觉切到"加载中"：它既不取消、也不打断图片请求，
@@ -223,15 +239,66 @@ class BlurBackgroundViewModel : ViewModel() {
         if (bitmap != null) {
             imageState.value = bitmap
         } else {
-            // 失败或超时：清掉封面让占位背景接手（旧封面只在 500ms 转场期间垫底），
+            // 重试到超时仍拿不到：这时才认定"这首歌没有封面"，切到占位背景。
             // 失败态一直保持到下一次 loadImage 开始。
+            val failure = (result as? ErrorResult)?.throwable ?: CoverLoadTimeoutException()
+            logger.w(messageString = "封面加载失败：${imageData::class.simpleName}，原因：$failure", throwable = failure)
             imageState.value = null
-            errorState.value = (result as? ErrorResult)?.throwable ?: CoverLoadTimeoutException()
+            errorState.value = failure
         }
 
         paletteFetch.await()
     }
 }
+
+/**
+ * 在加载超时窗口内反复重试，直到拿到图片或窗口结束。
+ *
+ * 只对"明确失败/没有图"的结果重试；成功或者已经超时就返回，由调用方决定展示哪张图。
+ */
+private suspend fun ImageLoader.fetchWithRetry(request: ImageRequest): ImageResult {
+    val startedAt = TimeSource.Monotonic.markNow()
+    return retryUntilLoaded(
+        deadlineMillis = LoadTimeout.inWholeMilliseconds,
+        initialDelayMillis = RetryInitialDelay.inWholeMilliseconds,
+        maxDelayMillis = RetryMaxDelay.inWholeMilliseconds,
+        isLoaded = ImageResult::hasImage,
+        nowMillis = { startedAt.elapsedNow().inWholeMilliseconds },
+        attempt = { execute(request) },
+    )
+}
+
+/**
+ * 通用的"窗口内重试"循环：拿到 [isLoaded] 认可的结果、或窗口结束就返回最后一次结果。
+ *
+ * 抽出来是为了能脱离 Coil 验证重试节奏——真正容易写错的是"下一次重试会不会越过窗口"，
+ * 而不是怎么发请求。时间来源由调用方注入，测试里可以直接用虚拟时钟。
+ */
+internal suspend fun <T> retryUntilLoaded(
+    deadlineMillis: Long,
+    initialDelayMillis: Long,
+    maxDelayMillis: Long,
+    nowMillis: () -> Long,
+    isLoaded: (T) -> Boolean,
+    attempt: suspend () -> T,
+): T {
+    val startedAt = nowMillis()
+    var delayMillis = initialDelayMillis
+    while (true) {
+        // 取消由 attempt/delay 的挂起点自己传播，这里不必再查一次
+        val result = attempt()
+        if (isLoaded(result)) return result
+
+        val elapsed = nowMillis() - startedAt
+        // 下一次重试会越过窗口时就不必再等了，直接把结果交给上层
+        if (elapsed >= deadlineMillis || elapsed + delayMillis >= deadlineMillis) return result
+
+        delay(delayMillis)
+        delayMillis = (delayMillis * 2).coerceAtMost(maxDelayMillis)
+    }
+}
+
+private fun ImageResult?.hasImage(): Boolean = this is SuccessResult && image != null
 
 /**
  * 全屏模糊封面背景。

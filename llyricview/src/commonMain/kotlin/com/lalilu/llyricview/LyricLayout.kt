@@ -30,11 +30,9 @@ import com.lalilu.extensions.rememberLazyListAnimateScroller
 import com.lalilu.llyric.LyricItem
 import com.lalilu.llyric.findPlayingIndex
 import com.lalilu.llyricview.impl.LyricContentNormal
-import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.isActive
 import org.koin.compose.koinInject
 import org.koin.core.qualifier.named
 import kotlin.math.PI
@@ -47,6 +45,9 @@ private data class LyricPageKey(
 )
 
 private const val ReducedLyricFadeOutDurationMillis = 120
+
+/** 手动浏览停手多久后自动恢复跟随。 */
+private const val ManualScrollIdleResetMillis = 5_000L
 private const val ReducedLyricFadeInDurationMillis = 220
 private val LyricTransitionMaxBlur = 25.dp
 private val LyricFadeEdgeEasing = Easing { fraction ->
@@ -174,7 +175,7 @@ fun LyricLayout(
                     active = isTargetPage,
                     startFromBeginning = startsFromBeginning,
                     positionSynchronized = positionSynchronized,
-                    followEnabled = isTargetPage && positionSynchronized && !transition.isRunning,
+                    pageIsCurrent = isTargetPage && positionSynchronized,
                     interactive = isTargetPage && positionSynchronized && !transition.isRunning,
                     currentTime = currentTime,
                     sampledPlaybackKey = sampledPlaybackKey,
@@ -190,14 +191,13 @@ fun LyricLayout(
     }
 }
 
-@OptIn(FlowPreview::class)
 @Composable
 private fun LyricPage(
     content: LyricContent.Ready,
     active: Boolean,
     startFromBeginning: Boolean,
     positionSynchronized: Boolean,
-    followEnabled: Boolean,
+    pageIsCurrent: Boolean,
     interactive: Boolean,
     currentTime: () -> Long,
     sampledPlaybackKey: () -> Any?,
@@ -256,8 +256,11 @@ private fun LyricPage(
     }
     val scroller = rememberLazyListAnimateScroller(
         listState = listState,
+        // 只看"这份歌词已经就绪"和"用户没有接管"两件事。过渡是否结束、下一帧是否正好在
+        // 切换，都属于瞬时状态：拿它们决定能不能滚，一旦某个标志卡住不动，就会出现
+        // "高亮还在走、列表再也不滚"的僵局。
         enableScrollAnimation = {
-            followEnabled && preparedForFollowing && !isUserScrollEnable()
+            active && preparedForFollowing && !isUserScrollEnable()
         },
         keys = { itemKeys },
     )
@@ -287,8 +290,8 @@ private fun LyricPage(
             .collect { frozenTime = it }
     }
 
-    LaunchedEffect(followEnabled, startsFromBeginning) {
-        if (!followEnabled) return@LaunchedEffect
+    LaunchedEffect(content.key, content.generation, pageIsCurrent, startsFromBeginning) {
+        if (!pageIsCurrent) return@LaunchedEffect
 
         val targetIndex = if (startsFromBeginning) {
             0
@@ -304,8 +307,8 @@ private fun LyricPage(
         preparedForFollowing = true
     }
 
-    LaunchedEffect(followEnabled, preparedForFollowing) {
-        if (!followEnabled || !preparedForFollowing) return@LaunchedEffect
+    LaunchedEffect(active, preparedForFollowing) {
+        if (!active || !preparedForFollowing) return@LaunchedEffect
         snapshotFlow { currentItem.value }
             .collectLatest { item ->
                 item ?: return@collectLatest
@@ -322,11 +325,11 @@ private fun LyricPage(
 
     LaunchedEffect(active, preparedForFollowing) {
         if (!active || !preparedForFollowing) return@LaunchedEffect
-        snapshotFlow { listState.isScrollInProgress to isUserScrollEnable() }
-            .debounce(5000)
-            .collectLatest { (isDragging, isScrolling) ->
-                if (!isActive || isDragging || !isScrolling) return@collectLatest
-
+        snapshotFlow { isUserScrollEnable() to listState.isScrollInProgress }
+            .collectLatest { (manual, scrolling) ->
+                // 状态一变就重算：用户还在拖或在滚，就继续等；停手 5 秒仍未退出，才自动回到跟随
+                if (!manual || scrolling) return@collectLatest
+                delay(ManualScrollIdleResetMillis)
                 currentItem.value?.key?.let(scroller::animateTo)
                 onPositionReset()
             }
