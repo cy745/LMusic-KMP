@@ -86,15 +86,17 @@ class LoopbackRangeProxyTest {
     }
 
     @Test
-    fun `upstream failure ends the request without killing the proxy`() = runTest {
+    fun `upstream failure is reported as an error status instead of a truncated body`() = runTest {
         upstreamFake = FakeBackend(payload).apply { failing = true }
         val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy-fail").toString()
         val cache = MediaCacheStore(cacheRoot, json, namespace = "test")
         proxy = LoopbackRangeProxy(cache, upstreamFake)
         val base = proxy.start()
 
-        // 上游 404 / 断网：客户端会看到截断（甚至直接报错），关键是代理自己不能崩
-        runCatching { get("$base/audio/testkey", "bytes=0-99") }
+        // 上游故障：首字节等不到就别回 206 再截断——直接给一个明确的状态码，
+        // 播放器才知道"这次是真的失败"，而不是读到一半莫名断流。
+        val failed = get("$base/audio/testkey", "bytes=0-99")
+        assertEquals(502, failed.status)
         assertEquals(0L, cache.filledSize("testkey"), "失败的下载不应留下任何字节")
 
         // 代理还活着：上游恢复后同一个实例仍能正常服务
@@ -102,6 +104,19 @@ class LoopbackRangeProxyTest {
         val recovered = get("$base/audio/testkey", "bytes=0-99")
         assertEquals(206, recovered.status)
         assertContentEquals(payload.copyOfRange(0, 100), recovered.body)
+    }
+
+    @Test
+    fun `upstream not found is passed through as 404`() = runTest {
+        upstreamFake = FakeBackend(payload).apply { missingOnUpstream = true }
+        val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy-404").toString()
+        val cache = MediaCacheStore(cacheRoot, json, namespace = "test")
+        proxy = LoopbackRangeProxy(cache, upstreamFake)
+        val base = proxy.start()
+
+        val response = get("$base/audio/testkey", "bytes=0-99")
+
+        assertEquals(404, response.status, "远端文件已经不在时，播放器应该看到 404 而不是 206 截断")
     }
 
     @Test
@@ -277,6 +292,9 @@ class LoopbackRangeProxyTest {
         val fetched = mutableListOf<Pair<Long, Long?>>()
         var failing = false
 
+        /** 模拟远端文件已经被删掉：代理应该把它转成 404 回给播放器。 */
+        var missingOnUpstream = false
+
         /** 吐够这么多字节后卡住，用来模拟"后台正在下载同一首"的时序。 */
         var blockAfterBytes = Long.MAX_VALUE
         var gate: CompletableDeferred<Unit>? = null
@@ -300,6 +318,7 @@ class LoopbackRangeProxyTest {
             onChunk: suspend (ByteArray) -> Unit,
         ) {
             entered.complete(Unit)
+            if (missingOnUpstream) throw UpstreamStatusException(404, "http://upstream/missing")
             if (failing) throw IllegalStateException("上游不可用")
             fetched += start to endInclusive
             val payload = payloads.getValue(target.token.substringAfterLast('/').removeSuffix(".flac"))

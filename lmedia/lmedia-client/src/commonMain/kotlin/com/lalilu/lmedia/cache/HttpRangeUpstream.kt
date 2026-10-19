@@ -34,6 +34,17 @@ data class CachedOrigin(
 )
 
 /**
+ * 上游返回了非 2xx 状态码。
+ *
+ * 单独成类型是为了让代理能把"远端文件已经不在了（404）"和"网络/服务端故障"区分开，
+ * 回给播放器一个明确的状态码，而不是先回 206 再截断。
+ */
+internal class UpstreamStatusException(
+    val statusCode: Int,
+    url: String,
+) : IllegalStateException("上游返回 $statusCode：$url")
+
+/**
  * 用普通 HTTP Range 请求访问上游。
  *
  * 与具体数据源无关：WebDAV、Subsonic、任意 CDN 都是"带 Range 头的 GET"。缓存键到
@@ -56,6 +67,11 @@ internal class HttpRangeUpstream(
 
     suspend fun clear() {
         mutex.withLock { origins.clear() }
+    }
+
+    /** 释放连接池；代理停止时调用，避免测试里留下线程。 */
+    fun close() {
+        http.close()
     }
 
     override suspend fun resolve(key: String): UpstreamTarget? = mutex.withLock {
@@ -85,12 +101,19 @@ internal class HttpRangeUpstream(
             header(HttpHeaders.Range, "bytes=$start-${endInclusive ?: ""}")
         }.execute { response ->
             if (!response.status.isSuccess()) {
-                throw IllegalStateException("上游返回 ${response.status.value}：${origin.url}")
+                throw UpstreamStatusException(response.status.value, origin.url)
             }
             // 从中间开始却拿到 200：上游忽略了 Range，字节其实是从 0 开始的。
             // 照单全收会把"文件开头"写进缓存中间位置，整份缓存从此错位。
             if (start > 0L && response.status != HttpStatusCode.PartialContent) {
                 throw IllegalStateException("上游不支持 Range：${origin.url}")
+            }
+            // 回了 206 但起点不是我们要的：同样会把字节写错位置，直接丢弃这次响应。
+            val contentRangeStart = RangeHeader.startFromContentRange(response.headers[HttpHeaders.ContentRange])
+            if (contentRangeStart != null && contentRangeStart != start) {
+                throw IllegalStateException(
+                    "上游返回了错误的区间起点（请求 $start，实际 $contentRangeStart）：${origin.url}"
+                )
             }
             val channel = response.bodyAsChannel()
             var received = 0L

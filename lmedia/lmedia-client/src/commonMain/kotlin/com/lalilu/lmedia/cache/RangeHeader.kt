@@ -32,6 +32,9 @@ internal data class RangeResolution(
 internal object RangeHeader {
     private const val PREFIX = "bytes="
 
+    /** 响应头 `Content-Range` 的前缀：分隔符是空格，与请求头的 `bytes=` 不同。 */
+    private const val CONTENT_RANGE_PREFIX = "bytes "
+
     /**
      * 解析 `Range` 头。[totalSize] 小于等于 0 表示长度未知，此时只能整文件响应。
      */
@@ -81,5 +84,15 @@ internal object RangeHeader {
     fun totalSizeFromContentRange(value: String?): Long? {
         val total = value?.substringAfterLast('/', "")?.trim()?.toLongOrNull() ?: return null
         return total.takeIf { it > 0L }
+    }
+
+    /** 从 `Content-Range: bytes 0-1/32239619` 取出起始偏移；用于校验上游真的按请求回字节。 */
+    fun startFromContentRange(value: String?): Long? {
+        // 注意请求头是 `bytes=0-1`，响应头是 `bytes 0-1/总长`：分隔符不一样
+        val raw = value?.trim().orEmpty()
+        if (!raw.startsWith(CONTENT_RANGE_PREFIX, ignoreCase = true)) return null
+        val range = raw.substring(CONTENT_RANGE_PREFIX.length).substringBefore('/').trim()
+        val startText = range.substringBefore('-').trim()
+        return startText.toLongOrNull()?.takeIf { it >= 0L }
     }
 }

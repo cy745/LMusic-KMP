@@ -25,6 +25,7 @@ import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -93,6 +94,9 @@ internal class LoopbackRangeProxy(
         /** 等下载推进的轮询间隔：播放器读超时是 8 秒，这个粒度远小于它。 */
         private const val READ_WAIT_POLL_MILLIS = 50L
 
+        /** 等上游首字节的上限：超过它就先回一个明确的失败，而不是让播放器干等到自己超时。 */
+        private const val FIRST_BYTE_TIMEOUT_MILLIS = 4_000L
+
         /** 下载过程中的进度上报节拍：提取节点靠它触发，1MB 粒度既够快又不会刷屏。 */
         private const val PROGRESS_STEP_BYTES = 1L * 1024 * 1024
     }
@@ -116,12 +120,32 @@ internal class LoopbackRangeProxy(
             logger.w(messageString = "补缓存任务异常：${throwable.message}", throwable = throwable)
         }
     )
-    private val downloads = mutableMapOf<String, Job>()
+    private val downloads = mutableMapOf<String, Download>()
     private val downloadsGuard = Mutex()
     private var lastEvictionAt = 0L
 
-    /** 正在被读取或写入的键：淘汰时绝不动它们。 */
+    /**
+     * 正在被读取或写入的键：淘汰时绝不动它们。
+     *
+     * 这些字段会被多个协程并发访问（每个播放请求一个、下载任务一个、淘汰逻辑一个），
+     * 因此全部由 [activeKeysGuard] 保护——直接把活的可变集合交给淘汰逻辑迭代，
+     * 会在并发时抛 `ConcurrentModificationException`，或者把正在读的文件删掉。
+     */
     private val activeKeys = mutableSetOf<String>()
+    private val activeKeysGuard = Mutex()
+
+    /** 正在播放的键：即使暂停中、没有在途请求，也不允许被淘汰。 */
+    private var playbackKey: String? = null
+
+    /** 每个键的下载任务及其读者计数/失败原因。 */
+    private class Download(
+        val job: Job,
+        /** 由后台预取启动：没有读者附着时可以被"暂停后台传输"取消。 */
+        val startedByPrefetch: Boolean,
+    ) {
+        var readers: Int = 0
+        var error: Throwable? = null
+    }
 
     /** 启动代理并返回基地址；重复调用返回同一地址。 */
     suspend fun start(): String {
@@ -155,35 +179,92 @@ internal class LoopbackRangeProxy(
         target: UpstreamTarget,
         upTo: Long,
     ): Long {
-        val job = ensureDownloading(key, target)
+        val entry = ensureDownloading(key, target, prefetch = true)
         val goal = if (target.totalSize > 0L) minOf(upTo, target.totalSize - 1) else upTo
-        while (true) {
-            val filled = cache.filledSize(key)
-            if (filled > goal) return filled
-            if (!job.isActive) return filled
-            delay(READ_WAIT_POLL_MILLIS)
+        try {
+            while (true) {
+                val filled = cache.filledSize(key)
+                if (filled > goal) return filled
+                if (!entry.job.isActive) return filled
+                delay(READ_WAIT_POLL_MILLIS)
+            }
+        } catch (cancelled: CancellationException) {
+            // 后台预取被取消（关开关 / 网络门控）：没有播放请求在用它就立刻停掉下载，
+            // 不能因为"等待方走了"还继续占着带宽。
+            cancelIfIdle(entry)
+            throw cancelled
         }
     }
 
+    /**
+     * 停掉所有"没有播放请求在用"的后台预取。
+     *
+     * 播放读取附着的下载不受影响——用户此刻在听，那份流量是他要的。
+     */
+    internal suspend fun cancelBackgroundDownloads() {
+        val idle = downloadsGuard.withLock {
+            downloads.values.filter { it.startedByPrefetch && it.readers == 0 }
+        }
+        if (idle.isEmpty()) return
+        logger.i { "暂停后台传输：取消 ${idle.size} 个空闲预取" }
+        idle.forEach { it.job.cancel() }
+    }
+
+    /** 记录当前播放的键：它不能被淘汰，哪怕还没有在途请求。 */
+    suspend fun pinPlayback(key: String?) {
+        activeKeysGuard.withLock { playbackKey = key }
+    }
+
     /** 保证这个键有一个正在推进的下载任务并返回它；已有任务直接复用。 */
-    private suspend fun ensureDownloading(key: String, target: UpstreamTarget): Job =
-        downloadsGuard.withLock {
-            downloads[key]?.takeIf { it.isActive }?.let { return@withLock it }
-            val job = downloadScope.launch {
-                try {
-                    // 写入串行化：缓存是只追加的连续前缀，两个写者会把它写坏
-                    lockFor(key).withLock { downloadLocked(key, target) }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (throwable: Throwable) {
-                    // 上游 404/断网都是正常业务结果：记录原因即可，读的人会看到截断并按失败处理。
-                    // 这里绝不能让异常逃出任务——它是独立作用域里 launch 出来的，逃出去就是进程崩溃。
-                    logger.w(messageString = "补缓存失败 key=$key：${throwable.message}")
+    private suspend fun ensureDownloading(
+        key: String,
+        target: UpstreamTarget,
+        prefetch: Boolean = false,
+    ): Download = downloadsGuard.withLock {
+        downloads[key]?.takeIf { it.job.isActive }?.let { return@withLock it }
+
+        // 任务体要读到自己这条记录（记录失败原因 / 结束时把自己从表里摘掉），
+        // 因此先声明再赋值；LAZY 启动保证赋值发生在任务真正开跑之前。
+        lateinit var entry: Download
+        val job = downloadScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                // 写入串行化：缓存是只追加的连续前缀，两个写者会把它写坏
+                lockFor(key).withLock { downloadLocked(key, target) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                // 上游 404/断网都是正常业务结果：记下原因让读端回明确的状态码。
+                // 这里绝不能让异常逃出任务——它是独立作用域里 launch 出来的，逃出去就是进程崩溃。
+                entry.error = throwable
+                logger.w(messageString = "补缓存失败 key=$key：${throwable.message}")
+            } finally {
+                // 完成的记录必须摘掉，否则每听一首就多留一条（任务对象本身也不小）
+                downloadsGuard.withLock {
+                    if (downloads[key] === entry) downloads.remove(key)
                 }
             }
-            downloads[key] = job
-            job
         }
+        entry = Download(job = job, startedByPrefetch = prefetch)
+        downloads[key] = entry
+        job.start()
+        entry
+    }
+
+    /** 播放请求附着到下载任务上：它在这段时间里不能被"暂停后台传输"取消。 */
+    private suspend fun acquireForRead(key: String, target: UpstreamTarget): Download {
+        val entry = ensureDownloading(key, target)
+        downloadsGuard.withLock { entry.readers += 1 }
+        return entry
+    }
+
+    private suspend fun releaseForRead(entry: Download) {
+        downloadsGuard.withLock { entry.readers = (entry.readers - 1).coerceAtLeast(0) }
+    }
+
+    private suspend fun cancelIfIdle(entry: Download) {
+        val idle = downloadsGuard.withLock { entry.readers == 0 }
+        if (idle) entry.job.cancel()
+    }
 
     /**
      * 把缓存补到文件末尾（长度未知时补到上游结束）。
@@ -192,7 +273,7 @@ internal class LoopbackRangeProxy(
      * 成为离线缓存，不存在"为了一次 seek 白下"的问题。
      */
     private suspend fun downloadLocked(key: String, target: UpstreamTarget) {
-        activeKeys += key
+        markActive(key)
         try {
             // 远端文件被换成更小的文件时，旧缓存的前缀比新文件还长，必须重建
             cache.ensureConsistent(key, target.totalSize)
@@ -231,23 +312,41 @@ internal class LoopbackRangeProxy(
                 "补缓存完成 key=$key 共 ${cache.filledSize(key)}B 用时 ${clock() - startedAt}ms"
             }
             onCacheProgress(key)
+            // LRU 账目只在淘汰和 stop 时落盘的话，生产环境（代理常驻）几乎不会写；
+            // 每首补完顺手落一次，进程被杀也不会退回"按文件 mtime 淘汰"。
+            cache.persistUsage()
             evictIfNeeded()
         } finally {
-            activeKeys -= key
+            unmarkActive(key)
         }
     }
 
     /** 按配额淘汰；调用点做节流，避免每次请求都扫一遍缓存目录。 */
-    private fun evictIfNeeded() {
+    private suspend fun evictIfNeeded() {
         val quota = quotaBytes()
         if (quota <= 0L) return
         val now = clock()
         if (now - lastEvictionAt < evictionIntervalMillis) return
         lastEvictionAt = now
-        val evicted = cache.evictIfNeeded(quotaBytes = quota, pinned = activeKeys)
+        // 取快照而不是把活集合交出去：淘汰过程会遍历它，而读者随时可能在增删。
+        val pinned = activeKeysGuard.withLock {
+            buildSet {
+                addAll(activeKeys)
+                playbackKey?.let(::add)
+            }
+        }
+        val evicted = cache.evictIfNeeded(quotaBytes = quota, pinned = pinned)
         if (evicted.isNotEmpty()) {
             logger.i(messageString = "缓存超出上限，淘汰 ${evicted.size} 首：${evicted.take(5)}")
         }
+    }
+
+    private suspend fun markActive(key: String) {
+        activeKeysGuard.withLock { activeKeys += key }
+    }
+
+    private suspend fun unmarkActive(key: String) {
+        activeKeysGuard.withLock { activeKeys -= key }
     }
 
     private fun Application.proxyModule() {
@@ -306,12 +405,23 @@ internal class LoopbackRangeProxy(
             return
         }
 
-        respondBytesWriter(
-            contentType = contentType,
-            status = if (isPartial) HttpStatusCode.PartialContent else HttpStatusCode.OK,
-            contentLength = range.length,
-        ) {
-            serveRange(key, target, range, this)
+        // 先确认"这段能拿到"或"上游确实失败了"，再决定状态码：
+        // 先回 206 再截断，播放器只能看到一个模糊的 Source error。
+        val entry = acquireForRead(key, target)
+        try {
+            if (!awaitRangeReady(key, range.start, entry)) {
+                respond(upstreamStatusOf(entry.error))
+                return
+            }
+            respondBytesWriter(
+                contentType = contentType,
+                status = if (isPartial) HttpStatusCode.PartialContent else HttpStatusCode.OK,
+                contentLength = range.length,
+            ) {
+                serveRange(key, range, entry, this)
+            }
+        } finally {
+            releaseForRead(entry)
         }
     }
 
@@ -325,24 +435,32 @@ internal class LoopbackRangeProxy(
             respond(HttpStatusCode.OK)
             return
         }
-        val download = ensureDownloading(key, target)
-        respondBytesWriter(contentType = contentType, status = HttpStatusCode.OK) {
-            streamFromCache(
-                key = key,
-                range = 0L..Long.MAX_VALUE,
-                download = download,
-                channel = this,
-            )
+        val entry = acquireForRead(key, target)
+        try {
+            if (!awaitRangeReady(key, start = 0L, entry = entry)) {
+                respond(upstreamStatusOf(entry.error))
+                return
+            }
+            respondBytesWriter(contentType = contentType, status = HttpStatusCode.OK) {
+                streamFromCache(
+                    key = key,
+                    range = 0L..Long.MAX_VALUE,
+                    download = entry.job,
+                    channel = this,
+                )
+            }
+        } finally {
+            releaseForRead(entry)
         }
     }
 
     private suspend fun serveRange(
         key: String,
-        target: UpstreamTarget,
         range: RequestedRange,
+        entry: Download,
         channel: ByteWriteChannel,
     ) {
-        activeKeys += key
+        markActive(key)
         try {
             // 缓存已经覆盖这次请求：纯读本地，不碰网络
             if (range.endInclusive < cache.filledSize(key)) {
@@ -351,24 +469,48 @@ internal class LoopbackRangeProxy(
                 return
             }
 
-            val download = ensureDownloading(key, target)
             val served = streamFromCache(
                 key = key,
                 range = range.start..range.endInclusive,
-                download = download,
+                download = entry.job,
                 channel = channel,
             )
             if (served < range.length) {
                 logger.w {
                     "上游提前结束：key=$key 期望 ${range.length} 字节，实际 $served" +
-                        "（下载任务${if (download.isActive) "仍在进行" else "已结束"}）"
+                        "（下载任务${if (entry.job.isActive) "仍在进行" else "已结束"}）"
                 }
             }
             onCacheProgress(key)
             evictIfNeeded()
         } finally {
-            activeKeys -= key
+            unmarkActive(key)
         }
+    }
+
+    /**
+     * 等这次请求需要的第一个字节落盘（或确认上游已经失败）。
+     *
+     * 超时就按失败回给播放器：与其让它读一个迟迟不来数据的 206 然后超时，不如立刻给个明确的错误。
+     */
+    private suspend fun awaitRangeReady(key: String, start: Long, entry: Download): Boolean {
+        val deadline = clock() + FIRST_BYTE_TIMEOUT_MILLIS
+        while (true) {
+            if (cache.filledSize(key) > start) return true
+            if (!entry.job.isActive) return cache.filledSize(key) > start
+            if (clock() >= deadline) {
+                logger.w { "等上游首字节超时 key=$key start=$start" }
+                return false
+            }
+            delay(READ_WAIT_POLL_MILLIS)
+        }
+    }
+
+    /** 把上游的失败原因映射成播放器能理解的状态码。 */
+    private fun upstreamStatusOf(error: Throwable?): HttpStatusCode = when {
+        error is UpstreamStatusException && error.statusCode == 404 -> HttpStatusCode.NotFound
+        error is UpstreamStatusException && error.statusCode in 401..403 -> HttpStatusCode.Forbidden
+        else -> HttpStatusCode.BadGateway
     }
 
     /**

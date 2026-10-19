@@ -65,4 +65,14 @@ class RangeHeaderTest {
         assertNull(RangeHeader.totalSizeFromContentRange(null))
         assertNull(RangeHeader.totalSizeFromContentRange("bytes 0-1/*"))
     }
+
+    @Test
+    fun `extracts the start offset from a content range header`() {
+        assertEquals(0L, RangeHeader.startFromContentRange("bytes 0-1/32239619"))
+        assertEquals(1024L, RangeHeader.startFromContentRange("bytes 1024-2047/32239619"))
+        assertEquals(7L, RangeHeader.startFromContentRange("bytes 7-7/*"))
+        assertNull(RangeHeader.startFromContentRange("bytes */0"))
+        assertNull(RangeHeader.startFromContentRange(null))
+        assertNull(RangeHeader.startFromContentRange("garbage"))
+    }
 }

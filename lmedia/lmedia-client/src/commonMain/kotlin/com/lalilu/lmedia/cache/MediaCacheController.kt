@@ -30,7 +30,8 @@ class MediaCacheController(
         private const val PROGRESS_POLL_INTERVAL_MS = 500L
     }
 
-    private val upstream = HttpRangeUpstream()
+    private var upstream = HttpRangeUpstream()
+    private var upstreamClosed = false
     private val mutex = Mutex()
     private val listenerMutex = Mutex()
     private var proxy: LoopbackRangeProxy? = null
@@ -77,7 +78,14 @@ class MediaCacheController(
         val active = ensureStarted() ?: return null
         val fileKey = fileNameOf(key)
         upstream.register(fileKey, origin)
+        // 这是"正在播放的那一首"：即便暂停中、没有在途请求，也不允许被淘汰。
+        active.pinPlayback(fileKey)
         return active.audioUrl(fileKey)
+    }
+
+    /** 停掉所有没有播放请求附着的后台预取下载（关开关 / 网络门控时调用）。 */
+    suspend fun cancelBackgroundDownloads() {
+        proxy?.cancelBackgroundDownloads()
     }
 
     /** 已缓存的前缀长度；没有缓存时返回 0。 */
@@ -138,6 +146,9 @@ class MediaCacheController(
             store = null
             listenerMutex.withLock { progressListeners.clear() }
             upstream.clear()
+            // 连接池也要释放：只停回环服务会留下 HttpClient 的线程/连接
+            upstream.close()
+            upstreamClosed = true
         }
     }
 
@@ -146,6 +157,11 @@ class MediaCacheController(
         return mutex.withLock {
             proxy?.let { return@withLock it }
             val root = cacheRootProvider.cacheRoot() ?: return@withLock null
+            // stop() 之后再用就必须换一个新的客户端：close 过的 HttpClient 不能再发请求
+            if (upstreamClosed) {
+                upstream = HttpRangeUpstream()
+                upstreamClosed = false
+            }
             val cache = MediaCacheStore(root, json, namespace = NAMESPACE).also { store = it }
             val created = LoopbackRangeProxy(
                 cache = cache,
