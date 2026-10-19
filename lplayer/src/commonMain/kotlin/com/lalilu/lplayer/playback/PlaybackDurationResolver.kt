@@ -1,5 +1,6 @@
 package com.lalilu.lplayer.playback
 
+import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.duration
 import kotlinx.coroutines.CoroutineScope
@@ -40,10 +41,13 @@ private const val EngineDriftDivisor = 100L
  * 所有需要"这首歌唱多久"的地方都应该读 [Playback.stableDuration]，而不是
  * [Playback.currentDuration]：后者是引擎的原始上报，会经过空档，也不保证属于当前曲目。
  */
+private val durationLogger = Logger.withTag("StableDuration")
+
 internal class PlaybackDurationResolver(
     currentItem: Flow<LAudio?>,
     engineDuration: Flow<Long>,
     scope: CoroutineScope,
+    private val engineItemKey: Flow<String?> = MutableStateFlow(null),
 ) {
     private val _stableDuration = MutableStateFlow(0L)
     val stableDuration: StateFlow<Long> = _stableDuration.asStateFlow()
@@ -58,15 +62,26 @@ internal class PlaybackDurationResolver(
     private var engineReportedAfterSwitch = false
     private var engineDurationTrusted = false
 
+    /** 同一首曲目只打一次"引擎值无法确认归属"的日志，避免刷屏。 */
+    private var loggedPendingEngine = false
+
+    /** 同一首曲目只打一次"引擎加载的是别的曲目"的日志，避免刷屏。 */
+    private var loggedForeignEngine = false
+
     init {
-        combine(currentItem, engineDuration) { item, engine -> item to engine }
-            .onEach { (item, engineDurationMs) -> resolve(item, engineDurationMs) }
+        combine(currentItem, engineDuration, engineItemKey) { item, engine, key ->
+            Triple(item, engine, key)
+        }
+            .onEach { (item, engineDurationMs, engineKey) -> resolve(item, engineDurationMs, engineKey) }
             .launchIn(scope)
     }
 
-    private fun resolve(item: LAudio?, engineDurationMs: Long) {
+    private fun resolve(item: LAudio?, engineDurationMs: Long, engineKey: String?) {
         val key = item?.id
         val metadata = item?.duration?.takeIf { it > 0L } ?: 0L
+        // 引擎明确表示"我加载的就是当前这首"时，它报的时长就属于当前曲目——
+        // 不再要求"值必须相对切曲那一刻变化过"（缓存命中时新时长往往在切曲前就到了）
+        val engineOwnsCurrent = engineKey != null && item != null && engineKey == item.playbackId
 
         if (key != itemKey) {
             val hadPreviousItem = itemKey != null
@@ -75,10 +90,16 @@ internal class PlaybackDurationResolver(
             engineDurationTrusted = false
             engineDurationAtSwitchMs = engineDurationMs
             // 首个曲目没有被上一首污染的引擎值，可以直接采信
-            engineReportedAfterSwitch = !hadPreviousItem
+            engineReportedAfterSwitch = !hadPreviousItem || engineOwnsCurrent
+            loggedPendingEngine = false
+            loggedForeignEngine = false
 
             // 切曲：先只用当前曲目的元数据，未知就是 0
             _stableDuration.value = metadata
+            durationLogger.i {
+                "切曲 id=$key 元数据时长=$metadata 切曲时引擎=$engineDurationMs " +
+                    "（首个曲目=${!hadPreviousItem}）"
+            }
             // 注意这里不 return：首个曲目可以紧接着采信引擎值（见下方判断）
         }
 
@@ -90,14 +111,40 @@ internal class PlaybackDurationResolver(
             }
         }
 
+        if (engineOwnsCurrent && !engineReportedAfterSwitch) {
+            durationLogger.i { "引擎已加载当前曲目（$engineKey），采信它报出的时长" }
+        }
+        if (engineOwnsCurrent) engineReportedAfterSwitch = true
         if (engineDurationMs != engineDurationAtSwitchMs) {
+            if (!engineReportedAfterSwitch) {
+                durationLogger.i { "引擎为当前曲目报出时长 $engineDurationMs（切曲时=$engineDurationAtSwitchMs）" }
+            }
             engineReportedAfterSwitch = true
         }
 
         // 引擎在切曲/停止瞬间发出的 0 不代表时长真的变成了 0
         if (engineDurationMs <= 0L) return
+        // 引擎明确表示自己加载的是"别的曲目"：不管这个值怎么变都不属于当前曲目
+        if (engineKey != null && !engineOwnsCurrent) {
+            if (!loggedForeignEngine) {
+                loggedForeignEngine = true
+                durationLogger.i { "引擎当前加载的是 $engineKey，不是 ${item?.playbackId}，忽略其时长 $engineDurationMs" }
+            }
+            return
+        }
+        loggedForeignEngine = false
         // 还没为当前曲目报出过新的值：这是上一首的残留，不能采信
-        if (!engineReportedAfterSwitch) return
+        if (!engineReportedAfterSwitch) {
+            if (!loggedPendingEngine) {
+                loggedPendingEngine = true
+                durationLogger.w {
+                    "引擎时长 $engineDurationMs 与切曲时相同，无法确认属于当前曲目 " +
+                        "（id=$key 元数据=$metadata stable=${_stableDuration.value}）"
+                }
+            }
+            return
+        }
+        loggedPendingEngine = false
 
         val current = _stableDuration.value
         if (!engineDurationTrusted) {

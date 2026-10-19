@@ -62,6 +62,50 @@ class PlaybackDurationResolverTest {
     }
 
     @Test
+    fun engineDurationIsTakenWhenTheEngineOwnsTheCurrentItem() = runTest {
+        // 缓存命中：新曲目的时长在"曲目切换"这一刻就已经是引擎报出的值了，
+        // 只比较"值有没有变过"会把 264487 当成上一首的残留，时长永远显示不出来。
+        val item = MutableStateFlow<LAudio?>(audio("a", 0L))
+        val engine = MutableStateFlow(0L)
+        val engineKey = MutableStateFlow<String?>(null)
+        val resolver = PlaybackDurationResolver(item, engine, backgroundScope, engineKey)
+        runCurrent()
+        assertEquals(0L, resolver.stableDuration.value)
+
+        // 引擎先切到新曲目并报出时长（缓存命中时几乎必然如此），随后曲目流才跟上。
+        // 曲目流还没确认之前先不采信：此时无法排除"这是上一首的残留"。
+        val next = audio("b", 0L)
+        engineKey.value = next.playbackId
+        engine.value = 264_487L
+        runCurrent()
+        assertEquals(0L, resolver.stableDuration.value, "曲目流还没确认，先保持未知")
+
+        // 曲目流确认到同一首：引擎的 id 与曲目一致，直接采信它已经报出的时长
+        //（注意时长值本身没有变化，只比较"值变没变"的旧启发式在这里会永远认不出来）
+        item.value = next
+        runCurrent()
+        assertEquals(264_487L, resolver.stableDuration.value, "引擎已加载当前曲目，时长应当采信")
+    }
+
+    @Test
+    fun engineDurationForAnotherItemIsStillIgnored() = runTest {
+        val item = MutableStateFlow<LAudio?>(audio("a", 0L))
+        val engine = MutableStateFlow(0L)
+        val engineKey = MutableStateFlow<String?>(null)
+        val resolver = PlaybackDurationResolver(item, engine, backgroundScope, engineKey)
+        runCurrent()
+
+        val next = audio("b", 0L)
+        item.value = next
+        runCurrent()
+        // 引擎还在上一首：即便它报出的值与切曲时相同（无法用"变化"判断），也不能采信
+        engineKey.value = audio("a", 0L).playbackId
+        engine.value = 180_000L
+        runCurrent()
+        assertEquals(0L, resolver.stableDuration.value, "引擎加载的不是当前曲目，时长必须保持未知")
+    }
+
+    @Test
     fun staleEngineDurationIsNeverReusedForTheNextItem() = runTest {
         val item = MutableStateFlow<LAudio?>(audio("a", 180_000L))
         val engine = MutableStateFlow(180_000L)

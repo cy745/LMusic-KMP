@@ -4,6 +4,9 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.mediaKey
 import kotlinx.coroutines.flow.*
 
+/** 引擎不上报当前媒体标识时的占位：用到它的判断会退化成保守的"值变化"启发式。 */
+private val UnknownEngineItemKey = MutableStateFlow<String?>(null)
+
 
 interface Playback {
     // Playback State
@@ -15,6 +18,16 @@ interface Playback {
 
     /** 引擎上报的原始时长。切歌瞬间会经过 0，展示用途请改用 [stableDuration]。 */
     val currentDuration: StateFlow<Long>
+
+    /**
+     * 引擎当前真正加载的媒体标识（[LAudio.playbackId]）；null 表示引擎不上报。
+     *
+     * [stableDuration] 用它判断"引擎报出的时长属于哪一首"：切换曲目时引擎可能在新曲目
+     * 元数据到达之前就先报出了新时长（缓存命中时几乎必然如此），只比较"值有没有变过"
+     * 会把这种情况误判成上一首的残留，时长就永远显示不出来。
+     */
+    val currentEngineItemKey: StateFlow<String?>
+        get() = UnknownEngineItemKey
 
     /**
      * 当前曲目的稳定时长（毫秒），0 表示未知。

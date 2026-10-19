@@ -91,6 +91,7 @@ class MPlayerPlayback(
     private val _isPlaying = MutableStateFlow(false)
     private val _errors = MutableSharedFlow<Throwable>()
     private val _currentDuration = MutableStateFlow(0L)
+    private val _currentEngineItemKey = MutableStateFlow<String?>(null)
     private val recordedPosition = MutableStateFlow(0L)
     private val _currentBufferedPosition = MutableStateFlow(0L)
     private val _playbackMode = MutableStateFlow(PlaybackMode.SEQUENTIAL)
@@ -122,11 +123,13 @@ class MPlayerPlayback(
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
     override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
     override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
+    override val currentEngineItemKey: StateFlow<String?> = _currentEngineItemKey.asStateFlow()
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
     private val durationResolver = PlaybackDurationResolver(
         currentItem = queue.currentItemFlow(),
         engineDuration = _currentDuration,
+        engineItemKey = _currentEngineItemKey,
         scope = this,
     )
     override val stableDuration: StateFlow<Long> = durationResolver.stableDuration
@@ -406,9 +409,25 @@ class MPlayerPlayback(
     override fun onEvents(player: Player, events: Player.Events) {
         // MediaBrowser 的缓冲位置没有独立回调，只能在事件批里读取
         _currentBufferedPosition.value = player.bufferedPosition.coerceAtLeast(0L)
+
+        // 引擎的真实时长。只靠 onMediaMetadataChanged 会漏：缓存命中的曲目往往在时长还没解析出来
+        // 时就发出了那一次元数据回调，此后不再补发，_currentDuration 于是永远停在 0，
+        // 进度条只剩"未知时长"的短条（TIME_UNSET 是负数，被这里的 > 0 过滤掉）。
+        player.duration.takeIf { it > 0L }?.let { engineDuration ->
+            if (_currentDuration.value != engineDuration) {
+                _currentDuration.value = engineDuration
+            }
+        }
+
+        // 事件批里再对一次"引擎加载的是哪一首"，避免个别路径没有走到 onMediaItemTransition
+        player.currentMediaItem?.mediaId?.let { _currentEngineItemKey.value = it }
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+        // 引擎切到哪一首：时长归属判断的唯一可靠依据。
+        // 新曲目的时长此刻还未知，先清零，等引擎报出来再填——避免上一首的值被当成新曲目的。
+        _currentEngineItemKey.value = mediaItem?.mediaId
+        _currentDuration.value = 0L
         if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
             failureTraversal.begin(PlaybackDirection.Forward)
         }
@@ -486,7 +505,24 @@ class MPlayerPlayback(
     }
 
     override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-        _currentDuration.value = mediaMetadata.durationMs ?: browserInstance?.duration ?: 0L
+        // 未知时不要写 0：缓存命中的曲目常常在时长解析出来之前就发出这一次回调，
+        // 写 0 会把 onEvents 采到的真实时长抹掉，进度条于是永远是"未知"。
+        updateEngineDuration(mediaMetadata.durationMs)
+    }
+
+    /**
+     * 更新引擎时长。[metadataDurationMs] 是媒体元数据里带的时长（我们自己塞进去的）。
+     *
+     * 优先用引擎当前的真实时长：它总是属于引擎正在加载的那一首，而元数据可能来自
+     * 还没补全标签的歌曲（值为 0）。两者都拿不到时保持原值，交给曲目切换去清零。
+     */
+    private fun updateEngineDuration(metadataDurationMs: Long?) {
+        val duration = browserInstance?.duration?.takeIf { it > 0L }
+            ?: metadataDurationMs?.takeIf { it > 0L }
+            ?: return
+        if (_currentDuration.value != duration) {
+            _currentDuration.value = duration
+        }
     }
 
     override fun onPlaylistMetadataChanged(mediaMetadata: MediaMetadata) {
