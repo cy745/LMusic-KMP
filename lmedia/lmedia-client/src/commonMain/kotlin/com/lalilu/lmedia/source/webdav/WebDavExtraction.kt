@@ -4,6 +4,7 @@ import com.lalilu.lmedia.cache.MediaCacheStore
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -108,6 +109,9 @@ internal class WebDavExtractor(
     private val pendingMerges = mutableMapOf<String, WebDavMetadataRecord>()
     private val mergeMutex = Mutex()
     private val pendingCount = MutableStateFlow(0)
+
+    /** 已经补发过补丁的键（同一个提取器实例内不再重复）。 */
+    private val republishedKeys = mutableSetOf<String>()
     private var worker: Job? = null
 
     /** 标签读取做成可替换的依赖：默认走 taglib，测试可以注入确定性结果。 */
@@ -190,7 +194,21 @@ internal class WebDavExtractor(
                 "提取跳过 key=$key（filled=${cache.filledSize(key)}/${target.totalSize} " +
                     "existing=${existing?.fingerprint}/complete=${existing?.complete} 指纹=${target.fingerprint}）"
             }
-            if (existing != null) markExtracted()
+            if (existing != null) {
+                // 记录已经有了，但库里那一首可能还没有这些字段：重新扫描、换设备、或者上一次
+                // 补丁没落库，都会出现"缓存早就满了，却一直没有时长和封面"。这里直接把已有记录
+                // 当成一次补丁发出去，缺什么补什么。
+                // 每个键每个提取器实例只补发一次：快照里的那一首不会因为我们补了补丁就自动更新，
+                // 没有这个标记就会在每次缓存进度事件上重复入库。
+                if (target.needsPatch(existing) && republishedKeys.add(key)) {
+                    logger.i {
+                        "已有提取记录但库里缺字段，补发补丁 key=$key " +
+                            "title=${existing.title} duration=${existing.duration} hasCover=${existing.hasCover}"
+                    }
+                    onRecord(target, existing)
+                }
+                markExtracted()
+            }
             return
         }
         logger.i {
@@ -265,6 +283,16 @@ internal class WebDavExtractor(
     ): WebDavExtractedMetadata? {
         val path = cache.localPath(key) ?: return null
         return tagReader(path, includeCover, includeDuration)
+    }
+
+    /** 库里那一首是否还缺这条记录能提供的信息。 */
+    private fun WebDavExtractionTarget.needsPatch(record: WebDavMetadataRecord): Boolean {
+        val extra = audio.extra.orEmpty()
+        val currentDuration = extra[LAudioExtraKeys.Duration]?.toLongOrNull() ?: 0L
+        return (record.duration > 0L && currentDuration <= 0L) ||
+            (record.title.isNotBlank() && audio.title != record.title) ||
+            (record.album.isNotBlank() && extra[LAudioExtraKeys.AlbumName] != record.album) ||
+            (record.artist.isNotBlank() && extra[LAudioExtraKeys.ArtistName] != record.artist)
     }
 
     private fun markExtracted() {

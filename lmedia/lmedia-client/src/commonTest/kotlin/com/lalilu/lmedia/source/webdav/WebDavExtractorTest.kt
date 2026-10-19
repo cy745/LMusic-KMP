@@ -2,6 +2,7 @@ package com.lalilu.lmedia.source.webdav
 
 import com.lalilu.lmedia.cache.MediaCacheStore
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -72,6 +73,80 @@ class WebDavExtractorTest {
         assertEquals(245_000L, record.duration)
         assertNotNull(store.readCover(key))
         assertEquals(2, records.size)
+        extractor.stop()
+    }
+
+    @Test
+    fun `republishes an existing record when the library row is missing its fields`() = runTest {
+        val key = "song-republish"
+        store.delete(key)
+        cache.delete(key)
+        cache.appendBytes(key, ByteArray(1000))
+        // 记录早就有（上一次提取写的），但库里那一首没有时长/专辑——重新扫描后很常见
+        store.write(
+            key,
+            WebDavMetadataRecord(
+                fingerprint = fingerprintOf(key),
+                complete = true,
+                extractedAt = 1,
+                title = "Friend",
+                album = "ARO",
+                duration = 245_000,
+                hasCover = true,
+            ),
+            byteArrayOf(1, 2, 3),
+        )
+
+        val extractor = buildExtractor { _, _, _ -> error("不应重新读标签") }
+        extractor.start(this)
+        extractor.request(key)
+        extractor.drain()
+
+        assertEquals(1, records.size, "已有记录但库里缺字段时必须补发补丁")
+        assertEquals(245_000L, records.single().second.duration)
+        extractor.stop()
+    }
+
+    @Test
+    fun `does not republish when the library row already matches the record`() = runTest {
+        val key = "song-nopatch"
+        store.delete(key)
+        cache.delete(key)
+        cache.appendBytes(key, ByteArray(1000))
+        store.write(
+            key,
+            WebDavMetadataRecord(
+                fingerprint = fingerprintOf(key),
+                complete = true,
+                extractedAt = 1,
+                title = "Friend",
+                album = "ARO",
+                duration = 245_000,
+            ),
+            null,
+        )
+
+        // 目标歌曲已经带着同样的字段
+        val extractor = buildExtractor(
+            audioOf = { id ->
+                LAudio(
+                    id = id,
+                    title = "Friend",
+                    subtitle = "artist",
+                    mediaSourceName = "test",
+                    extra = mapOf(
+                        LAudioExtraKeys.Duration to "245000",
+                        LAudioExtraKeys.AlbumName to "ARO",
+                    ),
+                )
+            },
+            tagAnswer = { _, _, _ -> error("不应重新读标签") },
+        )
+        extractor.start(this)
+        extractor.request(key)
+        extractor.drain()
+
+        assertTrue(records.isEmpty(), "库里已经一致时不应反复补发")
         extractor.stop()
     }
 
@@ -216,13 +291,14 @@ class WebDavExtractorTest {
         WebDavMetadataRecord.fingerprintOf(1000L, "\"etag-$key\"", null)
 
     private fun buildExtractor(
+        audioOf: (String) -> LAudio = { id -> LAudio(id = id, mediaSourceName = "test") },
         tagAnswer: suspend (String, Boolean, Boolean) -> WebDavExtractedMetadata?,
     ): WebDavExtractor = WebDavExtractor(
         cache = cache,
         store = store,
         targets = object : WebDavExtractionTargets {
             override suspend fun targetOf(key: String) = WebDavExtractionTarget(
-                audio = LAudio(id = key, mediaSourceName = "test"),
+                audio = audioOf(key),
                 remotePath = "/music/$key.flac",
                 totalSize = 1000L,
                 fingerprint = fingerprintOf(key),
