@@ -1,5 +1,6 @@
 package com.lalilu.lmedia.coil
 
+import co.touchlab.kermit.Logger
 import coil3.ImageLoader
 import coil3.fetch.FetchResult
 import coil3.fetch.Fetcher
@@ -12,6 +13,8 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.*
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+
+private val coverLogger = Logger.withTag("CoverFetch")
 
 class LAudioFetcher(
     val audio: LAudio,
@@ -33,7 +36,16 @@ class LAudioFetcher(
             width = options.size.width.pxOrElse { 0 },
             height = options.size.height.pxOrElse { 0 },
         )
-        val pictureData = resolvePicture(audio, fetchOptions) ?: return null
+        // 等它变可用，而不是一次落空就返回 null：null 在 Coil 里表示"我不认识这份数据"，
+        // 会让整次请求以"没有 fetcher 支持"结束（封面就再也不重试了）。
+        val pictureData = awaitCover { resolvePicture(audio, fetchOptions) }
+        if (pictureData == null) {
+            coverLogger.w { "封面等待超时：${audio.mediaSourceName}/${audio.id}（${audio.title}）" }
+            throw CoverUnavailableException(audio.mediaSourceName, audio.id)
+        }
+        coverLogger.i {
+            "封面就绪：${audio.mediaSourceName}/${audio.id}（${audio.title}，${pictureData::class.simpleName}）"
+        }
 
         val data = when (pictureData) {
             is MediaData.Bytes -> pictureData.bytes
@@ -116,3 +128,7 @@ class MediaCoverRequestKeyer : Keyer<MediaCoverRequest> {
 
 private fun mediaCoverCacheKey(audio: LAudio, generation: Long): String =
     "${audio.mediaSourceName}_${audio.id}_$generation"
+
+/** 等待窗口内都没取到封面：明确报出来，而不是让 Coil 报"没有 fetcher 支持"。 */
+internal class CoverUnavailableException(sourceName: String, audioId: String) :
+    IllegalStateException("封面暂时取不到：$sourceName/$audioId")

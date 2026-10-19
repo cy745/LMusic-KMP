@@ -55,6 +55,7 @@ import io.ktor.util.encodeBase64
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.TimeSource
 
 /**
  * 基于 WebDAV 的媒体源。
@@ -659,8 +660,16 @@ class WebDavSource(
      */
     override suspend fun getPicture(song: LAudio, options: MediaFetchOptions): MediaData? {
         val key = cacheKeyOf(song.id)
-        sidecarBytes(song, key, WebDavSidecarKind.COVER)?.let { return MediaData.Bytes(it) }
-        val bytes = metadataStore?.readCover(key) ?: return null
+        sidecarBytes(song, key, WebDavSidecarKind.COVER)?.let {
+            logger.i { "封面来自同目录边车：${song.title}（${it.size}B）" }
+            return MediaData.Bytes(it)
+        }
+        val bytes = metadataStore?.readCover(key)
+        if (bytes == null) {
+            logger.i { "封面还取不到：${song.title}（边车与提取记录都没有）" }
+            return null
+        }
+        logger.i { "封面来自提取记录：${song.title}（${bytes.size}B）" }
         return MediaData.Bytes(bytes)
     }
 
@@ -672,6 +681,7 @@ class WebDavSource(
      */
     override suspend fun getLyric(song: LAudio): String? {
         val key = cacheKeyOf(song.id)
+        logger.i { "取歌词：${song.title}" }
         sidecarBytes(song, key, WebDavSidecarKind.LYRIC)
             ?.decodeToString()
             ?.removePrefix("\uFEFF")
@@ -679,7 +689,11 @@ class WebDavSource(
             ?.let { return it }
 
         val localPath = cacheController.localPath(keyOf(song)) ?: return null
-        return runCatching { Taglib.getLyric(localPath) }.getOrNull()?.takeIf(String::isNotBlank)
+        val embedded = runCatching { Taglib.getLyric(localPath) }.getOrNull()?.takeIf(String::isNotBlank)
+        logger.i {
+            "歌词来自内嵌标签：${song.title}（${embedded?.length ?: 0} 字符，缓存=${cacheController.filledSize(keyOf(song))}B）"
+        }
+        return embedded
     }
 
     /** 拉取并缓存同目录边车文件；没有边车路径（首扫未发现）时返回 null。 */
@@ -699,9 +713,13 @@ class WebDavSource(
             WebDavSidecarKind.LYRIC -> extra?.get(EXTRA_LYRIC_FINGERPRINT)
         }
         val store = metadataStore ?: return null
-        return store.sidecar(key, kind, fingerprint) {
+        logger.i { "边车读取 kind=$kind path=$path" }
+        val startedAt = TimeSource.Monotonic.markNow()
+        val bytes = store.sidecar(key, kind, fingerprint) {
             client?.download(path)
         }
+        logger.i { "边车完成 kind=$kind 大小=${bytes?.size ?: 0}B 用时 ${startedAt.elapsedNow().inWholeMilliseconds}ms" }
+        return bytes
     }
 
     // ── 装配 ──
@@ -749,6 +767,10 @@ class WebDavSource(
 
     /** 把提取结果转成歌曲更新：额外字段合并进原有 extra，然后逐条入库。 */
     private suspend fun publishRecord(target: WebDavExtractionTarget, record: WebDavMetadataRecord) {
+        logger.i {
+            "补丁入库 id=${target.audio.id} title=${record.title} duration=${record.duration} " +
+                "hasCover=${record.hasCover} complete=${record.complete}"
+        }
         val merged = target.audio.copy(
             title = record.title.takeIf(String::isNotBlank) ?: target.audio.title,
             extra = target.audio.extra.orEmpty() + record.toAudioExtra(

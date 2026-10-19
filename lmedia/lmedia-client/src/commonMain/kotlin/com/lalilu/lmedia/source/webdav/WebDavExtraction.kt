@@ -94,7 +94,7 @@ internal class WebDavExtractor(
     private val concurrency: Int = 2,
     private val batchSize: Int = BATCH_SIZE,
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
-    tagReaderOverride: (suspend (path: String, includeCoverAndDuration: Boolean) -> WebDavExtractedMetadata?)? = null,
+    tagReaderOverride: (suspend (path: String, includeCover: Boolean, includeDuration: Boolean) -> WebDavExtractedMetadata?)? = null,
 ) {
     companion object {
         private const val TAG = "WebDavExtractor"
@@ -111,7 +111,7 @@ internal class WebDavExtractor(
     private var worker: Job? = null
 
     /** 标签读取做成可替换的依赖：默认走 taglib，测试可以注入确定性结果。 */
-    private val tagReader: suspend (path: String, includeCoverAndDuration: Boolean) -> WebDavExtractedMetadata? =
+    private val tagReader: suspend (path: String, includeCover: Boolean, includeDuration: Boolean) -> WebDavExtractedMetadata? =
         tagReaderOverride ?: ::readTagsFromFile
 
     val progress: StateFlow<WebDavExtractionState> = progressState.asStateFlow()
@@ -186,13 +186,24 @@ internal class WebDavExtractor(
             currentFingerprint = target.fingerprint,
         )
         if (decision == ExtractionDecision.SKIP) {
+            logger.i {
+                "提取跳过 key=$key（filled=${cache.filledSize(key)}/${target.totalSize} " +
+                    "existing=${existing?.fingerprint}/complete=${existing?.complete} 指纹=${target.fingerprint}）"
+            }
             if (existing != null) markExtracted()
             return
+        }
+        logger.i {
+            "提取开始 key=$key 决策=$decision filled=${cache.filledSize(key)}/${target.totalSize} " +
+                "existing=${existing?.fingerprint}/complete=${existing?.complete} 指纹=${target.fingerprint}"
         }
 
         val complete = decision == ExtractionDecision.FULL
         val extracted = try {
-            readTags(key, includeCoverAndDuration = complete)
+            // 内嵌封面（FLAC 的 PICTURE、MP3 的 APIC）都在文件头的元数据块里，30% 的缓存前缀
+            // 就足够读出来——封面不必等整首下完。时长仍只在完整文件上采信：部分文件里它只能靠
+            // 比特率估算，放到界面上就是错的。
+            readTags(key, includeCover = true, includeDuration = complete)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (throwable: Throwable) {
@@ -208,11 +219,16 @@ internal class WebDavExtractor(
         if (extracted == null || extracted.isEmpty) {
             // 没有标签的文件是合法状态：记一条空记录，避免每次都重试，但不覆盖文件名派生的信息
             store.write(key, emptyRecord(target, complete, now), null)
+            logger.i { "提取完成 key=$key complete=$complete 但没有可用标签（落一条空记录避免重试）" }
             return
         }
 
         val record = extracted.toRecord(target.fingerprint, complete, now)
         store.write(key, record, extracted.cover)
+        logger.i {
+            "提取完成 key=$key complete=$complete title=${record.title} " +
+                "duration=${record.duration} cover=${extracted.cover?.size ?: 0}B"
+        }
         markExtracted()
         onRecord(target, record)
 
@@ -244,10 +260,11 @@ internal class WebDavExtractor(
 
     private suspend fun readTags(
         key: String,
-        includeCoverAndDuration: Boolean,
+        includeCover: Boolean,
+        includeDuration: Boolean,
     ): WebDavExtractedMetadata? {
         val path = cache.localPath(key) ?: return null
-        return tagReader(path, includeCoverAndDuration)
+        return tagReader(path, includeCover, includeDuration)
     }
 
     private fun markExtracted() {
@@ -258,10 +275,11 @@ internal class WebDavExtractor(
 /** 默认的标签读取实现：直接读本地缓存文件（taglib 只接受本地路径 / 文件描述符）。 */
 internal suspend fun readTagsFromFile(
     path: String,
-    includeCoverAndDuration: Boolean,
+    includeCover: Boolean,
+    includeDuration: Boolean,
 ): WebDavExtractedMetadata? {
     val metadata = Taglib.readMetadata(path) ?: return null
-    val cover = if (includeCoverAndDuration) {
+    val cover = if (includeCover) {
         runCatching { Taglib.getPicture(path) }.getOrNull()
     } else {
         null
@@ -276,7 +294,7 @@ internal suspend fun readTagsFromFile(
         date = metadata.date,
         genre = metadata.genre,
         // 只有完整文件才有可信时长
-        duration = if (includeCoverAndDuration) metadata.duration else 0L,
+        duration = if (includeDuration) metadata.duration else 0L,
         cover = cover,
     )
 }

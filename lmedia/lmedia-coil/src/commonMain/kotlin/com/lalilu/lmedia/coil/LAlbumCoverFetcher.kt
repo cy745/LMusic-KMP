@@ -28,6 +28,13 @@ class LAlbumCoverFetcher(
     private val options: Options
 ) : Fetcher {
     override suspend fun fetch(): FetchResult? {
+        // 专辑/艺人封面来自它名下的某首歌：那首歌的封面可能还要等一会儿才被提取出来，
+        // 因此整个"逐首找图"的过程都放在等待窗口里，而不是一次落空就放弃。
+        return awaitCover { firstAvailablePicture() }
+            ?: throw CoverUnavailableException("album", album.id)
+    }
+
+    private suspend fun firstAvailablePicture(): FetchResult? {
         val audios = getRelatedAudios(album)
         for (audio in audios) {
             val picture = platformMediaSource.resolvePictureData(audio) ?: continue
@@ -37,7 +44,7 @@ class LAlbumCoverFetcher(
             }
             val fetcher = imageLoader.components.newFetcher(data, options, imageLoader)
                 ?.first ?: continue
-            return fetcher.fetch()
+            fetcher.fetch()?.let { return it }
         }
         return null
     }

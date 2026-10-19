@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import co.touchlab.kermit.Logger
 import com.lalilu.common.kv.KVItem
 import com.lalilu.extensions.ClassicBackHandler
 import com.lalilu.extensions.fadeEdge
@@ -48,6 +49,14 @@ private const val ReducedLyricFadeOutDurationMillis = 120
 
 /** 手动浏览停手多久后自动恢复跟随。 */
 private const val ManualScrollIdleResetMillis = 5_000L
+
+/** 跟随看门狗的检查间隔：够快跟上换行，又不至于每帧都去查一次可视范围。 */
+private const val FollowWatchdogIntervalMillis = 400L
+
+/** 看门狗心跳：每这么多拍打一行状态，用来判断"到底卡在哪一步"。 */
+private const val FollowWatchdogHeartbeatTicks = 12
+
+private val lyricLogger = Logger.withTag("LyricFollow")
 private const val ReducedLyricFadeInDurationMillis = 220
 private val LyricTransitionMaxBlur = 25.dp
 private val LyricFadeEdgeEasing = Easing { fraction ->
@@ -307,20 +316,64 @@ private fun LyricPage(
         preparedForFollowing = true
     }
 
+    LaunchedEffect(content.key, content.generation, active, positionSynchronized, pageIsCurrent, preparedForFollowing) {
+        lyricLogger.i {
+            "歌词页状态 key=${content.key} gen=${content.generation} active=$active " +
+                "sync=$positionSynchronized current=$pageIsCurrent prepared=$preparedForFollowing " +
+                "items=${content.items.size} 起点=${if (startsFromBeginning) "开头" else "当前行"}"
+        }
+    }
+
+    val followAnimationSpec: () -> AnimationSpec<Float> = {
+        spring(
+            dampingRatio = settings.value.scrollSpringDampingRatio,
+            stiffness = settings.value.scrollSpringStiffness,
+            visibilityThreshold = 0.001f,
+        )
+    }
+
     LaunchedEffect(active, preparedForFollowing) {
         if (!active || !preparedForFollowing) return@LaunchedEffect
         snapshotFlow { currentItem.value }
             .collectLatest { item ->
                 item ?: return@collectLatest
-                scroller.animateTo(
-                    key = item.key,
-                    animationSpec = spring(
-                        dampingRatio = settings.value.scrollSpringDampingRatio,
-                        stiffness = settings.value.scrollSpringStiffness,
-                        visibilityThreshold = 0.001f,
-                    )
-                )
+                lyricLogger.i { "跟随到当前行：${item.key}" }
+                scroller.animateTo(key = item.key, animationSpec = followAnimationSpec())
             }
+    }
+
+    // 看门狗：当前行不在可视范围里就重新发起滚动。
+    // 跟随链路上有一串状态标志（就绪、过渡、用户接管），任何一个卡住都会表现成
+    // "高亮还在走、列表再也不动"，而且从界面上完全看不出是哪个标志的问题。这里换个依据：
+    // 只问"正在唱的那一行现在看得见吗"，看不见就再滚一次，于是任何一次状态失效都能在下一拍自愈。
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        var tick = 0
+        while (true) {
+            delay(FollowWatchdogIntervalMillis)
+            tick += 1
+
+            val manual = isUserScrollEnable()
+            val scrolling = listState.isScrollInProgress
+            val item = currentItem.value
+            val visible = item != null && listState.layoutInfo.visibleItemsInfo.any { it.key == item.key }
+
+            if (tick % FollowWatchdogHeartbeatTicks == 0) {
+                lyricLogger.i {
+                    "看门狗：key=${content.key} 当前行=${item?.key} 可视=$visible " +
+                        "firstVisible=${listState.firstVisibleItemIndex} 手动=$manual 滚动中=$scrolling " +
+                        "prepared=$preparedForFollowing"
+                }
+            }
+
+            if (manual || scrolling) continue
+            if (item == null || visible) continue
+            lyricLogger.i {
+                "看门狗触发滚动：${item.key} 不在可视范围（firstVisible=${listState.firstVisibleItemIndex}，" +
+                    "可见=${listState.layoutInfo.visibleItemsInfo.size} 项）"
+            }
+            scroller.animateTo(key = item.key, animationSpec = followAnimationSpec())
+        }
     }
 
     LaunchedEffect(active, preparedForFollowing) {

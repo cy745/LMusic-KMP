@@ -27,20 +27,22 @@ class WebDavExtractorTest {
     private val records = mutableListOf<Pair<String, WebDavMetadataRecord>>()
     private val flushes = mutableListOf<Map<String, WebDavMetadataRecord>>()
     private val coverReads = mutableListOf<Boolean>()
+    private val durationReads = mutableListOf<Boolean>()
 
     @Test
-    fun `extracts at thirty percent then upgrades to a full record at completion`() = runTest {
+    fun `extracts the embedded cover at thirty percent then upgrades to a full record`() = runTest {
         val key = "song-partial"
         store.delete(key)
         cache.delete(key)
         cache.appendBytes(key, ByteArray(300)) // 1000 字节的 30%
 
-        val extractor = buildExtractor { _, includeCover ->
+        val extractor = buildExtractor { _, includeCover, includeDuration ->
             coverReads += includeCover
+            durationReads += includeDuration
             WebDavExtractedMetadata(
                 title = "Friend",
                 artist = "HoneyComeBear",
-                duration = if (includeCover) 245_000 else 0L,
+                duration = if (includeDuration) 245_000 else 0L,
                 cover = if (includeCover) byteArrayOf(1, 2, 3) else null,
             )
         }
@@ -49,17 +51,22 @@ class WebDavExtractorTest {
         extractor.request(key)
         extractor.drain()
 
-        assertEquals(listOf(false), coverReads, "30% 时只读文件头，不读封面")
+        // 内嵌封面在文件头的元数据块里，30% 的前缀就够读出来——封面不用等整首下完
+        assertEquals(listOf(true), coverReads, "30% 就应该读出内嵌封面")
+        assertEquals(listOf(false), durationReads, "30% 的时长还不可信，不读")
         assertEquals(1, records.size)
-        assertFalse(assertNotNull(store.read(key)).complete)
+        val partial = assertNotNull(store.read(key))
+        assertFalse(partial.complete)
+        assertNotNull(store.readCover(key), "部分提取也要把封面落盘")
 
-        // 补满文件后再触发一次：必须升级为完整提取（时长与封面只有完整文件才可靠）
+        // 补满文件后再触发一次：必须升级为完整提取（时长只有完整文件才可靠）
         cache.appendBytes(key, ByteArray(700))
         assertEquals(1000L, cache.filledSize(key), "追加写入必须立刻反映到缓存长度")
         extractor.request(key)
         extractor.drain()
 
-        assertEquals(listOf(false, true), coverReads)
+        assertEquals(listOf(true, true), coverReads)
+        assertEquals(listOf(false, true), durationReads)
         val record = assertNotNull(store.read(key))
         assertTrue(record.complete)
         assertEquals(245_000L, record.duration)
@@ -75,7 +82,7 @@ class WebDavExtractorTest {
         cache.delete(key)
         cache.appendBytes(key, ByteArray(1000))
 
-        val extractor = buildExtractor { _, _ -> WebDavExtractedMetadata(title = "drained") }
+        val extractor = buildExtractor { _, _, _ -> WebDavExtractedMetadata(title = "drained") }
         extractor.start(this)
 
         // 入队后立刻 drain：中间不允许任何挂起点，否则 worker 会"恰好"先跑完，
@@ -98,7 +105,7 @@ class WebDavExtractorTest {
             cache.appendBytes(key, ByteArray(1000))
         }
 
-        val extractor = buildExtractor { _, _ ->
+        val extractor = buildExtractor { _, _, _ ->
             WebDavExtractedMetadata(title = "title")
         }
         extractor.start(this)
@@ -119,7 +126,7 @@ class WebDavExtractorTest {
         cache.delete(key)
         cache.appendBytes(key, ByteArray(1000))
 
-        val extractor = buildExtractor { _, includeCover ->
+        val extractor = buildExtractor { _, includeCover, _ ->
             coverReads += includeCover
             null
         }
@@ -148,7 +155,7 @@ class WebDavExtractorTest {
         cache.delete(key)
         cache.appendBytes(key, ByteArray(1000))
 
-        val extractor = buildExtractor { _, _ -> error("taglib exploded") }
+        val extractor = buildExtractor { _, _, _ -> error("taglib exploded") }
         extractor.start(this)
         extractor.request(key)
         extractor.drain()
@@ -166,7 +173,7 @@ class WebDavExtractorTest {
         cache.delete(key)
         cache.appendBytes(key, ByteArray(400))
 
-        val extractor = buildExtractor { _, _ -> error("incomplete file") }
+        val extractor = buildExtractor { _, _, _ -> error("incomplete file") }
         extractor.start(this)
         extractor.request(key)
         extractor.drain()
@@ -192,7 +199,7 @@ class WebDavExtractorTest {
             null,
         )
 
-        val extractor = buildExtractor { _, _ ->
+        val extractor = buildExtractor { _, _, _ ->
             coverReads += true
             WebDavExtractedMetadata(title = "should not happen")
         }
@@ -209,7 +216,7 @@ class WebDavExtractorTest {
         WebDavMetadataRecord.fingerprintOf(1000L, "\"etag-$key\"", null)
 
     private fun buildExtractor(
-        tagAnswer: suspend (String, Boolean) -> WebDavExtractedMetadata?,
+        tagAnswer: suspend (String, Boolean, Boolean) -> WebDavExtractedMetadata?,
     ): WebDavExtractor = WebDavExtractor(
         cache = cache,
         store = store,

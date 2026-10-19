@@ -5,12 +5,15 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.*
+import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val scrollerLogger = Logger.withTag("LyricScroller")
 
 class LazyListAnimateScroller internal constructor(
     private val scope: CoroutineScope,
@@ -103,6 +106,7 @@ class LazyListAnimateScroller internal constructor(
         task.targetIndex = index
 
         if (index == -1) {
+            scrollerLogger.w { "目标不在 keys 列表里，跳过滚动：${task.key}（keys=${keys().size} 项）" }
             this.task = null
             return  // 元素不存在keys列表中，则不进行滚动
         }
@@ -143,6 +147,7 @@ class LazyListAnimateScroller internal constructor(
     }
 
     private fun doScroll(targetOffset: Float) = task?.apply {
+        var loggedDisabled = false
         scope.launch {
             // 获取上一次滚动时最终的滚动速度
             val oldVelocity = animation.velocity
@@ -160,7 +165,12 @@ class LazyListAnimateScroller internal constructor(
 
                 scope.launch {
                     try {
-                        if (!canceled && enable()) {
+                        val enabled = enable()
+                        if (!enabled && !loggedDisabled) {
+                            loggedDisabled = true
+                            scrollerLogger.w { "滚动被禁用（enable=false），目标=${this@apply.key}" }
+                        }
+                        if (!canceled && enabled) {
                             listState.scrollBy(dy)
                         }
                     } catch (e: Exception) {
