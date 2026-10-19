@@ -84,6 +84,28 @@ internal class SourceSnapshotCommitter(
         }
     }
 
+    /**
+     * 在**同一把源级锁**内执行一次单曲增量补丁。
+     *
+     * 共用锁保证两件事：全量对账不会与补丁交错；[deactivate] 的清理也覆盖尚未执行的补丁。
+     * 补丁失败**不写入** [SnapshotCommitState]——那是完整快照的语义，失败原因交给调用方计数与展示。
+     */
+    suspend fun submitPatch(patch: suspend () -> Unit): Result<Unit> = mutex.withLock {
+        if (!acceptingSnapshots) {
+            return@withLock Result.failure(
+                IllegalStateException("Source is not accepting updates")
+            )
+        }
+        try {
+            patch()
+            Result.success(Unit)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (throwable: Throwable) {
+            Result.failure(throwable)
+        }
+    }
+
     private fun publish(value: SnapshotCommitState) {
         state = value
         onStateChanged(value)

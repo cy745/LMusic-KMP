@@ -12,6 +12,7 @@ import com.lalilu.lmedia.data.entity.LGenreEntity
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXAlbum
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXGenre
 import com.lalilu.lmedia.data.database.relation.CrossRefLAudioXLArtist
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.Snapshot
 
 @Dao
@@ -165,6 +166,33 @@ interface LMediaDao {
             deleteAlbumRelationsBySongIds(songIds)
             deleteGenreRelationsBySongIds(songIds)
         }
+        insertArtistRelation(batch.artistRelations)
+        insertAlbumRelation(batch.albumRelations)
+        insertGenreRelation(batch.genreRelations)
+    }
+
+    /**
+     * 单曲增量写入：只重建这一首的关系，代价与库大小无关。
+     *
+     * 与 [insert] 的整源对账不同，这里既不读取该源的其它歌曲，也不会把"本次没出现的歌曲"标记为
+     * 不可用——播放过程中补全的元数据可以逐条入库并立刻可见。周期性调用 [insert] 做全量对账仍然
+     * 必要，用于清理孤儿实体与保证最终一致。
+     */
+    @Transaction
+    suspend fun upsertAudio(audio: LAudio) {
+        val batch = MediaLibraryAssembler.assemble(listOf(audio))
+        val entity = batch.audios.singleOrNull() ?: return
+
+        insertAudio(listOf(entity))
+        insertArtist(batch.artists)
+        insertAlbum(batch.albums)
+        insertGenre(batch.genres)
+
+        // 只替换这一首的关系：其它歌曲的关系表行不受影响
+        val songId = entity.playbackId
+        deleteArtistRelationsBySongIds(listOf(songId))
+        deleteAlbumRelationsBySongIds(listOf(songId))
+        deleteGenreRelationsBySongIds(listOf(songId))
         insertArtistRelation(batch.artistRelations)
         insertAlbumRelation(batch.albumRelations)
         insertGenreRelation(batch.genreRelations)

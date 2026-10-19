@@ -65,6 +65,12 @@ kotlin {
         }
         nativeMain.get().dependsOn(nonWebMain)
 
+        // 网络门控：konnection 只有 android / ios / jvm 变体，因此依赖与实现都放在非 Web 源集，
+        // 避免把"没有 wasm 变体"的依赖带进 commonMain 打挂 Web 编译。
+        nonWebMain.dependencies {
+            implementation(libs.konnection)
+        }
+
         commonMain.dependencies {
             api(project(":lmedia:lmedia-domain"))
             api(project(":common"))
