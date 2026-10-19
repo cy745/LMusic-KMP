@@ -122,7 +122,6 @@ class MPlayerPlayback(
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
     override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
     override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
-    override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
     private val durationResolver = PlaybackDurationResolver(
@@ -131,6 +130,17 @@ class MPlayerPlayback(
         scope = this,
     )
     override val stableDuration: StateFlow<Long> = durationResolver.stableDuration
+
+    private val bufferedPositionResolver = BufferedPositionResolver(
+        currentItem = queue.currentItemFlow(),
+        engineBufferedPosition = _currentBufferedPosition,
+        duration = stableDuration,
+        dataSourceOf = { audio ->
+            platformMediaSource.findEnabledSource(audio.mediaSourceName)?.dataSource
+        },
+        scope = this,
+    )
+    override val currentBufferedPosition: StateFlow<Long> = bufferedPositionResolver.bufferedPosition
 
     init {
         browserFuture.addListener(this@MPlayerPlayback, Dispatchers.Main.asExecutor())

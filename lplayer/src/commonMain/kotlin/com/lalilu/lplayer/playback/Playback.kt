@@ -26,6 +26,14 @@ interface Playback {
         get() = currentDuration
 
     fun currentPosition(): Long
+
+    /**
+     * 当前缓冲位置（毫秒）。
+     *
+     * 默认取播放引擎的上报值；若当前曲目的数据源能给出自身的缓冲比例
+     * （见 `MediaDataSource.bufferedProgress`，例如 WebDAV 的读穿缓存），
+     * 则改用该比例换算，因为它才代表"已经可以不等下载直接播放到的范围"。
+     */
     val currentBufferedPosition: StateFlow<Long>
 
     // Queue Management

@@ -32,12 +32,14 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -87,6 +89,9 @@ class WebDavSource(
         internal const val EXTRA_LYRIC_PATH = "lyric_path"
         internal const val EXTRA_LYRIC_FINGERPRINT = "lyric_fingerprint"
         internal const val DEFAULT_META_REMOTE_PATH = "/.lmusic/"
+
+        /** 缓存进度的轮询间隔：进度条本身会做平滑，这里只需要跟得上缓存增长。 */
+        private const val CACHE_PROGRESS_POLL_INTERVAL_MS = 500L
 
         internal fun cacheKeyOf(audioId: String): String = audioId.md5()
     }
@@ -609,6 +614,25 @@ class WebDavSource(
     }
 
     // ── 播放 ──
+
+    /**
+     * 播放缓冲：对读穿缓存来说"缓冲到哪里"就是"本地已经缓存了多少内容"。
+     *
+     * 引擎只知道本次播放拉到了多远，缓存进度还包含之前播放与预取沉淀下来的部分——
+     * 那正是用户可以不等待下载就直接跳过去的位置。
+     */
+    override fun bufferedProgress(song: LAudio): Flow<Float>? {
+        val activeCache = cache ?: return null
+        val totalSize = song.extra?.get(EXTRA_FILE_SIZE)?.toLongOrNull()?.takeIf { it > 0L }
+            ?: return null
+        val key = cacheKeyOf(song.id)
+        return flow {
+            while (true) {
+                emit((activeCache.filledSize(key).toFloat() / totalSize).coerceIn(0f, 1f))
+                delay(CACHE_PROGRESS_POLL_INTERVAL_MS)
+            }
+        }
+    }
 
     // 播放统一走本机回环代理：播放器拿到的地址里没有凭据，字节顺便沉淀成本地缓存。
     override suspend fun getMedia(song: LAudio): MediaData? {

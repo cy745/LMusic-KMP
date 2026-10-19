@@ -84,7 +84,6 @@ abstract class AbstractPlayback(
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
     override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
     override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
-    override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
     private val durationResolver = PlaybackDurationResolver(
@@ -93,6 +92,17 @@ abstract class AbstractPlayback(
         scope = coroutineScope,
     )
     override val stableDuration: StateFlow<Long> = durationResolver.stableDuration
+
+    private val bufferedPositionResolver = BufferedPositionResolver(
+        currentItem = queue.currentItemFlow(),
+        engineBufferedPosition = _currentBufferedPosition,
+        duration = stableDuration,
+        dataSourceOf = { audio ->
+            platformMediaSource.findEnabledSource(audio.mediaSourceName)?.dataSource
+        },
+        scope = coroutineScope,
+    )
+    override val currentBufferedPosition: StateFlow<Long> = bufferedPositionResolver.bufferedPosition
 
     init {
         // 数据源刷新完成后只替换队列内的歌曲描述，不重建播放引擎或改变 position。
