@@ -1,5 +1,6 @@
 package com.lalilu.lmedia.cache
 
+import co.touchlab.kermit.Logger
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.header
@@ -12,6 +13,7 @@ import io.ktor.utils.io.readBuffer
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.readByteArray
+import kotlin.time.TimeSource
 
 /**
  * 代理访问上游所需的全部信息。
@@ -38,6 +40,8 @@ data class CachedOrigin(
  * [CachedOrigin] 的映射由调用方先注册（见 [MediaCacheController.register]），之后代理
  * 的每个请求都从这里取上游描述。
  */
+private val upstreamLogger = Logger.withTag("RangeUpstream")
+
 internal class HttpRangeUpstream(
     private val http: HttpClient = defaultHttpClient(),
 ) : RangeUpstream {
@@ -74,6 +78,8 @@ internal class HttpRangeUpstream(
         val origin = mutex.withLock { origins[target.token] }
             ?: throw IllegalStateException("缓存键没有对应的上游：${target.token}")
 
+        val startedAt = TimeSource.Monotonic.markNow()
+        upstreamLogger.i { "上游请求 ${target.token} bytes=$start-${endInclusive ?: ""} → ${origin.url}" }
         http.prepareGet(origin.url) {
             origin.headers.forEach { (name, value) -> header(name, value) }
             header(HttpHeaders.Range, "bytes=$start-${endInclusive ?: ""}")
@@ -87,10 +93,16 @@ internal class HttpRangeUpstream(
                 throw IllegalStateException("上游不支持 Range：${origin.url}")
             }
             val channel = response.bodyAsChannel()
+            var received = 0L
             while (true) {
                 val buffer = channel.readBuffer(MediaCacheStore.CHUNK_SIZE)
                 if (buffer.size == 0L) break
+                received += buffer.size
                 onChunk(buffer.readByteArray())
+            }
+            upstreamLogger.i {
+                "上游完成 ${target.token} 状态=${response.status.value} 收到 ${received}B " +
+                    "用时 ${startedAt.elapsedNow().inWholeMilliseconds}ms"
             }
         }
     }
