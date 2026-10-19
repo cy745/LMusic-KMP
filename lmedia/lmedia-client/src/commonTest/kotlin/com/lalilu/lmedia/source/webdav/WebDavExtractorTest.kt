@@ -230,14 +230,26 @@ class WebDavExtractorTest {
         cache.delete(key)
         cache.appendBytes(key, ByteArray(1000))
 
-        val extractor = buildExtractor { _, _, _ -> error("taglib exploded") }
+        var attempts = 0
+        val extractor = buildExtractor { _, _, _ ->
+            attempts += 1
+            if (attempts == 1) error("taglib exploded")
+            WebDavExtractedMetadata(title = "Friend", duration = 245_000)
+        }
         extractor.start(this)
         extractor.request(key)
         extractor.drain()
 
         assertEquals(1, extractor.progress.value.failed)
         assertNull(store.read(key), "失败的完整提取不应写入记录，否则再也没有重试机会")
-        assertTrue(records.isEmpty())
+
+        // 同一个节点上再请求一次必须真的重试：失败不该被记成"这个节点已经试过了"，
+        // 否则偶发失败会让这首歌在本实例里永远没有元数据。
+        extractor.request(key)
+        extractor.drain()
+
+        assertEquals("Friend", assertNotNull(store.read(key)).title)
+        assertEquals(1, records.size)
         extractor.stop()
     }
 

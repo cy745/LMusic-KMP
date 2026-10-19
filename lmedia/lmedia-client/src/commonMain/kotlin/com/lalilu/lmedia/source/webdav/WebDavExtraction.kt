@@ -280,6 +280,9 @@ internal class WebDavExtractor(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (throwable: Throwable) {
+            // 失败不算"这个节点已经试过了"：taglib 偶发失败（文件句柄、容器未就绪）时，
+            // 下一次缓存增长还能再试一次；否则这一整首在本实例里就再也不会有元数据。
+            attemptedNodes.remove(key)
             // 部分文件读不出标签是常态（还没下完），只有完整文件才当作失败
             if (complete) {
                 logger.w(messageString = "提取失败 key=$key：${throwable.message}", throwable = throwable)

@@ -306,6 +306,9 @@ class WebDavSource(
             if (mutableMetadataSync.value == WebDavMetadataSyncState.Syncing) {
                 mutableMetadataSync.value = WebDavMetadataSyncState.Idle
             }
+            // 取消等待方还不够：下载任务跑在代理自己的作用域里，会把整首下完。
+            // 这里把"没有播放请求附着"的预取停掉，正在听的歌不受影响。
+            launch { cacheController.cancelBackgroundDownloads() }
             return
         }
         if (!resume) return
@@ -338,6 +341,8 @@ class WebDavSource(
         } else {
             backgroundJob?.cancel()
             backgroundJob = null
+            // 关掉后台下载后，已经开跑的预取也要停（播放中的不受影响）
+            launch { cacheController.cancelBackgroundDownloads() }
         }
 
         if (metaSyncEnabled) {
@@ -563,7 +568,11 @@ class WebDavSource(
             throw firstFailure ?: IllegalStateException("未能读取任何目录")
         }
 
-        return audios.sortedWith(compareBy({ it.artistName }, { it.albumName ?: "" }, { it.title }))
+        // 兜底去重：PROPFIND 偶尔会重复返回同一条目（反代/网关环境），
+        // 同 id 重复会让快照里出现两首一模一样的歌，而库里其实只有一行。
+        return audios
+            .distinctBy { it.id }
+            .sortedWith(compareBy({ it.artistName }, { it.albumName ?: "" }, { it.title }))
     }
 
     /** 剩余队列越少进度越高；结束前的进度不会顶到 100%，避免与"已就绪"混淆。 */
@@ -661,15 +670,16 @@ class WebDavSource(
     override suspend fun getPicture(song: LAudio, options: MediaFetchOptions): MediaData? {
         val key = cacheKeyOf(song.id)
         sidecarBytes(song, key, WebDavSidecarKind.COVER)?.let {
-            logger.i { "封面来自同目录边车：${song.title}（${it.size}B）" }
+            logger.d { "封面来自同目录边车：${song.title}（${it.size}B）" }
             return MediaData.Bytes(it)
         }
         val bytes = metadataStore?.readCover(key)
         if (bytes == null) {
-            logger.i { "封面还取不到：${song.title}（边车与提取记录都没有）" }
+            // 列表滚动时每一行都会问一次、还要跨 8 秒重试窗口，Info 级会刷屏
+            logger.d { "封面还取不到：${song.title}（边车与提取记录都没有）" }
             return null
         }
-        logger.i { "封面来自提取记录：${song.title}（${bytes.size}B）" }
+        logger.d { "封面来自提取记录：${song.title}（${bytes.size}B）" }
         return MediaData.Bytes(bytes)
     }
 
