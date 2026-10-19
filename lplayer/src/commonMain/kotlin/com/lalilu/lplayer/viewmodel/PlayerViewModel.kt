@@ -13,12 +13,10 @@ import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.resolveLyricData
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.components.PlaylistItems
-import com.lalilu.lplayer.debug.PlayerLoadTestHarness
 import com.lalilu.lplayer.playback.QueueState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
@@ -57,14 +55,6 @@ class PlayerViewModel(
 
     suspend fun retrieveLyric(audio: LAudio?): List<LyricItem> = withContext(Dispatchers.io) {
         val song = audio ?: return@withContext emptyList()
-        // Debug 源集的时序注入：只延迟资源可用时间，不改变真实取词路径。
-        val test = PlayerLoadTestHarness.profile.value
-        if (test.enabled) delay(test.lyricsDelayMs)
-        if (test.enabled && test.demoLyrics) {
-            return@withContext LyricUtils.parseLrc(
-                PlayerLoadTestHarness.demoLyricsFor(song.playbackId)
-            ) ?: emptyList()
-        }
         val lyric = try {
             platformSource.resolveLyricData(song)
         } catch (cancelled: CancellationException) {

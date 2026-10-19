@@ -89,8 +89,6 @@ class MPlayerPlayback(
 
     // Protected mutable state flows
     private val _isPlaying = MutableStateFlow(false)
-    private val _isBuffering = MutableStateFlow(false)
-    private val _currentMediaId = MutableStateFlow<String?>(null)
     private val _errors = MutableSharedFlow<Throwable>()
     private val _currentDuration = MutableStateFlow(0L)
     private val recordedPosition = MutableStateFlow(0L)
@@ -122,8 +120,6 @@ class MPlayerPlayback(
     )
 
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
-    override val isBuffering: StateFlow<Boolean> = _isBuffering.asStateFlow()
-    override val currentMediaId: StateFlow<String?> = _currentMediaId.asStateFlow()
     override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
     override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
     override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
@@ -142,7 +138,7 @@ class MPlayerPlayback(
         browser.addListener(this@MPlayerPlayback)
         launch(Dispatchers.Main) {
             while (isActive) {
-                refreshPlaybackInformation(browser)
+                recordedPosition.value = browser.currentPosition.coerceAtLeast(0L)
                 delay(200)
             }
         }
@@ -183,30 +179,6 @@ class MPlayerPlayback(
         return if (Looper.myLooper() == Looper.getMainLooper()) {
             browserInstance?.currentPosition?.coerceAtLeast(0L) ?: recordedPosition.value
         } else recordedPosition.value
-    }
-
-    /**
-     * 一次采样同时刷新媒体身份、时长、缓冲终点与准备状态。
-     *
-     * 调用方必须位于 Media3 的 application 线程（Main）。时长优先采用播放器实际值，
-     * 元数据时长只作为回退；正时长之外的哨兵值不参与任何比例计算。
-     */
-    private fun refreshPlaybackInformation(browser: MediaBrowser) {
-        _currentMediaId.value = browser.currentMediaItem?.mediaId
-        recordedPosition.value = browser.currentPosition.coerceAtLeast(0L)
-        val duration = browser.duration.takeIf { it > 0L }
-            ?: browser.currentMediaItem?.mediaMetadata?.durationMs?.takeIf { it > 0L }
-            ?: 0L
-        _currentDuration.value = duration
-        val buffered = browser.bufferedPosition.coerceAtLeast(0L)
-        _currentBufferedPosition.value = if (duration > 0L) {
-            buffered.coerceAtMost(duration)
-        } else buffered
-        _isBuffering.value = browser.playbackState == Player.STATE_BUFFERING
-    }
-
-    override fun onEvents(player: Player, events: Player.Events) {
-        browserInstance?.let(::refreshPlaybackInformation)
     }
 
     override suspend fun historyPosition(expectedQueue: QueueState): Long? = withContext(Dispatchers.Main) {
@@ -415,11 +387,6 @@ class MPlayerPlayback(
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        // 身份先于数据更新：旧曲的时长与缓冲终点不得带入新曲。
-        _currentMediaId.value = mediaItem?.mediaId
-        _currentDuration.value = 0L
-        _currentBufferedPosition.value = 0L
-        _isBuffering.value = mediaItem != null
         if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
             failureTraversal.begin(PlaybackDirection.Forward)
         }
@@ -433,8 +400,6 @@ class MPlayerPlayback(
     }
 
     override fun onPlayerError(error: PlaybackException) {
-        // 失败不是缓冲；不留下永不结束的等待状态。
-        _isBuffering.value = false
         val failureTicket = failureTraversal.generation
         val failedSelectionRevision = queue.stateSnapshot().selectionRevision
         val failedBrowser = browserInstance
@@ -499,7 +464,7 @@ class MPlayerPlayback(
     }
 
     override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-        browserInstance?.let(::refreshPlaybackInformation)
+        _currentDuration.value = mediaMetadata.durationMs ?: browserInstance?.duration ?: 0L
     }
 
     override fun onPlaylistMetadataChanged(mediaMetadata: MediaMetadata) {

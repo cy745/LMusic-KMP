@@ -36,7 +36,6 @@ import coil3.request.SuccessResult
 import coil3.toBitmap
 import com.lalilu.RemixIcon
 import com.lalilu.common.ext.io
-import com.lalilu.lplayer.debug.PlayerLoadTestHarness
 import com.materialkolor.ktx.themeColorOrNull
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -142,7 +141,6 @@ class BlurBackgroundViewModel : ViewModel() {
         imageData: Any?,
         size: Int = 1200
     ) = withContext(Dispatchers.Unconfined) {
-        val test = PlayerLoadTestHarness.profile.value
         errorState.value = null
         if (imageData == null) {
             loadingState.value = null
@@ -162,7 +160,6 @@ class BlurBackgroundViewModel : ViewModel() {
                 .build()
 
             val imageLoader = SingletonImageLoader.get(context)
-            if (test.enabled) delay(test.paletteDelayMs)
             val result = imageLoader.execute(request)
 
             ensureActive()
@@ -195,7 +192,6 @@ class BlurBackgroundViewModel : ViewModel() {
             //    - 10s 内完成：新图带着模糊淡入并逐渐清晰，旧封面与遮罩随后淡出；
             //    - 超过 10s：放弃本次加载，切到占位背景。
             // 请求只在这里发起，计时与相位判断全部交给下面的 fastPath / slowPath。
-            if (test.enabled) delay(test.coverDelayMs)
             imageLoader.execute(request)
         }
 
@@ -261,7 +257,6 @@ fun DefaultBlurBackground(
         val context = LocalPlatformContext.current
         // 存的是 lambda 而不是它的值：真正的读取发生在绘制期，拖动展开时只重绘、不重组
         val currentBlurProgress = rememberUpdatedState(blurProgress)
-        val testProfile by PlayerLoadTestHarness.profile.collectAsState()
         val vm = viewModel { BlurBackgroundViewModel() }
         val windowInfo = LocalWindowInfo.current
 
@@ -271,7 +266,7 @@ fun DefaultBlurBackground(
                 .launchIn(this)
         }
 
-        LaunchedEffect(imageData(), testProfile) {
+        LaunchedEffect(imageData()) {
             // loadImage 是结构化挂起任务：连续切歌时 LaunchedEffect 会取消上一张尚未完成的解码，
             // 过期任务不会再继续争用 CPU，也不会反过来覆盖最新歌曲
             // （唯一残留的是上一次的加载相位，见 BlurBackgroundViewModel.loadingState）。

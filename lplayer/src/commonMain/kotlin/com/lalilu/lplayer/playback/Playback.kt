@@ -8,16 +8,8 @@ import kotlinx.coroutines.flow.*
 interface Playback {
     // Playback State
     val isPlaying: StateFlow<Boolean>
-
-    /** Preparing or waiting for more audio data; independent of the play/pause intent. */
-    val isBuffering: StateFlow<Boolean>
-        get() = PlaybackDefaults.notBuffering
     val errors: SharedFlow<Throwable>
     val playbackMode: StateFlow<PlaybackMode>
-
-    /** Identity of the media item that owns the current timing and buffering values. */
-    val currentMediaId: StateFlow<String?>
-        get() = PlaybackDefaults.noMediaId
 
     // Playback Information
     val currentDuration: StateFlow<Long>
@@ -114,9 +106,4 @@ interface Playback {
             PlaybackMode.SEQUENTIAL, PlaybackMode.SINGLE_LOOP -> currentState.index > 0
         }
     }
-}
-
-private object PlaybackDefaults {
-    val noMediaId: StateFlow<String?> = MutableStateFlow<String?>(null).asStateFlow()
-    val notBuffering: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
 }

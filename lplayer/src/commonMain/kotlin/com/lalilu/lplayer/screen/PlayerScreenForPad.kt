@@ -23,7 +23,7 @@ class PlayerScreenForPad : Screen {
         val currentCover = rememberMediaCoverRequest(currentItem.value)
         val duration = LPlayer.instance.currentDuration.collectAsState(0L)
         val playbackPosition = rememberPlaybackPositionState(
-            isPlaying = isPlaying,
+            isPlaying = isPlaying.value,
             playbackKey = currentItem.value?.id,
         )
 

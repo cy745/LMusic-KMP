@@ -3,13 +3,7 @@ package com.lalilu.lplayer.screen
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableLongState
@@ -47,18 +41,15 @@ internal fun PlayerScreenContent(
     currentTime: MutableLongState,
     sampledPlaybackKey: () -> Any?,
     duration: State<Long>,
-    bufferedValue: () -> Float,
-    engineBuffering: State<Boolean>,
-    isBuffering: () -> Boolean,
-    lyricsPending: Boolean,
     isPlaying: State<Boolean>,
     lyricContent: State<LyricContent>,
     queue: Flow<PlaylistItems>,
-    backgroundColor: () -> Color,
+    backgroundColor: State<Color>,
     onSeedColorChanged: (Color) -> Unit,
 ) {
     val density = LocalDensity.current
     val navigationBar = WindowInsets.navigationBars
+    val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     val timeline = rememberSeekbarPositionState {
         currentTime.longValue.toFloat()
     }
@@ -67,9 +58,6 @@ internal fun PlayerScreenContent(
     val lyricSettings = remember { obtainLyricSettings() }
     PlayerScaffold(
         toolbarContent = {
-            // 全局主题发布最终方案；工具栏在自己的内容作用域读取所需的前景色。
-            val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-
             Column(
                 modifier = Modifier
                     // 歌词页展开时隐藏其他组件：toolbar 需要"先点击一下显示，再点击才触发按钮"，
@@ -116,13 +104,11 @@ internal fun PlayerScreenContent(
             PlayerDynamicHeader(
                 scaffold = this,
                 timeline = timeline,
-                backgroundColor = backgroundColor,
+                backgroundColor = { backgroundColor.value },
                 coverData = currentCover,
                 currentTime = { currentTime.longValue },
                 sampledPlaybackKey = sampledPlaybackKey,
                 lyricContent = lyricContent,
-                lyricsPending = lyricsPending,
-                engineBuffering = engineBuffering,
                 onSeedColorChanged = onSeedColorChanged,
                 onManualLyricsScrollingChanged = { isManuallyScrollingLyrics = it },
             )
@@ -172,10 +158,7 @@ internal fun PlayerScreenContent(
                     currentTime = currentTime,
                     duration = duration,
                     positionState = timeline,
-                    animateColor = backgroundColor,
-                    mediaIdentity = { currentItem.value?.playbackId ?: currentItem.value?.id },
-                    bufferedValue = bufferedValue,
-                    isBuffering = isBuffering,
+                    animateColor = { backgroundColor.value },
                     onDispatchDragOffset = { deltaY -> bottomSheetState.anchoredDraggableState.dispatchRawDelta(deltaY) },
                     onDragStop = { result ->
                         if (result == 0) {

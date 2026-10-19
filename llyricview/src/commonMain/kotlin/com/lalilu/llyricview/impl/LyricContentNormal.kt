@@ -121,7 +121,7 @@ fun LyricContentNormal(
                 transformOrigin = pivot
                 scaleX = scale.value
                 scaleY = scaleX
-                blur(maxOf(animateBlurRadius.value, context.resourceBlur()))
+                blur(animateBlurRadius.value)
             },
     ) {
         Text(

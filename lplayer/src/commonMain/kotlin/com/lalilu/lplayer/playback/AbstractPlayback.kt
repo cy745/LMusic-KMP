@@ -34,7 +34,6 @@ abstract class AbstractPlayback(
     // Protected mutable state flows — 必须在 init 块之前声明
     // 确保 init 中的 startRecording() / restoreFromHistory() 能安全访问所有属性
     protected val _isPlaying = MutableStateFlow(false)
-    protected val _isBuffering = MutableStateFlow(false)
     protected val _errors = MutableSharedFlow<Throwable>()
     protected val _currentDuration = MutableStateFlow(0L)
     protected val _currentBufferedPosition = MutableStateFlow(0L)
@@ -83,7 +82,6 @@ abstract class AbstractPlayback(
     // Public state flows
     override val queue: PlayableQueue = PlayableQueueImpl()
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
-    override val isBuffering: StateFlow<Boolean> = _isBuffering.asStateFlow()
     override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
     override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
     override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
@@ -114,9 +112,8 @@ abstract class AbstractPlayback(
             .flatMapLatest { it?.state ?: flowOf(PlaybackEngineState.EMPTY) }
             .onEach { state ->
                 _isPlaying.value = state.isPlaying
-                _isBuffering.value = state.isLoading
-                _currentDuration.value = state.duration.coerceAtLeast(0L)
-                _currentBufferedPosition.value = state.bufferedPosition.coerceAtLeast(0L)
+                _currentDuration.value = state.duration
+                _currentBufferedPosition.value = state.bufferedPosition
             }
             .launchIn(coroutineScope)
     }

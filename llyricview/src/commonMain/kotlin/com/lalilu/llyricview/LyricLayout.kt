@@ -20,7 +20,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,8 +82,6 @@ fun LyricLayout(
     screenConstraints: Constraints,
     isUserClickEnable: () -> Boolean = { false },
     isUserScrollEnable: () -> Boolean = { false },
-    isContentInteractive: () -> Boolean = { true },
-    resourceBlur: () -> Dp = { 0.dp },
     onPositionReset: () -> Unit = {},
     onItemClick: (LyricItem) -> Unit = {},
     onItemLongClick: (LyricItem) -> Unit = {},
@@ -184,8 +181,6 @@ fun LyricLayout(
                     screenConstraints = screenConstraints,
                     isUserClickEnable = isUserClickEnable,
                     isUserScrollEnable = isUserScrollEnable,
-                    isContentInteractive = isContentInteractive,
-                    resourceBlur = resourceBlur,
                     onPositionReset = onPositionReset,
                     onItemClick = onItemClick,
                     onItemLongClick = onItemLongClick,
@@ -209,8 +204,6 @@ private fun LyricPage(
     screenConstraints: Constraints,
     isUserClickEnable: () -> Boolean,
     isUserScrollEnable: () -> Boolean,
-    isContentInteractive: () -> Boolean,
-    resourceBlur: () -> Dp,
     onPositionReset: () -> Unit,
     onItemClick: (LyricItem) -> Unit,
     onItemLongClick: (LyricItem) -> Unit,
@@ -219,7 +212,6 @@ private fun LyricPage(
     val density = LocalDensity.current
     val settings: KVItem<LyricSettings> = koinInject(named("LyricSettings"))
     val textMeasurer = rememberTextMeasurer()
-    val latestResourceBlur by rememberUpdatedState(resourceBlur)
     val currentActive by rememberUpdatedState(active)
     val latestCurrentTime by rememberUpdatedState(currentTime)
     val latestSampledPlaybackKey by rememberUpdatedState(sampledPlaybackKey)
@@ -360,7 +352,6 @@ private fun LyricPage(
             isUserScrolling = isUserScrollEnable,
             screenConstraints = screenConstraints,
             textMeasurer = textMeasurer,
-            resourceBlur = { latestResourceBlur() },
         )
     }
 
@@ -378,7 +369,7 @@ private fun LyricPage(
                     bottom = heightSplit,
                     easing = LyricFadeEdgeEasing,
                 ),
-            userScrollEnabled = canInteract && isContentInteractive(),
+            userScrollEnabled = canInteract,
             contentPadding = PaddingValues(
                 top = heightSplit,
                 bottom = heightSplit * 2f,

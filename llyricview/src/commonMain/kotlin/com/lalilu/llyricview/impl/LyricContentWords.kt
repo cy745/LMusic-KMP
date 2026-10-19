@@ -131,7 +131,7 @@ fun LyricContentWords(
                 transformOrigin = pivot
                 scaleX = scale.value
                 scaleY = scaleX
-                blur(maxOf(animateBlurRadius.value, context.resourceBlur()))
+                blur(animateBlurRadius.value)
             },
     ) {
         val textResult = remember { mutableStateOf<TextLayoutResult?>(null) }
