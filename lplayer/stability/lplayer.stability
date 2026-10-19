@@ -165,55 +165,6 @@ public fun com.lalilu.lplayer.components.rememberCustomAnchoredDraggableState(on
     - onSettleTargetSelected: STABLE (function type)
 
 @Composable
-public fun com.lalilu.lplayer.components.rememberSeekbarPositionState(initialPosition: kotlin.Float): com.lalilu.lplayer.components.SeekbarPositionState
-  skippable: false
-  restartable: false
-  params:
-    - initialPosition: STABLE (primitive type)
-
-@Composable
-public fun com.lalilu.lplayer.components.rememberSeekbarPositionState(initialPosition: kotlin.Function0<kotlin.Float>): com.lalilu.lplayer.components.SeekbarPositionState
-  skippable: false
-  restartable: false
-  params:
-    - initialPosition: STABLE (function type)
-
-@Composable
-internal fun com.lalilu.lplayer.components.rememberSeekbarProgressKeeper(minValue: kotlin.Function0<kotlin.Float>, maxValue: kotlin.Function0<kotlin.Float>, sizeWidth: kotlin.Function0<kotlin.Float>, scrollSensitivity: kotlin.Float): com.lalilu.lplayer.components.SeekbarProgressKeeper
-  skippable: false
-  restartable: false
-  params:
-    - minValue: STABLE (function type)
-    - maxValue: STABLE (function type)
-    - sizeWidth: STABLE (function type)
-    - scrollSensitivity: STABLE (primitive type)
-
-@Composable
-public fun com.lalilu.lplayer.debug.PlayerDebugPanel(expanded: kotlin.Boolean, onToggleExpanded: kotlin.Function0<kotlin.Unit>, onDismiss: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, dismissLabel: kotlin.String, actions: com.lalilu.lplayer.debug.PlayerDebugActions): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - expanded: STABLE (primitive type)
-    - onToggleExpanded: STABLE (function type)
-    - onDismiss: STABLE (function type)
-    - modifier: STABLE (marked @Stable or @Immutable)
-    - dismissLabel: STABLE (String is immutable)
-    - actions: UNKNOWN (interface or non-final class; concrete implementation unknown)
-
-@Composable
-public fun com.lalilu.lplayer.debug.PlayerDebugPanelHost(modifier: androidx.compose.ui.Modifier): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - modifier: STABLE (marked @Stable or @Immutable)
-
-@Composable
-public fun com.lalilu.lplayer.debug.rememberPlayerDebugActions(): com.lalilu.lplayer.debug.PlayerDebugActions
-  skippable: false
-  restartable: false
-  params:
-
-@Composable
 public fun com.lalilu.lplayer.extensions.SystemBarsVisibilityEffect(visible: kotlin.Boolean): kotlin.Unit
   skippable: true
   restartable: true
@@ -244,17 +195,15 @@ internal fun com.lalilu.lplayer.screen.PadContentPanel(modifier: androidx.compos
     - playlistState: STABLE (marked @Stable or @Immutable)
 
 @Composable
-internal fun com.lalilu.lplayer.screen.PadNowPlayingPanel(modifier: androidx.compose.ui.Modifier, coverData: kotlin.Function0<kotlin.Any?>, currentItem: androidx.compose.runtime.State<com.lalilu.lmedia.domain.model.LAudio?>, currentTime: androidx.compose.runtime.MutableLongState, duration: androidx.compose.runtime.State<kotlin.Long>, isPlaying: androidx.compose.runtime.State<kotlin.Boolean>, positionState: com.lalilu.lplayer.components.SeekbarPositionState): kotlin.Unit
+internal fun com.lalilu.lplayer.screen.PadNowPlayingPanel(modifier: androidx.compose.ui.Modifier, coverData: kotlin.Function0<kotlin.Any?>, currentItem: androidx.compose.runtime.State<com.lalilu.lmedia.domain.model.LAudio?>, isPlaying: androidx.compose.runtime.State<kotlin.Boolean>, timeline: com.lalilu.lplayer.screen.PlaybackTimelineState): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - modifier: STABLE (marked @Stable or @Immutable)
     - coverData: STABLE (function type)
     - currentItem: STABLE (marked @Stable or @Immutable)
-    - currentTime: STABLE (marked @Stable or @Immutable)
-    - duration: STABLE (marked @Stable or @Immutable)
     - isPlaying: STABLE (marked @Stable or @Immutable)
-    - positionState: STABLE (marked @Stable or @Immutable)
+    - timeline: STABLE (marked @Stable or @Immutable)
 
 @Composable
 private fun com.lalilu.lplayer.screen.PadPlayerBackground(coverData: kotlin.Function0<kotlin.Any?>, onSeedColorChanged: kotlin.Function1<androidx.compose.ui.graphics.Color, kotlin.Unit>): kotlin.Unit
@@ -265,18 +214,7 @@ private fun com.lalilu.lplayer.screen.PadPlayerBackground(coverData: kotlin.Func
     - onSeedColorChanged: STABLE (function type)
 
 @Composable
-internal fun com.lalilu.lplayer.screen.PlaybackPositionEffect(state: com.lalilu.lplayer.screen.PlaybackPositionState, isPlaying: androidx.compose.runtime.State<kotlin.Boolean>, playbackKey: kotlin.Any?, readPosition: kotlin.Function0<kotlin.Long>, frozen: kotlin.Function0<kotlin.Boolean>): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - state: STABLE (marked @Stable or @Immutable)
-    - isPlaying: STABLE (marked @Stable or @Immutable)
-    - playbackKey: UNSTABLE (cross-module type without @Stable/@Immutable)
-    - readPosition: STABLE (function type)
-    - frozen: STABLE (function type)
-
-@Composable
-internal fun com.lalilu.lplayer.screen.PlayerDynamicHeader(modifier: androidx.compose.ui.Modifier, scaffold: com.lalilu.lplayer.components.PlayerScaffoldScope, timeline: com.lalilu.lplayer.components.SeekbarPositionState, backgroundColor: kotlin.Function0<androidx.compose.ui.graphics.Color>, coverData: kotlin.Function0<kotlin.Any?>, currentTime: kotlin.Function0<kotlin.Long>, sampledPlaybackKey: kotlin.Function0<kotlin.Any?>, lyricContent: androidx.compose.runtime.State<com.lalilu.llyricview.LyricContent>, lyricsPending: kotlin.Boolean, engineBuffering: androidx.compose.runtime.State<kotlin.Boolean>, onSeedColorChanged: kotlin.Function1<androidx.compose.ui.graphics.Color, kotlin.Unit>, onManualLyricsScrollingChanged: kotlin.Function1<kotlin.Boolean, kotlin.Unit>): kotlin.Unit
+internal fun com.lalilu.lplayer.screen.PlayerDynamicHeader(modifier: androidx.compose.ui.Modifier, scaffold: com.lalilu.lplayer.components.PlayerScaffoldScope, timeline: com.lalilu.lplayer.screen.PlaybackTimelineState, backgroundColor: kotlin.Function0<androidx.compose.ui.graphics.Color>, coverData: kotlin.Function0<kotlin.Any?>, sampledPlaybackKey: kotlin.Function0<kotlin.Any?>, lyricContent: androidx.compose.runtime.State<com.lalilu.llyricview.LyricContent>, onSeedColorChanged: kotlin.Function1<androidx.compose.ui.graphics.Color, kotlin.Unit>, onManualLyricsScrollingChanged: kotlin.Function1<kotlin.Boolean, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -285,11 +223,8 @@ internal fun com.lalilu.lplayer.screen.PlayerDynamicHeader(modifier: androidx.co
     - timeline: STABLE (marked @Stable or @Immutable)
     - backgroundColor: STABLE (function type)
     - coverData: STABLE (function type)
-    - currentTime: STABLE (function type)
     - sampledPlaybackKey: STABLE (function type)
     - lyricContent: STABLE (marked @Stable or @Immutable)
-    - lyricsPending: STABLE (primitive type)
-    - engineBuffering: STABLE (marked @Stable or @Immutable)
     - onSeedColorChanged: STABLE (function type)
     - onManualLyricsScrollingChanged: STABLE (function type)
 
@@ -302,18 +237,15 @@ internal fun com.lalilu.lplayer.screen.PlayerLyricActions(modifier: androidx.com
     - contentColor: STABLE (function type)
 
 @Composable
-internal fun com.lalilu.lplayer.screen.PlayerLyricsPane(modifier: androidx.compose.ui.Modifier, scaffold: com.lalilu.lplayer.components.PlayerScaffoldScope, timeline: com.lalilu.lplayer.components.SeekbarPositionState, currentTime: kotlin.Function0<kotlin.Long>, sampledPlaybackKey: kotlin.Function0<kotlin.Any?>, lyricContent: androidx.compose.runtime.State<com.lalilu.llyricview.LyricContent>, lyricsPending: kotlin.Boolean, engineBuffering: androidx.compose.runtime.State<kotlin.Boolean>, screenConstraints: androidx.compose.ui.unit.Constraints, onManualScrollingChanged: kotlin.Function1<kotlin.Boolean, kotlin.Unit>): kotlin.Unit
+internal fun com.lalilu.lplayer.screen.PlayerLyricsPane(modifier: androidx.compose.ui.Modifier, scaffold: com.lalilu.lplayer.components.PlayerScaffoldScope, timeline: com.lalilu.lplayer.screen.PlaybackTimelineState, sampledPlaybackKey: kotlin.Function0<kotlin.Any?>, lyricContent: androidx.compose.runtime.State<com.lalilu.llyricview.LyricContent>, screenConstraints: androidx.compose.ui.unit.Constraints, onManualScrollingChanged: kotlin.Function1<kotlin.Boolean, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - modifier: STABLE (marked @Stable or @Immutable)
     - scaffold: STABLE (marked @Stable or @Immutable)
     - timeline: STABLE (marked @Stable or @Immutable)
-    - currentTime: STABLE (function type)
     - sampledPlaybackKey: STABLE (function type)
     - lyricContent: STABLE (marked @Stable or @Immutable)
-    - lyricsPending: STABLE (primitive type)
-    - engineBuffering: STABLE (marked @Stable or @Immutable)
     - screenConstraints: STABLE (marked @Stable or @Immutable)
     - onManualScrollingChanged: STABLE (function type)
 
@@ -330,23 +262,18 @@ public fun com.lalilu.lplayer.screen.PlayerScreen.provideScreenInfo(): com.lalil
   params:
 
 @Composable
-internal fun com.lalilu.lplayer.screen.PlayerScreenContent(currentItem: androidx.compose.runtime.State<com.lalilu.lmedia.domain.model.LAudio?>, currentCover: kotlin.Function0<kotlin.Any?>, currentTime: androidx.compose.runtime.MutableLongState, sampledPlaybackKey: kotlin.Function0<kotlin.Any?>, duration: androidx.compose.runtime.State<kotlin.Long>, bufferedValue: kotlin.Function0<kotlin.Float>, engineBuffering: androidx.compose.runtime.State<kotlin.Boolean>, isBuffering: kotlin.Function0<kotlin.Boolean>, lyricsPending: kotlin.Boolean, isPlaying: androidx.compose.runtime.State<kotlin.Boolean>, lyricContent: androidx.compose.runtime.State<com.lalilu.llyricview.LyricContent>, queue: kotlinx.coroutines.flow.Flow<com.lalilu.lplayer.components.PlaylistItems>, backgroundColor: kotlin.Function0<androidx.compose.ui.graphics.Color>, onSeedColorChanged: kotlin.Function1<androidx.compose.ui.graphics.Color, kotlin.Unit>): kotlin.Unit
+internal fun com.lalilu.lplayer.screen.PlayerScreenContent(currentItem: androidx.compose.runtime.State<com.lalilu.lmedia.domain.model.LAudio?>, currentCover: kotlin.Function0<kotlin.Any?>, timeline: com.lalilu.lplayer.screen.PlaybackTimelineState, sampledPlaybackKey: kotlin.Function0<kotlin.Any?>, isPlaying: androidx.compose.runtime.State<kotlin.Boolean>, lyricContent: androidx.compose.runtime.State<com.lalilu.llyricview.LyricContent>, queue: kotlinx.coroutines.flow.Flow<com.lalilu.lplayer.components.PlaylistItems>, backgroundColor: androidx.compose.runtime.State<androidx.compose.ui.graphics.Color>, onSeedColorChanged: kotlin.Function1<androidx.compose.ui.graphics.Color, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - currentItem: STABLE (marked @Stable or @Immutable)
     - currentCover: STABLE (function type)
-    - currentTime: STABLE (marked @Stable or @Immutable)
+    - timeline: STABLE (marked @Stable or @Immutable)
     - sampledPlaybackKey: STABLE (function type)
-    - duration: STABLE (marked @Stable or @Immutable)
-    - bufferedValue: STABLE (function type)
-    - engineBuffering: STABLE (marked @Stable or @Immutable)
-    - isBuffering: STABLE (function type)
-    - lyricsPending: STABLE (primitive type)
     - isPlaying: STABLE (marked @Stable or @Immutable)
     - lyricContent: STABLE (marked @Stable or @Immutable)
     - queue: UNKNOWN (interface or non-final class; concrete implementation unknown)
-    - backgroundColor: STABLE (function type)
+    - backgroundColor: STABLE (marked @Stable or @Immutable)
     - onSeedColorChanged: STABLE (function type)
 
 @Composable
@@ -356,16 +283,15 @@ public fun com.lalilu.lplayer.screen.PlayerScreenForPad.Content(): kotlin.Unit
   params:
 
 @Composable
-internal fun com.lalilu.lplayer.screen.PlayerScreenForPadContent(modifier: androidx.compose.ui.Modifier, currentItem: androidx.compose.runtime.State<com.lalilu.lmedia.domain.model.LAudio?>, coverData: kotlin.Function0<kotlin.Any?>, currentTime: androidx.compose.runtime.MutableLongState, sampledPlaybackKey: kotlin.Function0<kotlin.Any?>, duration: androidx.compose.runtime.State<kotlin.Long>, isPlaying: androidx.compose.runtime.State<kotlin.Boolean>, lyricContent: androidx.compose.runtime.State<com.lalilu.llyricview.LyricContent>, queue: kotlinx.coroutines.flow.Flow<com.lalilu.lplayer.components.PlaylistItems>): kotlin.Unit
+internal fun com.lalilu.lplayer.screen.PlayerScreenForPadContent(modifier: androidx.compose.ui.Modifier, currentItem: androidx.compose.runtime.State<com.lalilu.lmedia.domain.model.LAudio?>, coverData: kotlin.Function0<kotlin.Any?>, timeline: com.lalilu.lplayer.screen.PlaybackTimelineState, sampledPlaybackKey: kotlin.Function0<kotlin.Any?>, isPlaying: androidx.compose.runtime.State<kotlin.Boolean>, lyricContent: androidx.compose.runtime.State<com.lalilu.llyricview.LyricContent>, queue: kotlinx.coroutines.flow.Flow<com.lalilu.lplayer.components.PlaylistItems>): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - modifier: STABLE (marked @Stable or @Immutable)
     - currentItem: STABLE (marked @Stable or @Immutable)
     - coverData: STABLE (function type)
-    - currentTime: STABLE (marked @Stable or @Immutable)
+    - timeline: STABLE (marked @Stable or @Immutable)
     - sampledPlaybackKey: STABLE (function type)
-    - duration: STABLE (marked @Stable or @Immutable)
     - isPlaying: STABLE (marked @Stable or @Immutable)
     - lyricContent: STABLE (marked @Stable or @Immutable)
     - queue: UNKNOWN (interface or non-final class; concrete implementation unknown)
@@ -385,18 +311,13 @@ internal fun com.lalilu.lplayer.screen.PlayerToolbarContent(modifier: androidx.c
     - onDoubleClick: STABLE (function type)
 
 @Composable
-internal fun com.lalilu.lplayer.screen.PlayerTransportControls(modifier: androidx.compose.ui.Modifier, currentTime: androidx.compose.runtime.MutableLongState, duration: androidx.compose.runtime.State<kotlin.Long>, positionState: com.lalilu.lplayer.components.SeekbarPositionState, animateColor: kotlin.Function0<androidx.compose.ui.graphics.Color>, mediaIdentity: kotlin.Function0<kotlin.Any?>, bufferedValue: kotlin.Function0<kotlin.Float>, isBuffering: kotlin.Function0<kotlin.Boolean>, onDragStart: kotlin.coroutines.SuspendFunction1<androidx.compose.ui.geometry.Offset, kotlin.Unit>, onDragStop: kotlin.coroutines.SuspendFunction1<kotlin.Int, kotlin.Unit>, onDispatchDragOffset: kotlin.Function1<kotlin.Float, kotlin.Unit>): kotlin.Unit
+internal fun com.lalilu.lplayer.screen.PlayerTransportControls(modifier: androidx.compose.ui.Modifier, timeline: com.lalilu.lplayer.screen.PlaybackTimelineState, animateColor: kotlin.Function0<androidx.compose.ui.graphics.Color>, onDragStart: kotlin.coroutines.SuspendFunction1<androidx.compose.ui.geometry.Offset, kotlin.Unit>, onDragStop: kotlin.coroutines.SuspendFunction1<kotlin.Int, kotlin.Unit>, onDispatchDragOffset: kotlin.Function1<kotlin.Float, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - modifier: STABLE (marked @Stable or @Immutable)
-    - currentTime: STABLE (marked @Stable or @Immutable)
-    - duration: STABLE (marked @Stable or @Immutable)
-    - positionState: STABLE (marked @Stable or @Immutable)
+    - timeline: STABLE (marked @Stable or @Immutable)
     - animateColor: STABLE (function type)
-    - mediaIdentity: STABLE (function type)
-    - bufferedValue: STABLE (function type)
-    - isBuffering: STABLE (function type)
     - onDragStart: UNKNOWN (interface or non-final class; concrete implementation unknown)
     - onDragStop: UNKNOWN (interface or non-final class; concrete implementation unknown)
     - onDispatchDragOffset: STABLE (function type)
@@ -428,20 +349,25 @@ private fun com.lalilu.lplayer.screen.rememberLyricNestedScrollConnection(scaffo
     - lyricsState: STABLE (marked @Stable or @Immutable)
 
 @Composable
-internal fun com.lalilu.lplayer.screen.rememberPlaybackPositionState(isPlaying: androidx.compose.runtime.State<kotlin.Boolean>, playbackKey: kotlin.Any?, readPosition: kotlin.Function0<kotlin.Long>, frozen: kotlin.Function0<kotlin.Boolean>): com.lalilu.lplayer.screen.PlaybackPositionState
+internal fun com.lalilu.lplayer.screen.rememberPlaybackTimelineState(isPlaying: kotlin.Boolean, item: com.lalilu.lmedia.domain.model.LAudio?, engineDurationMs: kotlin.Long, readPosition: kotlin.Function0<kotlin.Long>): com.lalilu.lplayer.screen.PlaybackTimelineState
   skippable: false
   restartable: false
   params:
-    - isPlaying: STABLE (marked @Stable or @Immutable)
-    - playbackKey: UNSTABLE (cross-module type without @Stable/@Immutable)
+    - isPlaying: STABLE (primitive type)
+    - item: UNSTABLE (cross-module type without @Stable/@Immutable)
+    - engineDurationMs: STABLE (primitive type)
     - readPosition: STABLE (function type)
-    - frozen: STABLE (function type)
 
 @Composable
-internal fun com.lalilu.lplayer.screen.rememberPlayerBackgroundColor(): androidx.compose.runtime.State<androidx.compose.ui.graphics.Color>
+internal fun com.lalilu.lplayer.screen.rememberPlaybackTimelineState(isPlaying: kotlin.Boolean, playbackKey: kotlin.Any?, metadataDurationMs: kotlin.Long, engineDurationMs: kotlin.Long, readPosition: kotlin.Function0<kotlin.Long>): com.lalilu.lplayer.screen.PlaybackTimelineState
   skippable: false
   restartable: false
   params:
+    - isPlaying: STABLE (primitive type)
+    - playbackKey: UNSTABLE (cross-module type without @Stable/@Immutable)
+    - metadataDurationMs: STABLE (primitive type)
+    - engineDurationMs: STABLE (primitive type)
+    - readPosition: STABLE (function type)
 
 @Composable
 private fun com.lalilu.lplayer.screen.rememberPlayerLyricsPaneState(): com.lalilu.lplayer.screen.PlayerLyricsPaneState

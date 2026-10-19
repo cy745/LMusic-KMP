@@ -68,40 +68,15 @@ private fun SeekbarState.isCanceled(): Boolean {
     }
 }
 
-internal class SeekbarProgressKeeper(
-    private val minValue: () -> Float,
-    private val maxValue: () -> Float,
-    private val sizeWidth: () -> Float,
-    private val scrollSensitivity: Float,
-) {
-    var nowValue: Float by mutableFloatStateOf(0f)
-        private set
-
-    fun updateValue(value: Float) {
-        nowValue = value.coerceIn(minValue(), maxValue().takeIf { it > minValue() } ?: minValue())
-    }
-
-    fun updateValueByDelta(delta: Float) {
-        val value = nowValue + delta / sizeWidth() * (maxValue() - minValue()) * scrollSensitivity
-        updateValue(value)
-    }
-}
-
-@Composable
-internal fun rememberSeekbarProgressKeeper(
-    minValue: () -> Float,
-    maxValue: () -> Float,
-    sizeWidth: () -> Float,
-    scrollSensitivity: Float = 1f
-): SeekbarProgressKeeper {
-    return remember {
-        SeekbarProgressKeeper(
-            minValue = minValue,
-            maxValue = maxValue,
-            sizeWidth = sizeWidth,
-            scrollSensitivity = scrollSensitivity
-        )
-    }
+/**
+ * 手势期间需要读写、但不参与组合的状态。
+ *
+ * 用普通可变字段而不是 Compose State：这些值只在指针回调里读写，
+ * 又必须绕过 `remember` 对首个组合的捕获（例如组件宽度变化后的拖动换算）。
+ */
+private class SeekbarGestureState {
+    var width: Float = 0f
+    var positionMs: Long = 0L
 }
 
 @TraceRecomposition(tag = "SeekbarLayout", traceStates = true)
@@ -109,17 +84,18 @@ internal fun rememberSeekbarProgressKeeper(
 @Composable
 fun SeekbarLayout(
     modifier: Modifier = Modifier,
-    minValue: () -> Float = { 0f },
-    maxValue: () -> Float = { 0f },
-    dataValue: () -> Float = { 0f },
-    switchIndex: () -> Int = { 0 },
+    positionMs: () -> Long = { 0L },
+    durationMs: () -> Long = { 0L },
+    progress: () -> Float = { 0f },
     scrollThreadHold: Float = 200f,
-    positionState: SeekbarPositionState = rememberSeekbarPositionState(),
     animateColor: () -> Color = { Color.DarkGray },
+    onSeekStart: (Long) -> Unit = {},
+    onSeekDrag: (Long) -> Unit = {},
+    onSeekCancel: () -> Unit = {},
+    onSeek: (Long) -> Unit = {},
     onDragStart: suspend (Offset) -> Unit = {},
     onDragStop: suspend (Int) -> Unit = {},
     onDispatchDragOffset: (Float) -> Unit = {},
-    onSeekTo: (Float) -> Unit = {},
     onSwitchTo: (Int) -> Unit = {},
     onClick: (ClickPart) -> Unit = {}
 ) {
@@ -145,11 +121,9 @@ fun SeekbarLayout(
         val seekbarPaddingBottom = remember { 100.dp }
         val seekbarHeight = remember { 56.dp }
 
-        val progressKeeper = rememberSeekbarProgressKeeper(
-            minValue = minValue,
-            maxValue = maxValue,
-            sizeWidth = { boxSize.maxWidth.toFloat() },
-        )
+        val gesture = remember { SeekbarGestureState() }
+        // 每次重组都刷新宽度，手势回调里读到的是当前尺寸而不是首次组合时的尺寸。
+        gesture.width = boxSize.maxWidth.toFloat()
 
         val switchMode = remember { mutableStateOf(false) }
         val switchModeX = remember { mutableFloatStateOf(0f) }
@@ -158,20 +132,46 @@ fun SeekbarLayout(
 
         var isMoved by remember { mutableStateOf(false) }
         var isTouching by remember { mutableStateOf(false) }
+        var isSeekDragActive by remember { mutableStateOf(false) }
         val isSwitching by remember { derivedStateOf { seekbarState.value is SeekbarState.Switcher } }
         val isCanceled by remember { derivedStateOf { seekbarState.value.isCanceled() } }
-        val snap = remember { derivedStateOf { !(isSwitching || !isTouching || isCanceled) } }
 
-        val maxDurationText = remember(maxValue()) { maxValue().toLong().durationToTime() }
-        val currentTimeText = durationToText(duration = { positionState.position.toLong() })
+        val maxDurationText = remember(durationMs()) { durationMs().durationToTime() }
+        val currentTimeText = durationToText(duration = { positionMs() })
         val animationJob = remember { mutableStateOf<Job?>(null) }
 
-        LaunchedEffect(positionState) {
-            positionState.track(
-                isDragging = { snap.value },
-                draggingPosition = { progressKeeper.nowValue },
-                playbackPosition = dataValue,
-            )
+        /** 按下即把交互时间交给外部时间轴：手指按住期间时间不再跟随播放。 */
+        fun beginSeekDrag() {
+            if (isSeekDragActive || durationMs() <= 0L) return
+            isSeekDragActive = true
+            onSeekStart(gesture.positionMs)
+        }
+
+        /** 每次拖动只结算一次：提交到 [commit]，或交还给时间轴自己平滑回正。 */
+        fun endSeekDrag(commit: Long?) {
+            if (!isSeekDragActive) return
+            isSeekDragActive = false
+            if (commit != null) onSeek(commit) else onSeekCancel()
+        }
+
+        /**
+         * 进度条状态迁移的唯一入口。
+         *
+         * 只有"拖到取消 / 播放模式切换区"才算放弃这次拖动；回到 Idle 不做结算，
+         * 因为提交动作统一由手势结束时决定，避免依赖松手事件与拖动结束回调的先后顺序。
+         */
+        fun transitionTo(next: SeekbarState) {
+            val old = seekbarState.value
+            if (old == next) return
+
+            seekbarState.value = next
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+
+            when {
+                next == SeekbarState.ProgressBar -> beginSeekDrag()
+                // 取消、收回面板、切换播放模式：都算放弃这次拖动
+                next != SeekbarState.Idle -> endSeekDrag(null)
+            }
         }
 
         val offsetY = remember {
@@ -208,55 +208,57 @@ fun SeekbarLayout(
                 }
 
                 oldState == SeekbarState.ProgressBar -> {
-                    progressKeeper.updateValueByDelta(delta = deltaX)
+                    val duration = durationMs()
+                    if (duration > 0L && gesture.width > 0f) {
+                        val delta = deltaX / gesture.width * duration.toFloat()
+                        gesture.positionMs = (gesture.positionMs + delta)
+                            .toLong()
+                            .coerceIn(0L, duration)
+                        onSeekDrag(gesture.positionMs)
+                    }
                 }
             }
 
-            // 根据Y轴滚动距离决定新的状态
-            seekbarState.value = when {
+            // 根据Y轴滚动距离决定新的状态；时长未知时不允许进入进度条拖动
+            val newState = when {
                 seekbarOffsetY.floatValue < -scrollThreadHold -> SeekbarState.Dispatcher
                 seekbarOffsetY.floatValue < -(scrollThreadHold / 2f) -> SeekbarState.Cancel
-                else -> if (switchMode.value) SeekbarState.Switcher else SeekbarState.ProgressBar
+                switchMode.value -> SeekbarState.Switcher
+                durationMs() > 0L -> SeekbarState.ProgressBar
+                else -> SeekbarState.Idle
             }
+            transitionTo(newState)
 
-            // 当状态发生变化的时候，进行震动
-            if (oldState != seekbarState.value) {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            }
+            when {
+                oldState == newState -> {}
 
-            when (oldState) {
-                seekbarState.value -> {}
-                SeekbarState.Dispatcher -> scope.launch { onDragStop(-1) }
+                oldState == SeekbarState.Dispatcher -> scope.launch { onDragStop(-1) }
 
-                SeekbarState.Cancel -> when (seekbarState.value) {
-                    SeekbarState.Dispatcher -> {
-                        animationJob.value?.cancel()
-                        animationJob.value = scope.launch {
-                            val animationState = AnimationState(
-                                initialValue = 0f,
-                                initialVelocity = 100f,
-                            )
+                oldState == SeekbarState.Cancel && newState == SeekbarState.Dispatcher -> {
+                    animationJob.value?.cancel()
+                    animationJob.value = scope.launch {
+                        val animationState = AnimationState(
+                            initialValue = 0f,
+                            initialVelocity = 100f,
+                        )
 
-                            var lastValue = 0f
-                            val targetOffset = scrollThreadHold +
-                                    density.run { (seekbarPaddingBottom + seekbarHeight).toPx() }
+                        var lastValue = 0f
+                        val targetOffset = scrollThreadHold +
+                                density.run { (seekbarPaddingBottom + seekbarHeight).toPx() }
 
-                            animationState.animateTo(targetOffset) {
-                                val dt = value - lastValue
-                                lastValue = value
-                                onDispatchDragOffset(-dt)
-                            }
+                        animationState.animateTo(targetOffset) {
+                            val dt = value - lastValue
+                            lastValue = value
+                            onDispatchDragOffset(-dt)
                         }
                     }
-
-                    else -> {}
                 }
 
                 else -> {}
             }
 
             // 若当前状态为Dispatcher，则将滚动的位移量向外分发
-            if (seekbarState.value is SeekbarState.Dispatcher) {
+            if (newState is SeekbarState.Dispatcher) {
                 onDispatchDragOffset(deltaY)
             }
         }
@@ -266,35 +268,43 @@ fun SeekbarLayout(
                 .fillMaxWidth()
                 .height(seekbarHeight)
                 .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                    try {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
 
-                            when (event.type) {
-                                PointerEventType.Press -> {
-                                    // 开始触摸时，将当前可见的进度值记录下来
-                                    progressKeeper.updateValue(positionState.position)
-                                    isTouching = true
-                                    isMoved = false
-                                }
-
-                                PointerEventType.Release -> {
-                                    if (isMoved && !isCanceled && !isSwitching) {
-                                        onSeekTo(progressKeeper.nowValue)
+                                when (event.type) {
+                                    PointerEventType.Press -> {
+                                        // 记录按下瞬间的时间：按住期间时间由手指接管
+                                        gesture.positionMs = positionMs()
+                                        isTouching = true
+                                        isMoved = false
+                                        beginSeekDrag()
                                     }
-                                    isTouching = false
+
+                                    PointerEventType.Release -> {
+                                        isTouching = false
+                                        // 单纯点击不会产生拖动，立即把时间交还给时间轴；
+                                        // 真正的拖动统一由 onDragEnd 结算。
+                                        if (!isMoved) endSeekDrag(null)
+                                    }
                                 }
                             }
                         }
+                    } finally {
+                        // 指针被取消或节点离开组合时兜底，避免时间轴一直停在拖动状态。
+                        isTouching = false
+                        endSeekDrag(null)
                     }
                 }
                 .pointerInput(Unit) {
                     detectTapGestures { position ->
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
+                        val width = gesture.width
                         val clickPart = when (position.x) {
-                            in 0f..(boxSize.maxWidth / 3f) -> ClickPart.Start
-                            in (boxSize.maxWidth * 2 / 3f)..boxSize.maxWidth.toFloat() -> ClickPart.End
+                            in 0f..(width / 3f) -> ClickPart.Start
+                            in (width * 2 / 3f)..width -> ClickPart.End
                             else -> ClickPart.Middle
                         }
                         onClick(clickPart)
@@ -305,19 +315,27 @@ fun SeekbarLayout(
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         switchModeX.floatValue = it.x
                         switchMode.value = true
-                        seekbarState.value = SeekbarState.Switcher
+                        transitionTo(SeekbarState.Switcher)
                     },
                     onDragStart = {
                         isMoved = true
-                        seekbarState.value = if (switchMode.value) SeekbarState.Switcher
-                        else SeekbarState.ProgressBar
-
                         seekbarOffsetY.floatValue = it.y
+                        transitionTo(
+                            when {
+                                switchMode.value -> SeekbarState.Switcher
+                                durationMs() > 0L -> SeekbarState.ProgressBar
+                                else -> SeekbarState.Idle
+                            }
+                        )
                         scope.launch { onDragStart(it) }
                     },
                     onDragEnd = {
+                        // 结算前先看清这次拖动是被放弃的还是正常松手
+                        val abandoned = isCanceled || isSwitching
+                        val canCommit = isMoved && !abandoned && durationMs() > 0L
+
                         if (isSwitching) {
-                            val actualWidth = boxSize.maxWidth - density.run { 4.dp.roundToPx() }
+                            val actualWidth = gesture.width - density.run { 4.dp.roundToPx() }
                             val singleWidth = actualWidth / 3f
 
                             when (switchModeX.floatValue) {
@@ -328,7 +346,8 @@ fun SeekbarLayout(
                         }
 
                         switchMode.value = false
-                        seekbarState.value = SeekbarState.Idle
+                        transitionTo(SeekbarState.Idle)
+                        endSeekDrag(gesture.positionMs.takeIf { canCommit })
 
                         seekbarOffsetY.floatValue = 0f
                         animationJob.value?.cancel()
@@ -360,7 +379,7 @@ fun SeekbarLayout(
             SeekbarThumb(
                 clip = { isTouching && !isCanceled },
                 thumbColor = animateColor,
-                progress = { positionState.position.normalize(minValue(), maxValue()) },
+                progress = progress,
                 switching = { isSwitching },
                 switchModeX = { switchModeX.floatValue }
             )
@@ -370,7 +389,7 @@ fun SeekbarLayout(
                 visible = { !isSwitching },
                 text = { currentTimeText.value },
                 textStyle = textStyle,
-                offsetProgress = { positionState.position.normalize(minValue(), maxValue()) }
+                offsetProgress = progress
             )
             SeekbarSwitcher(switching = { isSwitching })
         }
@@ -611,18 +630,6 @@ private fun Modifier.combineDetectDrag(
         )
     }
 
-private fun Float.normalize(minValue: Float, maxValue: Float): Float {
-    val min = minOf(minValue, maxValue)
-    val max = maxOf(minValue, maxValue)
-
-    if (min == max) return 0f
-    if (this <= min) return 0f
-    if (this >= max) return 1f
-
-    return ((this - min) / (max - min))
-        .coerceIn(0f, 1f)
-}
-
 private fun Long.durationToTime(): String {
     val hour = this / 3600000
     val minute = this / 60000 % 60
@@ -632,8 +639,10 @@ private fun Long.durationToTime(): String {
 
 fun timeToString(hour: Number, minute: Number, second: Number): String {
     val hourText = hour.toLong().coerceAtLeast(0).let { if (it >= 10) it.toString() else "0$it" }
-    val minuteText = minute.toLong().coerceAtLeast(0).let { if (it >= 10) it.toString() else "0$it" }
-    val secondText = second.toLong().coerceAtLeast(0).let { if (it >= 10) it.toString() else "0$it" }
+    val minuteText =
+        minute.toLong().coerceAtLeast(0).let { if (it >= 10) it.toString() else "0$it" }
+    val secondText =
+        second.toLong().coerceAtLeast(0).let { if (it >= 10) it.toString() else "0$it" }
 
     return if (hour.toLong() > 0L) "$hourText:$minuteText:$secondText"
     else "$minuteText:$secondText"

@@ -22,17 +22,17 @@ class PlayerScreenForPad : Screen {
         val isPlaying = vm.isPlaying.collectAsState()
         val currentCover = rememberMediaCoverRequest(currentItem.value)
         val duration = LPlayer.instance.currentDuration.collectAsState(0L)
-        val playbackPosition = rememberPlaybackPositionState(
+        val timeline = rememberPlaybackTimelineState(
             isPlaying = isPlaying.value,
-            playbackKey = currentItem.value?.id,
+            item = currentItem.value,
+            engineDurationMs = duration.value,
         )
 
         PlayerScreenForPadContent(
             currentItem = currentItem,
             coverData = { currentCover },
-            currentTime = playbackPosition.position,
-            sampledPlaybackKey = { playbackPosition.sampledPlaybackKey },
-            duration = duration,
+            timeline = timeline,
+            sampledPlaybackKey = { timeline.playbackKey },
             isPlaying = isPlaying,
             lyricContent = vm.lyricContent,
             queue = vm.currentQueue,

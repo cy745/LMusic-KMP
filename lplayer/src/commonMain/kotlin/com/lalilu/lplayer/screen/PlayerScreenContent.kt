@@ -6,7 +6,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +25,6 @@ import com.lalilu.lplayer.components.DragAnchor
 import com.lalilu.lplayer.components.PlayerScaffold
 import com.lalilu.lplayer.components.PlaylistItems
 import com.lalilu.lplayer.components.PlaylistLayout
-import com.lalilu.lplayer.components.rememberSeekbarPositionState
 import com.lalilu.lplayer.extensions.SystemBarsVisibilityEffect
 import com.lalilu.lplayer.extensions.hideControl
 import com.lalilu.navigation.LocalModalBottomSheetState
@@ -38,9 +36,8 @@ import kotlinx.coroutines.flow.Flow
 internal fun PlayerScreenContent(
     currentItem: State<LAudio?>,
     currentCover: () -> Any?,
-    currentTime: MutableLongState,
+    timeline: PlaybackTimelineState,
     sampledPlaybackKey: () -> Any?,
-    duration: State<Long>,
     isPlaying: State<Boolean>,
     lyricContent: State<LyricContent>,
     queue: Flow<PlaylistItems>,
@@ -50,9 +47,6 @@ internal fun PlayerScreenContent(
     val density = LocalDensity.current
     val navigationBar = WindowInsets.navigationBars
     val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-    val timeline = rememberSeekbarPositionState {
-        currentTime.longValue.toFloat()
-    }
     var isManuallyScrollingLyrics by remember { mutableStateOf(false) }
     // 「歌词页展开时隐藏其他组件」与歌词设置页 / 播放页弹窗共用同一份设置
     val lyricSettings = remember { obtainLyricSettings() }
@@ -106,7 +100,6 @@ internal fun PlayerScreenContent(
                 timeline = timeline,
                 backgroundColor = { backgroundColor.value },
                 coverData = currentCover,
-                currentTime = { currentTime.longValue },
                 sampledPlaybackKey = sampledPlaybackKey,
                 lyricContent = lyricContent,
                 onSeedColorChanged = onSeedColorChanged,
@@ -155,9 +148,7 @@ internal fun PlayerScreenContent(
                                     scaffold.currentAnchor == DragAnchor.Max
                             },
                         ),
-                    currentTime = currentTime,
-                    duration = duration,
-                    positionState = timeline,
+                    timeline = timeline,
                     animateColor = { backgroundColor.value },
                     onDispatchDragOffset = { deltaY -> bottomSheetState.anchoredDraggableState.dispatchRawDelta(deltaY) },
                     onDragStop = { result ->

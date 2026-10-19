@@ -1,5 +1,8 @@
 package com.lalilu.lplayer.screen
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
@@ -95,7 +98,13 @@ private class CommitCounter {
 
 @Composable
 private fun BackgroundHost(counter: CommitCounter) {
-    val background = rememberPlayerBackgroundColor()
+    // 与 PlayerScreen 当前实现保持一致：背景色在页面组合作用域内做局部弹簧过渡，
+    // 动画 State 只在绘制期读取，因此逐帧动画不会让宿主重组。
+    val background = animateColorAsState(
+        targetValue = MaterialTheme.colorScheme.primaryContainer,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "PlayerBackgroundColor",
+    )
     SideEffect { counter.count++ }
     Box(Modifier.testTag("background").size(40.dp).drawBehind { drawRect(background.value) })
 }

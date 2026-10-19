@@ -12,7 +12,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
@@ -27,17 +26,14 @@ import coil3.compose.AsyncImage
 import com.lalilu.adaptive
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplayer.components.PlayingToolbar
-import com.lalilu.lplayer.components.SeekbarPositionState
 
 @Composable
 internal fun PadNowPlayingPanel(
     modifier: Modifier,
     coverData: () -> Any?,
     currentItem: State<LAudio?>,
-    currentTime: MutableLongState,
-    duration: State<Long>,
     isPlaying: State<Boolean>,
-    positionState: SeekbarPositionState,
+    timeline: PlaybackTimelineState,
 ) {
     val accentColor = MaterialTheme.colorScheme.primary
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
@@ -92,9 +88,7 @@ internal fun PadNowPlayingPanel(
         PlayerTransportControls(
             modifier = Modifier.fillMaxWidth()
                 .padding(bottom = 16.dp),
-            currentTime = currentTime,
-            duration = duration,
-            positionState = positionState,
+            timeline = timeline,
             animateColor = { accentColor },
         )
     }

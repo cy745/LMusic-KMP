@@ -1,8 +1,6 @@
 package com.lalilu.lplayer.screen
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableLongState
-import androidx.compose.runtime.State
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -10,16 +8,13 @@ import co.touchlab.kermit.Logger
 import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.ClickPart
 import com.lalilu.lplayer.components.SeekbarLayout
-import com.lalilu.lplayer.components.SeekbarPositionState
 import com.lalilu.lplayer.extensions.PlayMode
 
 /** 手机和大屏播放页共用的播放进度、切歌、播放模式交互。 */
 @Composable
 internal fun PlayerTransportControls(
     modifier: Modifier = Modifier,
-    currentTime: MutableLongState,
-    duration: State<Long>,
-    positionState: SeekbarPositionState,
+    timeline: PlaybackTimelineState,
     animateColor: () -> Color,
     onDragStart: suspend (Offset) -> Unit = {},
     onDragStop: suspend (Int) -> Unit = {},
@@ -28,18 +23,21 @@ internal fun PlayerTransportControls(
     SeekbarLayout(
         modifier = modifier,
         animateColor = animateColor,
-        positionState = positionState,
-        maxValue = { duration.value.toFloat() },
-        dataValue = { currentTime.longValue.toFloat() },
+        positionMs = { timeline.positionMs },
+        durationMs = { timeline.durationMs },
+        progress = { timeline.progress },
+        onSeekStart = timeline::onDragStart,
+        onSeekDrag = timeline::onDrag,
+        onSeekCancel = timeline::onDragCancel,
+        onSeek = { position ->
+            Logger.i("seekTo: $position")
+            // 时间轴会自己把显示值钉在目标位置并等待引擎落地，这里只负责下发命令。
+            timeline.onSeek(position)
+            PlayerAction.SeekTo(position).action()
+        },
         onDragStart = onDragStart,
         onDragStop = onDragStop,
         onDispatchDragOffset = onDispatchDragOffset,
-        onSeekTo = { position ->
-            Logger.i("seekTo: $position")
-            // Seek 是异步命令；先更新本地时钟，避免松手后短暂回弹到旧位置。
-            currentTime.longValue = position.toLong()
-            PlayerAction.SeekTo(position.toLong()).action()
-        },
         onSwitchTo = { index ->
             PlayerAction.SetPlayMode(PlayMode.indexOf(index)).action()
         },

@@ -33,7 +33,6 @@ import com.lalilu.lplayer.action.PlayerAction
 import com.lalilu.lplayer.components.DragAnchor
 import com.lalilu.lplayer.components.LyricGestureOverlay
 import com.lalilu.lplayer.components.PlayerScaffoldScope
-import com.lalilu.lplayer.components.SeekbarPositionState
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.pow
@@ -48,8 +47,7 @@ import kotlin.math.pow
 internal fun PlayerLyricsPane(
     modifier: Modifier = Modifier,
     scaffold: PlayerScaffoldScope,
-    timeline: SeekbarPositionState,
-    currentTime: () -> Long,
+    timeline: PlaybackTimelineState,
     sampledPlaybackKey: () -> Any?,
     lyricContent: State<LyricContent>,
     screenConstraints: Constraints,
@@ -112,9 +110,7 @@ internal fun PlayerLyricsPane(
                         if (inputBlocked) Modifier.clearAndSetSemantics { }
                         else Modifier,
                     ),
-                currentTime = {
-                    timeline.positionFor(currentTime().toFloat()).toLong()
-                },
+                currentTime = { timeline.positionMs },
                 sampledPlaybackKey = sampledPlaybackKey,
                 screenConstraints = screenConstraints,
                 lyricContent = lyricContent,

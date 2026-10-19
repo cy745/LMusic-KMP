@@ -11,17 +11,15 @@ import androidx.compose.ui.util.lerp
 import com.lalilu.llyricview.LyricContent
 import com.lalilu.lplayer.components.BlurBackground
 import com.lalilu.lplayer.components.PlayerScaffoldScope
-import com.lalilu.lplayer.components.SeekbarPositionState
 import kotlin.math.pow
 
 @Composable
 internal fun PlayerDynamicHeader(
     modifier: Modifier = Modifier,
     scaffold: PlayerScaffoldScope,
-    timeline: SeekbarPositionState,
+    timeline: PlaybackTimelineState,
     backgroundColor: () -> Color,
     coverData: () -> Any?,
-    currentTime: () -> Long,
     sampledPlaybackKey: () -> Any?,
     lyricContent: State<LyricContent>,
     onSeedColorChanged: (Color) -> Unit,
@@ -71,7 +69,6 @@ internal fun PlayerDynamicHeader(
             modifier = Modifier.fillMaxSize(),
             scaffold = scaffold,
             timeline = timeline,
-            currentTime = currentTime,
             sampledPlaybackKey = sampledPlaybackKey,
             lyricContent = lyricContent,
             screenConstraints = constraints,
