@@ -35,35 +35,71 @@ data class WebDavExtractionState(
 /** 提取决策。 */
 internal enum class ExtractionDecision { SKIP, PARTIAL, FULL }
 
+/**
+ * 提取节点：越往后数据越全。
+ *
+ * 顺序按"信息量"排：1MB 前缀（元数据块 + 内嵌封面）→ 30%（还是同一批字段，但数据更全）→ 完成
+ * （可信时长）。同一首歌不允许在同一个节点上重复解析，只有推进到下一个节点才值得再读一次。
+ */
+internal enum class ExtractionNode { PREFIX_HEAD, PARTIAL, FULL }
+
+/** 30% 阈值：这一节点上仍然只有"部分文件"，但元数据块早就齐了。 */
 internal const val PARTIAL_EXTRACTION_THRESHOLD = 0.3
+
+/** 1MB 前缀足以覆盖 FLAC 的 STREAMINFO/PICTURE/VORBIS_COMMENT 与 MP3 的 ID3v2（含内嵌封面）。 */
+internal const val HEAD_EXTRACTION_BYTES = 1L * 1024 * 1024
+
+/**
+ * 当前缓存长度落在哪个节点上；还没到任何节点返回 null。
+ *
+ * 3.4MB 以上的文件会先到 1MB 节点、再到 30%、最后到完成；小文件可能直接跳到 30% 或完成——
+ * 节点只用来决定"这次值不值得解析"，具体读什么由 [ExtractionDecision] 决定。
+ */
+internal fun extractionNodeOf(filled: Long, total: Long): ExtractionNode? {
+    if (total > 0L) {
+        if (filled >= total) return ExtractionNode.FULL
+        if (filled >= (total * PARTIAL_EXTRACTION_THRESHOLD).toLong()) return ExtractionNode.PARTIAL
+        if (filled >= HEAD_EXTRACTION_BYTES) return ExtractionNode.PREFIX_HEAD
+        return null
+    }
+    // 服务器没给长度：只要有字节就先读一次文件头，剩下的等它结束时再说
+    return if (filled > 0L) ExtractionNode.PREFIX_HEAD else null
+}
 
 /**
  * 判断这一次缓存增长值不值得读一次标签。
  *
- * - 30% 节点：文件头通常已经包含 ID3v2 / FLAC 元数据块，能提前让标题与歌手可见。
- * - 100% 节点：补齐时长与内嵌封面；**部分提取成功过的记录仍然要再走一次完整提取**。
- * - 指纹变化（远端文件被替换）时缓存记录失效，允许重新提取。
+ * - 1MB 节点：文件头的元数据块已经完整，标题/歌手/专辑/内嵌封面都能拿到——这是最快的一次；
+ * - 30% 节点：只在 1MB 那次**没读到有效数据**时补一次（有的文件元数据块更靠后）；
+ * - 完成节点：补齐可信时长（部分文件里时长只能靠比特率估），记录不完整就再读一次；
+ * - 指纹变化（远端文件被替换）时缓存记录失效，允许重新提取；
+ * - 同一个节点上试过就跳过，避免缓存每长 1MB 就重读一遍标签。
  */
 internal fun decideExtraction(
-    filled: Long,
-    total: Long,
-    existingFingerprint: String?,
-    existingComplete: Boolean,
+    node: ExtractionNode,
+    existing: WebDavMetadataRecord?,
     currentFingerprint: String,
+    lastAttemptedNode: ExtractionNode? = null,
 ): ExtractionDecision {
-    val reachedFull = total > 0L && filled >= total
-    val reachedPartial = when {
-        total > 0L -> filled.toDouble() / total.toDouble() >= PARTIAL_EXTRACTION_THRESHOLD
-        // 服务器没给长度：只要有字节就先读一次文件头
-        else -> filled > 0L
+    if (lastAttemptedNode != null && node.ordinal <= lastAttemptedNode.ordinal) {
+        return ExtractionDecision.SKIP
     }
-    if (!reachedFull && !reachedPartial) return ExtractionDecision.SKIP
 
-    val stale = existingFingerprint == null || existingFingerprint != currentFingerprint
-    if (stale) return if (reachedFull) ExtractionDecision.FULL else ExtractionDecision.PARTIAL
-    if (reachedFull && !existingComplete) return ExtractionDecision.FULL
-    return ExtractionDecision.SKIP
+    val stale = existing == null || existing.fingerprint != currentFingerprint
+    if (stale) return if (node == ExtractionNode.FULL) ExtractionDecision.FULL else ExtractionDecision.PARTIAL
+
+    if (node == ExtractionNode.FULL) {
+        // 已经完整就直接用；不完整（缺时长）才再读一次
+        return if (existing.complete) ExtractionDecision.SKIP else ExtractionDecision.FULL
+    }
+
+    // 1MB / 30%：上一次已经把标题之类的读出来了就不用重复读
+    return if (existing.hasUsefulMetadata()) ExtractionDecision.SKIP else ExtractionDecision.PARTIAL
 }
+
+/** 记录里有没有"读到了标签"的证据；没有就说明上一次解析没拿到东西，下个节点要再试。 */
+internal fun WebDavMetadataRecord.hasUsefulMetadata(): Boolean =
+    title.isNotBlank() || artist.isNotBlank() || album.isNotBlank() || hasCover
 
 /** 提取某个缓存键所需的信息：目标歌曲、远端路径与指纹。 */
 internal data class WebDavExtractionTarget(
@@ -81,8 +117,10 @@ internal interface WebDavExtractionTargets {
 /**
  * 提取编排：缓存增长 → 决策 → 读标签 → 写本地元数据 → 逐条入库 + 批量合并回快照。
  *
- * 30% / 100% 两个节点的触发来自播放代理，因此**只有听过的歌会被补全**；[request] 也用于
- * "允许后台主动下载"时对未播放歌曲的补全。
+ * 三个节点（1MB 前缀 / 30% / 完成）由播放代理的进度上报触发，因此**只有听过的歌会被补全**；
+ * [request] 也用于"允许后台主动下载"时对未播放歌曲的补全。1MB 那次是为了"尽量早看到标题与封面"：
+ * FLAC 的 STREAMINFO/PICTURE 与 MP3 的 ID3v2 都在文件头，1MB 足够；万一那一次什么都没读到
+ * （元数据块更靠后、或者文件头还没下完整），30% 会再补一次；完成时再补上可信时长。
  */
 @OptIn(ExperimentalTime::class)
 internal class WebDavExtractor(
@@ -112,6 +150,9 @@ internal class WebDavExtractor(
 
     /** 已经补发过补丁的键（同一个提取器实例内不再重复）。 */
     private val republishedKeys = mutableSetOf<String>()
+
+    /** 每个键上一次解析发生在哪个节点、针对哪个指纹；同节点不重复解析。 */
+    private val attemptedNodes = mutableMapOf<String, Pair<ExtractionNode, String>>()
     private var worker: Job? = null
 
     /** 标签读取做成可替换的依赖：默认走 taglib，测试可以注入确定性结果。 */
@@ -182,17 +223,29 @@ internal class WebDavExtractor(
     private suspend fun process(key: String) {
         val target = targets.targetOf(key) ?: return
         val existing = store.read(key)
-        val decision = decideExtraction(
-            filled = cache.filledSize(key),
-            total = target.totalSize,
-            existingFingerprint = existing?.fingerprint,
-            existingComplete = existing?.complete ?: false,
-            currentFingerprint = target.fingerprint,
-        )
+        val filled = cache.filledSize(key)
+        val node = extractionNodeOf(filled = filled, total = target.totalSize)
+        // 只认同一个指纹下的"已试过节点"：远端文件换了要重新走一遍节点
+        val lastAttempted = attemptedNodes[key]
+            ?.takeIf { it.second == target.fingerprint }
+            ?.first
+        val decision = if (node == null) {
+            ExtractionDecision.SKIP
+        } else {
+            decideExtraction(
+                node = node,
+                existing = existing,
+                currentFingerprint = target.fingerprint,
+                lastAttemptedNode = lastAttempted,
+            )
+        }
+        if (decision != ExtractionDecision.SKIP && node != null) {
+            attemptedNodes[key] = node to target.fingerprint
+        }
         if (decision == ExtractionDecision.SKIP) {
             logger.i {
-                "提取跳过 key=$key（filled=${cache.filledSize(key)}/${target.totalSize} " +
-                    "existing=${existing?.fingerprint}/complete=${existing?.complete} 指纹=${target.fingerprint}）"
+                "提取跳过 key=$key 节点=${node ?: "未到"}（filled=$filled/${target.totalSize} " +
+                    "已试=${lastAttempted ?: "无"} existing=${existing?.fingerprint}/complete=${existing?.complete}）"
             }
             if (existing != null) {
                 // 记录已经有了，但库里那一首可能还没有这些字段：重新扫描、换设备、或者上一次
@@ -200,7 +253,9 @@ internal class WebDavExtractor(
                 // 当成一次补丁发出去，缺什么补什么。
                 // 每个键每个提取器实例只补发一次：快照里的那一首不会因为我们补了补丁就自动更新，
                 // 没有这个标记就会在每次缓存进度事件上重复入库。
-                if (target.needsPatch(existing) && republishedKeys.add(key)) {
+                // 只补发"已经完整"的记录：部分记录刚被这次提取写过一遍补丁，再发一次纯属重复；
+                // 而完整记录（时长/封面齐全）才是重新扫描后最容易丢失的那份信息。
+                if (existing.complete && target.needsPatch(existing) && republishedKeys.add(key)) {
                     logger.i {
                         "已有提取记录但库里缺字段，补发补丁 key=$key " +
                             "title=${existing.title} duration=${existing.duration} hasCover=${existing.hasCover}"
@@ -212,8 +267,8 @@ internal class WebDavExtractor(
             return
         }
         logger.i {
-            "提取开始 key=$key 决策=$decision filled=${cache.filledSize(key)}/${target.totalSize} " +
-                "existing=${existing?.fingerprint}/complete=${existing?.complete} 指纹=${target.fingerprint}"
+            "提取开始 key=$key 节点=$node 决策=$decision filled=$filled/${target.totalSize} " +
+                "existing=${existing?.fingerprint}/complete=${existing?.complete}"
         }
 
         val complete = decision == ExtractionDecision.FULL

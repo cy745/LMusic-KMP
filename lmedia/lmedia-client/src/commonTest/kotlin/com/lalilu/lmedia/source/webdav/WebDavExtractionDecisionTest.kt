@@ -4,141 +4,119 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * 提取决策矩阵。
+ * 提取节点与决策矩阵。
  *
- * 两个节点（30% / 100%）的取舍直接决定"听歌时会不会多读一次标签"以及"时长与封面能不能拿到"，
- * 所以这里把每条边界都钉住。
+ * 时机直接决定"听歌时多久能看到标题与封面"以及"会不会重复读标签"，所以把每条边界都钉住：
+ * 1MB 前缀先试一次 → 30% 只在上一次没读到东西时补一次 → 完成节点补时长。
  */
 class WebDavExtractionDecisionTest {
 
-    private val total = 1000L
     private val fingerprint = "1000|\"etag\""
+    private val head = HEAD_EXTRACTION_BYTES
+    private val total = 40L * 1024 * 1024 // 40MB：三个节点都会经过
+
+    private fun record(
+        fingerprint: String = this.fingerprint,
+        complete: Boolean = false,
+        title: String = "",
+        hasCover: Boolean = false,
+    ) = WebDavMetadataRecord(
+        fingerprint = fingerprint,
+        complete = complete,
+        extractedAt = 1,
+        title = title,
+        hasCover = hasCover,
+    )
 
     @Test
-    fun `skips before reaching the partial threshold`() {
+    fun `node schedule goes from one megabyte to thirty percent to completion`() {
+        assertEquals(null, extractionNodeOf(filled = head - 1, total = total))
+        assertEquals(ExtractionNode.PREFIX_HEAD, extractionNodeOf(filled = head, total = total))
         assertEquals(
-            ExtractionDecision.SKIP,
-            decideExtraction(
-                filled = 299,
-                total = total,
-                existingFingerprint = null,
-                existingComplete = false,
-                currentFingerprint = fingerprint,
-            ),
+            ExtractionNode.PARTIAL,
+            extractionNodeOf(filled = (total * 0.3).toLong(), total = total),
         )
+        assertEquals(ExtractionNode.FULL, extractionNodeOf(filled = total, total = total))
     }
 
     @Test
-    fun `partially extracts exactly at the thirty percent threshold`() {
+    fun `small files skip the head node and go straight to partial`() {
+        val small = 2L * 1024 * 1024 // 2MB：30% = 600KB，比 1MB 更早到
+        assertEquals(ExtractionNode.PARTIAL, extractionNodeOf(filled = 700_000, total = small))
+        assertEquals(ExtractionNode.FULL, extractionNodeOf(filled = small, total = small))
+    }
+
+    @Test
+    fun `first attempt happens as soon as one megabyte is cached`() {
         assertEquals(
             ExtractionDecision.PARTIAL,
-            decideExtraction(
-                filled = 300,
-                total = total,
-                existingFingerprint = null,
-                existingComplete = false,
-                currentFingerprint = fingerprint,
-            ),
+            decideExtraction(ExtractionNode.PREFIX_HEAD, existing = null, currentFingerprint = fingerprint),
         )
     }
 
     @Test
-    fun `fully extracts once the file is complete`() {
-        assertEquals(
-            ExtractionDecision.FULL,
-            decideExtraction(
-                filled = 1000,
-                total = total,
-                existingFingerprint = null,
-                existingComplete = false,
-                currentFingerprint = fingerprint,
-            ),
-        )
-    }
-
-    @Test
-    fun `upgrades a partial record to a full one at completion`() {
-        assertEquals(
-            ExtractionDecision.FULL,
-            decideExtraction(
-                filled = 1000,
-                total = total,
-                existingFingerprint = fingerprint,
-                existingComplete = false,
-                currentFingerprint = fingerprint,
-            ),
-        )
-    }
-
-    @Test
-    fun `skips when the complete record already matches the fingerprint`() {
+    fun `thirty percent is skipped when the head read already got metadata`() {
+        val partial = record(title = "Friend", hasCover = true)
         assertEquals(
             ExtractionDecision.SKIP,
-            decideExtraction(
-                filled = 1000,
-                total = total,
-                existingFingerprint = fingerprint,
-                existingComplete = true,
-                currentFingerprint = fingerprint,
-            ),
-        )
-        assertEquals(
-            ExtractionDecision.SKIP,
-            decideExtraction(
-                filled = 500,
-                total = total,
-                existingFingerprint = fingerprint,
-                existingComplete = false,
-                currentFingerprint = fingerprint,
-            ),
+            decideExtraction(ExtractionNode.PARTIAL, partial, fingerprint, ExtractionNode.PREFIX_HEAD),
         )
     }
 
     @Test
-    fun `re-extracts when the remote file changed`() {
+    fun `thirty percent retries when the head read found nothing`() {
+        val empty = record() // 1MB 时什么都没读出来
         assertEquals(
             ExtractionDecision.PARTIAL,
-            decideExtraction(
-                filled = 400,
-                total = total,
-                existingFingerprint = "1000|\"old-etag\"",
-                existingComplete = true,
-                currentFingerprint = fingerprint,
-            ),
+            decideExtraction(ExtractionNode.PARTIAL, empty, fingerprint, ExtractionNode.PREFIX_HEAD),
+        )
+    }
+
+    @Test
+    fun `completion always upgrades an incomplete record`() {
+        val partial = record(title = "Friend", hasCover = true)
+        assertEquals(
+            ExtractionDecision.FULL,
+            decideExtraction(ExtractionNode.FULL, partial, fingerprint, ExtractionNode.PARTIAL),
+        )
+        assertEquals(
+            ExtractionDecision.SKIP,
+            decideExtraction(ExtractionNode.FULL, partial.copy(complete = true), fingerprint, ExtractionNode.PARTIAL),
+        )
+    }
+
+    @Test
+    fun `same node is never parsed twice`() {
+        assertEquals(
+            ExtractionDecision.SKIP,
+            decideExtraction(ExtractionNode.PREFIX_HEAD, null, fingerprint, ExtractionNode.PREFIX_HEAD),
+        )
+        assertEquals(
+            ExtractionDecision.SKIP,
+            decideExtraction(ExtractionNode.PARTIAL, null, fingerprint, ExtractionNode.PARTIAL),
+        )
+    }
+
+    @Test
+    fun `a replaced remote file restarts the whole schedule`() {
+        val staleRecord = record(fingerprint = "1000|\"old-etag\"", complete = true, title = "Old")
+        assertEquals(
+            ExtractionDecision.PARTIAL,
+            decideExtraction(ExtractionNode.PREFIX_HEAD, staleRecord, fingerprint),
         )
         assertEquals(
             ExtractionDecision.FULL,
-            decideExtraction(
-                filled = 1000,
-                total = total,
-                existingFingerprint = "1000|\"old-etag\"",
-                existingComplete = true,
-                currentFingerprint = fingerprint,
-            ),
+            decideExtraction(ExtractionNode.FULL, staleRecord, fingerprint),
         )
     }
 
     @Test
     fun `uses the head read when the server did not report a length`() {
-        assertEquals(
-            ExtractionDecision.SKIP,
-            decideExtraction(
-                filled = 0,
-                total = 0,
-                existingFingerprint = null,
-                existingComplete = false,
-                currentFingerprint = "0|",
-            ),
-        )
+        assertEquals(null, extractionNodeOf(filled = 0, total = 0))
+        assertEquals(ExtractionNode.PREFIX_HEAD, extractionNodeOf(filled = 4096, total = 0))
         assertEquals(
             ExtractionDecision.PARTIAL,
-            decideExtraction(
-                filled = 4096,
-                total = 0,
-                existingFingerprint = null,
-                existingComplete = false,
-                currentFingerprint = "0|",
-            ),
+            decideExtraction(ExtractionNode.PREFIX_HEAD, existing = null, currentFingerprint = "0|"),
         )
     }
 }

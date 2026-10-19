@@ -92,6 +92,9 @@ internal class LoopbackRangeProxy(
 
         /** 等下载推进的轮询间隔：播放器读超时是 8 秒，这个粒度远小于它。 */
         private const val READ_WAIT_POLL_MILLIS = 50L
+
+        /** 下载过程中的进度上报节拍：提取节点靠它触发，1MB 粒度既够快又不会刷屏。 */
+        private const val PROGRESS_STEP_BYTES = 1L * 1024 * 1024
     }
 
     private val logger = Logger.withTag(TAG)
@@ -205,9 +208,19 @@ internal class LoopbackRangeProxy(
             }
             val startedAt = clock()
             val sink = cache.openAppendSink(key)
+            var written = 0L
+            var nextReport = PROGRESS_STEP_BYTES
             try {
                 upstream.fetch(target = target, start = cached, endInclusive = null) { bytes ->
                     sink.write(bytes)
+                    written += bytes.size
+                    // 边下边报进度：提取要能在 1MB / 30% 这些早期节点就介入，
+                    // 不能等整个请求结束（整首一次请求就再没有"中间时刻"了）
+                    if (cached + written >= nextReport) {
+                        nextReport = (cached + written) / PROGRESS_STEP_BYTES * PROGRESS_STEP_BYTES +
+                            PROGRESS_STEP_BYTES
+                        onCacheProgress(key)
+                    }
                 }
                 sink.flush()
             } finally {
