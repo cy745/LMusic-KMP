@@ -43,32 +43,46 @@ class LoopbackRangeProxyTest {
     }
 
     @Test
-    fun `serves the probe range and then reuses the cache for later requests`() = runTest {
-        val base = startProxy()
+    fun `serves the probe range then reuses the cache for later requests`() = runTest {
+        upstreamFake = FakeBackend(payload)
+        val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy-probe").toString()
+        val cache = MediaCacheStore(cacheRoot, json, namespace = "test")
+        proxy = LoopbackRangeProxy(cache, upstreamFake)
+        val base = proxy.start()
 
-        // AVPlayer 会先发 2 字节探测
+        // AVPlayer 会先发 2 字节探测：只回这 2 字节，但顺带把整首补进缓存
         val probe = get("$base/audio/testkey", "bytes=0-1")
         assertEquals(206, probe.status)
         assertEquals("bytes 0-1/1000", probe.contentRange)
         assertContentEquals(payload.copyOfRange(0, 2), probe.body)
-        assertEquals(listOf<Pair<Long, Long?>>(0L to 1L), upstreamFake.fetched)
 
-        // 向后跳转：中间那段要一起补下来（写进缓存但不发给播放器）
+        // 探测只回 2 字节，下载不受它限制：整首仍会被补齐
+        awaitFilled(cache, "testkey", payload.size.toLong())
+        assertEquals(
+            listOf<Pair<Long, Long?>>(0L to null),
+            upstreamFake.fetched,
+            "一次请求就够了：整首由同一个下载任务补齐",
+        )
+
+        // 向后跳转：缓存里已经有中间那段，不应再打上游
         val middle = get("$base/audio/testkey", "bytes=100-199")
         assertEquals(206, middle.status)
         assertEquals("bytes 100-199/1000", middle.contentRange)
         assertContentEquals(payload.copyOfRange(100, 200), middle.body)
-        assertEquals(
-            listOf<Pair<Long, Long?>>(0L to 1L, 2L to 199L),
-            upstreamFake.fetched,
-            "向跳转时应从已缓存前缀处补齐中间那段",
-        )
 
-        // 已缓存区间：不应再打上游
         val cached = get("$base/audio/testkey", "bytes=50-99")
         assertEquals(206, cached.status)
         assertContentEquals(payload.copyOfRange(50, 100), cached.body)
-        assertEquals(2, upstreamFake.fetched.size, "命中缓存的请求不应访问上游")
+        assertEquals(1, upstreamFake.fetched.size, "命中缓存的请求不应访问上游")
+    }
+
+    /** 等缓存补齐到指定长度：下载在代理自己的作用域里跑，测试需要给它一点时间。 */
+    private suspend fun awaitFilled(cache: MediaCacheStore, key: String, size: Long) {
+        repeat(100) {
+            if (cache.filledSize(key) >= size) return
+            kotlinx.coroutines.delay(20)
+        }
+        assertEquals(size, cache.filledSize(key), "缓存未在预期时间内补齐")
     }
 
     @Test
@@ -134,16 +148,17 @@ class LoopbackRangeProxyTest {
     }
 
     @Test
-    fun `playback preempts a background prefetch of the same track`() = runTest {
+    fun `playback reads bytes while a background prefetch is still downloading`() = runTest {
         upstreamFake = FakeBackend(payload)
-        val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy-preempt").toString()
+        val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy-share").toString()
         val cache = MediaCacheStore(cacheRoot, json, namespace = "test")
         proxy = LoopbackRangeProxy(cache, upstreamFake)
         val base = proxy.start()
 
-        // 后台整首预取卡在第一段：等价于慢速 NAS 上"下到一半"的状态
+        // 后台整首预取：上游只吐一小段就卡住，模拟慢速 NAS
         val gate = CompletableDeferred<Unit>()
-        upstreamFake.blockOnce = gate
+        upstreamFake.blockAfterBytes = 100
+        upstreamFake.gate = gate
         val prefetch = async {
             proxy.ensureCached(
                 key = "testkey",
@@ -153,19 +168,15 @@ class LoopbackRangeProxyTest {
         }
         upstreamFake.awaitEntered()
 
-        // 播放请求必须能立刻拿到字节，而不是排在整首下载后面等到读超时
+        // 播放请求必须能立刻拿到已经落盘的那一段，而不是等整首下完（以前会卡在 key 锁上读超时）
         val response = get("$base/audio/testkey", "bytes=0-99")
-        assertEquals(206, response.status, "播放不应被后台预取挡住")
+        assertEquals(206, response.status, "播放不应被后台下载挡住")
         assertContentEquals(payload.copyOfRange(0, 100), response.body)
 
-        // 预取被取消后立即收尾（不抛异常），不会继续占着锁
+        // 放行上游：剩下的字节继续补完，缓存最终是完整前缀
+        gate.complete(Unit)
         prefetch.await()
-        assertEquals(100L, cache.filledSize("testkey"), "缓存里只应有播放请求过的那段连续前缀")
-        assertEquals(
-            listOf<Pair<Long, Long?>>(0L to 99L),
-            upstreamFake.fetched,
-            "取消后只应剩下播放自己的区间请求：${upstreamFake.fetched}",
-        )
+        assertEquals(payload.size.toLong(), cache.filledSize("testkey"), "下载应继续把整首补齐")
     }
 
     @Test
@@ -247,8 +258,9 @@ class LoopbackRangeProxyTest {
         val fetched = mutableListOf<Pair<Long, Long?>>()
         var failing = false
 
-        /** 让第一次 fetch 卡住，用来模拟"后台正在下载同一首"的时序。 */
-        var blockOnce: CompletableDeferred<Unit>? = null
+        /** 吐够这么多字节后卡住，用来模拟"后台正在下载同一首"的时序。 */
+        var blockAfterBytes = Long.MAX_VALUE
+        var gate: CompletableDeferred<Unit>? = null
         private val entered = CompletableDeferred<Unit>()
 
         suspend fun awaitEntered() = entered.await()
@@ -269,17 +281,13 @@ class LoopbackRangeProxyTest {
             onChunk: suspend (ByteArray) -> Unit,
         ) {
             entered.complete(Unit)
-            blockOnce?.let { gate ->
-                // 只挡第一次：被抢占后播放自己的请求必须立刻放行
-                blockOnce = null
-                gate.await()
-            }
             if (failing) throw IllegalStateException("上游不可用")
             fetched += start to endInclusive
             val payload = payloads.getValue(target.token.substringAfterLast('/').removeSuffix(".flac"))
             val last = (endInclusive ?: (payload.size - 1L)).coerceAtMost(payload.size - 1L)
             var position = start
             while (position <= last) {
+                if (position >= start + blockAfterBytes) gate?.await()
                 val size = minOf(4096L, last - position + 1L).toInt()
                 onChunk(payload.copyOfRange(position.toInt(), position.toInt() + size))
                 position += size

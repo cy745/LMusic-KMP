@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -87,6 +88,9 @@ internal class LoopbackRangeProxy(
 
         /** 淘汰检查间隔：容量是稳态约束而不是硬保证，5 秒粒度足够。 */
         internal const val EVICTION_INTERVAL_MILLIS = 5_000L
+
+        /** 等下载推进的轮询间隔：播放器读超时是 8 秒，这个粒度远小于它。 */
+        private const val READ_WAIT_POLL_MILLIS = 50L
     }
 
     private val logger = Logger.withTag(TAG)
@@ -96,14 +100,15 @@ internal class LoopbackRangeProxy(
     private val keyLocksGuard = Mutex()
 
     /**
-     * 后台补全跑在自己的作用域里，不与调用方的 Job 绑定。
+     * 每个键最多只有一个"填缓存"的任务（单飞）。
      *
-     * 这样"播放要抢占"可以只取消这一次下载：如果直接取消调用方（数据源的后台队列），
-     * 用户刚开始拖进度条就会把整条补全队列一起停掉。
+     * 播放读取与后台预取共用它：读的人只等自己需要的那几个字节落盘，不跟整首下载抢锁——
+     * 以前播放要等整首下完才拿到锁，慢速源上这就是播放器 8 秒读超时的直接原因。
+     * 任务跑在自己的作用域里，不与调用方的 Job 绑定：调用方被取消不该中断已经开始的下载。
      */
-    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val backgroundJobs = mutableMapOf<String, Job>()
-    private val backgroundGuard = Mutex()
+    private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val downloads = mutableMapOf<String, Job>()
+    private val downloadsGuard = Mutex()
     private var lastEvictionAt = 0L
 
     /** 正在被读取或写入的键：淘汰时绝不动它们。 */
@@ -134,78 +139,75 @@ internal class LoopbackRangeProxy(
     /**
      * 主动把缓存补到 [upTo]（含）——用于"允许后台主动下载"时补全尚未播放过的歌曲。
      *
-     * 与播放请求共用同一把 key 锁，因此不会与正在进行的播放交错；不向任何客户端发送数据。
-     * 返回补齐后的已缓存长度。
+     * 与播放读取共用同一个下载任务，因此不会重复下载，也不会让播放等它。
      */
     internal suspend fun ensureCached(
         key: String,
         target: UpstreamTarget,
         upTo: Long,
     ): Long {
-        val job = backgroundScope.launch {
-            lockFor(key).withLock { downloadLocked(key, target, upTo) }
+        val job = ensureDownloading(key, target)
+        val goal = if (target.totalSize > 0L) minOf(upTo, target.totalSize - 1) else upTo
+        while (true) {
+            val filled = cache.filledSize(key)
+            if (filled > goal) return filled
+            if (!job.isActive) return filled
+            delay(READ_WAIT_POLL_MILLIS)
         }
-        backgroundGuard.withLock { backgroundJobs[key] = job }
-        try {
-            job.join()
-        } catch (cancelled: CancellationException) {
-            job.cancel()
-            throw cancelled
-        } finally {
-            // 只清理自己这一条：抢占可能已经在下一次 ensureCached 之后重新登记了同一个键
-            backgroundGuard.withLock {
-                if (backgroundJobs[key] === job) backgroundJobs.remove(key)
-            }
-        }
-        return cache.filledSize(key)
     }
 
-    private suspend fun downloadLocked(key: String, target: UpstreamTarget, upTo: Long) {
+    /** 保证这个键有一个正在推进的下载任务并返回它；已有任务直接复用。 */
+    private suspend fun ensureDownloading(key: String, target: UpstreamTarget): Job =
+        downloadsGuard.withLock {
+            downloads[key]?.takeIf { it.isActive }?.let { return@withLock it }
+            val job = downloadScope.launch {
+                // 写入串行化：缓存是只追加的连续前缀，两个写者会把它写坏
+                lockFor(key).withLock { downloadLocked(key, target) }
+            }
+            downloads[key] = job
+            job
+        }
+
+    /**
+     * 把缓存补到文件末尾（长度未知时补到上游结束）。
+     *
+     * 一次补齐而不是只补到某个偏移：读的人随时可以取走已经落盘的部分，多下的那截本来也会
+     * 成为离线缓存，不存在"为了一次 seek 白下"的问题。
+     */
+    private suspend fun downloadLocked(key: String, target: UpstreamTarget) {
         activeKeys += key
         try {
-            val last = if (target.totalSize > 0L) {
-                minOf(upTo, target.totalSize - 1)
-            } else {
-                upTo
-            }.takeIf { it >= 0L } ?: return
-
             // 远端文件被换成更小的文件时，旧缓存的前缀比新文件还长，必须重建
             cache.ensureConsistent(key, target.totalSize)
             val cached = cache.filledSize(key)
-            if (cached > last) {
+            if (target.totalSize > 0L && cached >= target.totalSize) {
                 cache.touch(key, target.totalSize)
                 return
             }
 
+            logger.i {
+                "开始补缓存 key=$key 从 ${cached}B 到 " +
+                    if (target.totalSize > 0L) "${target.totalSize}B" else "上游结束"
+            }
+            val startedAt = clock()
             val sink = cache.openAppendSink(key)
             try {
-                upstream.fetch(
-                    target = target,
-                    start = cached,
-                    endInclusive = if (target.totalSize > 0L) last else null,
-                ) { bytes -> sink.write(bytes) }
+                upstream.fetch(target = target, start = cached, endInclusive = null) { bytes ->
+                    sink.write(bytes)
+                }
                 sink.flush()
             } finally {
                 sink.close()
             }
             cache.touch(key, target.totalSize)
+            logger.i {
+                "补缓存完成 key=$key 共 ${cache.filledSize(key)}B 用时 ${clock() - startedAt}ms"
+            }
             onCacheProgress(key)
             evictIfNeeded()
         } finally {
             activeKeys -= key
         }
-    }
-
-    /**
-     * 播放请求优先于后台补全。
-     *
-     * 同一首歌正在被整首预取时，播放要等它下完才能拿到锁——慢速 NAS 上这就是几秒到几十秒的
-     * 等待，播放器早就读超时了。预取是可中断的（缓存是只追加的连续前缀，停在任意位置都合法），
-     * 因此直接取消它、让播放先走；剩下的部分下次再补。
-     */
-    private suspend fun preemptBackground(key: String) {
-        val job = backgroundGuard.withLock { backgroundJobs[key] } ?: return
-        job.cancelAndJoin()
     }
 
     /** 按配额淘汰；调用点做节流，避免每次请求都扫一遍缓存目录。 */
@@ -296,34 +298,14 @@ internal class LoopbackRangeProxy(
             respond(HttpStatusCode.OK)
             return
         }
-        preemptBackground(key)
+        val download = ensureDownloading(key, target)
         respondBytesWriter(contentType = contentType, status = HttpStatusCode.OK) {
-            // 未知长度时也要串行：两个请求同时往同一个追加文件里写会直接写坏前缀
-            lockFor(key).withLock {
-                activeKeys += key
-                try {
-                    cache.touch(key, target.totalSize)
-                    val cached = cache.filledSize(key)
-                    if (cached > 0L) {
-                        cache.openSource(key, 0L)?.use { source -> writeBuffer(source, cached) }
-                    }
-                    val sink = cache.openAppendSink(key)
-                    try {
-                        upstream.fetch(target, cached, endInclusive = null) { bytes ->
-                            sink.write(bytes)
-                            writeFully(bytes)
-                        }
-                        sink.flush()
-                    } finally {
-                        sink.close()
-                    }
-                    cache.touch(key, target.totalSize)
-                    onCacheProgress(key)
-                    evictIfNeeded()
-                } finally {
-                    activeKeys -= key
-                }
-            }
+            streamFromCache(
+                key = key,
+                range = 0L..Long.MAX_VALUE,
+                download = download,
+                channel = this,
+            )
         }
     }
 
@@ -333,70 +315,71 @@ internal class LoopbackRangeProxy(
         range: RequestedRange,
         channel: ByteWriteChannel,
     ) {
-        preemptBackground(key)
-        lockFor(key).withLock {
-            activeKeys += key
-            try {
-                serveRangeLocked(key, target, range, channel)
-            } finally {
-                activeKeys -= key
+        activeKeys += key
+        try {
+            // 缓存已经覆盖这次请求：纯读本地，不碰网络
+            if (range.endInclusive < cache.filledSize(key)) {
+                streamFromCache(key, range.start..range.endInclusive, download = null, channel = channel)
+                onCacheProgress(key)
+                return
             }
+
+            val download = ensureDownloading(key, target)
+            val served = streamFromCache(
+                key = key,
+                range = range.start..range.endInclusive,
+                download = download,
+                channel = channel,
+            )
+            if (served < range.length) {
+                logger.w {
+                    "上游提前结束：key=$key 期望 ${range.length} 字节，实际 $served" +
+                        "（下载任务${if (download.isActive) "仍在进行" else "已结束"}）"
+                }
+            }
+            onCacheProgress(key)
+            evictIfNeeded()
+        } finally {
+            activeKeys -= key
         }
     }
 
-    private suspend fun serveRangeLocked(
+    /**
+     * 把 `[range]` 里的字节发给客户端：已落盘的部分直接读，没落盘的部分等下载任务推进。
+     *
+     * 读的是"已完整写入的连续前缀"（[MediaCacheStore.filledSize]），因此不需要和写者抢锁；
+     * 下载任务结束（或失败）时不再干等，剩下的按截断处理，由客户端决定重试。
+     */
+    private suspend fun streamFromCache(
         key: String,
-        target: UpstreamTarget,
-        range: RequestedRange,
+        range: LongRange,
+        download: Job?,
         channel: ByteWriteChannel,
-    ) {
-        var position = range.start
-        val cached = cache.filledSize(key)
-
-        // 已缓存的前缀部分：直接读本地，不产生网络请求
-        if (position < cached) {
-            val available = minOf(range.endInclusive, cached - 1) - position + 1
-            cache.openSource(key, position)?.use { source -> channel.writeBuffer(source, available) }
-            position += available
-        }
-
-        if (position > range.endInclusive) {
-            onCacheProgress(key)
-            return
-        }
-
-        // 剩余部分：远端从"已缓存前缀"继续拉，保持缓存仍是连续前缀。
-        // 落在 [cached, position) 的字节写进缓存但不发给播放器——播放器没要它们。
-        val sink = cache.openAppendSink(key)
+    ): Long {
+        var position = range.first
         var served = 0L
-        try {
-            var toDrop = position - cached
-            upstream.fetch(target, cached, range.endInclusive) { bytes ->
-                // 先落盘：即使随后客户端断开，已收到的字节依然是有效的缓存前缀
-                sink.write(bytes)
-                var from = 0
-                if (toDrop > 0L) {
-                    val drop = minOf(toDrop, bytes.size.toLong()).toInt()
-                    toDrop -= drop
-                    from = drop
-                }
-                if (from < bytes.size) {
-                    channel.writeFully(bytes, from, bytes.size)
-                    served += bytes.size - from
-                }
+        var lastFilled = -1L
+
+        while (position <= range.last) {
+            val filled = cache.filledSize(key)
+            if (position < filled) {
+                val available = minOf(range.last, filled - 1) - position + 1
+                cache.openSource(key, position)?.use { source -> channel.writeBuffer(source, available) }
+                position += available
+                served += available
+                continue
             }
-            sink.flush()
-        } finally {
-            sink.close()
+            if (download == null || !download.isActive) break
+            if (filled == lastFilled) delay(READ_WAIT_POLL_MILLIS) else lastFilled = filled
         }
 
-        val expected = range.endInclusive - position + 1
-        if (served < expected) {
-            logger.w(messageString = "上游提前结束：key=$key 期望 $expected 字节，实际 $served")
+        if (served > 0L) {
+            logger.i {
+                "代理完成 key=$key range=${range.first}-${range.last} 已发 ${served}B " +
+                    "缓存=${cache.filledSize(key)}"
+            }
         }
-        cache.touch(key, target.totalSize)
-        onCacheProgress(key)
-        evictIfNeeded()
+        return served
     }
 
     private suspend fun lockFor(key: String): Mutex = keyLocksGuard.withLock {
