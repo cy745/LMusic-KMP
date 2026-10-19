@@ -1,5 +1,9 @@
 package com.lalilu.lmedia.source.webdav
 
+import com.lalilu.lmedia.cache.UpstreamTarget
+import com.lalilu.lmedia.cache.RangeUpstream
+import com.lalilu.lmedia.cache.LoopbackRangeProxy
+import com.lalilu.lmedia.cache.MediaCacheStore
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.md5
@@ -69,6 +73,9 @@ class WebDavSource(
 
     companion object {
         private const val TAG = "WebDavSource"
+
+        /** 通用缓存里的目录命名空间：按源隔离，避免不同源的 key 相互覆盖。 */
+        private const val WebDavCacheNamespace = "webdav"
 
         /** 目录遍历的并发上限：避免瞬时打满家用 NAS 的连接数。 */
         internal const val MAX_DIR_CONCURRENCY = 4
@@ -146,8 +153,8 @@ class WebDavSource(
     private var syncJob: Job? = null
     private var networkJob: Job? = null
 
-    private var proxy: WebDavProxy? = null
-    private var cache: WebDavCache? = null
+    private var proxy: LoopbackRangeProxy? = null
+    private var cache: MediaCacheStore? = null
     private var metadataStore: WebDavMetadataStore? = null
     private var metadataRemote: WebDavMetadataRemote? = null
     private var extractor: WebDavExtractor? = null
@@ -714,14 +721,14 @@ class WebDavSource(
         }
     }
 
-    private suspend fun ensureProxy(): WebDavProxy {
+    private suspend fun ensureProxy(): LoopbackRangeProxy {
         proxy?.let { return it }
         return setupMutex.withLock {
             proxy?.let { return@withLock it }
             val (cache, _) = ensureCacheInfrastructure()
-            val created = WebDavProxy(
+            val created = LoopbackRangeProxy(
                 cache = cache,
-                backend = ProxyBackend(),
+                upstream = ProxyBackend(),
                 onCacheProgress = { key -> extractor?.request(key) },
                 // 每次需要时读配置：改配额立即生效，不用重建代理
                 quotaBytes = { activeConfig.cacheQuotaBytes },
@@ -732,10 +739,10 @@ class WebDavSource(
         }
     }
 
-    private fun ensureCacheInfrastructure(): Pair<WebDavCache, WebDavMetadataStore> {
+    private fun ensureCacheInfrastructure(): Pair<MediaCacheStore, WebDavMetadataStore> {
         val cacheRoot = cacheRootProvider.cacheRoot()
             ?: throw WebDavException.Unexpected("当前平台不支持 WebDAV 数据源")
-        val cache = WebDavCache(cacheRoot, json).also { this.cache = it }
+        val cache = MediaCacheStore(cacheRoot, json, namespace = WebDavCacheNamespace).also { this.cache = it }
         val store = metadataStore ?: WebDavMetadataStore(
             cacheRoot = cacheRoot,
             json = json,
@@ -835,8 +842,8 @@ class WebDavSource(
                 runCatchingCancellable {
                     activeProxy.ensureCached(
                         key = cacheKeyOf(audio.id),
-                        target = WebDavStreamTarget(
-                            path = target.remotePath,
+                        target = UpstreamTarget(
+                            token = target.remotePath,
                             totalSize = target.totalSize,
                             contentType = audio.extra?.get(EXTRA_CONTENT_TYPE),
                         ),
@@ -871,25 +878,25 @@ class WebDavSource(
     }
 
     /** 传给代理的回调实现：只在数据源内部使用，因此不暴露成公开接口实现。 */
-    private inner class ProxyBackend : WebDavProxyBackend {
-        override suspend fun resolve(key: String): WebDavStreamTarget? {
+    private inner class ProxyBackend : RangeUpstream {
+        override suspend fun resolve(key: String): UpstreamTarget? {
             val audio = indexMutex.withLock { keyToAudio[key] } ?: return null
             val path = audio.extra?.get(EXTRA_PATH)?.takeIf(String::isNotBlank) ?: return null
-            return WebDavStreamTarget(
-                path = path,
+            return UpstreamTarget(
+                token = path,
                 totalSize = audio.extra?.get(EXTRA_FILE_SIZE)?.toLongOrNull() ?: 0L,
                 contentType = audio.extra?.get(EXTRA_CONTENT_TYPE),
             )
         }
 
         override suspend fun fetch(
-            target: WebDavStreamTarget,
+            target: UpstreamTarget,
             start: Long,
             endInclusive: Long?,
             onChunk: suspend (ByteArray) -> Unit,
         ) {
             val activeClient = client ?: throw WebDavException.Unexpected("数据源已断开")
-            activeClient.fetchRange(target.path, start, endInclusive, onChunk)
+            activeClient.fetchRange(target.token, start, endInclusive, onChunk)
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.lalilu.lmedia.source.webdav
 
+import com.lalilu.lmedia.cache.MediaCacheStore
 import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudio
@@ -84,7 +85,7 @@ internal interface WebDavExtractionTargets {
  */
 @OptIn(ExperimentalTime::class)
 internal class WebDavExtractor(
-    private val cache: WebDavCache,
+    private val cache: MediaCacheStore,
     private val store: WebDavMetadataStore,
     private val targets: WebDavExtractionTargets,
     private val progressState: MutableStateFlow<WebDavExtractionState>,

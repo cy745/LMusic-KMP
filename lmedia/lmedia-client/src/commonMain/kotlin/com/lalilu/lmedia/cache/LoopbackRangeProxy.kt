@@ -1,5 +1,9 @@
-package com.lalilu.lmedia.source.webdav
+package com.lalilu.lmedia.cache
 
+import com.lalilu.lmedia.cache.MediaCacheStore
+import com.lalilu.lmedia.cache.RangeDisposition
+import com.lalilu.lmedia.cache.RangeHeader
+import com.lalilu.lmedia.cache.RequestedRange
 import co.touchlab.kermit.Logger
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -24,23 +28,24 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
 /** 代理播放某个缓存键所需的信息。 */
-internal data class WebDavStreamTarget(
-    val path: String,
+internal data class UpstreamTarget(
+    /** 上游自己解释的不透明标识：WebDAV 是远端路径，别的源可以是 id。 */
+    val token: String,
     val totalSize: Long,
     val contentType: String?,
 )
 
 /** 代理与数据源之间的回调接口；用接口而不是直接依赖 WebDavSource，便于脱离网络测试。 */
-internal interface WebDavProxyBackend {
+internal interface RangeUpstream {
     /** 解析缓存键；歌曲已不在当前快照中时返回 null。 */
-    suspend fun resolve(key: String): WebDavStreamTarget?
+    suspend fun resolve(key: String): UpstreamTarget?
 
     /**
      * 从远端拉取 `[start, endInclusive]`（闭区间；[endInclusive] 为 null 表示到文件末尾），
      * 按到达顺序回调。[onChunk] 返回后才会继续拉取下一段。
      */
     suspend fun fetch(
-        target: WebDavStreamTarget,
+        target: UpstreamTarget,
         start: Long,
         endInclusive: Long?,
         onChunk: suspend (ByteArray) -> Unit,
@@ -57,9 +62,9 @@ internal interface WebDavProxyBackend {
  * 发给播放器，因为播放器没要），再把请求区间边下边发。
  */
 @OptIn(ExperimentalTime::class)
-internal class WebDavProxy(
-    private val cache: WebDavCache,
-    private val backend: WebDavProxyBackend,
+internal class LoopbackRangeProxy(
+    private val cache: MediaCacheStore,
+    private val upstream: RangeUpstream,
     /** 每次缓存增长后回调，供上层判断 30% / 100% 提取节点。 */
     private val onCacheProgress: suspend (key: String) -> Unit = {},
     /** 音频缓存容量上限；<= 0 表示不限制。每次需要时读取，改配置立即生效。 */
@@ -69,7 +74,7 @@ internal class WebDavProxy(
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
     companion object {
-        private const val TAG = "WebDavProxy"
+        private const val TAG = "LoopbackRangeProxy"
         internal const val LOOPBACK = "127.0.0.1"
         internal const val ROUTE_PREFIX = "/audio/"
 
@@ -117,7 +122,7 @@ internal class WebDavProxy(
      */
     internal suspend fun ensureCached(
         key: String,
-        target: WebDavStreamTarget,
+        target: UpstreamTarget,
         upTo: Long,
     ): Long = lockFor(key).withLock {
         activeKeys += key
@@ -138,7 +143,7 @@ internal class WebDavProxy(
 
             val sink = cache.openAppendSink(key)
             try {
-                backend.fetch(
+                upstream.fetch(
                     target = target,
                     start = cached,
                     endInclusive = if (target.totalSize > 0L) last else null,
@@ -178,14 +183,14 @@ internal class WebDavProxy(
 
     private suspend fun ApplicationCall.serveAudio(head: Boolean) {
         val key = parameters["key"].orEmpty()
-        val target = backend.resolve(key)
+        val target = upstream.resolve(key)
         if (target == null) {
             respond(HttpStatusCode.NotFound, "Unknown media key")
             return
         }
 
         val total = target.totalSize
-        val resolution = WebDavRange.resolve(request.headers[HttpHeaders.Range], total)
+        val resolution = RangeHeader.resolve(request.headers[HttpHeaders.Range], total)
 
         if (resolution.disposition == RangeDisposition.UNSATISFIABLE) {
             response.header(HttpHeaders.ContentRange, "bytes */$total")
@@ -236,7 +241,7 @@ internal class WebDavProxy(
 
     private suspend fun ApplicationCall.serveUnknownLength(
         key: String,
-        target: WebDavStreamTarget,
+        target: UpstreamTarget,
         contentType: ContentType,
         head: Boolean,
     ) {
@@ -254,7 +259,7 @@ internal class WebDavProxy(
                 }
                 val sink = cache.openAppendSink(key)
                 try {
-                    backend.fetch(target, cached, endInclusive = null) { bytes ->
+                    upstream.fetch(target, cached, endInclusive = null) { bytes ->
                         sink.write(bytes)
                         writeFully(bytes)
                     }
@@ -273,7 +278,7 @@ internal class WebDavProxy(
 
     private suspend fun serveRange(
         key: String,
-        target: WebDavStreamTarget,
+        target: UpstreamTarget,
         range: RequestedRange,
         channel: ByteWriteChannel,
     ) {
@@ -289,7 +294,7 @@ internal class WebDavProxy(
 
     private suspend fun serveRangeLocked(
         key: String,
-        target: WebDavStreamTarget,
+        target: UpstreamTarget,
         range: RequestedRange,
         channel: ByteWriteChannel,
     ) {
@@ -314,7 +319,7 @@ internal class WebDavProxy(
         var served = 0L
         try {
             var toDrop = position - cached
-            backend.fetch(target, cached, range.endInclusive) { bytes ->
+            upstream.fetch(target, cached, range.endInclusive) { bytes ->
                 // 先落盘：即使随后客户端断开，已收到的字节依然是有效的缓存前缀
                 sink.write(bytes)
                 var from = 0

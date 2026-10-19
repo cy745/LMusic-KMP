@@ -3,6 +3,7 @@ package com.lalilu.lmedia.domain.source
 import com.lalilu.lmedia.domain.model.LAudio
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import org.koin.mp.KoinPlatform
 
 /** The source is ready, but this particular song cannot be resolved. */
 class AudioMediaMissingException : IllegalStateException("Audio media is missing")
@@ -30,8 +31,27 @@ suspend fun PlatformMediaSource.resolveMediaData(
             "Media source '${audio.mediaSourceName}' was disabled while resolving ${audio.id}"
         )
     }
-    return source.dataSource.getMedia(audio)
+    val media = source.dataSource.getMedia(audio)
         ?: throw AudioMediaMissingException()
+    return media.rewriteForCache(audio)
+}
+
+/**
+ * 把在线播放地址交给 [MediaUrlRewriter]（缓存代理）改写。
+ *
+ * 未注册改写器、或地址本身不是 http(s) 时原样返回，因此是否存在缓存对数据源完全透明。
+ */
+private fun MediaData.rewriteForCache(audio: LAudio): MediaData {
+    if (this !is MediaData.Url) return this
+    if (!url.startsWith("http://", ignoreCase = true) &&
+        !url.startsWith("https://", ignoreCase = true)
+    ) {
+        return this
+    }
+    val rewriter = runCatching { KoinPlatform.getKoin().get<MediaUrlRewriter>() }.getOrNull()
+        ?: return this
+    val rewritten = rewriter.rewrite(audio, url)
+    return if (rewritten == url) this else MediaData.Url(rewritten)
 }
 
 /**

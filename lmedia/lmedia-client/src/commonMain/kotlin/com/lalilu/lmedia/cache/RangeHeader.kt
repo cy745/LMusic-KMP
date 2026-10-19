@@ -1,4 +1,4 @@
-package com.lalilu.lmedia.source.webdav
+package com.lalilu.lmedia.cache
 
 /**
  * 单区间 `Range` 请求（闭区间）。
@@ -29,7 +29,7 @@ internal data class RangeResolution(
     val range: RequestedRange? = null,
 )
 
-internal object WebDavRange {
+internal object RangeHeader {
     private const val PREFIX = "bytes="
 
     /**

@@ -36,6 +36,23 @@ interface MediaDataSource {
 
     suspend fun getMedia(song: LAudio): MediaData? = null
 
+    // ── 通用缓存 ──
+
+    /**
+     * 访问原始媒体地址所需的请求头（认证等）。
+     *
+     * 只有会被通用缓存代理转发的源才需要实现：代理用它访问远端，播放器拿到的地址里不含凭据。
+     * 默认无请求头 —— 公开音源什么都不用写就能被缓存。
+     */
+    fun originHeaders(song: LAudio): Map<String, String> = emptyMap()
+
+    /**
+     * 稳定的缓存键；返回 null 表示直接用原始地址当键。
+     *
+     * 带签名、每次访问都变化的地址必须覆盖它，否则缓存永远不命中。
+     */
+    fun cacheKey(song: LAudio): String? = null
+
     // ── bufferedProgress ──
 
     /**
