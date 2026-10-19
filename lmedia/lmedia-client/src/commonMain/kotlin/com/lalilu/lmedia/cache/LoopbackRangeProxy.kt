@@ -23,6 +23,7 @@ import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.writeBuffer
 import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -106,7 +107,12 @@ internal class LoopbackRangeProxy(
      * 以前播放要等整首下完才拿到锁，慢速源上这就是播放器 8 秒读超时的直接原因。
      * 任务跑在自己的作用域里，不与调用方的 Job 绑定：调用方被取消不该中断已经开始的下载。
      */
-    private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val downloadScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, throwable ->
+            // 兜底：下载任务里的任何漏网异常都不允许掀掉整个进程
+            logger.w(messageString = "补缓存任务异常：${throwable.message}", throwable = throwable)
+        }
+    )
     private val downloads = mutableMapOf<String, Job>()
     private val downloadsGuard = Mutex()
     private var lastEvictionAt = 0L
@@ -161,8 +167,16 @@ internal class LoopbackRangeProxy(
         downloadsGuard.withLock {
             downloads[key]?.takeIf { it.isActive }?.let { return@withLock it }
             val job = downloadScope.launch {
-                // 写入串行化：缓存是只追加的连续前缀，两个写者会把它写坏
-                lockFor(key).withLock { downloadLocked(key, target) }
+                try {
+                    // 写入串行化：缓存是只追加的连续前缀，两个写者会把它写坏
+                    lockFor(key).withLock { downloadLocked(key, target) }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (throwable: Throwable) {
+                    // 上游 404/断网都是正常业务结果：记录原因即可，读的人会看到截断并按失败处理。
+                    // 这里绝不能让异常逃出任务——它是独立作用域里 launch 出来的，逃出去就是进程崩溃。
+                    logger.w(messageString = "补缓存失败 key=$key：${throwable.message}")
+                }
             }
             downloads[key] = job
             job

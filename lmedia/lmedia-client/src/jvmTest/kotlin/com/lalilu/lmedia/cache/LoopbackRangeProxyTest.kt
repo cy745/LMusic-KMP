@@ -86,6 +86,25 @@ class LoopbackRangeProxyTest {
     }
 
     @Test
+    fun `upstream failure ends the request without killing the proxy`() = runTest {
+        upstreamFake = FakeBackend(payload).apply { failing = true }
+        val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy-fail").toString()
+        val cache = MediaCacheStore(cacheRoot, json, namespace = "test")
+        proxy = LoopbackRangeProxy(cache, upstreamFake)
+        val base = proxy.start()
+
+        // 上游 404 / 断网：客户端会看到截断（甚至直接报错），关键是代理自己不能崩
+        runCatching { get("$base/audio/testkey", "bytes=0-99") }
+        assertEquals(0L, cache.filledSize("testkey"), "失败的下载不应留下任何字节")
+
+        // 代理还活着：上游恢复后同一个实例仍能正常服务
+        upstreamFake.failing = false
+        val recovered = get("$base/audio/testkey", "bytes=0-99")
+        assertEquals(206, recovered.status)
+        assertContentEquals(payload.copyOfRange(0, 100), recovered.body)
+    }
+
+    @Test
     fun `serves the whole file when no range is requested`() = runTest {
         val base = startProxy()
 

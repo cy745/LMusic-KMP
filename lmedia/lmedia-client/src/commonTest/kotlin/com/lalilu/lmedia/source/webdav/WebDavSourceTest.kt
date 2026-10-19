@@ -391,7 +391,7 @@ class WebDavSourceTest {
         val state = awaitSyncSettled(source)
 
         assertTrue(state is WebDavMetadataSyncState.Synced, "同步应成功，实际 $state")
-        assertTrue(client.mkcols.contains("/.lmusic/"), "应创建元数据根目录：${client.mkcols}")
+        assertTrue(client.mkcols.contains("/.lmusic/"), "应创建元数据根目录：${client.mkcols.toList()}")
         assertTrue(
             client.puts.any { it.first == "/.lmusic/$key.json" },
             "应上传记录 json：${client.puts.map { it.first }}",
@@ -448,15 +448,15 @@ class WebDavSourceTest {
         assertNotNull(awaitSnapshot(source))
 
         val remote = HttpWebDavMetadataRemote(client, "/.lmusic/", "/.lmusic/")
-        assertEquals(setOf("friend"), remote.keys(), "propfind=${client.propfindCalls}")
+        assertEquals(setOf("friend"), remote.keys(), "propfind=${client.propfindCalls.toList()}")
 
         source.updateOptions(metaSyncEnabled = true).getOrThrow()
         val state = awaitSyncSettled(source)
 
         assertTrue(
             state is WebDavMetadataSyncState.Synced && state.pulled == 1,
-            "同步结果 $state；propfind=${client.propfindCalls}；mkcol=${client.mkcols}；" +
-                "downloads=${client.downloads}",
+            "同步结果 $state；propfind=${client.propfindCalls.toList()}；mkcol=${client.mkcols.toList()}；" +
+                "downloads=${client.downloads.toList()}",
         )
 
         // 换一个没有远端层的 store 读同一个缓存目录：能读到才说明回写本地了
