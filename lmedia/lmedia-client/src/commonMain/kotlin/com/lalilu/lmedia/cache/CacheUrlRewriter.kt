@@ -15,12 +15,16 @@ import org.koin.core.annotation.Single
  */
 @Single(binds = [MediaUrlRewriter::class])
 internal class CacheUrlRewriter(
-    private val sources: PlatformMediaSource,
+    /**
+     * 延迟注入：数据源清单由域模块以 `Scope` 方式提供，构造期取它会让 Koin 图校验多出一条
+     * "本模块依赖域模块"的硬边；改成用时再取，既不影响播放，也让模块可独立校验。
+     */
+    private val sources: Lazy<PlatformMediaSource>,
     private val controller: MediaCacheController,
 ) : MediaUrlRewriter {
 
     override suspend fun rewrite(audio: LAudio, originUrl: String): String {
-        val source = sources.findSource(audio.mediaSourceName) ?: return originUrl
+        val source = sources.value.findSource(audio.mediaSourceName) ?: return originUrl
         val dataSource = source.dataSource
         // 没有专门的键就用地址本身：公开音源这样就已足够，带签名的源必须自己覆盖
         val rawKey = dataSource.cacheKey(audio) ?: originUrl

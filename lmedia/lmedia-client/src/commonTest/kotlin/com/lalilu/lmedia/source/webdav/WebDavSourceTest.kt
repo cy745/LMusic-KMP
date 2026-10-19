@@ -263,7 +263,7 @@ class WebDavSourceTest {
         )
 
         // 真正的播放地址由通用缓存在解析播放地址时改写出来
-        val rewriter = CacheUrlRewriter(PlatformMediaSource(listOf(source)), controllerOf(source))
+        val rewriter = CacheUrlRewriter(lazyOf(PlatformMediaSource(listOf(source))), controllerOf(source))
         val url = rewriter.rewrite(audio, origin)
         assertTrue(url.startsWith("http://127.0.0.1:"), "播放地址必须是本机回环：$url")
         assertTrue(url.contains("/audio/"), "播放地址必须走代理路由：$url")

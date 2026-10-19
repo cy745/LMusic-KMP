@@ -113,7 +113,7 @@ class WebDavSourceDeviceTest {
     private suspend fun playbackUrl(source: WebDavSource, audio: LAudio): String {
         val origin = (assertNotNull(source.getMedia(audio)) as MediaData.Url).url
         val rewriter = CacheUrlRewriter(
-            sources = PlatformMediaSource(listOf(source)),
+            sources = lazyOf(PlatformMediaSource(listOf(source))),
             controller = assertNotNull(controllers[source]),
         )
         return rewriter.rewrite(audio, origin)

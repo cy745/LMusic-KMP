@@ -152,7 +152,10 @@ internal class LoopbackRangeProxy(
             job.cancel()
             throw cancelled
         } finally {
-            backgroundGuard.withLock { backgroundJobs.remove(key, job) }
+            // 只清理自己这一条：抢占可能已经在下一次 ensureCached 之后重新登记了同一个键
+            backgroundGuard.withLock {
+                if (backgroundJobs[key] === job) backgroundJobs.remove(key)
+            }
         }
         return cache.filledSize(key)
     }

@@ -12,9 +12,16 @@
 | P0 已完成 | 领域契约：`MediaUrlRewriter`、`MediaDataSource` 的 `originHeaders` / `cacheKey` / `cacheTotalSize`；`MediaContentResolver` 在解析播放地址时单点改写 | 域模块单测通过；未注册改写器时行为与改造前完全一致 |
 | P1 已完成 | 通用缓存包 `com.lalilu.lmedia.cache`：`RangeHeader` / `MediaCacheStore` / `LoopbackRangeProxy` 迁出 WebDAV 包，去掉 WebDAV 命名与固定 namespace | `:lmedia:lmedia-client:jvmTest` 全绿；代理用例只依赖 `RangeUpstream` 接口 |
 | P2 | 通用缓存控制器：`MediaCacheRootProvider`、`CachedOrigin`、`HttpRangeUpstream`、`MediaCacheController`、`CacheUrlRewriter`；WebDAV 只保留 `cacheKey` / `originHeaders` / `cacheTotalSize` 与提取队列 | 任意 http(s) 数据源只要实现三个小方法就能拿到回环地址与离线缓存；WebDAV 的 `getMedia` 返回原始地址，回环改写只发生在 `resolveMediaData` |
-| P3 | 通用元数据提取：`MediaExtractionService` + `ExtractedMetadataStore` + 三条发布通道（快照归档 / `audioPatches` / `onExtracted`） | 提取不依赖 WebDAV 类型；缓存到 30% / 100% 的触发点由控制器上报 |
-| P4 | 分段缓存与段级锁：整文件预取不再独占 key 锁；单段失败只影响该段 | 边下边播时拖动进度不触发 `SocketTimeoutException`；两个并发请求同一 key 不互相阻塞 |
-| P5 | 两个 UI 问题的修复 + 文档/稳定性收尾 | 歌词列表在播放中自动跟随；切歌时旧封面保持到新封面就绪；`stabilityCheck` 通过 |
+| P3（暂缓） | 通用元数据提取：`MediaExtractionService` + `ExtractedMetadataStore` + 三条发布通道 | 触发点已经通用（控制器的进度监听），但提取实现仍在 webdav 包：目前只有它需要"从字节里猜标签"，别家源在 API 里就带着完整元数据。等第二个源需要时再抽 |
+| P4（已完成） | 播放请求抢占后台预取；未知长度透传也串行化 | `:lmedia:lmedia-client:jvmTest` 覆盖"预取卡住时播放立刻拿到字节"；慢速 NAS 上不再出现读超时 |
+| P5（已完成） | 歌词跟随重构 + 封面失败窗口内重试 | 列表在时间前进/切歌后都真的滚到当前行；封面首次失败不再立刻切占位，10 秒窗口内重试；`stabilityCheck` 通过 |
+
+### P4 备注：为什么先做抢占而不是分段缓存
+
+分段缓存（按固定块存、按块并发）能进一步解决"跳到未缓存位置要从头补"，但它会破坏
+**连续前缀**这个前提：`taglib` 只认本地文件，30% / 100% 两次提取直接读 `<key>.part` 的前缀字节；
+改成离散分块就得先拼一个临时文件再读，代价与复杂度都不小。而线上真正致命的是"整首预取占着锁
+把播放饿死"，抢占能把这条彻底解决，代价只有几行状态管理。分段留给后续单独评估。
 
 ## P2 详细清单
 
@@ -32,3 +39,4 @@
 - 单测：`./gradlew :lmedia:lmedia-client:jvmTest :lmedia:lmedia-domain:jvmTest :lplayer:jvmTest`
 - 稳定性：`./gradlew :lplayer:stabilityCheck`
 - 真机：接本机 WebDAV（docker `lmusic-webdav`，`adb reverse tcp:8080`），验证播放、拖动、切歌、断网续播与离线缓存命中
+- Koin 图：`./gradlew :composeApp:jvmTest --tests com.lalilu.lmusic.KoinModulesTest`（新增的控制器与改写器必须能独立装配）
