@@ -159,7 +159,12 @@ class BlurBackgroundViewModel : ViewModel() {
         errorState.value = null
         if (imageData == null) {
             loadingState.value = null
-            imageState.value = null
+            // 切歌瞬间曲目可能短暂为空（队列的一个中间快照），此时**不能**把当前封面清掉：
+            // 清掉就等于旧图直接消失，等新图到达再"啪"地出现，过渡动画自然也没了。
+            // 真的没有封面（冷启动 / 加载失败）由后面的失败路径负责切到占位背景。
+            if (imageState.value != null) {
+                logger.i { "封面数据暂时为空，保留当前封面等下一次数据" }
+            }
             return@withContext
         }
 
@@ -167,6 +172,9 @@ class BlurBackgroundViewModel : ViewModel() {
         // 它同时也是加载遮罩（LoadingPhase.source）的归属对象；
         // 只有真的拿到新图才会替换它，失败/超时则走 imageState = null 的占位背景。
         val lastDisplayed = imageState.value
+        logger.i {
+            "开始加载封面 data=${imageData::class.simpleName} 当前显示=${lastDisplayed != null}"
+        }
 
         val paletteFetch = async(Dispatchers.io) {
             val request = ImageRequest.Builder(context)
@@ -239,11 +247,15 @@ class BlurBackgroundViewModel : ViewModel() {
         if (bitmap != null) {
             imageState.value = bitmap
         } else {
-            // 重试到超时仍拿不到：这时才认定"这首歌没有封面"，切到占位背景。
-            // 失败态一直保持到下一次 loadImage 开始。
+            // 重试到超时仍拿不到：记下失败，但**不清空已经显示的封面**。
+            // 清空会让旧封面直接消失（换成占位背景），等下一张图到达再淡入——用户看到的就是
+            // "旧封面没了，然后新封面突然出现"，过渡动画等于没有。占位背景只在本来就没图
+            // （冷启动）时才有意义，那本来就是 null，不用我们再清一次。
             val failure = (result as? ErrorResult)?.throwable ?: CoverLoadTimeoutException()
-            logger.w(messageString = "封面加载失败：${imageData::class.simpleName}，原因：$failure", throwable = failure)
-            imageState.value = null
+            logger.w(
+                messageString = "封面加载失败（保留当前封面）：${imageData::class.simpleName}，原因：$failure",
+                throwable = failure,
+            )
             errorState.value = failure
         }
 
