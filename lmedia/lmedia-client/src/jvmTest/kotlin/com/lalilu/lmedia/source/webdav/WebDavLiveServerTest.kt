@@ -1,6 +1,9 @@
 package com.lalilu.lmedia.source.webdav
 
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.common.kv.testing.InMemoryKVSaver
+import com.lalilu.lmedia.cache.CacheUrlRewriter
+import com.lalilu.lmedia.cache.MediaCacheController
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.Taglib
 import com.lalilu.lmedia.domain.model.LAudioExtraKeys
@@ -8,6 +11,7 @@ import com.lalilu.lmedia.domain.model.Metadata
 import com.lalilu.lmedia.domain.model.albumName
 import com.lalilu.lmedia.domain.model.artistName
 import com.lalilu.lmedia.domain.source.MediaData
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.net.NetworkType
@@ -157,8 +161,7 @@ class WebDavLiveServerTest {
         val expected = assertNotNull(directClient.download(audio.extra?.get("path").orEmpty()))
         directClient.close()
 
-        val media = assertNotNull(source.getMedia(audio), "代理未就绪，无法给出播放地址")
-        val proxyUrl = (media as MediaData.Url).url
+        val proxyUrl = playbackUrl(source, audio)
         assertTrue(proxyUrl.startsWith("http://127.0.0.1:"), "必须走本机代理：$proxyUrl")
 
         // 1) 中间区间：与直连字节逐字节一致
@@ -213,8 +216,7 @@ class WebDavLiveServerTest {
         }
 
         // 走代理把整首拉完：30% 触发部分提取，100% 触发完整提取（时长与封面只有这一步才有）
-        val media = assertNotNull(source.getMedia(audio), "代理未就绪，无法给出播放地址")
-        val proxyUrl = (media as MediaData.Url).url
+        val proxyUrl = playbackUrl(source, audio)
         val whole = httpGet(proxyUrl, null)
         assertEquals(200, whole.status)
 
@@ -342,13 +344,32 @@ class WebDavLiveServerTest {
      * 真实服务用例统一用"Wi-Fi"网络观测：门控本身由 `WebDavSourceTest` 覆盖，
      * 这里不该让"当前桌面网卡叫什么名字"决定用例成败。
      */
-    private fun newSource(cacheRoot: String = System.getProperty("java.io.tmpdir")) = WebDavSource(
-        clientFactory = { HttpWebDavClientFactory().create(it) },
-        cacheRootProvider = { cacheRoot },
-        json = Json { ignoreUnknownKeys = true },
-        kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
-        networkObservation = { flowOf(NetworkType.WIFI) },
-    )
+    private val controllers = mutableMapOf<WebDavSource, MediaCacheController>()
+
+    private fun newSource(cacheRoot: String = System.getProperty("java.io.tmpdir")): WebDavSource {
+        val controller = MediaCacheController(
+            cacheRootProvider = { cacheRoot },
+            json = Json { ignoreUnknownKeys = true },
+        )
+        return WebDavSource(
+            clientFactory = { HttpWebDavClientFactory().create(it) },
+            cacheRootProvider = { cacheRoot },
+            cacheController = controller,
+            json = Json { ignoreUnknownKeys = true },
+            kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
+            networkObservation = { flowOf(NetworkType.WIFI) },
+        ).also { controllers[it] = controller }
+    }
+
+    /** 走一遍真实的解析链路：数据源给原始地址，通用缓存改写成回环地址。 */
+    private suspend fun playbackUrl(source: WebDavSource, audio: LAudio): String {
+        val origin = (assertNotNull(source.getMedia(audio)) as MediaData.Url).url
+        val rewriter = CacheUrlRewriter(
+            sources = PlatformMediaSource(listOf(source)),
+            controller = assertNotNull(controllers[source]),
+        )
+        return rewriter.rewrite(audio, origin)
+    }
 
     private fun freshCacheRoot(): String =
         java.nio.file.Files.createTempDirectory("lmusic-webdav-extract")

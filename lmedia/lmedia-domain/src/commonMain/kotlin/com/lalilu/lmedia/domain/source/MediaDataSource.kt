@@ -53,6 +53,14 @@ interface MediaDataSource {
      */
     fun cacheKey(song: LAudio): String? = null
 
+    /**
+     * 远端文件总长度；返回 null 表示未知。
+     *
+     * 知道了才能按 `Range` 分段取：seek 只需要补中间那段。不知道也不影响播 —— 代理退化成
+     * 整文件透传，边播边缓存，只是没法从缓存里直接跳到还没听过的位置。
+     */
+    fun cacheTotalSize(song: LAudio): Long? = null
+
     // ── bufferedProgress ──
 
     /**

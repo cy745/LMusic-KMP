@@ -2,11 +2,14 @@ package com.lalilu.lmedia.source.webdav
 
 import com.lalilu.common.kv.testing.InMemoryKVSaver
 import com.lalilu.lmedia.LMediaKV
+import com.lalilu.lmedia.cache.CacheUrlRewriter
+import com.lalilu.lmedia.cache.MediaCacheController
 import com.lalilu.lmedia.domain.model.albumName
 import com.lalilu.lmedia.domain.model.artistName
 import com.lalilu.lmedia.domain.source.MediaContentAvailability
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import com.lalilu.lmedia.net.NetworkObservation
@@ -58,7 +61,9 @@ class WebDavSourceTest {
     }
 
     @AfterTest
-    fun tearDown() {
+    fun tearDown() = runTest {
+        controllers.values.forEach { it.stop() }
+        controllers.clear()
         stopKoin()
     }
 
@@ -75,17 +80,30 @@ class WebDavSourceTest {
         override fun observe(): Flow<NetworkType> = flow
     }
 
+    /** 每个数据源配一个独立控制器：缓存目录与回环端口都按用例隔离，收尾统一停掉。 */
+    private val controllers = mutableMapOf<WebDavSource, MediaCacheController>()
+
+    private fun controllerOf(source: WebDavSource): MediaCacheController =
+        assertNotNull(controllers[source], "用例数据源必须有配套的缓存控制器")
+
     private fun newSource(
         client: WebDavClient,
         cacheRoot: String? = freshRoot("default"),
         network: NetworkObservation = FakeNetworkObservation(NetworkType.WIFI),
-    ): WebDavSource = WebDavSource(
-        clientFactory = { client },
-        cacheRootProvider = { cacheRoot },
-        json = Json { ignoreUnknownKeys = true },
-        kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
-        networkObservation = network,
-    )
+    ): WebDavSource {
+        val controller = MediaCacheController(
+            cacheRootProvider = { cacheRoot },
+            json = Json { ignoreUnknownKeys = true },
+        )
+        return WebDavSource(
+            clientFactory = { client },
+            cacheRootProvider = { cacheRoot },
+            cacheController = controller,
+            json = Json { ignoreUnknownKeys = true },
+            kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
+            networkObservation = network,
+        ).also { controllers[it] = controller }
+    }
 
     /**
      * 每个用例（以及每次运行）一个全新的缓存目录。
@@ -201,12 +219,6 @@ class WebDavSourceTest {
             }
 
             override suspend fun download(path: String): ByteArray? = null
-            override suspend fun fetchRange(
-                path: String,
-                start: Long,
-                endInclusive: Long?,
-                onChunk: suspend (ByteArray) -> Unit,
-            ): Long? = null
 
             override suspend fun put(path: String, bytes: ByteArray, contentType: String) = Unit
 
@@ -230,13 +242,29 @@ class WebDavSourceTest {
     }
 
     @Test
-    fun `plays through the loopback proxy without exposing credentials`() = runTest {
+    fun `rewrites playback to the loopback proxy without exposing credentials`() = runTest {
         val source = newSource(FakeWebDavClient(files))
         source.connect("http://dav.local:8080", "lmusic", "pw", "/Music").getOrThrow()
         val audio = assertNotNull(awaitSnapshot(source)).audios.first()
 
-        val media = assertNotNull(source.getMedia(audio), "代理启动后应能给出播放地址")
-        val url = (media as MediaData.Url).url
+        // 数据源只给原始地址；凭据放在请求头里，URL 本身干净
+        val media = assertNotNull(source.getMedia(audio), "应给出原始播放地址")
+        val origin = (media as MediaData.Url).url
+        assertTrue(origin.startsWith("http://dav.local:8080/Music/"), "原始地址应指向远端：$origin")
+        assertFalse(origin.contains("pw"), "原始地址里不能有密码：$origin")
+        assertTrue(
+            source.originHeaders(audio).keys.any { it.equals("Authorization", ignoreCase = true) },
+            "认证信息应通过请求头给出：${source.originHeaders(audio)}",
+        )
+        assertEquals(
+            source.cacheTotalSize(audio),
+            audio.extra?.get(WebDavSource.EXTRA_FILE_SIZE)?.toLongOrNull(),
+            "总长应交给通用缓存，才能按 Range 补齐",
+        )
+
+        // 真正的播放地址由通用缓存在解析播放地址时改写出来
+        val rewriter = CacheUrlRewriter(PlatformMediaSource(listOf(source)), controllerOf(source))
+        val url = rewriter.rewrite(audio, origin)
         assertTrue(url.startsWith("http://127.0.0.1:"), "播放地址必须是本机回环：$url")
         assertTrue(url.contains("/audio/"), "播放地址必须走代理路由：$url")
         assertFalse(url.contains("pw"), "凭据不能出现在播放地址里：$url")
@@ -547,7 +575,6 @@ private class FakeWebDavClient(
 ) : WebDavClient {
     private val tree = treeOf(files) + extraTree
     val propfindCalls = mutableListOf<String>()
-    val fetchedRanges = mutableListOf<Pair<Long, Long?>>()
     val downloads = mutableListOf<String>()
     val puts = mutableListOf<Pair<String, ByteArray>>()
     val mkcols = mutableListOf<String>()
@@ -566,16 +593,6 @@ private class FakeWebDavClient(
         if (tree.values.flatten().any { it.path == path && !it.isDirectory }) {
             throw WebDavException.NotFound("未提供内容的测试文件：$path")
         }
-        return null
-    }
-
-    override suspend fun fetchRange(
-        path: String,
-        start: Long,
-        endInclusive: Long?,
-        onChunk: suspend (ByteArray) -> Unit,
-    ): Long? {
-        fetchedRanges += start to endInclusive
         return null
     }
 

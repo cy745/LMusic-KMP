@@ -7,9 +7,13 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.lalilu.common.kv.testing.InMemoryKVSaver
 import com.lalilu.lmedia.LMediaKV
 import com.lalilu.lmedia.Taglib
+import com.lalilu.lmedia.cache.CacheUrlRewriter
+import com.lalilu.lmedia.cache.MediaCacheController
+import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.source.MediaFetchOptions
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.net.NetworkType
 import java.io.File
@@ -85,17 +89,34 @@ class WebDavSourceDeviceTest {
      * 设备上的 `cacheDir` 是跨运行保留的：共用目录会让上一轮的"完整提取记录"或半截缓存把
      * 这一轮的提取悄悄跳过，用例随即超时——这类假失败排查起来非常费劲。
      */
+    private val controllers = mutableMapOf<WebDavSource, MediaCacheController>()
+
     private fun newSource(): WebDavSource {
         val cacheRoot = File(context.cacheDir, "webdav-${System.nanoTime()}")
             .apply { mkdirs() }
             .absolutePath
+        val controller = MediaCacheController(
+            cacheRootProvider = { cacheRoot },
+            json = Json { ignoreUnknownKeys = true },
+        )
         return WebDavSource(
             clientFactory = { HttpWebDavClientFactory().create(it) },
             cacheRootProvider = { cacheRoot },
+            cacheController = controller,
             json = Json { ignoreUnknownKeys = true },
             kv = LMediaKV(InMemoryKVSaver(mutableMapOf())),
             networkObservation = { flowOf(NetworkType.WIFI) },
+        ).also { controllers[it] = controller }
+    }
+
+    /** 走一遍真实解析链路：数据源给原始地址，通用缓存改写成回环地址。 */
+    private suspend fun playbackUrl(source: WebDavSource, audio: LAudio): String {
+        val origin = (assertNotNull(source.getMedia(audio)) as MediaData.Url).url
+        val rewriter = CacheUrlRewriter(
+            sources = PlatformMediaSource(listOf(source)),
+            controller = assertNotNull(controllers[source]),
         )
+        return rewriter.rewrite(audio, origin)
     }
 
     @Test
@@ -110,9 +131,8 @@ class WebDavSourceDeviceTest {
         val friend = snapshot.audios.single { it.title == "Friend" }
         assertTrue(friend.extra?.get("file_size")?.toLongOrNull() ?: 0L > 0L)
 
-        // 1) 播放地址必须是本机回环代理，且不带凭据
-        val media = assertNotNull(source.getMedia(friend), "代理未就绪")
-        val proxyUrl = (media as MediaData.Url).url
+        // 1) 解析出来的播放地址必须是本机回环代理，且不带凭据
+        val proxyUrl = playbackUrl(source, friend)
         assertTrue(proxyUrl.startsWith("http://127.0.0.1:"), "必须走本机回环：$proxyUrl")
 
         // 2) 边车歌词：扫描阶段就能拿到，不需要下载整首
@@ -169,7 +189,7 @@ class WebDavSourceDeviceTest {
         val source = newSource()
         source.connect(url!!, username, password, root).getOrThrow()
         val friend = assertNotNull(awaitSnapshot(source)).audios.single { it.title == "Friend" }
-        val proxyUrl = (assertNotNull(source.getMedia(friend)) as MediaData.Url).url
+        val proxyUrl = playbackUrl(source, friend)
 
         lateinit var player: ExoPlayer
         onMain {

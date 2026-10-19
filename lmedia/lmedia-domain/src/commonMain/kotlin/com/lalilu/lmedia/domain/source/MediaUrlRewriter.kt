@@ -11,6 +11,10 @@ import com.lalilu.lmedia.domain.model.LAudio
  * 实现方只应改写 `http(s)` 地址；本地文件、`content://`、字节数据必须原样返回。
  */
 interface MediaUrlRewriter {
-    /** 返回可播放地址；不需要改写时返回 [originUrl] 本身。 */
-    fun rewrite(audio: LAudio, originUrl: String): String
+    /**
+     * 返回可播放地址；不需要改写时返回 [originUrl] 本身。
+     *
+     * 允许挂起：回环代理是懒启动的，第一次改写需要把本机端口开起来。
+     */
+    suspend fun rewrite(audio: LAudio, originUrl: String): String
 }

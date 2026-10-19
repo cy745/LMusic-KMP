@@ -2,8 +2,9 @@ package com.lalilu.lmedia.source.webdav
 
 import com.lalilu.lmedia.cache.UpstreamTarget
 import com.lalilu.lmedia.cache.RangeUpstream
-import com.lalilu.lmedia.cache.LoopbackRangeProxy
-import com.lalilu.lmedia.cache.MediaCacheStore
+import com.lalilu.lmedia.cache.CachedOrigin
+import com.lalilu.lmedia.cache.MediaCacheController
+import com.lalilu.lmedia.cache.MediaCacheRootProvider
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.common.ext.md5
@@ -36,20 +37,21 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.yield
+import io.ktor.http.HttpHeaders
+import io.ktor.http.encodeURLPath
+import io.ktor.util.encodeBase64
 import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
@@ -65,7 +67,8 @@ import kotlin.coroutines.CoroutineContext
 @Single(binds = [MediaSource::class, MediaDataSource::class])
 class WebDavSource(
     private val clientFactory: WebDavClientFactory,
-    private val cacheRootProvider: WebDavCacheRootProvider,
+    private val cacheRootProvider: MediaCacheRootProvider,
+    private val cacheController: MediaCacheController,
     private val json: Json,
     kv: LMediaKV,
     private val networkObservation: NetworkObservation,
@@ -73,9 +76,6 @@ class WebDavSource(
 
     companion object {
         private const val TAG = "WebDavSource"
-
-        /** 通用缓存里的目录命名空间：按源隔离，避免不同源的 key 相互覆盖。 */
-        private const val WebDavCacheNamespace = "webdav"
 
         /** 目录遍历的并发上限：避免瞬时打满家用 NAS 的连接数。 */
         internal const val MAX_DIR_CONCURRENCY = 4
@@ -96,9 +96,6 @@ class WebDavSource(
         internal const val EXTRA_LYRIC_PATH = "lyric_path"
         internal const val EXTRA_LYRIC_FINGERPRINT = "lyric_fingerprint"
         internal const val DEFAULT_META_REMOTE_PATH = "/.lmusic/"
-
-        /** 缓存进度的轮询间隔：进度条本身会做平滑，这里只需要跟得上缓存增长。 */
-        private const val CACHE_PROGRESS_POLL_INTERVAL_MS = 500L
 
         internal fun cacheKeyOf(audioId: String): String = audioId.md5()
     }
@@ -153,8 +150,6 @@ class WebDavSource(
     private var syncJob: Job? = null
     private var networkJob: Job? = null
 
-    private var proxy: LoopbackRangeProxy? = null
-    private var cache: MediaCacheStore? = null
     private var metadataStore: WebDavMetadataStore? = null
     private var metadataRemote: WebDavMetadataRemote? = null
     private var extractor: WebDavExtractor? = null
@@ -171,6 +166,8 @@ class WebDavSource(
     private var activeConfig: WebDavConfig = config.value
 
     override fun init() {
+        // 配额是全局约束：每次需要时读配置，改设置立即生效，不必重建代理
+        cacheController.quotaBytes = { activeConfig.cacheQuotaBytes }
         if (cacheRootProvider.cacheRoot() == null) {
             // Web 没有本地文件系统：既做不了读穿缓存，也起不了回环代理
             stateStore.content.unavailable("当前平台不支持 WebDAV 数据源")
@@ -197,11 +194,9 @@ class WebDavSource(
         mutableBackgroundPaused.value = false
         extractor?.stop()
         extractor = null
-        proxy?.stop()
-        proxy = null
+        cacheController.removeProgressListener(cacheProgressListener)
         metadataStore = null
         metadataRemote = null
-        cache = null
         indexMutex.withLock { keyToAudio.clear() }
         mutableProgress.value = WebDavExtractionState()
         mutableMetadataSync.value = WebDavMetadataSyncState.Idle
@@ -451,7 +446,6 @@ class WebDavSource(
                 // 客户端换了，绑在旧客户端上的远端层必须重建
                 metadataRemote = null
                 if (activeConfig.metaSyncEnabled) ensureMetadataRemote()
-                val activeProxy = ensureProxy()
                 val extractor = ensureExtractor()
 
                 val audios = scanLibrary(activeClient, taskId)
@@ -629,24 +623,33 @@ class WebDavSource(
      * 那正是用户可以不等待下载就直接跳过去的位置。
      */
     override fun bufferedProgress(song: LAudio): Flow<Float>? {
-        val activeCache = cache ?: return null
-        val totalSize = song.extra?.get(EXTRA_FILE_SIZE)?.toLongOrNull()?.takeIf { it > 0L }
-            ?: return null
-        val key = cacheKeyOf(song.id)
-        return flow {
-            while (true) {
-                emit((activeCache.filledSize(key).toFloat() / totalSize).coerceIn(0f, 1f))
-                delay(CACHE_PROGRESS_POLL_INTERVAL_MS)
-            }
-        }
+        val totalSize = song.fileSizeOrNull() ?: return null
+        return cacheController.progress(keyOf(song), totalSize)
     }
 
-    // 播放统一走本机回环代理：播放器拿到的地址里没有凭据，字节顺便沉淀成本地缓存。
+    /**
+     * 播放只给出**原始**地址：可播放的本机地址由通用缓存在 `resolveMediaData` 里统一改写。
+     *
+     * 于是凭据只出现在代理访问远端时的请求头里，播放地址本身不含用户名密码；别家在线源
+     * 也不用为了"能被缓存"改一行播放代码。
+     */
     override suspend fun getMedia(song: LAudio): MediaData? {
-        val activeProxy = proxy ?: return null
-        val url = activeProxy.audioUrl(cacheKeyOf(song.id)) ?: return null
+        if (cacheRootProvider.cacheRoot() == null) return null
+        val url = originUrlOf(song) ?: return null
         return MediaData.Url(url)
     }
+
+    /** 访问远端所需的请求头：Basic 认证只在代理侧使用。 */
+    override fun originHeaders(song: LAudio): Map<String, String> {
+        val config = activeConfig
+        if (config.username.isBlank() && config.password.isBlank()) return emptyMap()
+        val token = "${config.username}:${config.password}".encodeToByteArray().encodeBase64()
+        return mapOf(HttpHeaders.Authorization to "Basic $token")
+    }
+
+    override fun cacheKey(song: LAudio): String = cacheKeyOf(song.id)
+
+    override fun cacheTotalSize(song: LAudio): Long? = song.fileSizeOrNull()
 
     /**
      * 封面优先级：同目录的独立封面图（首扫就从 PROPFIND 拿到路径，零额外请求）→ 内嵌封面。
@@ -675,7 +678,7 @@ class WebDavSource(
             ?.takeIf(String::isNotBlank)
             ?.let { return it }
 
-        val localPath = cache?.localPath(key) ?: return null
+        val localPath = cacheController.localPath(keyOf(song)) ?: return null
         return runCatching { Taglib.getLyric(localPath) }.getOrNull()?.takeIf(String::isNotBlank)
     }
 
@@ -707,7 +710,10 @@ class WebDavSource(
         extractor?.let { return it }
         return setupMutex.withLock {
             extractor?.let { return@withLock it }
-            val (cache, store) = ensureCacheInfrastructure()
+            val cache = cacheController.store()
+                ?: throw WebDavException.Unexpected("当前平台不支持 WebDAV 数据源")
+            val store = ensureMetadataStore()
+            cacheController.addProgressListener(cacheProgressListener)
             val created = WebDavExtractor(
                 cache = cache,
                 store = store,
@@ -721,29 +727,12 @@ class WebDavSource(
         }
     }
 
-    private suspend fun ensureProxy(): LoopbackRangeProxy {
-        proxy?.let { return it }
-        return setupMutex.withLock {
-            proxy?.let { return@withLock it }
-            val (cache, _) = ensureCacheInfrastructure()
-            val created = LoopbackRangeProxy(
-                cache = cache,
-                upstream = ProxyBackend(),
-                onCacheProgress = { key -> extractor?.request(key) },
-                // 每次需要时读配置：改配额立即生效，不用重建代理
-                quotaBytes = { activeConfig.cacheQuotaBytes },
-            )
-            created.start()
-            proxy = created
-            created
-        }
-    }
-
-    private fun ensureCacheInfrastructure(): Pair<MediaCacheStore, WebDavMetadataStore> {
+    /** 提取结果与远端同步使用的本地存储：与音频缓存同根目录，但用自己的命名空间。 */
+    private suspend fun ensureMetadataStore(): WebDavMetadataStore {
+        metadataStore?.let { return it }
         val cacheRoot = cacheRootProvider.cacheRoot()
             ?: throw WebDavException.Unexpected("当前平台不支持 WebDAV 数据源")
-        val cache = MediaCacheStore(cacheRoot, json, namespace = WebDavCacheNamespace).also { this.cache = it }
-        val store = metadataStore ?: WebDavMetadataStore(
+        val store = WebDavMetadataStore(
             cacheRoot = cacheRoot,
             json = json,
             // 远端层用提供者：开关随时可切，重建 store 会丢掉内存层并让提取器指向旧对象。
@@ -755,7 +744,7 @@ class WebDavSource(
             it.ensureReady()
             metadataStore = it
         }
-        return cache to store
+        return store
     }
 
     /** 把提取结果转成歌曲更新：额外字段合并进原有 extra，然后逐条入库。 */
@@ -825,7 +814,6 @@ class WebDavSource(
 
         backgroundJob = launch {
             val store = metadataStore ?: return@launch
-            val activeProxy = proxy ?: return@launch
             for (audio in audios) {
                 val target = targetOf(audio) ?: continue
                 // 远端可能已经有这条记录（换设备/清过缓存）：查到就不必再把整首音频拉下来
@@ -840,19 +828,39 @@ class WebDavSource(
                     continue
                 }
                 runCatchingCancellable {
-                    activeProxy.ensureCached(
-                        key = cacheKeyOf(audio.id),
-                        target = UpstreamTarget(
-                            token = target.remotePath,
-                            totalSize = target.totalSize,
-                            contentType = audio.extra?.get(EXTRA_CONTENT_TYPE),
-                        ),
+                    cacheController.ensureCached(
+                        key = keyOf(audio),
+                        origin = originOf(audio) ?: return@runCatchingCancellable,
                         upTo = Long.MAX_VALUE,
                     )
                 }
-                extractor?.request(cacheKeyOf(audio.id))
+                extractor?.request(keyOf(audio))
             }
         }
+    }
+
+    /** 缓存键：与提取记录共用同一个键，迁移前后不会分叉。 */
+    private fun keyOf(audio: LAudio): String = cacheKeyOf(audio.id)
+
+    private fun LAudio.fileSizeOrNull(): Long? =
+        extra?.get(EXTRA_FILE_SIZE)?.toLongOrNull()?.takeIf { it > 0L }
+
+    /** 远端原始地址：只交给通用缓存，不会直接出现在播放地址里。 */
+    private fun originUrlOf(audio: LAudio): String? {
+        val base = activeConfig.url.takeIf(String::isNotBlank) ?: return null
+        val path = audio.extra?.get(EXTRA_PATH)?.takeIf(String::isNotBlank) ?: return null
+        val normalized = if (path.startsWith('/')) path else "/$path"
+        return base + normalized.encodeURLPath()
+    }
+
+    private fun originOf(audio: LAudio): CachedOrigin? {
+        val url = originUrlOf(audio) ?: return null
+        return CachedOrigin(
+            url = url,
+            headers = originHeaders(audio),
+            totalSize = audio.fileSizeOrNull() ?: 0L,
+            contentType = audio.extra?.get(EXTRA_CONTENT_TYPE),
+        )
     }
 
     private suspend fun targetOf(audio: LAudio): WebDavExtractionTarget? {
@@ -877,26 +885,9 @@ class WebDavSource(
         }
     }
 
-    /** 传给代理的回调实现：只在数据源内部使用，因此不暴露成公开接口实现。 */
-    private inner class ProxyBackend : RangeUpstream {
-        override suspend fun resolve(key: String): UpstreamTarget? {
-            val audio = indexMutex.withLock { keyToAudio[key] } ?: return null
-            val path = audio.extra?.get(EXTRA_PATH)?.takeIf(String::isNotBlank) ?: return null
-            return UpstreamTarget(
-                token = path,
-                totalSize = audio.extra?.get(EXTRA_FILE_SIZE)?.toLongOrNull() ?: 0L,
-                contentType = audio.extra?.get(EXTRA_CONTENT_TYPE),
-            )
-        }
-
-        override suspend fun fetch(
-            target: UpstreamTarget,
-            start: Long,
-            endInclusive: Long?,
-            onChunk: suspend (ByteArray) -> Unit,
-        ) {
-            val activeClient = client ?: throw WebDavException.Unexpected("数据源已断开")
-            activeClient.fetchRange(target.token, start, endInclusive, onChunk)
-        }
+    /** 缓存增长回调：只关心本数据源还认识的键，其它源的增长与自己无关。 */
+    private val cacheProgressListener: suspend (String) -> Unit = { key ->
+        val known = indexMutex.withLock { keyToAudio.containsKey(key) }
+        if (known) extractor?.request(key)
     }
 }

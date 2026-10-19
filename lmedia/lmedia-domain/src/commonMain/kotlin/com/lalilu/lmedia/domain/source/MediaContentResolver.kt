@@ -41,7 +41,7 @@ suspend fun PlatformMediaSource.resolveMediaData(
  *
  * 未注册改写器、或地址本身不是 http(s) 时原样返回，因此是否存在缓存对数据源完全透明。
  */
-private fun MediaData.rewriteForCache(audio: LAudio): MediaData {
+private suspend fun MediaData.rewriteForCache(audio: LAudio): MediaData {
     if (this !is MediaData.Url) return this
     if (!url.startsWith("http://", ignoreCase = true) &&
         !url.startsWith("https://", ignoreCase = true)
