@@ -50,6 +50,9 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 
+/** 组合层（非 ViewModel 内）的诊断日志。 */
+private val compositionLogger = Logger.withTag("BlurBackground")
+
 /**
  * 把解码结果转成 Compose 的 [ImageBitmap]。
  *
@@ -124,7 +127,23 @@ private class CoverLoadTimeoutException : Exception("cover load timed out")
 data class LoadingPhase(val source: ImageBitmap?)
 
 class BlurBackgroundViewModel : ViewModel() {
+    companion object {
+        /** 仅用于排查的单调编号：一眼看出是不是又新建了一个实例。 */
+        private var nextInstanceId = 1
+    }
+
     private val logger = Logger.withTag("BlurBackground")
+
+    /** 诊断用：这个实例是第几个创建的。 */
+    internal val instanceId: Int = nextInstanceId++
+
+    init {
+        logger.i { "封面 VM 创建 #$instanceId" }
+    }
+
+    override fun onCleared() {
+        logger.i { "封面 VM 销毁 #$instanceId" }
+    }
     /**
      * 当前该显示的封面。
      *
@@ -245,6 +264,7 @@ class BlurBackgroundViewModel : ViewModel() {
 
         loadingState.value = null
         if (bitmap != null) {
+            logger.i { "封面就绪，替换当前封面（VM=#$instanceId）" }
             imageState.value = bitmap
         } else {
             // 重试到超时仍拿不到：记下失败，但**不清空已经显示的封面**。
@@ -337,6 +357,7 @@ fun DefaultBlurBackground(
         // 存的是 lambda 而不是它的值：真正的读取发生在绘制期，拖动展开时只重绘、不重组
         val currentBlurProgress = rememberUpdatedState(blurProgress)
         val vm = viewModel { BlurBackgroundViewModel() }
+        LaunchedEffect(vm) { compositionLogger.i { "封面 VM 绑定到组合：#${vm.instanceId}" } }
         val windowInfo = LocalWindowInfo.current
 
         LaunchedEffect(Unit) {
