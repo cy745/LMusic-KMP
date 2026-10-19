@@ -94,6 +94,17 @@ private fun com.lalilu.lplayer.components.SeekbarBackground(modifier: androidx.c
     - visible: STABLE (function type)
 
 @Composable
+private fun com.lalilu.lplayer.components.SeekbarBufferedProgress(modifier: androidx.compose.ui.Modifier, thumbColor: kotlin.Function0<androidx.compose.ui.graphics.Color>, bufferedProgress: kotlin.Function0<kotlin.Float>, clip: kotlin.Function0<kotlin.Boolean>, switching: kotlin.Function0<kotlin.Boolean>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - modifier: STABLE (marked @Stable or @Immutable)
+    - thumbColor: STABLE (function type)
+    - bufferedProgress: STABLE (function type)
+    - clip: STABLE (function type)
+    - switching: STABLE (function type)
+
+@Composable
 private fun com.lalilu.lplayer.components.SeekbarContentMask(modifier: androidx.compose.ui.Modifier, maskColor: androidx.compose.ui.graphics.Color, clip: kotlin.Function0<kotlin.Boolean>): kotlin.Unit
   skippable: true
   restartable: true
@@ -139,14 +150,13 @@ private fun com.lalilu.lplayer.components.SeekbarSwitcher(modifier: androidx.com
     - switching: STABLE (function type)
 
 @Composable
-private fun com.lalilu.lplayer.components.SeekbarThumb(modifier: androidx.compose.ui.Modifier, thumbColor: kotlin.Function0<androidx.compose.ui.graphics.Color>, progress: kotlin.Function0<kotlin.Float>, bufferedProgress: kotlin.Function0<kotlin.Float>, clip: kotlin.Function0<kotlin.Boolean>, switching: kotlin.Function0<kotlin.Boolean>, switchModeX: kotlin.Function0<kotlin.Float>): kotlin.Unit
+private fun com.lalilu.lplayer.components.SeekbarThumb(modifier: androidx.compose.ui.Modifier, thumbColor: kotlin.Function0<androidx.compose.ui.graphics.Color>, progress: kotlin.Function0<kotlin.Float>, clip: kotlin.Function0<kotlin.Boolean>, switching: kotlin.Function0<kotlin.Boolean>, switchModeX: kotlin.Function0<kotlin.Float>): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - modifier: STABLE (marked @Stable or @Immutable)
     - thumbColor: STABLE (function type)
     - progress: STABLE (function type)
-    - bufferedProgress: STABLE (function type)
     - clip: STABLE (function type)
     - switching: STABLE (function type)
     - switchModeX: STABLE (function type)
