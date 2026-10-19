@@ -7,6 +7,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -25,11 +26,14 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class SeekbarLayoutGestureTest {
 
-    private fun timeline(durationMs: Long = 200_000L): PlaybackTimelineState =
-        PlaybackTimelineState(initialPositionMs = 0L).also {
+    private fun timeline(
+        durationMs: Long = 200_000L,
+        initialPositionMs: Long = 0L,
+    ): PlaybackTimelineState =
+        PlaybackTimelineState(initialPositionMs = initialPositionMs).also {
             it.onPlaybackKeyChanged("a")
             it.accept(
-                enginePositionMs = 0L,
+                enginePositionMs = initialPositionMs,
                 engineDurationMs = durationMs,
                 bufferedPositionMs = 0L,
                 isPlaying = false,
@@ -109,6 +113,29 @@ class SeekbarLayoutGestureTest {
 
         assertEquals(emptyList(), commits, "单纯点击不得提交 seek")
         assertFalse(timeline.isDragging, "松手后必须把时间交还给时间轴")
+    }
+
+    @Test
+    fun unknownDurationShowsPlaceholderInsteadOfZeroText() = runComposeUiTest {
+        // 当前时间文本显示 00:05，这样"总时长是否渲染成 00:00"才可判别
+        val timeline = timeline(durationMs = 0L, initialPositionMs = 5_000L)
+        mainClock.autoAdvance = false
+        setContent {
+            Box(modifier = Modifier.size(width = 300.dp, height = 56.dp)) {
+                SeekbarLayout(
+                    modifier = Modifier.testTag("seekbar"),
+                    positionMs = { timeline.positionMs },
+                    durationMs = { timeline.durationMs },
+                    progress = { timeline.progress },
+                    bufferedProgress = { timeline.bufferedProgress },
+                )
+            }
+        }
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeByFrame()
+
+        onNodeWithText("00:05").assertExists()
+        onNodeWithText("00:00").assertDoesNotExist()
     }
 
     @Test

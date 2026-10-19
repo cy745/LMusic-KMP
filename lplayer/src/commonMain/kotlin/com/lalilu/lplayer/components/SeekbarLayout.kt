@@ -1,9 +1,12 @@
 package com.lalilu.lplayer.components
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -36,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.util.lerp
 import com.lalilu.RemixIcon
 import com.lalilu.lplayer.extensions.AccumulatedValue
@@ -140,7 +144,6 @@ fun SeekbarLayout(
         val isSwitching by remember { derivedStateOf { seekbarState.value is SeekbarState.Switcher } }
         val isCanceled by remember { derivedStateOf { seekbarState.value.isCanceled() } }
 
-        val maxDurationText = remember(durationMs()) { durationMs().durationToTime() }
         val currentTimeText = durationToText(duration = { positionMs() })
         val animationJob = remember { mutableStateOf<Job?>(null) }
 
@@ -375,12 +378,12 @@ fun SeekbarLayout(
         ) {
             SeekbarBackground(visible = { isTouching && !isCanceled })
             SeekbarContentMask(clip = { isTouching && !isCanceled })
-            SeekbarDuration(
+            SeekbarMaxDuration(
                 modifier = Modifier
                     .align(Alignment.CenterEnd),
                 visible = { !isSwitching },
-                text = { maxDurationText },
-                textStyle = textStyle
+                textStyle = textStyle,
+                durationMs = durationMs,
             )
             SeekbarThumb(
                 clip = { isTouching && !isCanceled },
@@ -459,6 +462,83 @@ private fun SeekbarContentMask(
         clipPath(path) {
             drawRect(color = maskColor)
         }
+    }
+}
+
+/**
+ * 总时长展示。
+ *
+ * 时长未知时（在线内容加载中）不显示 `00:00`，也不显示占位符文本，而是换成一条呼吸的短条，
+ * 明确表达"还不知道有多长"。两种形态之间用 [AnimatedContent] 过渡。
+ */
+@Composable
+private fun SeekbarMaxDuration(
+    modifier: Modifier = Modifier,
+    visible: () -> Boolean = { true },
+    textStyle: TextStyle,
+    durationMs: () -> Long,
+) {
+    val alphaValue = animateFloatAsState(
+        targetValue = if (visible()) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        visibilityThreshold = 0.001f,
+        label = "SeekbarMaxDuration_alphaValue"
+    )
+    val duration = durationMs()
+
+    AnimatedContent(
+        modifier = modifier
+            .zIndex(1f)
+            .graphicsLayer { alpha = alphaValue.value },
+        targetState = duration > 0L,
+        transitionSpec = {
+            (fadeIn(animationSpec = tween(180)) togetherWith fadeOut(animationSpec = tween(180)))
+                .using(SizeTransform(clip = false))
+        },
+        contentAlignment = Alignment.CenterEnd,
+        label = "SeekbarMaxDuration",
+    ) { hasDuration ->
+        if (hasDuration) {
+            Text(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                text = duration.durationToTime(),
+                style = textStyle.copy(
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.2f),
+                        blurRadius = 5f
+                    )
+                )
+            )
+        } else {
+            SeekbarDurationPlaceholder()
+        }
+    }
+}
+
+/** 未知总时长：一条呼吸的短条，代替 `00:00`。 */
+@Composable
+private fun SeekbarDurationPlaceholder(modifier: Modifier = Modifier) {
+    val pulseAlpha by rememberInfiniteTransition(label = "SeekbarDurationPlaceholder")
+        .animateFloat(
+            initialValue = 1f,
+            targetValue = 0.35f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "SeekbarDurationPlaceholder_alpha",
+        )
+
+    Canvas(
+        modifier = modifier
+            .padding(end = 16.dp)
+            .size(width = 42.dp, height = 8.dp)
+            .graphicsLayer { alpha = pulseAlpha }
+    ) {
+        drawRoundRect(
+            color = Color.White,
+            cornerRadius = CornerRadius(4.dp.toPx()),
+        )
     }
 }
 

@@ -114,6 +114,23 @@ private fun com.lalilu.lplayer.components.SeekbarDuration(modifier: androidx.com
     - offsetProgress: STABLE (function type)
 
 @Composable
+private fun com.lalilu.lplayer.components.SeekbarDurationPlaceholder(modifier: androidx.compose.ui.Modifier): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - modifier: STABLE (marked @Stable or @Immutable)
+
+@Composable
+private fun com.lalilu.lplayer.components.SeekbarMaxDuration(modifier: androidx.compose.ui.Modifier, visible: kotlin.Function0<kotlin.Boolean>, textStyle: androidx.compose.ui.text.TextStyle, durationMs: kotlin.Function0<kotlin.Long>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - modifier: STABLE (marked @Stable or @Immutable)
+    - visible: STABLE (function type)
+    - textStyle: STABLE (marked @Stable or @Immutable)
+    - durationMs: STABLE (function type)
+
+@Composable
 private fun com.lalilu.lplayer.components.SeekbarSwitcher(modifier: androidx.compose.ui.Modifier, switching: kotlin.Function0<kotlin.Boolean>): kotlin.Unit
   skippable: true
   restartable: true
