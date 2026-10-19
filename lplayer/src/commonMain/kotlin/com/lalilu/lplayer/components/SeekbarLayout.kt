@@ -172,7 +172,10 @@ fun SeekbarLayout(
             if (old == next) return
 
             seekbarState.value = next
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            // 拖动进度条本身不振动：只有"切到别的交互状态"（取消、切换播放模式）才给一次反馈
+            if (next != SeekbarState.ProgressBar) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
 
             when {
                 next == SeekbarState.ProgressBar -> beginSeekDrag()
@@ -377,8 +380,15 @@ fun SeekbarLayout(
         ) {
             SeekbarBackground(visible = { isTouching && !isCanceled })
             SeekbarContentMask(clip = { isTouching && !isCanceled })
-            // 层级即声明顺序：背景 < 遮罩 < 时长 < 滑块（缓冲条 + 播放进度）< 当前时间。
-            // 时长元素必须留在滑块之下，不要在这里加 zIndex。
+            // 层级即声明顺序：背景 < 遮罩 < 缓冲进度 < 总时长 < 播放滑块 < 当前时间。
+            // 缓冲只是"能跳到哪"的提示，压在总时长下面；播放滑块盖在总时长上面。
+            // 时长元素必须留在播放滑块之下，不要在这里加 zIndex。
+            SeekbarBufferedProgress(
+                clip = { isTouching && !isCanceled },
+                thumbColor = animateColor,
+                bufferedProgress = bufferedProgress,
+                switching = { isSwitching },
+            )
             SeekbarMaxDuration(
                 modifier = Modifier
                     .align(Alignment.CenterEnd),
@@ -390,7 +400,6 @@ fun SeekbarLayout(
                 clip = { isTouching && !isCanceled },
                 thumbColor = animateColor,
                 progress = progress,
-                bufferedProgress = bufferedProgress,
                 switching = { isSwitching },
                 switchModeX = { switchModeX.floatValue }
             )
@@ -584,12 +593,75 @@ private fun SeekbarDuration(
     }
 }
 
+/**
+ * 缓冲进度层：与滑块同形的圆角条，半透明、更暗。
+ *
+ * 单独拆成一层是为了层级：缓冲只表示"已经能跳到哪"，不应该盖住总时长；
+ * 播放进度（滑块）则要盖在总时长上面，所以两者必须分别声明在 Box 里。
+ */
+@Composable
+private fun SeekbarBufferedProgress(
+    modifier: Modifier = Modifier,
+    thumbColor: () -> Color = { Color(0xFF007AD5) },
+    bufferedProgress: () -> Float = { 0f },
+    clip: () -> Boolean = { false },
+    switching: () -> Boolean = { false },
+) {
+    val path = remember { Path() }
+    val clipProgress = animateFloatAsState(
+        targetValue = if (clip()) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        visibilityThreshold = 0.001f,
+        label = "SeekbarBufferedProgress_clipProgress"
+    )
+    val switchProgress = animateFloatAsState(
+        targetValue = if (switching()) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        visibilityThreshold = 0.001f,
+        label = "SeekbarBufferedProgress_switchProgress"
+    )
+
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val maxPadding = 4.dp.toPx()
+        val paddingValue = maxPadding * clipProgress.value
+        val innerRadius = 16.dp.toPx() - paddingValue
+        val innerHeight = size.height - (paddingValue * 2f)
+        val innerWidth = size.width - (paddingValue * 2f)
+        if (innerWidth <= 0f || innerHeight <= 0f) return@Canvas
+
+        val bufferedWidth = (innerWidth * bufferedProgress()).coerceIn(0f, innerWidth)
+        // 切到播放模式选择器时与滑块一起淡出
+        val bufferedAlpha = 1f - switchProgress.value
+        if (bufferedWidth <= 0f || bufferedAlpha <= 0.001f) return@Canvas
+
+        path.reset()
+        path.addRoundRect(
+            RoundRect(
+                rect = Rect(
+                    offset = Offset(x = paddingValue, y = paddingValue),
+                    size = Size(width = innerWidth, height = innerHeight)
+                ),
+                cornerRadius = CornerRadius(innerRadius, innerRadius)
+            )
+        )
+
+        clipPath(path) {
+            val color = thumbColor()
+            drawRoundRect(
+                color = color.copy(alpha = color.alpha * bufferedAlpha * 0.35f),
+                cornerRadius = CornerRadius(innerRadius, innerRadius),
+                topLeft = Offset(x = paddingValue, y = paddingValue),
+                size = Size(width = bufferedWidth, height = innerHeight)
+            )
+        }
+    }
+}
+
 @Composable
 private fun SeekbarThumb(
     modifier: Modifier = Modifier,
     thumbColor: () -> Color = { Color(0xFF007AD5) },
     progress: () -> Float = { 1f },
-    bufferedProgress: () -> Float = { 0f },
     clip: () -> Boolean = { false },
     switching: () -> Boolean = { false },
     switchModeX: () -> Float = { 0f }
@@ -643,21 +715,7 @@ private fun SeekbarThumb(
         )
 
         clipPath(path) {
-            // 缓冲进度：与滑块同形，半透明垫在播放进度下面；
-            // 切到播放模式选择器时随 switchProgress 一起淡出。
-            val bufferedWidth = (innerWidth * bufferedProgress()).coerceIn(0f, innerWidth)
-            val bufferedAlpha = 1f - switchProgress.value
-            if (bufferedWidth > 0f && bufferedAlpha > 0.001f) {
-                val color = thumbColor()
-                drawRoundRect(
-                    color = color.copy(alpha = color.alpha * bufferedAlpha * 0.35f),
-                    cornerRadius = CornerRadius(innerRadius, innerRadius),
-                    topLeft = Offset(x = paddingValue, y = paddingValue),
-                    size = Size(width = bufferedWidth, height = innerHeight)
-                )
-            }
-
-            // 绘制滑块
+            // 绘制滑块（缓冲进度由 SeekbarBufferedProgress 单独一层负责）
             drawRoundRect(
                 color = thumbColor(),
                 cornerRadius = CornerRadius(innerRadius, innerRadius),
