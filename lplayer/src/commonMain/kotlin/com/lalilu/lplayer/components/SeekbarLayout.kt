@@ -39,7 +39,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.util.lerp
 import com.lalilu.RemixIcon
 import com.lalilu.lplayer.extensions.AccumulatedValue
@@ -378,6 +377,8 @@ fun SeekbarLayout(
         ) {
             SeekbarBackground(visible = { isTouching && !isCanceled })
             SeekbarContentMask(clip = { isTouching && !isCanceled })
+            // 层级即声明顺序：背景 < 遮罩 < 时长 < 滑块（缓冲条 + 播放进度）< 当前时间。
+            // 时长元素必须留在滑块之下，不要在这里加 zIndex。
             SeekbarMaxDuration(
                 modifier = Modifier
                     .align(Alignment.CenterEnd),
@@ -488,7 +489,6 @@ private fun SeekbarMaxDuration(
 
     AnimatedContent(
         modifier = modifier
-            .zIndex(1f)
             .graphicsLayer { alpha = alphaValue.value },
         targetState = duration > 0L,
         transitionSpec = {
