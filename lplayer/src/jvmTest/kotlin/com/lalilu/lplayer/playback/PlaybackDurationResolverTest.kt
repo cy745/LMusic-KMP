@@ -62,6 +62,44 @@ class PlaybackDurationResolverTest {
     }
 
     @Test
+    fun staleEngineDurationIsNeverReusedForTheNextItem() = runTest {
+        val item = MutableStateFlow<LAudio?>(audio("a", 180_000L))
+        val engine = MutableStateFlow(180_000L)
+        val resolver = PlaybackDurationResolver(item, engine, backgroundScope)
+        runCurrent()
+        assertEquals(180_000L, resolver.stableDuration.value)
+
+        // 切到一首还没拿到时长的在线曲目，引擎仍停在上一首的值上
+        item.value = audio("b", 0L)
+        runCurrent()
+        assertEquals(0L, resolver.stableDuration.value, "加载中必须显示未知，而不是上一首的时长")
+
+        // 引擎先把时长清零（还没解析出来）
+        engine.value = 0L
+        runCurrent()
+        assertEquals(0L, resolver.stableDuration.value)
+
+        // 解析出真实时长后立刻采用
+        engine.value = 150_000L
+        runCurrent()
+        assertEquals(150_000L, resolver.stableDuration.value)
+    }
+
+    @Test
+    fun metadataEnrichedForTheSameItemIsAdopted() = runTest {
+        val item = MutableStateFlow<LAudio?>(audio("a", 0L))
+        val engine = MutableStateFlow(0L)
+        val resolver = PlaybackDurationResolver(item, engine, backgroundScope)
+        runCurrent()
+        assertEquals(0L, resolver.stableDuration.value)
+
+        // 数据源之后补全了同一首曲目的时长
+        item.value = audio("a", 200_000L)
+        runCurrent()
+        assertEquals(200_000L, resolver.stableDuration.value)
+    }
+
+    @Test
     fun switchingItemRebuildsTheDomainFromMetadata() = runTest {
         val item = MutableStateFlow<LAudio?>(audio("a", 180_000L))
         val engine = MutableStateFlow(0L)
