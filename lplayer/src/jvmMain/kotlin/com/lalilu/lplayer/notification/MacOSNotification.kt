@@ -104,7 +104,7 @@ class MacOSNotification(
             nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
         }.launchIn(this)
 
-        playback.currentDuration.onEach {
+        playback.stableDuration.onEach {
             playInfoDictionary.setValue(
                 key = MPMediaItemProperty.PlaybackDuration.nativeValue,
                 value = NSNumber.CLASS.numberWithLong(it / 1000L)
@@ -154,7 +154,7 @@ class MacOSNotification(
             )
             playInfoDictionary.setValue(
                 key = MPMediaItemProperty.PlaybackDuration.nativeValue,
-                value = NSNumber.CLASS.numberWithLong(playback.currentDuration.value / 1000L)
+                value = NSNumber.CLASS.numberWithLong(playback.stableDuration.value / 1000L)
             )
             playInfoDictionary.setValue(
                 key = MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,

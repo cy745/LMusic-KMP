@@ -77,6 +77,9 @@ private fun SeekbarState.isCanceled(): Boolean {
 private class SeekbarGestureState {
     var width: Float = 0f
     var positionMs: Long = 0L
+
+    /** 按下瞬间的时长域：手指下的 px→ms 换算在整个拖动期间必须保持不变。 */
+    var durationMs: Long = 0L
 }
 
 @TraceRecomposition(tag = "SeekbarLayout", traceStates = true)
@@ -87,6 +90,7 @@ fun SeekbarLayout(
     positionMs: () -> Long = { 0L },
     durationMs: () -> Long = { 0L },
     progress: () -> Float = { 0f },
+    bufferedProgress: () -> Float = { 0f },
     scrollThreadHold: Float = 200f,
     animateColor: () -> Color = { Color.DarkGray },
     onSeekStart: (Long) -> Unit = {},
@@ -144,6 +148,7 @@ fun SeekbarLayout(
         fun beginSeekDrag() {
             if (isSeekDragActive || durationMs() <= 0L) return
             isSeekDragActive = true
+            gesture.durationMs = durationMs()
             onSeekStart(gesture.positionMs)
         }
 
@@ -208,7 +213,7 @@ fun SeekbarLayout(
                 }
 
                 oldState == SeekbarState.ProgressBar -> {
-                    val duration = durationMs()
+                    val duration = gesture.durationMs
                     if (duration > 0L && gesture.width > 0f) {
                         val delta = deltaX / gesture.width * duration.toFloat()
                         gesture.positionMs = (gesture.positionMs + delta)
@@ -275,8 +280,9 @@ fun SeekbarLayout(
 
                                 when (event.type) {
                                     PointerEventType.Press -> {
-                                        // 记录按下瞬间的时间：按住期间时间由手指接管
+                                        // 记录按下瞬间的时间与时长域：按住期间由手指接管
                                         gesture.positionMs = positionMs()
+                                        gesture.durationMs = durationMs()
                                         isTouching = true
                                         isMoved = false
                                         beginSeekDrag()
@@ -380,6 +386,7 @@ fun SeekbarLayout(
                 clip = { isTouching && !isCanceled },
                 thumbColor = animateColor,
                 progress = progress,
+                bufferedProgress = bufferedProgress,
                 switching = { isSwitching },
                 switchModeX = { switchModeX.floatValue }
             )
@@ -502,6 +509,7 @@ private fun SeekbarThumb(
     modifier: Modifier = Modifier,
     thumbColor: () -> Color = { Color(0xFF007AD5) },
     progress: () -> Float = { 1f },
+    bufferedProgress: () -> Float = { 0f },
     clip: () -> Boolean = { false },
     switching: () -> Boolean = { false },
     switchModeX: () -> Float = { 0f }
@@ -555,6 +563,20 @@ private fun SeekbarThumb(
         )
 
         clipPath(path) {
+            // 缓冲进度：与滑块同形，半透明垫在播放进度下面；
+            // 切到播放模式选择器时随 switchProgress 一起淡出。
+            val bufferedWidth = (innerWidth * bufferedProgress()).coerceIn(0f, innerWidth)
+            val bufferedAlpha = 1f - switchProgress.value
+            if (bufferedWidth > 0f && bufferedAlpha > 0.001f) {
+                val color = thumbColor()
+                drawRoundRect(
+                    color = color.copy(alpha = color.alpha * bufferedAlpha * 0.35f),
+                    cornerRadius = CornerRadius(innerRadius, innerRadius),
+                    topLeft = Offset(x = paddingValue, y = paddingValue),
+                    size = Size(width = bufferedWidth, height = innerHeight)
+                )
+            }
+
             // 绘制滑块
             drawRoundRect(
                 color = thumbColor(),

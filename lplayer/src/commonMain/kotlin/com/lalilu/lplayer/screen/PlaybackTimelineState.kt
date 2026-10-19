@@ -14,7 +14,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.lalilu.lmedia.domain.model.LAudio
-import com.lalilu.lmedia.domain.model.duration
 import com.lalilu.lplayer.LPlayer
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -23,15 +22,20 @@ import kotlin.math.exp
 import kotlin.math.roundToLong
 
 /**
- * 残差弹簧的固有频率（rad/s）。
+ * 弹簧的固有频率（rad/s）。
  *
  * sqrt(Spring.StiffnessLow) ≈ 14，与旧版 `spring(stiffness = Spring.StiffnessLow)` 的手感一致：
  * 从静止出发约 0.45s 收敛到位，且第一帧只移动约 2% 的距离——是"滑过去"而不是"跳一下再滑"。
  */
-private const val ResidualSpringOmega = 14f
+private const val SpringOmega = 14f
 
-/** 比例的弹簧固有频率。稳态播放时比例变化极慢，因此这里没有可感知的滞后。 */
-private const val ProgressSpringOmega = 14f
+/**
+ * 缓冲比例的弹簧更软。
+ *
+ * 缓冲位置是按块推进的（Android 侧还受引擎事件节奏限制，大约每秒一次），
+ * 用与播放进度相同的刚度会变成"一步一停"；更软一些可以把这些台阶连成连续滑动。
+ */
+private const val BufferedSpringOmega = 8f
 
 /** 残差收敛到该值以内且速度足够小时直接归零。 */
 private const val ResidualSnapThresholdMs = 0.5f
@@ -61,15 +65,6 @@ private const val PausedPollIntervalMs = 200L
 
 /** 首帧拿不到真实间隔时的兜底值。 */
 private const val FirstFrameFallbackMs = 16L
-
-/** 时长漂移的绝对下限：小于 1s 的差异不修正。 */
-private const val DurationDriftFloorMs = 1_000L
-
-/** 元数据时长与引擎时长的允许误差（1/50 = 2%），超出才认为元数据不准。 */
-private const val MetadataDriftDivisor = 50L
-
-/** 已采用引擎时长后，同媒体内的修正阈值（1/100 = 1%）。 */
-private const val EngineDriftDivisor = 100L
 
 /**
  * 临界阻尼弹簧跟随器。
@@ -124,8 +119,9 @@ private class SpringFollower(
 /**
  * 播放页唯一的时间轴。
  *
- * 它同时拥有"现在是什么时间"和"这首歌曲有多长"，两者都绑定在同一个媒体元素上，
- * 因此不会出现新歌的位置配旧歌的时长这类中间态。
+ * 它同时拥有"现在是什么时间"、"这首歌曲有多长"和"缓冲到哪里"，三者都绑定在同一个曲目上，
+ * 因此不会出现新歌的位置配旧歌的时长这类中间态。时长由 Playback 层的稳定时长提供，
+ * 这里只负责在拖动时冻结它，并把比例变化抹平。
  *
  * 三条规则：
  * 1. 稳态时 [positionMs] 与引擎位置完全一致（残差恒为 0），不引入任何延迟；
@@ -133,8 +129,9 @@ private class SpringFollower(
  *    显示值保持连续，再以临界阻尼弹簧平滑过渡到真实位置；
  * 3. 用户提交 seek 后进入提交态，等待引擎落地期间显示值只前进、不回退。
  *
- * [progress] 是给绘制使用的比例，它在比例空间单独跟随：稳态播放时目标值变化极慢，
- * 因此没有可感知的滞后；而切歌或时长修正造成目标值跳变时，它同样把跳变抹平。
+ * [progress] 与 [bufferedProgress] 是给绘制使用的比例，它们在比例空间单独跟随：
+ * 稳态时目标值变化极慢，因此没有可感知的滞后；而切歌、时长修正或缓冲推进造成跳变时，
+ * 它们会把跳变抹平。
  */
 @Stable
 internal class PlaybackTimelineState(
@@ -145,12 +142,16 @@ internal class PlaybackTimelineState(
     var positionMs by mutableLongStateOf(initialPositionMs)
         private set
 
-    /** 当前媒体元素的时长（毫秒）。0 表示未知，此时不允许拖动。 */
+    /** 当前曲目的稳定时长（毫秒），来自 Playback 层。0 表示未知，此时不允许拖动。 */
     var durationMs by mutableLongStateOf(0L)
         private set
 
-    /** 当前渲染比例（0..1），已对时长域的变化做过平滑。 */
+    /** 当前播放进度比例（0..1），已做平滑。 */
     var progress by mutableFloatStateOf(0f)
+        private set
+
+    /** 当前缓冲进度比例（0..1），已做平滑。 */
+    var bufferedProgress by mutableFloatStateOf(0f)
         private set
 
     /** 用户是否正在拖动进度条。 */
@@ -162,7 +163,6 @@ internal class PlaybackTimelineState(
      *
      * 必须与歌词内容的 key（`LAudio.id`）一致：歌词页用 `content.key == playbackKey`
      * 判断"这个时间是否已经属于当前页"，不一致就会一直停在未同步状态而不跟随滚动。
-     * 它与 [durationMs] 同帧切换；切歌时的滑动过渡只影响显示值。
      */
     var playbackKey: Any? by mutableStateOf(initialPlaybackKey)
         private set
@@ -171,19 +171,25 @@ internal class PlaybackTimelineState(
 
     private var dragPlaybackKey: Any? = null
     private var samplePositionMs = initialPositionMs
+    private var bufferedPositionMs = 0L
     private val residual = SpringFollower(
         initialValue = 0f,
-        omega = ResidualSpringOmega,
+        omega = SpringOmega,
         snapThreshold = ResidualSnapThresholdMs,
         snapVelocity = ResidualSnapVelocityMs,
     )
     private val progressFollower = SpringFollower(
         initialValue = 0f,
-        omega = ProgressSpringOmega,
+        omega = SpringOmega,
         snapThreshold = ProgressSnapThreshold,
         snapVelocity = ProgressSnapVelocity,
     )
-    private var engineDurationTrusted = false
+    private val bufferedFollower = SpringFollower(
+        initialValue = 0f,
+        omega = BufferedSpringOmega,
+        snapThreshold = ProgressSnapThreshold,
+        snapVelocity = ProgressSnapVelocity,
+    )
     private var commit: Commit? = null
     private var clockMs = 0L
 
@@ -194,56 +200,21 @@ internal class PlaybackTimelineState(
     )
 
     /**
-     * 曲目身份变化时调用。位置不在这里重置——旧显示值会由下一帧的不连续吸收保留，
-     * 再平滑滑向新曲目的位置；时长则与曲目身份原子切换。
+     * 曲目身份变化时调用。
+     *
+     * 位置不在这里重置——旧显示值会由下一帧的不连续吸收保留，再平滑滑向新曲目的位置；
+     * 时长与缓冲进度则跟着曲目一起归零，等下一帧的采样送来新曲目的真实值。
      */
-    fun onMediaChanged(
-        key: Any?,
-        metadataDurationMs: Long,
-        engineDurationMs: Long = 0L,
-    ) {
-        if (key == playbackKey) {
-            if (durationMs <= 0L) {
-                val resolved = metadataDurationMs.takeIf { it > 0L }
-                    ?: engineDurationMs.takeIf { it > 0L }
-                if (resolved != null) applyDuration(resolved)
-            }
-            return
-        }
+    fun onPlaybackKeyChanged(key: Any?) {
+        if (key == playbackKey) return
 
         playbackKey = key
         dragPlaybackKey = null
         isDragging = false
         commit = null
-        engineDurationTrusted = false
-
-        val resolved = metadataDurationMs.takeIf { it > 0L }
-            ?: engineDurationMs.coerceAtLeast(0L)
-        applyDuration(resolved)
-    }
-
-    /** 引擎时长变化时调用。引擎在切歌瞬间发出的 0 不会把已知时长降级。 */
-    fun updateDuration(engineDurationMs: Long) {
-        if (engineDurationMs <= 0L || isDragging) return
-
-        val current = durationMs
-        if (!engineDurationTrusted) {
-            if (current <= 0L ||
-                (engineDurationMs - current).absoluteValue >
-                driftTolerance(current, MetadataDriftDivisor)
-            ) {
-                applyDuration(engineDurationMs)
-                engineDurationTrusted = true
-            }
-            return
-        }
-
-        if ((engineDurationMs - current).absoluteValue <=
-            driftTolerance(current, EngineDriftDivisor)
-        ) {
-            return
-        }
-        applyDuration(engineDurationMs)
+        bufferedPositionMs = 0L
+        bufferedFollower.snapTo(0f)
+        bufferedProgress = 0f
     }
 
     fun onDragStart(positionMs: Long) {
@@ -272,7 +243,7 @@ internal class PlaybackTimelineState(
     fun onSeek(positionMs: Long) {
         if (!isDragging) return
         isDragging = false
-        // 拖动期间切了歌：放弃这次提交，交给媒体切换的过渡处理。
+        // 拖动期间切了歌：放弃这次提交，交给曲目切换的过渡处理。
         if (dragPlaybackKey != playbackKey) return
 
         val target = positionMs.coerceIn(0L, durationMs)
@@ -287,9 +258,19 @@ internal class PlaybackTimelineState(
      * 暂停时引擎位置可能沿用上一次读取的缓存值，但 [dtMs] 仍是真实帧间隔，
      * 因此弹簧与比例始终按帧推进。
      */
-    fun accept(enginePositionMs: Long, isPlaying: Boolean, dtMs: Long) {
+    fun accept(
+        enginePositionMs: Long,
+        engineDurationMs: Long,
+        bufferedPositionMs: Long,
+        isPlaying: Boolean,
+        dtMs: Long,
+    ) {
         val elapsedMs = dtMs.coerceIn(0L, MaxContinuityGapMs * 4)
         clockMs += elapsedMs
+
+        // 拖动期间冻结时长域：手指下的比例换算不能因为时长修正而改变。
+        if (!isDragging) applyDuration(engineDurationMs)
+        this.bufferedPositionMs = bufferedPositionMs
 
         val previous = samplePositionMs
         samplePositionMs = enginePositionMs
@@ -300,6 +281,8 @@ internal class PlaybackTimelineState(
             setDisplayPosition(enginePositionMs)
             progressFollower.snapTo(ratioOf(positionMs))
             progress = progressFollower.value
+            bufferedFollower.snapTo(ratioOf(bufferedPositionMs))
+            bufferedProgress = bufferedFollower.value
             return
         }
 
@@ -358,26 +341,34 @@ internal class PlaybackTimelineState(
         if (wasUnknown && durationMs > 0L) {
             progressFollower.snapTo(ratioOf(positionMs))
             progress = progressFollower.value
+            bufferedFollower.snapTo(ratioOf(bufferedPositionMs))
+            bufferedProgress = bufferedFollower.value
         }
     }
 
     private fun refreshProgress(dtSeconds: Float) {
+        val target = ratioOf(positionMs)
         if (isDragging) {
-            progressFollower.snapTo(ratioOf(positionMs))
-            progress = progressFollower.value
-            return
+            progressFollower.snapTo(target)
+        } else {
+            progressFollower.step(target, dtSeconds)
         }
-
-        progressFollower.step(target = ratioOf(positionMs), dtSeconds = dtSeconds)
         progress = progressFollower.value
+
+        // 缓冲推进用同一条弹簧滑过去；回退（换源 / seek 后重置）则直接对齐，
+        // 否则会出现"缓冲条往回爬"的怪相。
+        val bufferedTarget = ratioOf(bufferedPositionMs)
+        if (bufferedTarget < bufferedFollower.value) {
+            bufferedFollower.snapTo(bufferedTarget)
+        } else {
+            bufferedFollower.step(bufferedTarget, dtSeconds)
+        }
+        bufferedProgress = bufferedFollower.value
     }
 
     private fun ratioOf(positionMs: Long): Float =
         if (durationMs <= 0L) 0f
         else (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
-
-    private fun driftTolerance(currentMs: Long, divisor: Long): Long =
-        maxOf(DurationDriftFloorMs, currentMs / divisor)
 }
 
 /**
@@ -389,23 +380,16 @@ internal class PlaybackTimelineState(
 internal fun timelineKeyOf(item: LAudio?): Any? = item?.id
 
 /**
- * 播放页时间轴的常规入口：曲目身份与元数据时长都从同一个 [item] 推导，避免两者取到不同来源。
- *
- * 曲目身份取的是 [LAudio.id]：歌词内容的 key 就是它（见 `PlayerLyricContentTest`），
- * 换成 source-qualified 的 `mediaKey` 会让歌词页永远停留在"时间未同步"状态而不跟随滚动。
- * 时长优先用元数据，切歌瞬间就能拿到真实值，不必等引擎加载。
+ * 播放页时间轴的常规入口：曲目身份从 [item] 推导，时间、时长与缓冲都直接读 Playback 层。
  */
 @Composable
 internal fun rememberPlaybackTimelineState(
     isPlaying: Boolean,
     item: LAudio?,
-    engineDurationMs: Long,
     readPosition: () -> Long = { LPlayer.instance.currentPosition() },
 ): PlaybackTimelineState = rememberPlaybackTimelineState(
     isPlaying = isPlaying,
     playbackKey = timelineKeyOf(item),
-    metadataDurationMs = item?.duration ?: 0L,
-    engineDurationMs = engineDurationMs,
     readPosition = readPosition,
 )
 
@@ -419,27 +403,23 @@ internal fun rememberPlaybackTimelineState(
 internal fun rememberPlaybackTimelineState(
     isPlaying: Boolean,
     playbackKey: Any?,
-    metadataDurationMs: Long,
-    engineDurationMs: Long,
-    readPosition: () -> Long = { LPlayer.instance.currentPosition() },
+    readPosition: () -> Long,
+    readDuration: () -> Long = { LPlayer.instance.stableDuration.value },
+    readBufferedPosition: () -> Long = { LPlayer.instance.currentBufferedPosition.value },
 ): PlaybackTimelineState {
     val scope = rememberCoroutineScope()
     val currentReadPosition by rememberUpdatedState(readPosition)
+    val currentReadDuration by rememberUpdatedState(readDuration)
+    val currentReadBufferedPosition by rememberUpdatedState(readBufferedPosition)
     val state = remember {
         PlaybackTimelineState(
             initialPositionMs = currentReadPosition(),
-            // 首帧就带上曲目身份，避免歌词在开场第一帧被判定为"时间尚未同步"。
             initialPlaybackKey = playbackKey,
         )
     }
 
-    LaunchedEffect(playbackKey, metadataDurationMs, engineDurationMs) {
-        state.onMediaChanged(
-            key = playbackKey,
-            metadataDurationMs = metadataDurationMs,
-            engineDurationMs = engineDurationMs,
-        )
-        state.updateDuration(engineDurationMs)
+    LaunchedEffect(playbackKey) {
+        state.onPlaybackKeyChanged(playbackKey)
     }
 
     LifecycleResumeEffect(isPlaying) {
@@ -465,6 +445,8 @@ internal fun rememberPlaybackTimelineState(
 
                     state.accept(
                         enginePositionMs = samplePositionMs,
+                        engineDurationMs = currentReadDuration(),
+                        bufferedPositionMs = currentReadBufferedPosition(),
                         isPlaying = isPlaying,
                         dtMs = dt,
                     )

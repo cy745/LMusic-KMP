@@ -45,7 +45,7 @@ object NowPlayingInfoNotification : CoroutineScope {
                     this[MPMediaItemPropertyTitle] = track?.title ?: ""
                     this[MPMediaItemPropertyArtist] = track?.subtitle ?: ""
                     this[MPMediaItemPropertyAlbumTitle] = track?.subtitle ?: ""
-                    this[MPMediaItemPropertyPlaybackDuration] = playback.currentDuration.value.toDouble().div(1000)
+                    this[MPMediaItemPropertyPlaybackDuration] = playback.stableDuration.value.toDouble().div(1000)
                     this[MPNowPlayingInfoPropertyPlaybackRate] = if (playback.isPlaying.value) 1.0 else 0.0
                     this[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
                 }
@@ -65,7 +65,7 @@ object NowPlayingInfoNotification : CoroutineScope {
             }.launchIn(this)
 
         playback.isPlaying
-            .combine(playback.currentDuration) { isPlaying, duration -> isPlaying to duration }
+            .combine(playback.stableDuration) { isPlaying, duration -> isPlaying to duration }
             .onEach { (isPlaying, duration) ->
                 debugLog("Playback state changed, isPlaying: $isPlaying")
                 nowPlayingInfo.apply {

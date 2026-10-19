@@ -125,6 +125,13 @@ class MPlayerPlayback(
     override val currentBufferedPosition: StateFlow<Long> = _currentBufferedPosition.asStateFlow()
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
+    private val durationResolver = PlaybackDurationResolver(
+        currentItem = queue.currentItemFlow(),
+        engineDuration = _currentDuration,
+        scope = this,
+    )
+    override val stableDuration: StateFlow<Long> = durationResolver.stableDuration
+
     init {
         browserFuture.addListener(this@MPlayerPlayback, Dispatchers.Main.asExecutor())
     }
@@ -384,6 +391,11 @@ class MPlayerPlayback(
                 }
             }
         }
+    }
+
+    override fun onEvents(player: Player, events: Player.Events) {
+        // MediaBrowser 的缓冲位置没有独立回调，只能在事件批里读取
+        _currentBufferedPosition.value = player.bufferedPosition.coerceAtLeast(0L)
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {

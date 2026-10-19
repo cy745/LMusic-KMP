@@ -5,7 +5,6 @@ import androidx.compose.runtime.collectAsState
 import com.lalilu.extensions.bindToLifecycle
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmedia.rememberMediaCoverRequest
-import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.viewmodel.PlayerViewModel
 import com.lalilu.navigation.Screen
 import org.koin.compose.viewmodel.koinViewModel
@@ -21,11 +20,9 @@ class PlayerScreenForPad : Screen {
         val currentItem = vm.currentItem.collectAsState(null)
         val isPlaying = vm.isPlaying.collectAsState()
         val currentCover = rememberMediaCoverRequest(currentItem.value)
-        val duration = LPlayer.instance.currentDuration.collectAsState(0L)
         val timeline = rememberPlaybackTimelineState(
             isPlaying = isPlaying.value,
             item = currentItem.value,
-            engineDurationMs = duration.value,
         )
 
         PlayerScreenForPadContent(

@@ -26,6 +26,7 @@ internal fun PlayerTransportControls(
         positionMs = { timeline.positionMs },
         durationMs = { timeline.durationMs },
         progress = { timeline.progress },
+        bufferedProgress = { timeline.bufferedProgress },
         onSeekStart = timeline::onDragStart,
         onSeekDrag = timeline::onDrag,
         onSeekCancel = timeline::onDragCancel,

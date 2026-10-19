@@ -168,9 +168,9 @@ private fun TimelineHost(
         val timeline = rememberPlaybackTimelineState(
             isPlaying = playing.value,
             playbackKey = key.value,
-            metadataDurationMs = metadataDuration.value,
-            engineDurationMs = 0L,
             readPosition = source::read,
+            readDuration = { metadataDuration.value },
+            readBufferedPosition = { 0L },
         )
         SideEffect {
             observation.commits++

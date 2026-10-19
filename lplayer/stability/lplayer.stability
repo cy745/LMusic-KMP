@@ -122,13 +122,14 @@ private fun com.lalilu.lplayer.components.SeekbarSwitcher(modifier: androidx.com
     - switching: STABLE (function type)
 
 @Composable
-private fun com.lalilu.lplayer.components.SeekbarThumb(modifier: androidx.compose.ui.Modifier, thumbColor: kotlin.Function0<androidx.compose.ui.graphics.Color>, progress: kotlin.Function0<kotlin.Float>, clip: kotlin.Function0<kotlin.Boolean>, switching: kotlin.Function0<kotlin.Boolean>, switchModeX: kotlin.Function0<kotlin.Float>): kotlin.Unit
+private fun com.lalilu.lplayer.components.SeekbarThumb(modifier: androidx.compose.ui.Modifier, thumbColor: kotlin.Function0<androidx.compose.ui.graphics.Color>, progress: kotlin.Function0<kotlin.Float>, bufferedProgress: kotlin.Function0<kotlin.Float>, clip: kotlin.Function0<kotlin.Boolean>, switching: kotlin.Function0<kotlin.Boolean>, switchModeX: kotlin.Function0<kotlin.Float>): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - modifier: STABLE (marked @Stable or @Immutable)
     - thumbColor: STABLE (function type)
     - progress: STABLE (function type)
+    - bufferedProgress: STABLE (function type)
     - clip: STABLE (function type)
     - switching: STABLE (function type)
     - switchModeX: STABLE (function type)
@@ -349,25 +350,24 @@ private fun com.lalilu.lplayer.screen.rememberLyricNestedScrollConnection(scaffo
     - lyricsState: STABLE (marked @Stable or @Immutable)
 
 @Composable
-internal fun com.lalilu.lplayer.screen.rememberPlaybackTimelineState(isPlaying: kotlin.Boolean, item: com.lalilu.lmedia.domain.model.LAudio?, engineDurationMs: kotlin.Long, readPosition: kotlin.Function0<kotlin.Long>): com.lalilu.lplayer.screen.PlaybackTimelineState
+internal fun com.lalilu.lplayer.screen.rememberPlaybackTimelineState(isPlaying: kotlin.Boolean, item: com.lalilu.lmedia.domain.model.LAudio?, readPosition: kotlin.Function0<kotlin.Long>): com.lalilu.lplayer.screen.PlaybackTimelineState
   skippable: false
   restartable: false
   params:
     - isPlaying: STABLE (primitive type)
     - item: UNSTABLE (cross-module type without @Stable/@Immutable)
-    - engineDurationMs: STABLE (primitive type)
     - readPosition: STABLE (function type)
 
 @Composable
-internal fun com.lalilu.lplayer.screen.rememberPlaybackTimelineState(isPlaying: kotlin.Boolean, playbackKey: kotlin.Any?, metadataDurationMs: kotlin.Long, engineDurationMs: kotlin.Long, readPosition: kotlin.Function0<kotlin.Long>): com.lalilu.lplayer.screen.PlaybackTimelineState
+internal fun com.lalilu.lplayer.screen.rememberPlaybackTimelineState(isPlaying: kotlin.Boolean, playbackKey: kotlin.Any?, readPosition: kotlin.Function0<kotlin.Long>, readDuration: kotlin.Function0<kotlin.Long>, readBufferedPosition: kotlin.Function0<kotlin.Long>): com.lalilu.lplayer.screen.PlaybackTimelineState
   skippable: false
   restartable: false
   params:
     - isPlaying: STABLE (primitive type)
     - playbackKey: UNSTABLE (cross-module type without @Stable/@Immutable)
-    - metadataDurationMs: STABLE (primitive type)
-    - engineDurationMs: STABLE (primitive type)
     - readPosition: STABLE (function type)
+    - readDuration: STABLE (function type)
+    - readBufferedPosition: STABLE (function type)
 
 @Composable
 private fun com.lalilu.lplayer.screen.rememberPlayerLyricsPaneState(): com.lalilu.lplayer.screen.PlayerLyricsPaneState

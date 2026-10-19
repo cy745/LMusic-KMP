@@ -25,10 +25,16 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class SeekbarLayoutGestureTest {
 
-    private fun timeline(): PlaybackTimelineState =
+    private fun timeline(durationMs: Long = 200_000L): PlaybackTimelineState =
         PlaybackTimelineState(initialPositionMs = 0L).also {
-            it.onMediaChanged("a", metadataDurationMs = 200_000L)
-            it.accept(enginePositionMs = 0L, isPlaying = false, dtMs = 16L)
+            it.onPlaybackKeyChanged("a")
+            it.accept(
+                enginePositionMs = 0L,
+                engineDurationMs = durationMs,
+                bufferedPositionMs = 0L,
+                isPlaying = false,
+                dtMs = 16L,
+            )
         }
 
     @Test
@@ -107,8 +113,7 @@ class SeekbarLayoutGestureTest {
 
     @Test
     fun unknownDurationKeepsTheBarUndraggable() = runComposeUiTest {
-        val timeline = PlaybackTimelineState(initialPositionMs = 0L)
-        timeline.onMediaChanged("a", metadataDurationMs = 0L)
+        val timeline = timeline(durationMs = 0L)
         val commits = mutableListOf<Long>()
 
         setContent {

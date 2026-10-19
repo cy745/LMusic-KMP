@@ -12,7 +12,19 @@ interface Playback {
     val playbackMode: StateFlow<PlaybackMode>
 
     // Playback Information
+
+    /** 引擎上报的原始时长。切歌瞬间会经过 0，展示用途请改用 [stableDuration]。 */
     val currentDuration: StateFlow<Long>
+
+    /**
+     * 当前曲目的稳定时长（毫秒），0 表示未知。
+     *
+     * 由"曲目元数据 + 引擎上报"按曲目合成：切歌时立刻可用，同一曲目内不会被引擎的
+     * 瞬时 0 降级。迷你播放器、播放列表、系统通知等所有展示时长的位置都应读它。
+     */
+    val stableDuration: StateFlow<Long>
+        get() = currentDuration
+
     fun currentPosition(): Long
     val currentBufferedPosition: StateFlow<Long>
 
@@ -21,7 +33,7 @@ interface Playback {
 
     // Utility Properties
     val canSeek: Flow<Boolean>
-        get() = currentDuration.map { it > 0 }
+        get() = stableDuration.map { it > 0 }
     val canSkipNext: Flow<Boolean>
         get() = queue.expandedItems
             .combine(playbackMode) { currentState, playMode -> isAbleToSkipNext(currentState, playMode) }

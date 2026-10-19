@@ -13,7 +13,6 @@ import com.lalilu.extensions.bindToLifecycle
 import com.lalilu.extensions.retrieve
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lmedia.rememberMediaCoverRequest
-import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.lplayer.generated.resources.Res
 import com.lalilu.lplayer.lplayer.generated.resources.player_screen_title
 import com.lalilu.lplayer.viewmodel.PlayerViewModel
@@ -50,11 +49,9 @@ class PlayerScreen : Screen, ScreenMetadataFactory, ScreenInfoFactory {
         val isPlaying = vm.isPlaying.collectAsState()
         val currentItem = vm.currentItem.collectAsState(null)
         val currentCover = rememberMediaCoverRequest(currentItem.value)
-        val duration = LPlayer.instance.currentDuration.collectAsState(0L)
         val timeline = rememberPlaybackTimelineState(
             isPlaying = isPlaying.value,
             item = currentItem.value,
-            engineDurationMs = duration.value,
         )
         val backgroundColor = animateColorAsState(
             targetValue = MaterialTheme.colorScheme.primaryContainer,
