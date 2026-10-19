@@ -105,6 +105,39 @@ class LyricFollowScrollTest {
     }
 
     @Test
+    fun listFollowsAfterLyricsAppearForTheSameSong() = runComposeUiTest {
+        val time = mutableStateOf(0L)
+        // 先是"暂无歌词"，随后同一首歌的歌词才到（边车下载完 / 内嵌歌词读出来）
+        val content = mutableStateOf<LyricContent>(LyricContent.Ready(key = "a", items = emptyList()))
+
+        setContent {
+            CompositionLocalProvider(LocalFontFamily provides FontFamily.Default) {
+                Box(modifier = Modifier.size(width = 360.dp, height = 640.dp)) {
+                    LyricLayout(
+                        currentTime = { time.value },
+                        lyricContent = content,
+                        sampledPlaybackKey = { content.value.key },
+                        screenConstraints = Constraints(maxWidth = 360, maxHeight = 640),
+                    )
+                }
+            }
+        }
+
+        onNodeWithText("暂无歌词").assertIsDisplayed()
+
+        // 歌词补上：key 与 generation 都没变，只有歌词行从空变成有
+        runOnIdle {
+            content.value = LyricContent.Ready(key = "a", items = lyrics(80))
+            time.value = 60_000L
+        }
+
+        waitUntil(timeoutMillis = 5_000) {
+            onAllNodesWithText("line 60").fetchSemanticsNodes().isNotEmpty()
+        }
+        onNodeWithText("line 60").assertIsDisplayed()
+    }
+
+    @Test
     fun listKeepsFollowingAfterSwitchingToAnotherSong() = runComposeUiTest {
         val time = mutableStateOf(0L)
         val content = mutableStateOf<LyricContent>(

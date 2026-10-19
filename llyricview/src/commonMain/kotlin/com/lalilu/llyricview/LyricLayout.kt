@@ -43,6 +43,14 @@ private data class LyricPageKey(
     val mediaKey: String?,
     val generation: Long,
     val isReady: Boolean,
+    /**
+     * 这一页是否真的有歌词行。
+     *
+     * 同一首歌的歌词常常先到"暂无歌词"，之后再补上真歌词（边车下载完、内嵌歌词读出来）。
+     * 不带这一位的话两次内容共用一个 pageKey，页面不会切换：既没有过渡动画，空列表时期
+     * 建立的滚动状态（keys 为空、位置在第 0 行）还会被沿用，于是列表永远不跟着高亮走。
+     */
+    val hasItems: Boolean,
 )
 
 private const val ReducedLyricFadeOutDurationMillis = 120
@@ -68,6 +76,7 @@ private val LyricContent.pageKey: LyricPageKey
         mediaKey = key,
         generation = generation,
         isReady = this is LyricContent.Ready,
+        hasItems = (this as? LyricContent.Ready)?.items?.isNotEmpty() == true,
     )
 
 private class LyricPageHistory {
@@ -115,7 +124,8 @@ fun LyricLayout(
         }
     }
 
-    LaunchedEffect(content.key, content.generation) {
+    LaunchedEffect(content) {
+        // 文档换了（包括"暂无歌词 → 有歌词"）：手动浏览模式一并交还给跟随
         if (isUserScrollEnable()) onPositionReset()
     }
 
@@ -224,13 +234,13 @@ private fun LyricPage(
     val currentActive by rememberUpdatedState(active)
     val latestCurrentTime by rememberUpdatedState(currentTime)
     val latestSampledPlaybackKey by rememberUpdatedState(sampledPlaybackKey)
-    val startsFromBeginning = remember(content.key, content.generation) {
+    val startsFromBeginning = remember(content) {
         startFromBeginning
     }
-    var preparedForFollowing by remember(content.key, content.generation) {
+    var preparedForFollowing by remember(content) {
         mutableStateOf(false)
     }
-    var frozenTime by remember(content.key, content.generation) {
+    var frozenTime by remember(content) {
         mutableLongStateOf(if (startsFromBeginning) 0L else latestCurrentTime())
     }
     val displayTime = remember {
@@ -246,7 +256,7 @@ private fun LyricPage(
             }
         }
     }
-    val initialItemIndex = remember(content.key, content.generation) {
+    val initialItemIndex = remember(content) {
         if (startsFromBeginning || !positionSynchronized) {
             0
         } else {
@@ -260,7 +270,7 @@ private fun LyricPage(
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = initialItemIndex,
     )
-    val itemKeys = remember(content.key, content.generation) {
+    val itemKeys = remember(content) {
         content.items.map(LyricItem::key)
     }
     val scroller = rememberLazyListAnimateScroller(
@@ -273,13 +283,13 @@ private fun LyricPage(
         },
         keys = { itemKeys },
     )
-    val currentItemIndex = remember(content.key, content.generation) {
+    val currentItemIndex = remember(content) {
         derivedStateOf {
             val time = displayTime() + settings.value.timeOffset
             content.items.findPlayingIndex(time)
         }
     }
-    val currentItem: State<LyricItem?> = remember(content.key, content.generation) {
+    val currentItem: State<LyricItem?> = remember(content) {
         derivedStateOf {
             currentItemIndex.value
                 .takeIf { it != Int.MAX_VALUE }
@@ -299,7 +309,7 @@ private fun LyricPage(
             .collect { frozenTime = it }
     }
 
-    LaunchedEffect(content.key, content.generation, pageIsCurrent, startsFromBeginning) {
+    LaunchedEffect(content, pageIsCurrent, startsFromBeginning) {
         if (!pageIsCurrent) return@LaunchedEffect
 
         val targetIndex = if (startsFromBeginning) {
