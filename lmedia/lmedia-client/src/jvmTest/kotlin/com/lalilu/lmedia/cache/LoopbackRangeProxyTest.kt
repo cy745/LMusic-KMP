@@ -1,6 +1,8 @@
 package com.lalilu.lmedia.cache
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -132,6 +134,41 @@ class LoopbackRangeProxyTest {
     }
 
     @Test
+    fun `playback preempts a background prefetch of the same track`() = runTest {
+        upstreamFake = FakeBackend(payload)
+        val cacheRoot = Files.createTempDirectory("lmusic-webdav-proxy-preempt").toString()
+        val cache = MediaCacheStore(cacheRoot, json, namespace = "test")
+        proxy = LoopbackRangeProxy(cache, upstreamFake)
+        val base = proxy.start()
+
+        // 后台整首预取卡在第一段：等价于慢速 NAS 上"下到一半"的状态
+        val gate = CompletableDeferred<Unit>()
+        upstreamFake.blockOnce = gate
+        val prefetch = async {
+            proxy.ensureCached(
+                key = "testkey",
+                target = UpstreamTarget("testkey", payload.size.toLong(), "audio/flac"),
+                upTo = Long.MAX_VALUE,
+            )
+        }
+        upstreamFake.awaitEntered()
+
+        // 播放请求必须能立刻拿到字节，而不是排在整首下载后面等到读超时
+        val response = get("$base/audio/testkey", "bytes=0-99")
+        assertEquals(206, response.status, "播放不应被后台预取挡住")
+        assertContentEquals(payload.copyOfRange(0, 100), response.body)
+
+        // 预取被取消后立即收尾（不抛异常），不会继续占着锁
+        prefetch.await()
+        assertEquals(100L, cache.filledSize("testkey"), "缓存里只应有播放请求过的那段连续前缀")
+        assertEquals(
+            listOf<Pair<Long, Long?>>(0L to 99L),
+            upstreamFake.fetched,
+            "取消后只应剩下播放自己的区间请求：${upstreamFake.fetched}",
+        )
+    }
+
+    @Test
     fun `evicts the least recently used track once the cache exceeds the quota`() = runTest {
         val first = ByteArray(600) { index -> (index % 97).toByte() }
         val second = ByteArray(600) { index -> (index % 89).toByte() }
@@ -210,6 +247,12 @@ class LoopbackRangeProxyTest {
         val fetched = mutableListOf<Pair<Long, Long?>>()
         var failing = false
 
+        /** 让第一次 fetch 卡住，用来模拟"后台正在下载同一首"的时序。 */
+        var blockOnce: CompletableDeferred<Unit>? = null
+        private val entered = CompletableDeferred<Unit>()
+
+        suspend fun awaitEntered() = entered.await()
+
         override suspend fun resolve(key: String): UpstreamTarget? =
             payloads[key]?.let { payload ->
                 UpstreamTarget(
@@ -225,6 +268,12 @@ class LoopbackRangeProxyTest {
             endInclusive: Long?,
             onChunk: suspend (ByteArray) -> Unit,
         ) {
+            entered.complete(Unit)
+            blockOnce?.let { gate ->
+                // 只挡第一次：被抢占后播放自己的请求必须立刻放行
+                blockOnce = null
+                gate.await()
+            }
             if (failing) throw IllegalStateException("上游不可用")
             fetched += start to endInclusive
             val payload = payloads.getValue(target.token.substringAfterLast('/').removeSuffix(".flac"))
