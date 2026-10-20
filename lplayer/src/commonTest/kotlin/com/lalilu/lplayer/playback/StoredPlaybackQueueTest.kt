@@ -4,7 +4,6 @@ import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertFailsWith
 
 class StoredPlaybackQueueTest {
     @Test fun queueAndPositionRoundTripTogether() {
@@ -45,9 +44,19 @@ class StoredPlaybackQueueTest {
         assertNull(StoredPlaybackQueue(emptyList(), 1).resolve())
     }
 
-    @Test fun unknownSourceCannotBeWrittenAsAnAmbiguousIdentity() {
-        assertFailsWith<IllegalArgumentException> {
-            HistoryQueueIdentity(listOf("a"), listOf(null), 0).toStoredQueue()
-        }
+    /**
+     * 恢复期队列可能"部分解析"：某些 slot 还没找到歌曲，来源名是 null。
+     *
+     * 以前这里直接 `requireNotNull` 抛 IllegalArgumentException —— 真机上就是一条
+     * `FATAL EXCEPTION: Required value was null at saveQueueIdentity`。
+     * 这种状态是合法的（id 要留着等下次扫描再解析），现在写成"未知来源"并能原样读回。
+     */
+    @Test fun unknownSourceRoundTripsAsUnknownInsteadOfThrowing() {
+        val identity = HistoryQueueIdentity(listOf("a"), listOf(null), 0)
+
+        val record = identity.toStoredQueue()
+
+        assertEquals(identity, record.resolve(), "未知来源必须原样读回 null，而不是丢掉这一位")
+        assertEquals(identity, Json.decodeFromString<StoredPlaybackQueue>(Json.encodeToString(record)).resolve())
     }
 }

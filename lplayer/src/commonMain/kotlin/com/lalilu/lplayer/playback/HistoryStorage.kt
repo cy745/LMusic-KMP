@@ -13,7 +13,13 @@ internal data class StoredPlaybackQueue(val playbackIds: List<String>, val index
     fun resolve(): HistoryQueueIdentity? {
         if (if (playbackIds.isEmpty()) index != 0 else index !in playbackIds.indices) return null
         val keys = playbackIds.map { MediaKey.parse(it) ?: return null }
-        return HistoryQueueIdentity(keys.map { it.id }, keys.map { it.sourceName }, index)
+        // 空源名是我们写盘时表示"这一位还没解析出来源"的占位，读回来还原成 null，
+        // 这样恢复阶段仍可走"按 id 唯一匹配"的路径。
+        return HistoryQueueIdentity(
+            ids = keys.map { it.id },
+            sourceNames = keys.map { it.sourceName.takeIf(String::isNotBlank) },
+            index = index,
+        )
     }
 
     fun withIdentity(identity: HistoryQueueIdentity): StoredPlaybackQueue {
@@ -29,7 +35,10 @@ internal data class StoredPlaybackQueue(val playbackIds: List<String>, val index
 internal fun HistoryQueueIdentity.toStoredQueue(): StoredPlaybackQueue {
     require(isValid())
     return StoredPlaybackQueue(ids.mapIndexed { index, id ->
-        MediaKey(requireNotNull(sourceNames[index]), id).stableKey
+        // 恢复期队列可能是"部分解析"的：某些 slot 的歌曲还没找到，来源名是 null。
+        // 这是合法状态（id 要留着等下次扫描再解析），不能因为写盘而崩掉整个进程，
+        // 因此用空源名占位——读回时会被还原成 null（见 resolve）。
+        MediaKey(sourceNames[index].orEmpty(), id).stableKey
     }, index)
 }
 

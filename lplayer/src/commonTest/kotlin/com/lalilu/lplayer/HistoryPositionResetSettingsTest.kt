@@ -59,4 +59,26 @@ class HistoryPositionResetSettingsTest {
         storage.saveSnapshot(identity, 42000)
         assertEquals(0L, storage.readSnapshot()!!.position)
     }
+
+    /**
+     * 恢复期队列可能"部分解析"：某些位置的歌曲还没找到，来源名是 null。
+     *
+     * 这是合法状态（id 要留着等下次扫描再解析），但旧实现写盘时对来源名做 requireNotNull，
+     * 直接 FATAL EXCEPTION（真机上报过 `Required value was null` at saveQueueIdentity）。
+     */
+    @Test fun unresolvedSourceSlotIsPersistedAsUnknownInsteadOfCrashing() {
+        val storage = HistoryStorageImpl()
+        val partial = HistoryQueueIdentity(
+            ids = listOf("a", "b", "c"),
+            sourceNames = listOf("local", null, "webdav"),
+            index = 1,
+        )
+
+        storage.saveQueueIdentity(partial)
+
+        val restored = storage.savedQueueIdentity()
+        assertEquals(listOf("a", "b", "c"), restored?.ids)
+        assertEquals(listOf("local", null, "webdav"), restored?.sourceNames, "未知来源必须原样读回")
+        assertEquals(1, restored?.index)
+    }
 }
