@@ -14,7 +14,10 @@ import kotlin.test.assertEquals
  */
 class BufferedPositionResolverTest {
 
-    private class FakeSource(private val progress: Flow<Float>?) : MediaDataSource {
+    private class FakeSource(
+        private val progress: Flow<Float>?,
+        override val isRemoteContent: Boolean = true,
+    ) : MediaDataSource {
         override fun bufferedProgress(song: LAudio): Flow<Float>? = progress
     }
 
@@ -115,5 +118,60 @@ class BufferedPositionResolverTest {
         item.value = audio("b")
         runCurrent()
         assertEquals(7_000L, resolver.bufferedPosition.value)
+    }
+
+    @Test
+    fun localContentNeverReportsBufferedProgress() = runTest {
+        val engineBuffered = MutableStateFlow(60_000L)
+        val resolver = BufferedPositionResolver(
+            currentItem = MutableStateFlow(audio("local")),
+            // 本地文件同样会被引擎预读（Media3 默认约 50s），但那不是网络进度
+            engineBufferedPosition = engineBuffered,
+            duration = MutableStateFlow(200_000L),
+            dataSourceOf = { FakeSource(null, isRemoteContent = false) },
+            scope = backgroundScope,
+        )
+        runCurrent()
+        assertEquals(0L, resolver.bufferedPosition.value)
+
+        // 引擎缓冲继续前进也不应让缓冲条冒出来
+        engineBuffered.value = 140_000L
+        runCurrent()
+        assertEquals(0L, resolver.bufferedPosition.value)
+    }
+
+    @Test
+    fun localContentIgnoresADeclaredCacheProgress() = runTest {
+        val resolver = BufferedPositionResolver(
+            currentItem = MutableStateFlow(audio("local")),
+            engineBufferedPosition = MutableStateFlow(0L),
+            duration = MutableStateFlow(100_000L),
+            // 本地源不该声明缓存比例；即便声明了，也不能被当成在线内容
+            dataSourceOf = { FakeSource(MutableStateFlow(0.9f), isRemoteContent = false) },
+            scope = backgroundScope,
+        )
+        runCurrent()
+        assertEquals(0L, resolver.bufferedPosition.value)
+    }
+
+    @Test
+    fun switchingFromOnlineToLocalClearsTheBufferedProgress() = runTest {
+        val item = MutableStateFlow<LAudio?>(audio("online"))
+        val resolver = BufferedPositionResolver(
+            currentItem = item,
+            engineBufferedPosition = MutableStateFlow(40_000L),
+            duration = MutableStateFlow(100_000L),
+            dataSourceOf = { song ->
+                if (song.id == "online") FakeSource(MutableStateFlow(0.5f))
+                else FakeSource(null, isRemoteContent = false)
+            },
+            scope = backgroundScope,
+        )
+        runCurrent()
+        assertEquals(50_000L, resolver.bufferedPosition.value)
+
+        item.value = audio("local")
+        runCurrent()
+        assertEquals(0L, resolver.bufferedPosition.value)
     }
 }

@@ -50,6 +50,9 @@ class RemoteSource(
     override val name: String = TAG
     override val dataSource: MediaDataSource = this
 
+    /** 内容来自远端服务器：播放页需要缓冲进度。 */
+    override val isRemoteContent: Boolean = true
+
     private val stateStore = MediaSourceStateStore()
     override val state: StateFlow<SnapshotState> = stateStore.state
     override val snapshot: StateFlow<Snapshot?> = stateStore.snapshot

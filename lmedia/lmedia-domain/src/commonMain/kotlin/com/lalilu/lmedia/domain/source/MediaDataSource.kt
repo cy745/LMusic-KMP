@@ -64,13 +64,28 @@ interface MediaDataSource {
     // ── bufferedProgress ──
 
     /**
+     * 该数据源的内容是否需要经由网络读取。
+     *
+     * 只用来回答一个问题：**「缓冲进度」对这份内容有没有意义**。
+     *
+     * 本地文件同样会被播放引擎上报 `bufferedPosition`——那是解码前的加载缓冲
+     * （Media3 默认预读约 50s），不是网络进度；画成缓冲条会被误读成"仍在下载"。
+     * 因此本地内容恒为 false，播放页不会为它渲染缓冲进度。
+     *
+     * 默认 false：本地文件系统 / 沙盒 / 系统媒体库这类数据源无需任何改动；在线数据源
+     * （Remote / Subsonic / WebDAV 等）必须显式覆盖为 true。新源漏写只会少显示一条
+     * 缓冲条，不会把本地内容的噪声带回来。
+     */
+    val isRemoteContent: Boolean get() = false
+
+    /**
      * 数据源自己维护的缓冲比例（0..1）。
      *
      * 只有代理 / 读穿缓存型数据源才需要实现：对它们来说"缓冲到哪里"不等于播放引擎
      * 本次拉了多远，而是"这首歌已经有多少内容是本地就绪的"。返回非 null 时，播放页的
      * 缓冲进度会改用它换算，而不是引擎上报的缓冲位置。
      *
-     * 默认返回 null，表示沿用引擎上报。
+     * 默认返回 null，表示沿用引擎上报（仅对 [isRemoteContent] 为 true 的源生效）。
      */
     fun bufferedProgress(song: LAudio): Flow<Float>? = null
 }

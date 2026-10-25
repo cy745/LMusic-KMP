@@ -108,6 +108,10 @@ class WebDavSource(
 
     override val name: String = TAG
     override val dataSource: MediaDataSource = this
+
+    /** 内容来自远端服务器：播放页需要缓冲进度（由读穿缓存的填充比例提供）。 */
+    override val isRemoteContent: Boolean = true
+
     private val logger = Logger.withTag(name)
 
     private val stateStore = MediaSourceStateStore()

@@ -70,6 +70,10 @@ class SubsonicSource(
 
     override val name: String = TAG
     override val dataSource: MediaDataSource = this
+
+    /** 内容来自远端服务器：播放页需要缓冲进度。 */
+    override val isRemoteContent: Boolean = true
+
     private val logger = Logger.withTag(name)
 
     private var client: HttpClient? = null
