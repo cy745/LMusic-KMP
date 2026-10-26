@@ -37,7 +37,7 @@ open class CorePlayback(
     private var observedPosition = 0L
     val core = PlaybackCore(scope, ContentResolver { key ->
         val audio = items[key] ?: error("Selected song metadata is unavailable")
-        val data = try { sources.resolveMediaData(audio) }
+        val data = try { runtime.contentAccess?.resolve(audio) ?: sources.resolveMediaData(audio) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) { recordFailure(audio, classifyFailure(error)); throw error }
         currentCoroutineContext().ensureActive()

@@ -26,7 +26,8 @@ object IosOutputProbe {
         PlaybackOutput.report(OutputCapabilities(backend = "AVFoundation / MusicKit",
             original = Support.Unsupported,
             originalReason = "AVAudioSession 的采样率不能证明独占或位一致输出，当前未接入可验证的原样链路",
-            gapless = Support.Unsupported, route = route.ifBlank { null },
+            // AVQueuePlayer stages a successor; physical continuity still depends on media/backend.
+            gapless = Support.Unknown, route = route.ifBlank { null },
             apiFormat = session.sampleRate.takeIf { it > 0 }?.let { OutputFormat(it.toInt(), session.outputNumberOfChannels.toInt()) },
             apiFormatEvidence = "AVAudioSession 当前硬件会话配置"))
     }

@@ -20,6 +20,21 @@ import androidx.room3.Room
 import androidx.room3.RoomDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.Dispatchers
+import io.github.vinceglb.filekit.FileKit
+import io.github.vinceglb.filekit.filesDir
+import io.github.vinceglb.filekit.path
+import java.io.File
+
+@PublishedApi
+internal fun desktopDatabasePath(name: String, applicationDir: File = File(FileKit.filesDir.path),
+    legacyDir: File = File("db")): String {
+    // Keep an existing development/legacy database in place, including its WAL files.
+    val legacy = File(legacyDir, "$name.db")
+    if (legacy.isFile) return legacy.absolutePath
+    val directory = File(applicationDir, "db")
+    check(directory.isDirectory || directory.mkdirs()) { "Cannot create database directory: $directory" }
+    return File(directory, "$name.db").absolutePath
+}
 
 actual inline fun <reified T : RoomDatabase> requireDatabase(
     name: String,
@@ -34,7 +49,7 @@ actual inline fun <reified T : RoomDatabase> requireDatabase(
             .build()
     }
 
-    return Room.databaseBuilder<T>(name = "db/$name.db")
+    return Room.databaseBuilder<T>(name = desktopDatabasePath(name))
         .setQueryCoroutineContext(Dispatchers.IO)
         .setDriver(BundledSQLiteDriver())
         .builder()

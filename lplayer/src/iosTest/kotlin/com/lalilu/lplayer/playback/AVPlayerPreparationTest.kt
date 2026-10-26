@@ -41,8 +41,107 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
+import io.ktor.client.engine.mock.respond
 
+@OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 class AVPlayerPreparationTest {
+    @Test fun authorizedNativeSuccessorAdvancesWithoutReloadAndCanBeRevoked() = runNativeMainTest {
+        val file = PlatformFile(NSTemporaryDirectory() + "native-next-${Random.nextLong()}.wav")
+        val engine = AVPlayerEngine()
+        val song = LAudio(id = "a", mediaSourceName = "native-next")
+        val media = MediaData.Url("file://${file.path}")
+        var advanced = 0
+        var completed = 0
+        try {
+            file.sink().buffered().use { it.write(silentWave()) }
+            engine.setVolume(0f)
+            engine.load(media, song); engine.awaitPreparation()
+            engine.onNext = { advanced++ }
+            engine.onEvent = { if (it == PlaybackEngineEvent.Completion) completed++ }
+            engine.stageNext(media, song.copy(id = "b"))
+            delay(300)
+            assertEquals(0, advanced)
+            engine.seekTo(19_700); engine.play()
+            withTimeout(5000) { while (advanced == 0) delay(20) }
+            assertEquals(1, advanced)
+            assertEquals(0, completed)
+            assertTrue(engine.state.value.isPlaying)
+            assertTrue(engine.currentPosition() < 3000)
+            engine.pause()
+            engine.stageNext(media, song.copy(id = "c"))
+            engine.cancelNext()
+            engine.seekTo(19_700); engine.play()
+            withTimeout(5000) { while (completed == 0) delay(20) }
+            assertEquals(1, advanced)
+            assertEquals(1, completed)
+        } finally { engine.release(); file.delete() }
+    }
+
+    @Test fun cachedAssetSupportsSeekAndOfflineReopen() = runNativeMainTest {
+        val bytes = silentWave()
+        val song = LAudio(id = "cached", mediaSourceName = "cached-test")
+        val store = com.lalilu.lmedia.domain.source.MediaSourceStateStore().apply { content.ready() }
+        val source = object : com.lalilu.lmedia.domain.source.MediaSource {
+            override val name = song.mediaSourceName
+            override val state = store.state
+            override val snapshot = store.snapshot
+            override val contentState = store.contentState
+            override val dataSource = object : com.lalilu.lmedia.domain.source.MediaDataSource {
+                override fun contentCacheScope() = "native-test"
+                override fun contentCacheIdentity(song: LAudio) = com.lalilu.lmedia.domain.source.MediaCacheIdentity("native-test", "v1", bytes.size.toLong())
+                override suspend fun getMedia(song: LAudio) = MediaData.Url("https://native.test/audio.wav")
+            }
+        }
+        val repository = object : AudioRepository {
+            override fun getAudios() = kotlinx.coroutines.flow.flowOf(listOf(song))
+            override fun getAudios(ids: List<String>) = getAudios()
+            override fun getAudio(id: String) = kotlinx.coroutines.flow.flowOf(song)
+            override suspend fun clearUnavailableAudio() {}
+        }
+        val sources = com.lalilu.lmedia.domain.source.PlatformMediaSource.provide(source)
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        val root = NSTemporaryDirectory() + "native-cache-${Random.nextLong()}"
+        var requests = 0
+        var offline = false
+        fun access(): com.lalilu.lplayer.core.NativeContentAccess {
+            val client = io.ktor.client.HttpClient(io.ktor.client.engine.mock.MockEngine { request ->
+                check(!offline) { "Offline read must use persisted cache" }
+                requests++
+                val range = request.headers["Range"]!!.removePrefix("bytes=").split('-').map(String::toInt)
+                respond(bytes.copyOfRange(range[0], range[1] + 1), io.ktor.http.HttpStatusCode.PartialContent,
+                    io.ktor.http.headersOf("Content-Range", "bytes ${range[0]}-${range[1]}/${bytes.size}"))
+            })
+            return com.lalilu.lplayer.core.NativeContentAccess(scope, sources, repository, client, "$root/catalog", "$root/content",
+                cacheEnabled = { true }, quotaMiB = kotlinx.coroutines.flow.flowOf(64L))
+        }
+        var content = access()
+        var engine = AVPlayerEngine(content)
+        try {
+            val media = content.resolve(song)
+            content.selectCurrent(media)
+            engine.load(media, song)
+            engine.awaitPreparation()
+            assertEquals(20_000, engine.state.value.duration)
+            engine.seekTo(12_000)
+            assertTrue(abs(engine.currentPosition() - 12_000) < 200)
+            withTimeout(10_000) { while (!content.canPreloadAfter(media)) delay(20) }
+            engine.release(); content.close()
+            val before = requests
+            offline = true
+            store.content.unavailable("offline")
+            content = access()
+            engine = AVPlayerEngine(content)
+            engine.load(content.resolve(song), song)
+            engine.awaitPreparation()
+            engine.seekTo(15_000)
+            assertTrue(abs(engine.currentPosition() - 15_000) < 200)
+            assertEquals(before, requests)
+        } finally {
+            engine.release(); content.close(); scope.cancel()
+            platform.Foundation.NSFileManager.defaultManager.removeItemAtPath(root, null)
+        }
+    }
+
     @Test fun sharedCoreControlsNativeSelectionPauseSeekAndOutputFallback() = runNativeMainTest {
         val file = PlatformFile(NSTemporaryDirectory() + "lmusic-p4-${Random.nextLong()}.wav")
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -90,6 +189,14 @@ class AVPlayerPreparationTest {
             assertFalse(engine.state.value.isPlaying)
             host.skipToNext()
             withTimeout(5_000) { host.core.state.first { it.selected?.id == "a" && it.phase == com.lalilu.playback.core.Phase.ReadyPaused } }
+            host.seekTo(19_000)
+            withTimeout(5_000) { host.core.state.first { it.pendingSeekId == null && it.positionMs >= 18_900 } }
+            host.play()
+            withTimeout(5_000) { host.core.state.first { it.selected?.id == "b" && it.naturalTransition && it.phase == com.lalilu.playback.core.Phase.Playing } }
+            assertTrue(host.currentPosition() < 3000)
+            assertEquals(songs[1].playbackId, host.currentEngineItemKey.value)
+            assertEquals(songs, host.queue.stateSnapshot().list)
+            host.pause()
             com.lalilu.lplayer.helper.IosOutputProbe.start()
             val output = com.lalilu.lplayer.core.PlaybackOutput.capabilities.value
             assertEquals(com.lalilu.playback.core.OutputMode.Experience, output.actualMode(com.lalilu.playback.core.OutputMode.Original))

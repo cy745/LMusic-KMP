@@ -3,7 +3,6 @@ package com.lalilu.lplayer.playback
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.MediaKey
 import com.lalilu.lmedia.domain.model.mediaKey
-import kotlin.random.Random
 
 /**
  * 播放队列更新请求，用于构建一次原子性的队列更新。
@@ -54,18 +53,6 @@ class QueueUpdateRequest(
     fun removeLegacyId(id: String): QueueUpdateRequest {
         val keys = pendingList.filter { it.id == id }.map { it.mediaKey }.distinct()
         return if (keys.size == 1) removeAll(keys.toSet()) else this
-    }
-
-    internal fun prepareSurpriseNext(random: Random = Random.Default): QueueUpdateRequest {
-        val candidate = SurpriseQueueOrder.candidateIndex(pendingList.size, pendingIndex, random)
-        if (candidate < 0) return this
-        val target = SurpriseQueueOrder.nextIndex(pendingList.size, pendingIndex)
-        pendingList = pendingList.toMutableList().apply {
-            val previous = get(target)
-            set(target, get(candidate))
-            set(candidate, previous)
-        }
-        return this
     }
 
     /**

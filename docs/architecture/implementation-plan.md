@@ -458,3 +458,62 @@ release 签名校验通过，已覆盖安装模拟器与真机，两端启动正
 正式包已保留数据覆盖安装真机并启动成功，更新时间 2026-10-27 00:02:33，首次安装时间仍为 2026-10-26 16:17:55。产物 build/experience/LMusic-plan-b-release-resources-20261026.apk（构建于 10 月 26 日）。
 
 模拟器也已覆盖安装相同 release 并启动成功；本阶段代码、验证和双设备交付完成。
+
+## iOS → Desktop → 遗留清理（2026-10-27）
+
+用户明确调整顺序：先 iOS，再 Desktop，两端接入完成后清理旧架构；本轮不安排 Android 专项测试。沿用公共 PlaybackCore，交叉淡化继续暂缓。
+
+共享边界：NativeContentAccess 接入现有 SourceContentLibrary、CatalogCache、RangeContentCache 和 PlaybackCacheFiller，统一原生端的内容身份、分段读取、缓存补齐、容量与失败恢复。系统字节桥只负责把原生读取请求转换为 ContentHandle 操作，不重新实现缓存算法。缓存开关、容量和元数据恢复可注入，正式应用沿用现有设置与数据库。
+
+EngineAudioRuntime 接入核心已有的 NextPlan 授权，先等待当前缓存补齐再准备候选；不支持连续窗口的引擎仍走普通完成路径。ContinuousPlaybackEngine 只执行已授权的下一项、报告边界及撤销结果，不拥有随机、循环、队列或失败跳过策略。旧歌曲回调按 LoadTicket 隔离。
+
+iOS 使用 AVAssetResourceLoader 读取公共分段缓存，AVQueuePlayer 只持有当前与候选两项；缓存完成后复用歌词/封面检查并恢复离线曲库元数据。原先依赖全局对象的 AVPlayer 状态监听迁入引擎自身生命周期。缓冲范围使用原生 loadedTimeRanges，完整缓存可直接报告整曲，不按文件大小推算播放时长。MusicKit 保持专有后端，不强行套用文件缓存。
+
+Desktop 使用 VLC 解码、JavaSound 输出。当前歌曲和候选各有一个有界 PCM 队列，交给同一输出通道顺序播放；候选提前解码不会发声，也不会提前改变核心选曲或 UI。展示身份以输出推进到 B 的边界为准。定位保留输出通道并重新准备解码器，避免短曲已解码完毕时原生 drain 与 seek 相互等待。短音量过渡继续由共享运行时控制，不加入交叉淡化。
+
+Desktop 体验模式当前输出为 48 kHz、16-bit、双声道；这是应用输出配置，不是物理 DAC 格式或 Hi-Res 原样输出证明。系统无法打开 PCM 输出时回退到 VLC 原生音频输出，并报告连续输出不可用。MusicKit 等专有后端不强行套用文件缓存或连续窗口。无缝能力仍保留 Unknown：固定 WAV 的样本连续性和 AVQueuePlayer 接续验证不能代表所有格式和硬件。
+
+清理范围：删除无生产调用方的 AbstractPlayback、PlaybackEngineRouter、旧随机换位/下一首请求/失败遍历实现、Android 旧队列包装与准备协调器，以及 iOS 全局 AVPlayer 观察器。随实现删除仅验证这些旧类的测试；公共核心、正式会话及新原生引擎测试保留。UI 队列投影、编辑、历史恢复和必要的平台适配继续保留。VlcEngine 作为原生输出回退保留，不管理队列策略。
+
+正式 Desktop 应用包验证还暴露了既有数据库相对路径问题：从 Finder 启动无法创建 `db/...`。新数据库改用 FileKit 应用数据目录并显式创建父目录；若当前工作目录中已有旧数据库，继续使用原文件，不复制、删除或分离 WAL。未知历史工作目录不会被全盘扫描迁移，已有开发数据库与新应用目录可能并存。
+
+验证发现 Desktop 输出锁会使状态观察被连续音频写入饿死，已改用公平锁；共享层直接引用 Dispatchers.IO 导致 Wasm 编译失败，已改为平台注入调度器。最终测试和应用验证结果见 [iOS/Desktop 验证记录](verification/ios-desktop-content-output.txt)。
+
+最终验证：90 项 JVM 测试通过（原生/Desktop 与共享适配 16、内容缓存 35、播放核心 37、正式包数据库路径 2），iOS 模拟器原生与历史恢复回归 63 项通过。Android 与 Wasm 编译一致性检查通过。完整 iOS 应用已覆盖安装并启动；macOS Desktop 可分发应用包已生成，并从非项目目录启动、确认首页与播放区域正常。应用界面检查使用空库；真实音频、定位、缓存及接续由上述原生测试覆盖，不冒充真机完整媒体库验收。
+
+后续仍需真实 iPhone、Windows/Linux、外设输出及更多编码格式的验证。独占输出、Android SRC 旁路、杜比/空间音频和交叉淡化不在本阶段实现。Android 本轮只检查公共代码清理后的编译一致性，不运行设备专项测试。
+
+当前原生端的 UML 类关系如下。公共核心决定“播哪首、什么时候允许切换”，平台引擎负责“如何把已授权的声音连续输出”。
+
+```mermaid
+classDiagram
+    class PlaybackCore
+    class EngineAudioRuntime
+    class NativeContentAccess
+    class SourceContentLibrary
+    class RangeContentCache
+    class PlaybackCacheFiller
+    class ContinuousPlaybackEngine {
+        <<interface>>
+        stageNext()
+        cancelNext()
+    }
+    class AVPlayerEngine
+    class VlcPcmEngine
+    class IosCachedAsset
+    class CachedCallbackMedia
+    class JavaSoundPcmSink
+    PlaybackCore --> EngineAudioRuntime : 命令与下一首授权
+    EngineAudioRuntime --> NativeContentAccess : 内容与补齐状态
+    EngineAudioRuntime --> ContinuousPlaybackEngine : 执行授权
+    NativeContentAccess --> SourceContentLibrary
+    NativeContentAccess --> RangeContentCache
+    NativeContentAccess --> PlaybackCacheFiller
+    ContinuousPlaybackEngine <|.. AVPlayerEngine
+    ContinuousPlaybackEngine <|.. VlcPcmEngine
+    AVPlayerEngine --> IosCachedAsset
+    VlcPcmEngine --> CachedCallbackMedia
+    VlcPcmEngine --> JavaSoundPcmSink
+    IosCachedAsset --> NativeContentAccess : 字节读取
+    CachedCallbackMedia --> NativeContentAccess : 字节读取
+```

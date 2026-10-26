@@ -60,6 +60,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(project(":lplayer:playback-core"))
+            api(project(":lmedia:lmedia-content"))
             api(project(":component"))
             api(project(":lmedia:lmedia-core"))
             api(project(":lmedia:lmedia-data"))
@@ -75,12 +76,12 @@ kotlin {
             api(libs.bundles.settings)
         }
         commonTest.dependencies {
+            implementation(libs.ktor.client.mock)
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.turbine)
         }
         androidMain.dependencies {
-            api(project(":lmedia:lmedia-content"))
             implementation(libs.ktor.client.okhttp)
             implementation(libs.media3.session)
             implementation(libs.media3.exoplayer)
@@ -97,9 +98,13 @@ kotlin {
             }
         }
         jvmMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.vlcj)
             implementation(libs.bundles.rococoa)
             implementation(project(":lplayer:libwrapper"))
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
         val jvmTest by getting {
             dependencies {

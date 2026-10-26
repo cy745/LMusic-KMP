@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import uk.co.caprica.vlcj.player.base.*
 
 /** Native decoder only; no queue, retries, history or mode policy. */
-internal class VlcEngine(private val scope: CoroutineScope, private val provider: suspend () -> MediaPlayer) : PlaybackEngine {
+internal class VlcEngine(private val scope: CoroutineScope, private val provider: suspend () -> MediaPlayer,
+    private val contentAccess: com.lalilu.lplayer.core.NativeContentAccess? = null) : PlaybackEngine {
     override val state = MutableStateFlow(PlaybackEngineState.EMPTY)
     override var onEvent: (suspend (PlaybackEngineEvent) -> Unit)? = null
     var player: MediaPlayer? = null
@@ -16,11 +17,14 @@ internal class VlcEngine(private val scope: CoroutineScope, private val provider
     private var listener: MediaPlayerEventAdapter? = null
     private var generation = 0L
     private var gain = 0f
+    private var cached: com.lalilu.lplayer.player.CachedCallbackMedia? = null
+    private var data: MediaData? = null
     override fun canHandle(mediaData: MediaData, audio: LAudio) = true
     override suspend fun load(mediaData: MediaData, audio: LAudio) {
         release()
         val token = ++generation
         state.value = PlaybackEngineState(isLoading = true)
+        data = mediaData
         val native = player ?: provider().also { player = it }
         native.audio().setVolume((gain * 100).toInt())
         listener = object : MediaPlayerEventAdapter() {
@@ -31,7 +35,13 @@ internal class VlcEngine(private val scope: CoroutineScope, private val provider
                 }
             } }
         }.also { native.events().addMediaPlayerEventListener(it) }
-        startVlcMedia(native, mediaData)
+        cached = (mediaData as? MediaData.Url)?.url?.takeIf { contentAccess?.descriptor(it) != null }?.let {
+            com.lalilu.lplayer.player.CachedCallbackMedia(contentAccess!!, it)
+        }
+        if (cached != null) {
+            check(native.media().prepare(cached, ":start-paused")) { "VLC rejected cached media" }
+            native.controls().play()
+        } else startVlcMedia(native, mediaData)
         watch = scope.launch {
             var prepared = false
             while (isActive && token == generation) {
@@ -42,7 +52,8 @@ internal class VlcEngine(private val scope: CoroutineScope, private val provider
                 }
                 if (!prepared && status == State.PAUSED && native.audio().track() >= 0) prepared = true
                 state.value = PlaybackEngineState(isLoading = !prepared, isPlaying = native.status().isPlaying,
-                    position = currentPosition(), duration = native.status().length().coerceAtLeast(0))
+                    position = currentPosition(), duration = native.status().length().coerceAtLeast(0),
+                    bufferedPosition = bufferedPositionAt(currentPosition()))
                 delay(50)
             }
         }
@@ -57,12 +68,17 @@ internal class VlcEngine(private val scope: CoroutineScope, private val provider
     }
     fun setVolume(value: Float) { gain = value; player?.audio()?.setVolume((value * 100).toInt()) }
     override fun currentPosition() = player?.status()?.time()?.coerceAtLeast(0) ?: 0L
+    override fun bufferedPositionAt(positionMs: Long): Long =
+        if (cached != null && data?.let { contentAccess?.canPreloadAfter(it) } == true)
+            maxOf(positionMs, player?.status()?.length() ?: 0) else positionMs
     override suspend fun release() {
         generation++
         watch?.cancel()
         listener?.let { player?.events()?.removeMediaPlayerEventListener(it) }
         listener = null
+        cached?.cancel()
         player?.controls()?.stop()
+        cached?.close(); cached = null; data = null
         state.value = PlaybackEngineState.EMPTY
     }
 }

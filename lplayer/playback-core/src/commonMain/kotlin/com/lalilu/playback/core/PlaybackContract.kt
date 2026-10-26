@@ -85,6 +85,7 @@ data class NextPlan(val serial: Long, val from: LoadTicket, val next: LoadTicket
 
 /** Optional capability. A runtime without continuous output keeps the normal Ended/prepare path. */
 interface PreloadingAudioRuntime : AudioRuntime {
+    val supportsPreloading: Boolean get() = true
     fun stageNext(plan: NextPlan, resource: PlayableResource)
     fun cancelNext()
     /** Acknowledge the native boundary only after the core accepts its still-current plan. */

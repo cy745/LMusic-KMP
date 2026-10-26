@@ -1,11 +1,11 @@
 package com.lalilu.lplayer.player
 
 import uk.co.caprica.vlcj.player.base.MediaPlayer
-import uk.co.caprica.vlcj.player.component.CallbackMediaPlayerComponent
-import uk.co.caprica.vlcj.player.component.EmbeddedMediaPlayerComponent
-import java.util.*
 
 object VLCPlayer {
+    private val audioFactory by lazy { uk.co.caprica.vlcj.factory.MediaPlayerFactory("--no-video") }
+    /** Fresh decoder ownership for a bounded PCM window; no second playback policy. */
+    fun newAudioPlayer(): MediaPlayer = audioFactory.mediaPlayers().newMediaPlayer()
     private var mediaPlayer: MediaPlayer? = null
 
     fun getPlayer(): MediaPlayer? {
@@ -21,15 +21,10 @@ object VLCPlayer {
     }
 
     private fun initMediaPlayer(): MediaPlayer {
-        val component = if (isMacOS()) CallbackMediaPlayerComponent() else EmbeddedMediaPlayerComponent()
-        val player = component.mediaPlayerFactory().mediaPlayers().newMediaPlayer()
+        val player = newAudioPlayer()
         requireNotNull(player) { "Media player is null" }
 
         return player
     }
 
-    private fun isMacOS(): Boolean {
-        val os = System.getProperty("os.name", "generic").lowercase(Locale.ENGLISH)
-        return os.contains("mac") || os.contains("darwin")
-    }
 }

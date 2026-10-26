@@ -397,7 +397,7 @@ class PlaybackCore(
     }
 
     private fun reconcileCandidate() {
-        if (runtime !is PreloadingAudioRuntime) return
+        if (runtime !is PreloadingAudioRuntime || !runtime.supportsPreloading) return
         val ticket = s.ticket
         if (ticket == null || s.phase in setOf(Phase.Empty, Phase.Preparing, Phase.Failed, Phase.Ended) || s.pauseAtEnd) {
             if (candidateBasis != null) cancelCandidate()

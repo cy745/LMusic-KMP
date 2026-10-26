@@ -1,0 +1,72 @@
+iOS / Desktop content and continuous-output validation
+Date: 2026-10-27
+Branch: codex/playback-core-prototype
+
+JVM final cleanup validation: BUILD SUCCESSFUL (1m 52s)
+Command: :lplayer:jvmTest (VlcPcmNativeTest,VlcCachedContentNativeTest,CorePlaybackTest,EnginePreloadingRuntimeTest), :lmedia:lmedia-content:jvmTest, :lplayer:playback-core:jvmTest, :lplayer:compileKotlinWasmJs, :lplayer:compileAndroidMain, :lplayer:linkDebugTestIosSimulatorArm64 -Pkotlin.incremental=false
+Native VLC environment was enabled; no selected test skipped.
+CorePlaybackTest[jvm]: tests=9 failures=0 errors=0 skipped=0 time=0.406s
+EnginePreloadingRuntimeTest[jvm]: tests=2 failures=0 errors=0 skipped=0 time=0.01s
+VlcCachedContentNativeTest[jvm]: tests=1 failures=0 errors=0 skipped=0 time=7.41s
+VlcPcmNativeTest[jvm]: tests=4 failures=0 errors=0 skipped=0 time=15.013s
+ContentCacheTest[jvm]: tests=14 failures=0 errors=0 skipped=0 time=0.182s
+FileCacheStorageTest[jvm]: tests=1 failures=0 errors=0 skipped=0 time=0.027s
+ForegroundContentReadTest[jvm]: tests=2 failures=0 errors=0 skipped=0 time=0.007s
+HttpRangeReaderTest[jvm]: tests=4 failures=0 errors=0 skipped=0 time=0.134s
+PlaybackCacheFillerTest[jvm]: tests=11 failures=0 errors=0 skipped=0 time=0.226s
+SourceContentLibraryTest[jvm]: tests=3 failures=0 errors=0 skipped=0 time=0.019s
+OutputCapabilitiesTest[jvm]: tests=3 failures=0 errors=0 skipped=0 time=0.012s
+PlaybackCoreTest[jvm]: tests=24 failures=0 errors=0 skipped=0 time=0.347s
+PreloadingCoreTest[jvm]: tests=7 failures=0 errors=0 skipped=0 time=0.02s
+VolumeTransitionTest[jvm]: tests=3 failures=0 errors=0 skipped=0 time=0.009s
+
+iOS normal simctl spawn: finished=63 failed=0
+##teamcity[testSuiteFinished name='com.lalilu.lplayer.core.CorePlaybackTest']
+##teamcity[testSuiteFinished name='com.lalilu.lplayer.core.EnginePreloadingRuntimeTest']
+##teamcity[testSuiteFinished name='com.lalilu.lplayer.playback.HistoryQueueRestorerTest']
+##teamcity[testSuiteFinished name='com.lalilu.lplayer.playback.AVAudioPlayerEngineTest']
+##teamcity[testSuiteFinished name='com.lalilu.lplayer.playback.AVPlayerPreparationTest']
+##teamcity[testSuiteFinished name='com.lalilu.lplayer.playback.IosLoadFailureTest']
+##teamcity[testSuiteFinished name='com.lalilu.lplayer.playback.MediaTimeConversionTest']
+
+Desktop PCM continuity fixture:
+Two 1-second 48 kHz / stereo / 16-bit WAVs, known opposite constant samples.
+One output sink, exactly 384000 output bytes, all samples within +/-1 of expected.
+No inserted zero samples or missing samples at the tested boundary.
+This verifies the application PCM stream, not physical DAC loopback or all codecs.
+System JavaSound test uses gain=0 and checks pause/seek/resume/thread release.
+Unavailable JavaSound test injects LineUnavailableException and verifies native VLC playback fallback.
+Formal shared-core test verifies natural transition, queue identity and paused manual selection.
+Cache test uses real native decoders + mocked HTTP range responses, then reopens offline with no network request.
+iOS native tests run in normal simulator services, not simctl --standalone.
+
+Failures encountered and fixed:
+- iOS Objective-C delegate overloads required @ObjCSignatureOverride.
+- Native cache tests initially used global settings without initialization; injected test settings.
+- Desktop short-file drain/seek deadlock avoided by reopening decoder while retaining output.
+- Desktop output lock starved observer; fair ReentrantLock restored timely transition identity.
+- Wasm rejected common Dispatchers.IO; dispatcher now injected at native entry points.
+- VLC setup plugin does not support configuration cache; resource setup rerun with --no-configuration-cache.
+- One JVM incremental compiler DirtyData assertion cleared by a non-incremental rebuild.
+
+Scope limits:
+No Android device/specialized tests this phase; Android compile consistency check passed.
+No physical iPhone, Windows/Linux, Bluetooth/USB DAC or exclusive/bit-perfect output claim.
+No crossfade implemented. Existing UI transition policy remains shared.
+Desktop experience output is 48 kHz / 16-bit / stereo; format is not physical route proof.
+
+Final application delivery:
+- iOS xcodebuild Debug iphonesimulator: BUILD SUCCEEDED.
+- simctl install /tmp/lmusic-ios-plan-b/Build/Products/Debug-iphonesimulator/LMusic-KMP.app: success.
+- simctl launch com.lalilu.lmusic: PID 32904; screenshot checked (empty player page).
+- Desktop :composeApp:createDistributable: BUILD SUCCESSFUL.
+- First packaged launch exposed an existing relative database path bug, absent in Gradle run.
+- New databases now use created FileKit application data directory; existing cwd legacy files stay untouched.
+- DesktopDatabasePathTest: 2 tests, 0 failures, 0 errors, 0 skipped.
+- Final :composeApp:jvmTest --tests '*DesktopDatabasePathTest' :composeApp:createDistributable: BUILD SUCCESSFUL (1m 39s).
+- Started packaged executable from /tmp, PID 34085, verified native LMusic window/home/navigation/player via accessibility and screenshot.
+- Startup log contains pre-existing Coil NullRequestDataException for empty artwork; no database startup failure.
+- This packaged smoke check uses an empty library. Playback behavior is covered by the native tests above.
+- Product: composeApp/build/compose/binaries/main/app/com.lalilu.lmusic.app
+- Validation crash reports isolated with lmusic.crashReportDirectory=/tmp/lmusic-packaged-validation-crashes; prior reports retained.
+Total selected JVM tests: 90, all pass. iOS selected native tests: 63, all pass.

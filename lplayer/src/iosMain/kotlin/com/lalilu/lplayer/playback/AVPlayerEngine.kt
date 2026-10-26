@@ -1,231 +1,179 @@
 package com.lalilu.lplayer.playback
 
-import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaData
-import com.lalilu.lplayer.helper.*
-import kotlinx.cinterop.COpaquePointer
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.useContents
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import com.lalilu.lplayer.core.IosCachedAsset
+import com.lalilu.lplayer.core.NativeContentAccess
+import com.lalilu.lplayer.helper.AudioSessionHelper
+import kotlinx.cinterop.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import platform.AVFoundation.*
-import platform.CoreMedia.CMTime
-import platform.CoreMedia.CMTimeMake
-import kotlinx.coroutines.suspendCancellableCoroutine
+import platform.CoreMedia.*
+import platform.Foundation.*
+import platform.darwin.NSObjectProtocol
 import kotlin.coroutines.resume
-import platform.Foundation.NSURL
-import platform.Foundation.removeObserver
 import kotlin.time.Duration
 
-/**
- * Engine 封装 [AVPlayer]，处理 [MediaData.Url] 类型的媒体。
- *
- * 内部持有单个 [AVPlayer] 实例（复用），每次 [load] 时
- * [replaceCurrentItemWithPlayerItem] 切换媒体。通过 KVO 监听
- * playerItem.status 获取就绪/失败状态。
- */
+/** Native two-item execution window. Selection and traversal belong exclusively to PlaybackCore. */
 @OptIn(ExperimentalForeignApi::class)
-class AVPlayerEngine : PlaybackEngine {
-
-    companion object {
-        const val TAG = "AVPlayerEngine"
-    }
-
-    private val logger = Logger.withTag(TAG)
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private val avPlayer = AVPlayer()
-    private val _state = MutableStateFlow(PlaybackEngineState.EMPTY)
-    override val state: StateFlow<PlaybackEngineState> = _state.asStateFlow()
-
+class AVPlayerEngine(private val contentAccess: NativeContentAccess? = null) : ContinuousPlaybackEngine {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val player = AVQueuePlayer()
+    private val mutableState = MutableStateFlow(PlaybackEngineState.EMPTY)
+    override val state = mutableState.asStateFlow()
     override var onEvent: (suspend (PlaybackEngineEvent) -> Unit)? = null
+    override var onNext: (suspend () -> Unit)? = null
+    private data class Entry(val item: AVPlayerItem, val cached: IosCachedAsset?, val data: MediaData)
+    private var current: Entry? = null
+    private var next: Entry? = null
+    private var observing: Job? = null
+    private var endObserver: NSObjectProtocol? = null
+    private var autoPlay = false
+    private var ended = false
 
-    private val observerContext: COpaquePointer = cOpaquePtr()
-    private var autoPlayWhenReady = false
-
-    /** 当前已加载的 AVPlayerItem，用于生命周期管理 */
-    private var currentItem: AVPlayerItem? = null
-
-    private val statusObserver = Observer { keyPath, ofObject, change, context ->
-        if (observerContext != context) return@Observer
-        val playerItem = ofObject as AVPlayerItem
-        if (playerItem != currentItem) return@Observer
-        when (playerItem.status) {
-            AVPlayerStatusUnknown -> {
-                logger.i(messageString = "AVPlayerStatusUnknown")
-            }
-
-            AVPlayerStatusReadyToPlay -> {
-                logger.i(messageString = "AVPlayerStatusReadyToPlay")
-                val duration = playerItem.duration.useContents { toMilliseconds().toLong() }
-                _state.update { it.copy(isLoading = false, duration = duration) }
-
-                if (autoPlayWhenReady) {
-                    avPlayer.play()
-                    _state.update { it.copy(isPlaying = true) }
-                    autoPlayWhenReady = false
-                }
-            }
-
-            AVPlayerStatusFailed -> {
-                val err = playerItem.error
-                val errorMsg = err?.description ?: "AVPlayerStatusFailed"
-                logger.i(messageString = errorMsg)
-                _state.update { it.copy(isLoading = false, error = errorMsg) }
-            }
-        }
+    override fun canHandle(mediaData: MediaData, audio: LAudio) = mediaData is MediaData.Url
+    private fun entry(data: MediaData): Entry {
+        val uri = (data as MediaData.Url).url
+        val cached = contentAccess?.takeIf { it.descriptor(uri) != null }?.let { IosCachedAsset(it, uri) }
+        val item = cached?.let { AVPlayerItem(it.asset) }
+            ?: AVPlayerItem(NSURL.URLWithString(uri) ?: error("Invalid media URL"))
+        item.preferredForwardBufferDuration = 5.0
+        return Entry(item, cached, data)
     }
-
-    override fun canHandle(mediaData: MediaData, audio: LAudio): Boolean =
-        mediaData is MediaData.Url
 
     override suspend fun load(mediaData: MediaData, audio: LAudio) {
-        autoPlayWhenReady = false
-        _state.value = PlaybackEngineState(isLoading = true)
-
-        // 清理旧的播放完成监听
-        currentItem?.let { oldItem ->
-            AVPlayerItemDidPlayToEndTimeNotification?.let { AVPlayerItemEventObserver.removeObserver(it) }
-            oldItem.removeObserver(
-                observer = statusObserver,
-                forKeyPath = "status",
-                context = observerContext
-            )
-        }
-
-        avPlayer.pause()
-
-        val urlStr = (mediaData as MediaData.Url).url
-        logger.i(messageString = "loading url: $urlStr")
-        val url = NSURL.URLWithString(urlStr)
-            ?: throw Exception("Invalid URL: $urlStr")
-        val playerItem = AVPlayerItem(url)
-        // Registering KVO may synchronously deliver the initial status.
-        currentItem = playerItem
-
-        // 监听状态变化
-        playerItem.observeFor(
-            keyPath = "status",
-            observer = statusObserver,
-            context = observerContext
-        )
-
-        // 监听播放完成
-        AVPlayerItemEventObserver.observe(AVPlayerItemDidPlayToEndTimeNotification, playerItem) {
-            if (currentItem != playerItem) return@observe
-            logger.i(messageString = "AVPlayerItemDidPlayToEndTimeNotification")
-            onEvent?.invoke(PlaybackEngineEvent.Completion)
-        }
-
-        // 切换播放项
-        avPlayer.replaceCurrentItemWithPlayerItem(playerItem)
-        currentItem = playerItem
-
-        // 启动 position 监听
-        AVPlayerPositionObserver.observe(avPlayer) { seconds ->
-            if (currentItem == playerItem) {
-                _state.update { it.copy(position = (seconds * 1000).toLong()) }
+        release()
+        val entry = entry(mediaData)
+        current = entry
+        mutableState.value = PlaybackEngineState(isLoading = true)
+        player.insertItem(entry.item, null)
+        observeEnd(entry)
+        observing = scope.launch {
+            while (isActive) {
+                val candidate = next
+                if (candidate != null && player.currentItem == candidate.item) {
+                    val old = current
+                    current = candidate; next = null; ended = false
+                    old?.cached?.close()
+                    observeEnd(candidate)
+                    publish(candidate)
+                    onNext?.invoke()
+                } else if (candidate?.item?.status == AVPlayerItemStatusFailed) {
+                    cancelNext() // Speculative failure never skips the current song.
+                }
+                current?.let(::publish)
+                delay(20)
             }
         }
-
-        // 这里**不能**等待就绪：选曲命令位于播放器的队列编辑边界内，等待会把"点歌/改队列"
-        // 一起阻塞到 30 秒（安卓是在命令之外等）。启动加载后立即返回，就绪/失败由状态流和
-        // 外层观察者处理；需要确认就绪的调用方走 [awaitPreparation]。
     }
 
-    override suspend fun awaitPreparation(timeout: Duration) {
-        val item = currentItem ?: return
-        try {
-            val ready = withTimeout(timeout) { state.first { !it.isLoading } }
-            if (currentItem != item) throw CancellationException("Media selection replaced")
-            check(ready.error == null && item.status == AVPlayerStatusReadyToPlay) {
-                ready.error ?: "AVPlayer did not prepare the selected item"
+    private fun observeEnd(entry: Entry) {
+        endObserver?.let { NSNotificationCenter.defaultCenter.removeObserver(it) }
+        endObserver = NSNotificationCenter.defaultCenter.addObserverForName(
+            AVPlayerItemDidPlayToEndTimeNotification, entry.item, NSOperationQueue.mainQueue) {
+            scope.launch {
+                if (current === entry && next == null && !ended) {
+                    ended = true; autoPlay = false
+                    mutableState.update { it.copy(isPlaying = false) }
+                    onEvent?.invoke(PlaybackEngineEvent.Completion)
+                }
             }
+        }
+    }
+
+    private fun publish(entry: Entry) {
+        val item = entry.item
+        val ready = item.status == AVPlayerItemStatusReadyToPlay
+        val failed = item.status == AVPlayerItemStatusFailed
+        if (ready && autoPlay) { autoPlay = false; player.play() }
+        val position = currentPosition()
+        val duration = item.duration.useContents { toMilliseconds().toLong().coerceAtLeast(0) }
+        val buffered = bufferedPositionAt(position)
+        mutableState.value = PlaybackEngineState(
+            isPlaying = !ended && player.rate > 0f,
+            position = position,
+            duration = duration,
+            bufferedPosition = buffered,
+            isLoading = !ready && !failed,
+            error = if (failed) "AVFoundation failed to prepare media" else null,
+        )
+    }
+
+    override fun bufferedPositionAt(positionMs: Long): Long {
+        val entry = current ?: return positionMs
+        val item = entry.item
+        var buffered = positionMs
+        item.loadedTimeRanges.forEach { value ->
+            val range = (value as NSValue).CMTimeRangeValue
+            val start = range.useContents { start.toMilliseconds() }
+            val end = CMTimeGetSeconds(CMTimeRangeGetEnd(range)) * 1000
+            if (start <= positionMs + 1 && end >= positionMs) buffered = maxOf(buffered, end.toLong())
+        }
+        if (entry.cached != null && contentAccess?.canPreloadAfter(entry.data) == true) {
+            buffered = maxOf(buffered, item.duration.useContents { toMilliseconds().toLong() })
+        }
+        return buffered
+    }
+
+    override suspend fun stageNext(mediaData: MediaData, audio: LAudio) {
+        cancelNext()
+        val candidate = entry(mediaData)
+        if (!player.canInsertItem(candidate.item, current?.item)) { candidate.cached?.close(); return }
+        next = candidate
+        player.insertItem(candidate.item, current?.item)
+    }
+    override fun cancelNext(): Boolean {
+        val crossed = next?.item?.let { it == player.currentItem } == true
+        if (crossed) player.pause()
+        next?.let { player.removeItem(it.item); it.cached?.close() }
+        next = null
+        return crossed
+    }
+    override suspend fun awaitPreparation(timeout: Duration) {
+        val entry = current ?: return
+        try {
+            val state = withTimeout(timeout) { state.first { !it.isLoading } }
+            if (current !== entry) throw CancellationException("Media selection replaced")
+            check(state.error == null) { state.error ?: "Media preparation failed" }
         } catch (cancelled: CancellationException) {
-            // 取消的加载不能继续发布就绪或开始播放；但绝不能释放已经替换它的新媒体。
-            if (currentItem == item) release()
+            if (current === entry) release()
             throw cancelled
         }
     }
-
     override suspend fun play() {
-        if (currentItem?.status == AVPlayerStatusReadyToPlay) {
-            AudioSessionHelper.ensureAudioSessionActive()
-            avPlayer.play()
-            _state.update { it.copy(isPlaying = true) }
-        } else {
-            autoPlayWhenReady = true
-        }
+        AudioSessionHelper.ensureAudioSessionActive()
+        if (current?.item?.status == AVPlayerItemStatusReadyToPlay) {
+            player.play(); mutableState.update { it.copy(isPlaying = true) }
+        } else autoPlay = true
     }
-
-    override suspend fun pause() {
-        autoPlayWhenReady = false
-        avPlayer.pause()
-        _state.value = _state.value.copy(isPlaying = false)
-    }
-
-    override suspend fun stop() {
-        autoPlayWhenReady = false
-        avPlayer.pause()
-        avPlayer.seekToTime(CMTimeMake(value = 0, timescale = 1000))
-        // Stop retains the item: it must not pretend an in-flight load is prepared.
-        _state.update { it.copy(isPlaying = false, position = 0L) }
-    }
-
+    override suspend fun pause() { autoPlay = false; player.pause(); mutableState.update { it.copy(isPlaying = false) } }
+    override suspend fun stop() { pause(); seekTo(0) }
     override suspend fun seekTo(positionMs: Long) {
-        val time = CMTimeMake(value = positionMs, timescale = 1000)
-        val item = currentItem
+        val entry = current ?: return
         suspendCancellableCoroutine<Unit> { continuation ->
-            avPlayer.seekToTime(time, completionHandler = { finished ->
+            player.seekToTime(CMTimeMake(positionMs, 1000), completionHandler = { finished ->
                 if (continuation.isActive) {
-                    if (finished && currentItem == item) continuation.resume(Unit)
+                    if (finished && current === entry) continuation.resume(Unit)
                     else continuation.cancel(CancellationException("Native seek replaced"))
                 }
             })
         }
-        _state.update { it.copy(position = currentPosition()) }
+        ended = false
+        publish(entry)
     }
-
-    /** AVPlayer 音量（用于 VolumeFadeHelper 淡入淡出） */
-    fun setVolume(volume: Float) {
-        avPlayer.setVolume(volume)
-    }
-
-    override fun currentPosition(): Long {
-        return avPlayer.currentTime().useContents { toMilliseconds().toLong() }
-    }
-
+    fun setVolume(volume: Float) { player.volume = volume }
+    override fun currentPosition(): Long = player.currentTime().useContents { toMilliseconds().toLong().coerceAtLeast(0) }
     override suspend fun release() {
-        autoPlayWhenReady = false
-        avPlayer.pause()
-
-        currentItem?.let {
-            AVPlayerItemDidPlayToEndTimeNotification?.let { AVPlayerItemEventObserver.removeObserver(it) }
-            it.removeObserver(
-                observer = statusObserver,
-                forKeyPath = "status",
-                context = observerContext
-            )
-        }
-
-        AVPlayerPositionObserver.removeObserver(avPlayer)
-        avPlayer.replaceCurrentItemWithPlayerItem(null)
-        currentItem = null
-
-        _state.value = PlaybackEngineState.EMPTY
+        autoPlay = false; ended = false
+        observing?.cancel(); observing = null
+        player.pause()
+        endObserver?.let { NSNotificationCenter.defaultCenter.removeObserver(it) }; endObserver = null
+        cancelNext()
+        player.removeAllItems()
+        current?.cached?.close(); current = null
+        mutableState.value = PlaybackEngineState.EMPTY
     }
 }
 
-/** CMTime 转毫秒（调用方应在 useContents 块内使用） */
-fun CMTime.toMilliseconds(): Double {
-    if (timescale == 0) return 0.0
-    return (value.toDouble() / timescale.toDouble()) * 1000.0
-}
+fun CMTime.toMilliseconds(): Double = if (timescale == 0) 0.0 else value.toDouble() / timescale * 1000.0
