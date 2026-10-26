@@ -6,9 +6,12 @@ import kotlinx.coroutines.flow.*
 
 /** 引擎不上报当前媒体标识时的占位：用到它的判断会退化成保守的"值变化"启发式。 */
 private val UnknownEngineItemKey = MutableStateFlow<String?>(null)
+private val EmptyPendingNext = MutableStateFlow<LAudio?>(null)
 
 
 interface Playback {
+    /** Presentation-only intent in random mode; it is not an extra physical queue entry. */
+    val pendingNext: StateFlow<LAudio?> get() = EmptyPendingNext
     // Playback State
     val isPlaying: StateFlow<Boolean>
     val errors: SharedFlow<Throwable>

@@ -3,14 +3,12 @@ package com.lalilu.lplayer.service
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.analytics.AnalyticsListener
 import com.lalilu.lplayer.playback.IPlaybackDataTracker
 import com.lalilu.lmedia.domain.model.MediaKey
 
 @UnstableApi
-class HistoryAnalyticsListener(val dataTracker: IPlaybackDataTracker) : AnalyticsListener {
+class HistoryAnalyticsListener(val dataTracker: IPlaybackDataTracker) : Player.Listener {
     override fun onMediaItemTransition(
-        eventTime: AnalyticsListener.EventTime,
         mediaItem: MediaItem?,
         reason: Int
     ) {
@@ -18,11 +16,12 @@ class HistoryAnalyticsListener(val dataTracker: IPlaybackDataTracker) : Analytic
             mediaId = mediaItem?.mediaId?.takeIf { MediaKey.parse(it) != null },
             title = mediaItem?.mediaMetadata?.title.toString(),
             isRepeating = reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT,
-            isNormalTransition = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
+            // A selected item may still be loading. Actual Started determines audible duration.
+            isNormalTransition = false
         )
     }
 
-    override fun onIsPlayingChanged(eventTime: AnalyticsListener.EventTime, isPlaying: Boolean) {
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
         dataTracker.onIsPlayingChanged(isPlaying)
     }
 }

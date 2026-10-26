@@ -115,13 +115,20 @@ class PlaybackCore(
                 if (command.mode != s.mode) s = s.copy(mode = command.mode, explicitNext = null)
             }
             is PlaybackCommand.SetSkipFailures -> s = s.copy(skipFailures = command.enabled)
+            is PlaybackCommand.SetPauseAtEnd -> { s = s.copy(pauseAtEnd = command.enabled) }
             is PlaybackCommand.PlayNext -> playNext(command.key)
             PlaybackCommand.Next -> { beginUserNavigation(1); move(1, natural = false) }
             PlaybackCommand.Previous -> { beginUserNavigation(-1); s = s.copy(explicitNext = null); move(-1, natural = false) }
             PlaybackCommand.Pause -> {
                 s = s.copy(intent = PlayIntent.Pause,
-                    phase = if (s.phase in setOf(Phase.Playing, Phase.Starting, Phase.Buffering)) Phase.ReadyPaused else s.phase)
+                    phase = if (s.phase in setOf(Phase.Playing, Phase.Starting, Phase.Buffering, Phase.Suppressed)) Phase.ReadyPaused else s.phase)
                 s.ticket?.let { runtime.setPlaying(it, false) }
+            }
+            PlaybackCommand.Stop -> {
+                resolving?.cancel()
+                runtime.silence(null)
+                s = s.copy(intent = PlayIntent.Pause, phase = if (s.selected == null) Phase.Empty else Phase.Ended,
+                    epoch = s.epoch + 1, pendingSeekId = null, positionMs = 0)
             }
             PlaybackCommand.Play -> {
                 if (s.selected == null) return
@@ -136,11 +143,13 @@ class PlaybackCore(
                 }
             }
             is PlaybackCommand.Seek -> {
-                if (s.phase !in setOf(Phase.Playing, Phase.ReadyPaused, Phase.Starting, Phase.Seeking, Phase.Buffering, Phase.Ended)) return
+                if (s.phase !in setOf(Phase.Playing, Phase.ReadyPaused, Phase.Starting, Phase.Seeking, Phase.Buffering, Phase.Ended, Phase.Preparing, Phase.Suppressed)) return
                 val target = command.positionMs.coerceAtLeast(0).let { if (s.durationMs > 0) it.coerceAtMost(s.durationMs) else it }
+                if (s.phase == Phase.Ended) select(s.index)
                 val seekId = ++seekSerial
-                s = s.copy(phase = Phase.Seeking, pendingSeekId = seekId, positionMs = target, bufferedPositionMs = 0)
-                runtime.seek(s.ticket!!, seekId, target)
+                val preparing = s.phase == Phase.Preparing
+                s = s.copy(phase = if (preparing) Phase.Preparing else Phase.Seeking, pendingSeekId = seekId, positionMs = target, bufferedPositionMs = 0)
+                if (!preparing) runtime.seek(s.ticket!!, seekId, target)
             }
         }
     }
@@ -181,7 +190,7 @@ class PlaybackCore(
     private fun select(index: Int, natural: Boolean = false) {
         fadeOnStart = !natural
         resolving?.cancel()
-        s = s.copy(index = index, epoch = s.epoch + 1, phase = Phase.Preparing,
+        s = s.copy(index = index, epoch = s.epoch + 1, naturalTransition = natural, phase = Phase.Preparing,
             positionMs = 0, durationMs = 0, bufferedPositionMs = 0, pendingSeekId = null, error = null)
         startedTicket = null
         endedTicket = null
@@ -252,8 +261,16 @@ class PlaybackCore(
     private fun event(event: RuntimeEvent) {
         if (event.ticket != s.ticket) return
         when (event) {
+            is RuntimeEvent.PausedBySystem -> command(PlaybackCommand.Pause)
+            is RuntimeEvent.Suppressed -> if (s.intent == PlayIntent.Play) s = s.copy(phase = Phase.Suppressed)
             is RuntimeEvent.Prepared -> {
                 if (s.phase != Phase.Preparing) return
+                val seek = s.pendingSeekId
+                if (seek != null) {
+                    s = s.copy(durationMs = event.durationMs.coerceAtLeast(0), phase = Phase.Seeking)
+                    runtime.seek(event.ticket, seek, s.positionMs.coerceAtMost(event.durationMs.takeIf { it > 0 } ?: Long.MAX_VALUE))
+                    return
+                }
                 s = s.copy(durationMs = event.durationMs.coerceAtLeast(0), phase = if (s.intent == PlayIntent.Play) Phase.Starting else Phase.ReadyPaused)
                 runtime.setPlaying(event.ticket, s.intent == PlayIntent.Play, smooth = fadeOnStart)
             }
@@ -294,6 +311,10 @@ class PlaybackCore(
             is RuntimeEvent.Ended -> {
                 if (endedTicket == event.ticket || s.phase == Phase.Failed) return
                 endedTicket = event.ticket
+                if (s.pauseAtEnd) {
+                    s = s.copy(intent = PlayIntent.Pause, phase = Phase.Ended, pauseAtEnd = false)
+                    return
+                }
                 if (s.intent == PlayIntent.Play) move(1, natural = true)
                 else s = s.copy(phase = Phase.Ended)
             }

@@ -1,0 +1,8 @@
+
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+com.lalilu.lmusic.prototype.ContentCacheDeviceTest:....
+com.lalilu.lmusic.prototype.PlaybackCoreDeviceTest:......
+
+Time: 13.644
+
+OK (11 tests)

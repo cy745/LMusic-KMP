@@ -44,6 +44,20 @@ class HistoryQueueRestorerTest {
         assertIs<HistoryRestoreState.Complete>(restorer.state.value)
     }
 
+    @Test fun sharedCoreReceivesSavedPositionBeforeSourceReadiness() = runTest {
+        val repository = FakeAudioRepository().apply { seed(audio("a").copy(available=false)) }
+        val queue = PlayableQueueImpl()
+        val delivered = mutableListOf<PlaybackHistory.HistorySnapshot>()
+        val restorer = HistoryQueueRestorer(
+            PlaybackHistory.HistorySnapshot(listOf("a"),0,8700),repository,
+            readableSources=MutableStateFlow(emptySet()),preparationOwnedByPlayback=true,
+        )
+        restorer.start(backgroundScope,queue) { delivered += it }
+        runCurrent()
+        assertEquals(8700,delivered.single().position)
+        assertIs<HistoryRestoreState.Complete>(restorer.state.value)
+    }
+
     @Test fun cachedQueueAppearsBeforeSourcesAreReadyAndKeepsUnavailableRows() = runTest {
         val repository = FakeAudioRepository()
         val sources = MutableStateFlow<Set<String>?>(emptySet())

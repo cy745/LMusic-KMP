@@ -51,6 +51,7 @@ internal class BufferedPositionResolver(
     duration: Flow<Long>,
     dataSourceOf: (LAudio) -> MediaDataSource?,
     scope: CoroutineScope,
+    private val preferEngine: Boolean = false,
 ) {
     val bufferedPosition: StateFlow<Long> = combine(
         currentItem.flatMapLatest { item -> bufferingOf(item, dataSourceOf) },
@@ -91,6 +92,7 @@ internal class BufferedPositionResolver(
         } ?: return flowOf(Buffering.FromEngine)
 
         if (!dataSource.isRemoteContent) return flowOf(Buffering.Unavailable)
+        if (preferEngine) return flowOf(Buffering.FromEngine)
 
         return dataSource.bufferedProgress(item)
             ?.map { Buffering.FromRatio(it) }

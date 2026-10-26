@@ -8,7 +8,6 @@ import androidx.annotation.OptIn
 import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.*
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
@@ -24,7 +23,6 @@ import com.lalilu.lmedia.domain.source.PlatformMediaSource
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.*
 import com.lalilu.lplayer.playback.IPlaybackDataTracker
-import com.lalilu.lplayer.playback.AndroidPlaybackNavigation
 import com.lalilu.lplayer.playback.PlaybackHistory
 import com.lalilu.lplayer.playback.observeHistoryRestoreSettled
 import com.lalilu.lplayer.playback.resolveQueue
@@ -37,17 +35,24 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.guava.future
+import kotlinx.coroutines.guava.await
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.koin.mp.KoinPlatform
 import kotlin.coroutines.CoroutineContext
+import com.lalilu.lplayer.core.*
+import com.lalilu.playback.core.PlaybackCore
+import com.lalilu.playback.core.TrackKey
+import com.lalilu.playback.core.ContentResolver
+import com.lalilu.lmedia.domain.model.MediaKey
 
 @OptIn(UnstableApi::class)
 class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
-    override val coroutineContext: CoroutineContext = Dispatchers.IO + SupervisorJob()
+    override val coroutineContext: CoroutineContext = Dispatchers.Main.immediate + SupervisorJob()
     private val dataTracker by inject<IPlaybackDataTracker>()
-    private val navigation by inject<AndroidPlaybackNavigation>()
     private val historyAnalyticsListener by lazy { HistoryAnalyticsListener(dataTracker) }
 
     private var player: Player? = null
@@ -71,35 +76,43 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
         notificationProvider = MNotificationProvider(this)
             .also { setMediaNotificationProvider(it) }
 
-        player = ExoPlayer.Builder(this)
-            .setRenderersFactory(FadeTransitionRenderersFactory(this))
-            .setMediaSourceFactory(DefaultMediaSourceFactory(LMediaDataSource.Factory(this, platformMediaSource)))
-            .setHandleAudioBecomingNoisy(LPlayerKV.handleBecomeNoisy.value)
-            .setAudioAttributes(defaultAudioAttributes, LPlayerKV.handleAudioFocus.value)
-            .setMaxSeekToPreviousPositionMs(Long.MAX_VALUE) // 避免播放上一首需要点两次
-            .build()
-            .apply {
-                exoPlayer = this
-                addAnalyticsListener(historyAnalyticsListener)
-                addListener(
-                    MPlayerListener(
-                        player = this,
-                        onSessionIdChange = { eqHelper?.audioSessionId = it }
-                    )
-                )
-            }
-            .setUpQueueControl(
-                onNavigate = { direction -> navigation.failures.begin(direction) },
-                onCancelNavigation = { navigation.failures.cancel() },
-                onPausePreparation = { navigation.preparation.pause() },
-                onStopPreparation = { navigation.preparation.stop() },
-            )
+        val repository = getKoin().get<AudioRepository>()
+        val access = PlaybackContentAccess(this, platformMediaSource, repository, restoreMetadata = { cached ->
+            val existing = repository.getAudios().first().map { it.playbackId }.toSet()
+            val database = getKoin().get<com.lalilu.lmedia.data.database.ILMediaDatabase>()
+            cached.filter { it.playbackId !in existing && platformMediaSource.isEnabled(it.mediaSourceName) }
+                .forEach { database.mediaDao().upsertAudio(it) }
+        })
+        val items = mutableMapOf<TrackKey, MediaItem>()
+        val runtime = Media3CoreRuntime(this, access.dataSourceFactory, itemFactory = { ticket, resource ->
+            items.getValue(ticket.key).buildUpon().setUri(resource.uri).build()
+        })
+        exoPlayer = runtime.player.apply {
+            setAudioAttributes(defaultAudioAttributes, LPlayerKV.handleAudioFocus.value)
+            setHandleAudioBecomingNoisy(LPlayerKV.handleBecomeNoisy.value)
+            addListener(object : Player.Listener {
+                override fun onAudioSessionIdChanged(id: Int) { eqHelper?.audioSessionId = id }
+            })
+        }
+        val core = PlaybackCore(this, ContentResolver { key -> access.resolve(MediaKey(key.source,key.id)) }, runtime)
+        player = CoreSessionPlayer(core, runtime, this, items, access::close).apply {
+            addListener(MPlayerListener(this))
+            addListener(historyAnalyticsListener)
+        }
+
+        (player as CoreSessionPlayer).setMode(PlayMode.from(LPlayerKV.playMode.value))
 
         mediaSession = MediaLibrarySession
-            .Builder(this, player!!, MServiceCallback(player!!))
+            .Builder(this, player!!, MServiceCallback(player!!, this))
             .setSessionActivity(getLauncherPendingIntent())
             .build()
 
+        core.state.map { it.explicitNext to it.pauseAtEnd }.distinctUntilChanged().onEach { (pending, pauseAtEnd) ->
+            mediaSession?.setSessionExtras(Bundle().apply {
+                pending?.let { putString("pendingNext", MediaKey(it.source,it.id).stableKey) }
+                putBoolean("pauseAtEnd",pauseAtEnd)
+            })
+        }.launchIn(this)
         startListenForValuesUpdate()
     }
 
@@ -110,6 +123,8 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
         player = null
         mediaSession?.release()
         mediaSession = null
+        notificationProvider?.cancel()
+        cancel()
         super.onDestroy()
     }
 
@@ -127,12 +142,6 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
         LPlayerKV.handleBecomeNoisy.flow().onEach {
             withContext(Dispatchers.Main) {
                 exoPlayer?.setHandleAudioBecomingNoisy(it)
-            }
-        }.launchIn(this)
-
-        LPlayerKV.playMode.flow().onEach {
-            withContext(Dispatchers.Main) {
-                player?.playMode = PlayMode.from(it)
             }
         }.launchIn(this)
 
@@ -156,25 +165,16 @@ private class MPlayerListener(
         onSessionIdChange(audioSessionId)
     }
 
-    override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-        val playMode = playModeOf(
-            repeatMode = player.repeatMode,
-            shuffleModeEnabled = shuffleModeEnabled
-        )
-        LPlayerKV.playMode.value = playMode.name
+    override fun onEvents(player: Player, events: Player.Events) {
+        if (events.contains(Player.EVENT_REPEAT_MODE_CHANGED) || events.contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)) {
+            LPlayerKV.playMode.value = playModeOf(player.repeatMode,player.shuffleModeEnabled).name
+        }
     }
 
-    override fun onRepeatModeChanged(repeatMode: Int) {
-        val playMode = playModeOf(
-            repeatMode = repeatMode,
-            shuffleModeEnabled = player.shuffleModeEnabled
-        )
-        LPlayerKV.playMode.value = playMode.name
-    }
 }
 
 @OptIn(UnstableApi::class)
-private class MServiceCallback(private val player: Player) : MediaLibrarySession.Callback, KoinComponent {
+private class MServiceCallback(private val player: Player, private val scope: CoroutineScope) : MediaLibrarySession.Callback, KoinComponent {
     private val playbackHistory by inject<PlaybackHistory>()
     private val audioRepository by inject<AudioRepository>()
     private val sourceBindings by inject<MediaSourceBindingRepository>()
@@ -212,7 +212,7 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
                     "args=$args, packageName=${controller.packageName}"
         }
 
-        return CoroutineScope(Dispatchers.IO).future {
+        return scope.future(Dispatchers.IO) {
             val action = customCommand.toCustomCommendOrNull()
 
             if (action == null) {
@@ -225,9 +225,13 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
                 when (action) {
                     SeekToNext -> player.seekToNext()
                     SeekToPrevious -> player.seekToPrevious()
-                    CustomCommand.PlayNext -> (player as QueueControlPlayer).requestPlayNext(
-                        requireNotNull(args.getString("playbackId"))
-                    )
+                    CustomCommand.PlayNext -> {
+                        val item = withContext(Dispatchers.IO) { MMedia.getItem(requireNotNull(args.getString("playbackId"))) }
+                            ?: return@withContext
+                        (player as CoreSessionPlayer).requestPlayNext(item).await()
+                    }
+                    CustomCommand.SetMode -> (player as CoreSessionPlayer).setMode(PlayMode.from(requireNotNull(args.getString("mode")))).await()
+                    CustomCommand.PauseAtEnd -> (player as CoreSessionPlayer).pauseAtEnd(args.getBoolean("enabled")).await()
                 }
             }
 
@@ -275,7 +279,7 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
                     "packageName=${browser.packageName}"
         }
 
-        return CoroutineScope(Dispatchers.IO).future {
+        return scope.future(Dispatchers.IO) {
             val result = if (parentId == MMedia.ROOT) {
                 LibraryResult.ofItemList(
                     listOf(
@@ -303,7 +307,7 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
             "onGetItem: mediaId=$mediaId, packageName=${browser.packageName}"
         }
 
-        return CoroutineScope(Dispatchers.IO).future {
+        return scope.future(Dispatchers.IO) {
             if (mediaId == MMedia.ROOT) {
                 return@future LibraryResult.ofItem(buildBrowsableItem(MMedia.ROOT, "LMedia Library"), null)
             }
@@ -327,7 +331,7 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
         startIndex: Int,
         startPositionMs: Long
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-        return CoroutineScope(Dispatchers.IO).future {
+        return scope.future(Dispatchers.IO) {
             val ids = mediaItems.map { it.mediaId }
             val items = MMedia.getItems(ids)
 
@@ -349,7 +353,7 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
                     "packageName=${controller.packageName}"
         }
 
-        return CoroutineScope(Dispatchers.IO).future {
+        return scope.future(Dispatchers.IO) {
             val ids = mediaItems.map { it.mediaId }
             val items = MMedia.getItems(ids)
 
@@ -369,7 +373,7 @@ private class MServiceCallback(private val player: Player) : MediaLibrarySession
             "onPlaybackResumption: packageName=${controller.packageName}"
         }
 
-        return CoroutineScope(Dispatchers.IO).future {
+        return scope.future(Dispatchers.IO) {
             val snapshot = playbackHistory.restoreFromHistory()
                 ?: return@future MediaSession.MediaItemsWithStartPosition(MMedia.getChildren(MMedia.ALL_SONGS), 0, 0L)
             sourceBindings.startBinding()

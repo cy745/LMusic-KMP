@@ -50,7 +50,6 @@ class MPlayerPlayback(
     private val platformMediaSource: PlatformMediaSource,
     private val history: PlaybackHistory,
     private val playbackFailureRepository: PlaybackFailureRepository,
-    private val navigation: AndroidPlaybackNavigation,
 ) : CoroutineScope,
     Player.Listener,
     Playback,
@@ -61,7 +60,6 @@ class MPlayerPlayback(
     private val logger = Logger.withTag("MPlayerPlayback")
     private val browserQueueMutex = Mutex()
     private val queueEditMutex = Mutex()
-    private val failureTraversal = navigation.failures
     private val failureWrites = PlaybackFailureWrites(playbackFailureRepository)
     override val coroutineContext: CoroutineContext = Dispatchers.IO
     private val sessionToken by lazy {
@@ -71,16 +69,20 @@ class MPlayerPlayback(
     private val queueBridge = PlatformQueueBridge(
         applyToPlatform = { state ->
             if (state.updateReason == QueueUpdateReason.HistoryRestore) applyHistoryQueue(state)
-            else diffUpdateMediaItems(state.list)
+            else applyQueueState(state)
         },
         readPlatformAfterApply = { launch(Dispatchers.Main) { updateItems() } },
     )
     override val queue: PlayableQueue = queueBridge.queue
     private var browserInstance: MediaBrowser? = null
+    private var historyRestorer: HistoryQueueRestorer? = null
     private var startupHistory: PlaybackHistory.HistorySnapshot? = null
     private val browserFuture by lazy {
         MediaBrowser
             .Builder(context, sessionToken)
+            .setListener(object : MediaBrowser.Listener {
+                override fun onExtrasChanged(controller: androidx.media3.session.MediaController, extras: Bundle) { updatePending(extras) }
+            })
             .buildAsync()
     }
 
@@ -95,30 +97,16 @@ class MPlayerPlayback(
     private val recordedPosition = MutableStateFlow(0L)
     private val _currentBufferedPosition = MutableStateFlow(0L)
     private val _playbackMode = MutableStateFlow(PlaybackMode.SEQUENTIAL)
-    private val contentPreparation = ContentReadyPreparationCoordinator(
-        scope = this,
-        sourceOf = { audio ->
-            platformMediaSource.findEnabledSource(audio.mediaSourceName)
-        },
-        preparationTicket = { navigation.preparation.ticket() },
-        onReady = { audio, latestIntent ->
-            withContext(Dispatchers.Main) {
-                val browser = browserInstance ?: return@withContext
-                if (browser.currentMediaItem?.mediaId != audio.playbackId) return@withContext
-                val (playWhenReady, ticket) = latestIntent() ?: return@withContext
-                val intent = navigation.preparation.playIntent(ticket, playWhenReady) ?: return@withContext
-                browser.playWhenReady = intent
-                browser.prepare()
-            }
-        },
-        onSourceMissing = { audio ->
-            _errors.emit(
-                IllegalStateException(
-                    "MediaSource '${audio.mediaSourceName}' is missing or disabled"
-                )
-            )
-        },
-    )
+    private val _pendingNext = MutableStateFlow<LAudio?>(null)
+    override val pendingNext: StateFlow<LAudio?> = _pendingNext.asStateFlow()
+    private var pendingJob: Job? = null
+    private fun updatePending(extras: Bundle) {
+        pauseWhenCompletion = extras.getBoolean("pauseAtEnd")
+        pendingJob?.cancel()
+        val id = extras.getString("pendingNext")
+        if (id == null) { _pendingNext.value = null; return }
+        pendingJob = launch { _pendingNext.value = audioRepository.getAudioByPlaybackId(id).first() }
+    }
 
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
     override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
@@ -142,6 +130,7 @@ class MPlayerPlayback(
             platformMediaSource.findEnabledSource(audio.mediaSourceName)?.dataSource
         },
         scope = this,
+        preferEngine = true,
     )
     override val currentBufferedPosition: StateFlow<Long> = bufferedPositionResolver.bufferedPosition
 
@@ -155,10 +144,12 @@ class MPlayerPlayback(
     override fun run() {
         val browser = browserFuture.get() ?: return
         browserInstance = browser
+        updatePending(browser.sessionExtras)
         browser.addListener(this@MPlayerPlayback)
         launch(Dispatchers.Main) {
             while (isActive) {
                 recordedPosition.value = browser.currentPosition.coerceAtLeast(0L)
+                _currentBufferedPosition.value = browser.bufferedPosition.coerceAtLeast(0L)
                 delay(200)
             }
         }
@@ -180,9 +171,10 @@ class MPlayerPlayback(
                 snapshot = it,
                 repository = audioRepository,
                 restoreSettled = mediaSourceBindingRepository.observeHistoryRestoreSettled(it.sourceNames.getOrNull(it.index)),
-                readableSources = mediaSourceBindingRepository.observeReadableSources(),
+                preparationOwnedByPlayback = true,
             )
         }
+        historyRestorer = restorer
         restorer?.start(
             scope = this,
             queue = queue,
@@ -212,64 +204,29 @@ class MPlayerPlayback(
         browser.currentPosition.takeIf { it >= 0L }
     }
 
-    override suspend fun play() {
-        val current = queue.currentItem()
-        if (current != null && !isContentReady(current)) {
-            contentPreparation.request(current, playWhenReady = true)
-            return
-        }
-        contentPreparation.updatePlayIntent(current?.playbackId, playWhenReady = true)
-        runWithBrowser { play() }
-    }
-
-    override suspend fun pause() {
-        withContext(Dispatchers.Main) { failureTraversal.cancel() }
-        contentPreparation.updatePlayIntent(queue.currentItem()?.playbackId, playWhenReady = false)
-        runWithBrowser { pause() }
-    }
-    override suspend fun togglePlayPause() {
-        if (_isPlaying.value || contentPreparation.hasPendingPlayIntent()) pause() else play()
-    }
-
-    override suspend fun stop() {
-        withContext(Dispatchers.Main) { failureTraversal.cancel() }
-        contentPreparation.cancel()
-        runWithBrowser { stop() }
-    }
+    override suspend fun play() = runWithBrowser { play() }
+    override suspend fun pause() = runWithBrowser { pause() }
+    override suspend fun togglePlayPause() = runWithBrowser { if (playWhenReady) pause() else play() }
+    override suspend fun stop() = runWithBrowser { stop() }
+    override val canSkipNext: Flow<Boolean> = queue.expandedItems.map { it.list.isNotEmpty() }
+    override val canSkipPrevious: Flow<Boolean> = canSkipNext
     override suspend fun seekTo(positionMs: Long) = runWithBrowser {
         seekTo(positionMs)
         recordedPosition.value = currentPosition.coerceAtLeast(0L)
     }
 
     override suspend fun skipTo(index: Int, start: Boolean) = queueEditMutex.withLock {
-        if (index !in queue.stateSnapshot().list.indices) return@withLock
+        if (index !in queue.stateSnapshot().list.indices || index == queue.stateSnapshot().index) return@withLock
         queueBridge.editAndRun(block = { switchTo(index) }) {
             applySelection(it, start)
         }
     }
 
     override suspend fun skipToNext() = runWithBrowser {
-        failureTraversal.begin(PlaybackDirection.Forward)
-        if (playMode == PlayMode.Shuffle) {
-            sendCustomCommand(
-                CustomCommand.SeekToNext.toSessionCommand(),
-                Bundle.EMPTY
-            ).await()
-        } else {
-            seekToNext()
-        }
+        sendCustomCommand(CustomCommand.SeekToNext.toSessionCommand(), Bundle.EMPTY).await()
     }
-
     override suspend fun skipToPrevious() = runWithBrowser {
-        failureTraversal.begin(PlaybackDirection.Backward)
-        if (playMode == PlayMode.Shuffle) {
-            sendCustomCommand(
-                CustomCommand.SeekToPrevious.toSessionCommand(),
-                Bundle.EMPTY
-            ).await()
-        } else {
-            seekToPrevious()
-        }
+        sendCustomCommand(CustomCommand.SeekToPrevious.toSessionCommand(), Bundle.EMPTY).await()
     }
 
     override suspend fun updatePlaylist(
@@ -291,18 +248,12 @@ class MPlayerPlayback(
     override suspend fun editQueue(block: QueueUpdateRequest.() -> Unit) = editQueueWithReceipt(block) {}
 
     override suspend fun editQueueWithReceipt(block: QueueUpdateRequest.() -> Unit, onApplied: (QueueState) -> Unit) = queueEditMutex.withLock {
-        val previous = queue.currentItem()?.mediaKey
-        val resume = isPlaying.value || contentPreparation.hasPendingPlayIntent()
-        queueBridge.editAndRun(block) { selected ->
-            if (selected.currentItem()?.mediaKey != previous || selected.list.isEmpty()) {
-                stop()
-                if (selected.list.isNotEmpty()) applySelection(selected, resume)
-            }
-        }
+        queueBridge.editAndRun(block) { /* Service-owned core preserves selection/intent atomically. */ }
         onApplied(queue.stateSnapshot())
     }
 
     override suspend fun playAudio(audio: LAudio) = queueEditMutex.withLock {
+        if (queue.currentItem()?.mediaKey == audio.mediaKey) return@withLock
         queueBridge.editAndRun(block = { selectOrInsert(audio) }) { selected ->
             applySelection(selected, start = true)
         }
@@ -314,53 +265,41 @@ class MPlayerPlayback(
             withContext(Dispatchers.Main) {
                 restorePausedQueueIfOwned(
                     bridge = queueBridge, player = browser, expected = expected, original = original,
-                    position = position, prepare = original.currentItem()?.let(::isContentReady) == true,
-                    beforeApply = {
-                        failureTraversal.cancel()
-                        contentPreparation.cancel()
-                    },
+                    position = position, prepare = original.currentItem() != null,
                 ).also { applied -> if (applied) recordedPosition.value = position.coerceAtLeast(0) }
             }
         }
 
-    override suspend fun playNext(audio: LAudio) = queueEditMutex.withLock {
-        queueBridge.editAndRun(block = {
-            if (queue.stateSnapshot().list.none { it.mediaKey == audio.mediaKey }) addToNext(listOf(audio))
-        }) {
-            runWithBrowser {
-                sendCustomCommand(CustomCommand.PlayNext.toSessionCommand(), Bundle().apply {
-                    putString("playbackId", audio.playbackId)
-                }).await()
-            }
-        }
+    override suspend fun playNext(audio: LAudio) = runWithBrowser {
+        sendCustomCommand(CustomCommand.PlayNext.toSessionCommand(), Bundle().apply {
+            putString("playbackId", audio.playbackId)
+        }).await()
     }
 
     private suspend fun applySelection(selected: QueueState, start: Boolean) {
-        withContext(Dispatchers.Main) { failureTraversal.begin() }
         val audio = selected.currentItem() ?: return
-        val ready = isContentReady(audio)
-        contentPreparation.cancel()
         runWithBrowser {
-            playWhenReady = start && ready
-            seekTo(selected.index, 0)
-            if (start && ready) play()
+            if (currentMediaItem?.mediaId != audio.playbackId) seekTo(selected.index,0)
+            playWhenReady = start
+            prepare()
         }
-        if (start && !ready) contentPreparation.request(audio, playWhenReady = true)
     }
 
-    override suspend fun setPlaybackMode(
-        mode: PlaybackMode
-    ) = runWithBrowser {
-        playMode = when (mode) {
+    override suspend fun setPlaybackMode(mode: PlaybackMode) {
+        val requested = when(mode) {
             PlaybackMode.SEQUENTIAL -> PlayMode.Sequential
             PlaybackMode.LOOP -> PlayMode.ListRecycle
             PlaybackMode.SINGLE_LOOP -> PlayMode.RepeatOne
             PlaybackMode.SHUFFLE -> PlayMode.Shuffle
+        }.name
+        runWithBrowser(claimHistory = false) {
+            sendCustomCommand(CustomCommand.SetMode.toSessionCommand(),Bundle().apply { putString("mode",requested) }).await()
         }
     }
 
     override suspend fun setPauseWhenCompletion(cancel: Boolean) {
         pauseWhenCompletion = !cancel
+        runWithBrowser { sendCustomCommand(CustomCommand.PauseAtEnd.toSessionCommand(), Bundle().apply { putBoolean("enabled", !cancel) }).await() }
     }
 
 
@@ -374,18 +313,16 @@ class MPlayerPlayback(
 
         browserQueueMutex.withLock {
             withContext(Dispatchers.Main) {
-                // 先恢复精确的队列、current 和 position，但等目标来源 Ready 后再真正打开媒体。
+                // 恢复队列和定位意图；服务按缓存优先策略异步准备内容。
                 browser.playWhenReady = false
                 browser.setMediaItems(mediaIds, restored.index, snapshot.position)
                 recordedPosition.value = snapshot.position.coerceAtLeast(0L)
             }
         }
 
-        restored.currentItem()?.let { current ->
-            contentPreparation.request(
-                audio = current,
-                playWhenReady = LPlayerKV.autoPlayWhenRestart.value,
-            )
+        runWithBrowser(claimHistory = false) {
+            prepare()
+            playWhenReady = LPlayerKV.autoPlayWhenRestart.value
         }
         Unit
     }
@@ -428,79 +365,19 @@ class MPlayerPlayback(
         // 新曲目的时长此刻还未知，先清零，等引擎报出来再填——避免上一首的值被当成新曲目的。
         _currentEngineItemKey.value = mediaItem?.mediaId
         _currentDuration.value = 0L
-        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
-            failureTraversal.begin(PlaybackDirection.Forward)
-        }
-        contentPreparation.cancelIfCurrentChanged(mediaItem?.mediaId)
         updateItems()
 
-        if (pauseWhenCompletion) {
-            browserInstance?.pause()
-            pauseWhenCompletion = false
-        }
     }
 
     override fun onPlayerError(error: PlaybackException) {
-        val failureTicket = failureTraversal.generation
-        val failedSelectionRevision = queue.stateSnapshot().selectionRevision
-        val failedBrowser = browserInstance
-        val mediaId = failedBrowser?.currentMediaItem?.mediaId
-        if (mediaId == null) {
-            _errors.tryEmit(error)
-            return
-        }
-        val failedIndex = failedBrowser.currentMediaItemIndex
-        val failedIds = failedBrowser.currentTimeline.toMediaItems().map { it.mediaId }
-        val writeTicket = failureWrites.register(mediaId)
-
-        launch(Dispatchers.Main) {
-            fun isCurrentFailure(): Boolean = browserInstance === failedBrowser &&
-                failureTicket == failureTraversal.generation &&
-                queue.stateSnapshot().selectionRevision == failedSelectionRevision &&
-                failedBrowser.currentMediaItem?.mediaId == mediaId &&
-                failedBrowser.currentMediaItemIndex == failedIndex &&
-                failedBrowser.currentTimeline.toMediaItems().map { it.mediaId } == failedIds
-
-            runPlaybackFailureRecovery(
-                isCurrent = ::isCurrentFailure,
-                onFailure = { Logger.e(it) { "Could not recover playback failure; pausing only the failed selection" } },
-                pause = { failedBrowser.pause() },
-            ) recover@{
-                _errors.emit(error)
-                if (!isCurrentFailure()) return@recover
-                val audio = audioRepository.getAudioByPlaybackId(mediaId).first()
-                val browser = failedBrowser
-                if (!isCurrentFailure()) return@recover
-                // Startup prepares only after readiness, in onQueueRestored. An error during normal
-                // navigation must skip an unready source, not start another unbounded source wait.
-                if (audio != null && isContentReady(audio)) {
-                    failureWrites.apply(writeTicket, PlaybackFailure(
-                        reason = classifyPlaybackFailure(error),
-                        occurredAtMillis = System.currentTimeMillis(),
-                    )).onFailure {
-                        Logger.e(it) { "Could not persist playback failure; continuing navigation" }
-                    }
-                }
-                if (!isCurrentFailure()) return@recover
-                // The public queue can lag behind a native transition. Resolve exact native slots.
-                val nativeIds = failedIds
-                val nativeIndex = failedIndex
-                val slots = audioRepository.getPlaybackSlots(nativeIds).first()
-                if (!isCurrentFailure()) return@recover
-                val failures = playbackFailureRepository.failures.first()
-                if (!isCurrentFailure()) return@recover
-                val next = failureTraversal.next(failureTicket, nativeIds.size, nativeIndex, playbackMode.value) { index ->
-                    val candidate = slots[index]
-                    candidate != null && candidate.available && isContentReady(candidate) && candidate.playbackId !in failures
-                }
-                if (next == null) {
-                    browser.pause()
-                } else {
-                    // Do not begin a new traversal here: all consecutive failures share one budget.
-                    browser.seekTo(next, 0)
-                    browser.prepare()
-                }
-            }
+        // Failure traversal belongs to the service core. The client only exposes/persists the terminal error.
+        val mediaId = browserInstance?.currentMediaItem?.mediaId
+        val ticket = mediaId?.let { failureWrites.register(it) }
+        launch {
+            _errors.emit(error)
+            if(ticket != null) failureWrites.apply(ticket, PlaybackFailure(
+                reason = classifyPlaybackFailure(error), occurredAtMillis = System.currentTimeMillis(),
+            ))
         }
     }
 
@@ -530,7 +407,6 @@ class MPlayerPlayback(
     }
 
     override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-        failureTraversal.observeQueue(timeline.toMediaItems().map { it.mediaId })
         updateItems(timeline)
     }
 
@@ -561,44 +437,30 @@ class MPlayerPlayback(
         val browser = browserFuture.await()
         withContext(Dispatchers.Main) {
             recordedPosition.value = browser.restoreHistoryQueueSelection(state, startupHistory)
-            // No prepare/play here: unavailable sources must remain displayable without opening media.
+            // The core prepares asynchronously while keeping the restored pause intent.
         }
     }
 
-    private suspend fun diffUpdateMediaItems(items: List<LAudio>) = browserQueueMutex.withLock {
+    private suspend fun applyQueueState(state: QueueState) = browserQueueMutex.withLock {
         val browser = browserFuture.await()
-        val mediaItems = items.map { it.toMediaItem() }
-        val newIds = mediaItems.map { it.mediaId }
-        val byId = mediaItems.associateBy { it.mediaId }
-        while (true) {
-            val currentIds = withContext(Dispatchers.Main) {
-                browser.currentTimeline.toMediaItems().map { it.mediaId }
+        val mediaItems = state.list.map { it.toMediaItem() }
+        withContext(Dispatchers.Main) {
+            val ids = browser.currentTimeline.toMediaItems().map { it.mediaId }
+            if (ids == mediaItems.map { it.mediaId } && browser.currentMediaItemIndex == state.index) {
+                // Metadata refresh does not change queue intent or current position.
+                browser.replaceMediaItems(0, browser.mediaItemCount, mediaItems)
+            } else {
+                browser.setMediaItems(mediaItems, state.index.coerceAtLeast(0), androidx.media3.common.C.TIME_UNSET)
             }
-            val changes = withContext(Dispatchers.Default) { queueReplacements(currentIds, newIds) }
-            val applied = withContext(Dispatchers.Main) {
-                // System controls can change the Timeline while the diff is calculated off-main.
-                if (browser.currentTimeline.toMediaItems().map { it.mediaId } != currentIds) {
-                    return@withContext false
-                }
-                changes.forEach { change ->
-                    browser.replaceMediaItems(change.from, change.to, change.items.map { byId.getValue(it) })
-                }
-                true
-            }
-            if (applied) break
         }
     }
-
-    private fun isContentReady(audio: LAudio): Boolean = platformMediaSource
-        .findEnabledSource(audio.mediaSourceName)
-        ?.contentState
-        ?.value
-        ?.isReady == true
 
     private suspend fun runWithBrowser(
+        claimHistory: Boolean = true,
         block: suspend MediaBrowser.() -> Unit = {}
     ) = withContext(Dispatchers.IO) {
         val browser = browserFuture.await()
+        if (claimHistory) historyRestorer?.claimPlaybackControl()
         withContext(Dispatchers.Main) {
             browser.block()
         }

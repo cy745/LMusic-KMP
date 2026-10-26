@@ -280,4 +280,62 @@ class PlaybackCoreTest {
         assertEquals(Phase.Preparing,core.state.value.phase)
         assertTrue(runtime.plays.none { it.first==old && it.second })
     }
+
+    @Test fun restorePositionWaitsForPreparationAndUsesLatestPauseIntent() = runTest {
+        val runtime=Runtime(); val core=core(runtime)
+        core.dispatch(PlaybackCommand.ReplaceQueue(listOf(a)))
+        core.dispatch(PlaybackCommand.Seek(3000))
+        core.dispatch(PlaybackCommand.Play)
+        core.dispatch(PlaybackCommand.Pause)
+        assertNull(runtime.seek)
+        val ticket=core.state.value.ticket!!
+        runtime.emit(RuntimeEvent.Prepared(ticket,5000)); runCurrent()
+        assertEquals(3000L,runtime.seek!!.third)
+        runtime.emit(RuntimeEvent.SeekSettled(ticket,runtime.seek!!.second,3000)); runCurrent()
+        assertEquals(Phase.ReadyPaused,core.state.value.phase)
+        assertEquals(ticket to false,runtime.plays.last())
+    }
+
+    @Test fun systemSuppressionAndPauseDoNotCreateASecondPlaybackIntent() = runTest {
+        val runtime=Runtime(); val core=core(runtime)
+        core.dispatch(PlaybackCommand.ReplaceQueue(listOf(a,b)))
+        core.dispatch(PlaybackCommand.Play)
+        val ticket=core.state.value.ticket!!
+        runtime.emit(RuntimeEvent.Prepared(ticket,5000)); runCurrent()
+        runtime.emit(RuntimeEvent.Started(ticket)); runCurrent()
+        runtime.emit(RuntimeEvent.Suppressed(ticket)); runCurrent()
+        assertEquals(Phase.Suppressed,core.state.value.phase)
+        assertEquals(PlayIntent.Play,core.state.value.intent)
+        runtime.emit(RuntimeEvent.PausedBySystem(ticket)); runCurrent()
+        runtime.emit(RuntimeEvent.Started(ticket)); runCurrent()
+        assertEquals(PlayIntent.Pause,core.state.value.intent)
+        assertEquals(Phase.ReadyPaused,core.state.value.phase)
+        core.dispatch(PlaybackCommand.Stop)
+        runtime.emit(RuntimeEvent.Prepared(ticket,5000)); runCurrent()
+        assertEquals(Phase.Ended,core.state.value.phase)
+        core.dispatch(PlaybackCommand.Seek(2000))
+        assertEquals(Phase.Preparing,core.state.value.phase)
+        val restored=core.state.value.ticket!!
+        assertNotEquals(ticket,restored)
+        runtime.emit(RuntimeEvent.Prepared(restored,5000)); runCurrent()
+        runtime.emit(RuntimeEvent.SeekSettled(restored,runtime.seek!!.second,2000)); runCurrent()
+        assertEquals(Phase.ReadyPaused,core.state.value.phase)
+        assertEquals(2000,core.state.value.positionMs)
+    }
+
+    @Test fun pauseAtEndStaysOnCompletedSongEvenInLoopMode() = runTest {
+        val runtime=Runtime(); val core=core(runtime)
+        core.dispatch(PlaybackCommand.ReplaceQueue(listOf(a,b)))
+        core.dispatch(PlaybackCommand.SetMode(PlayMode.Loop))
+        core.dispatch(PlaybackCommand.SetPauseAtEnd(true))
+        core.dispatch(PlaybackCommand.Play)
+        runtime.emit(RuntimeEvent.Ended(core.state.value.ticket!!)); runCurrent()
+        assertEquals(a,core.state.value.selected)
+        assertFalse(core.state.value.pauseAtEnd)
+        assertEquals(PlayIntent.Pause,core.state.value.intent)
+        core.dispatch(PlaybackCommand.Play)
+        runtime.emit(RuntimeEvent.Ended(core.state.value.ticket!!)); runCurrent()
+        assertEquals(b,core.state.value.selected)
+        assertTrue(core.state.value.naturalTransition)
+    }
 }

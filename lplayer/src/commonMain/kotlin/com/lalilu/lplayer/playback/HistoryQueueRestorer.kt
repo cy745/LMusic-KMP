@@ -48,6 +48,8 @@ class HistoryQueueRestorer(
     private val restoreSettled: Flow<Boolean> = emptyFlow(),
     /** Null keeps the standalone restorer's legacy contract; production supplies live readiness. */
     private val readableSources: Flow<Set<String>?> = flowOf(null),
+    /** Shared-core runtimes own cache/readiness handling and must receive the saved position immediately. */
+    private val preparationOwnedByPlayback: Boolean = false,
 ) {
     private val originalIds = snapshot.ids
     private val originalCurrentIndex = snapshot.index.takeIf { it in originalIds.indices }
@@ -303,8 +305,8 @@ class HistoryQueueRestorer(
                     val currentAudio = resolved.getOrNull(currentResolvedIndex)
                     // Display database rows immediately, including unavailable ones. Opening the
                     // historical media must wait for both the row and its source to be usable.
-                    val canLoadCurrent = currentAudio != null && currentAudio.available &&
-                        (sources == null || currentAudio.mediaSourceName in sources)
+                    val canLoadCurrent = currentAudio != null && (preparationOwnedByPlayback || (currentAudio.available &&
+                        (sources == null || currentAudio.mediaSourceName in sources)))
                     val shouldNotifyCurrent = !currentDelivered && currentResolvedIndex >= 0 && canLoadCurrent
                     if (shouldNotifyCurrent) currentDelivered = true
 
@@ -355,7 +357,7 @@ class HistoryQueueRestorer(
         if (!fallbackNotificationPending || mutableState.value !is HistoryRestoreState.Pending) return null
         val current = queue.stateSnapshot()
         val audio = current.currentItem() ?: return null
-        if (!audio.available || readableSourceNames?.let { audio.mediaSourceName !in it } == true) return null
+        if (!preparationOwnedByPlayback && (!audio.available || readableSourceNames?.let { audio.mediaSourceName !in it } == true)) return null
         fallbackNotificationPending = false
         return PlaybackHistory.HistorySnapshot(current.list.map { it.id }, current.index, 0L,
             current.list.map { it.mediaSourceName })

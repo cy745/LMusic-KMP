@@ -45,7 +45,7 @@ expect fun handlePlatformPlayerAction(action: PlayerAction)
 
 private val playerActionScope = CoroutineScope(Dispatchers.io + SupervisorJob())
 
-fun defaultPlayerActionHandler(action: PlayerAction) {
+fun defaultPlayerActionHandler(action: PlayerAction, persistModePreference: Boolean = true) {
     playerActionScope.launchPlayerAction(
         onFailure = { Logger.e(it) { "Player action failed: $action" } },
     ) {
@@ -57,7 +57,7 @@ fun defaultPlayerActionHandler(action: PlayerAction) {
             PlayerAction.SkipToNext -> LPlayer.instance.skipToNext()
             PlayerAction.SkipToPrevious -> LPlayer.instance.skipToPrevious()
             is PlayerAction.SetPlayMode -> {
-                LPlayerKV.playMode.value = action.playMode.name
+                if (persistModePreference) LPlayerKV.playMode.value = action.playMode.name
                 LPlayer.instance.setPlaybackMode(when (action.playMode) {
                     PlayMode.Sequential -> PlaybackMode.SEQUENTIAL
                     PlayMode.ListRecycle -> PlaybackMode.LOOP

@@ -79,6 +79,9 @@ kotlin {
             implementation(libs.turbine)
         }
         androidMain.dependencies {
+            api(project(":lplayer:playback-core"))
+            api(project(":lmedia:lmedia-content"))
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.media3.session)
             implementation(libs.media3.exoplayer)
             implementation(libs.kotlinx.coroutines.guava)

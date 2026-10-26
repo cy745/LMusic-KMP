@@ -52,7 +52,7 @@ class PlaybackPrototypeActivity : Activity() {
                 }
                 val access = withContext(Dispatchers.IO) {
                     PrototypeContentAccess(this@PlaybackPrototypeActivity,
-                        KoinPlatform.getKoin().get<PlatformMediaSource>(), KoinPlatform.getKoin().get<AudioRepository>())
+                        KoinPlatform.getKoin().get<PlatformMediaSource>(), KoinPlatform.getKoin().get<AudioRepository>(), "plan-b-debug")
                 }
                 content = access
                 val runtime = Media3PrototypeRuntime(this@PlaybackPrototypeActivity, access.dataSourceFactory)

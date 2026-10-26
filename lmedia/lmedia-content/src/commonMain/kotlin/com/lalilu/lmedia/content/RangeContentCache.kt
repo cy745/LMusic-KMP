@@ -21,9 +21,10 @@ class RangeContentCache(
     private val storage: CacheStorage,
     private val reader: RangeReader,
     private val isEnabled: (ContentDescriptor) -> Boolean = { true },
-    private val quotaBytes: Long = 512L * 1024 * 1024,
+    private var quotaBytes: Long = 512L * 1024 * 1024,
     private val io: CoroutineDispatcher = Dispatchers.Default,
     private val onCacheFailure: (IOException) -> Unit = {},
+    private val onCoverageChanged: (ContentDescriptor, Boolean) -> Unit = { _, _ -> },
 ) {
     companion object { const val MAX_READ = 64 * 1024 }
     private val json = Json { ignoreUnknownKeys = true }
@@ -34,6 +35,10 @@ class RangeContentCache(
     private var serial = 0L
 
     init { require(quotaBytes >= 0) }
+    suspend fun updateQuota(bytes: Long) = withContext(io) {
+        require(bytes >= 0)
+        mutex.withLock { quotaBytes = bytes; load(); evict() }
+    }
     private fun id(d: ContentDescriptor) = digest(json.encodeToString(d))
     private fun requireEnabled(d: ContentDescriptor) {
         if (!isEnabled(d)) throw ContentUnavailable("Source or source configuration is no longer enabled")
@@ -59,6 +64,9 @@ class RangeContentCache(
     private fun save(key: String, entry: Entry, next: ContentIndex) {
         storage.writeAtomic("$key.index", json.encodeToString(next).encodeToByteArray())
         entry.index = next
+        var end = 0L
+        next.fragments.sortedBy { it.start }.forEach { if (it.start <= end) end = maxOf(end, it.end) }
+        onCoverageChanged(next.descriptor, end == next.descriptor.size)
     }
     private inline fun bestEffortWrite(block: () -> Unit) {
         try { block() } catch (failure: IOException) { onCacheFailure(failure) }
@@ -71,6 +79,7 @@ class RangeContentCache(
                 entry.index.fragments.forEach { storage.delete(it.file) }
                 size -= entry.index.fragments.sumOf { it.length.toLong() }
                 entries.remove(key)
+                onCoverageChanged(entry.index.descriptor, false)
             }
         }
     }

@@ -54,6 +54,7 @@ fun PlaylistLayout(
     val context = LocalPlatformContext.current
     var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
+    val pendingNext by LPlayer.instance.pendingNext.collectAsState()
 
     LaunchedEffect(Unit) {
         items.flowOn(Dispatchers.Default)
@@ -118,6 +119,16 @@ fun PlaylistLayout(
         contentPadding = contentPadding,
         overscrollEffect = null
     ) {
+        pendingNext?.let { pending ->
+            item(key = "pending-next-intent") {
+                SongCard(
+                    modifier = Modifier.animateItem(), id = "pending:${pending.playbackId}", imageData = pending,
+                    title = pending.title, subtitle = "待播放 · ${pending.subtitle}",
+                    onClick = { PlayerAction.PlayById(pending.playbackId).action() },
+                    onLongClick = {},
+                )
+            }
+        }
         itemsIndexed(
             items = actualItems,
             key = { _, item -> item.key },

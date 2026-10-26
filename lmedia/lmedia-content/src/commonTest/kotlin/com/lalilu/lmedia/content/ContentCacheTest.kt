@@ -21,6 +21,25 @@ class ContentCacheTest {
     private val d = ContentDescriptor(MediaKey("source", "song"), "account-root", "version-1", 200000)
     private fun bytes(offset: Long, count: Int) = ByteArray(count) { ((offset + it) % 251).toByte() }
 
+    @Test fun quotaChangesKeepActiveContentAndWithdrawEvictedAvailability() = runTest {
+        val storage=MemoryStorage(); val io=StandardTestDispatcher(testScheduler)
+        val coverage=mutableMapOf<ContentDescriptor,Boolean>()
+        val cache=RangeContentCache(storage,RangeReader { _,s,n -> bytes(s,n) },io=io,
+            onCoverageChanged={ descriptor,complete -> coverage[descriptor]=complete })
+        val descriptor=d.copy(size=100)
+        val handle=cache.open(descriptor)
+        handle.read(0,50)
+        assertEquals(false,coverage[descriptor])
+        handle.read(50,50)
+        assertEquals(true,coverage[descriptor])
+        cache.updateQuota(0)
+        assertEquals(true,coverage[descriptor])
+        assertContentEquals(bytes(0,100),handle.read(0,100))
+        handle.close()
+        assertEquals(false,coverage[descriptor])
+        assertTrue(storage.names().none { it.endsWith(".bin") })
+    }
+
     @Test fun disjointReadsDoNotDownloadTheGapAndColdStartReadsOffline() = runTest {
         val storage = MemoryStorage(); val calls = mutableListOf<Long>()
         val io = StandardTestDispatcher(testScheduler)

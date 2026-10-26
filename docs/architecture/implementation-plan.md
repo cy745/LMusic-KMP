@@ -1,8 +1,8 @@
 # 方案 B 实施计划与接口约定
 
-状态：用户已认可方案 B，授权自主决策、持续推进及模拟器验证。分支：`codex/playback-core-prototype`。
+状态：用户已认可方案 B，授权自主决策、持续推进及模拟器验证。分支：`codex/playback-core-prototype`。当前推进 P2 Android 正式接入；下方 P0/P1 内容为分阶段历史记录，最新边界见文末及 [P2 正式播放说明](production-playback-session.md)。
 
-## 本次最小闭环
+## P0 最小闭环（历史记录）
 
 先交付独立、可执行的共享播放核心及 Android 真实音频适配，在现有 Android 应用的 debug 专用入口验证。正式播放器、通知与播放页面保持原实现，不在尚未覆盖平台生命周期和行为契约时替换它们。这个入口不是最终产品 UI，也不宣称已完成生产迁移。
 
@@ -148,3 +148,49 @@ classDiagram
 实际设备测试输出归档：[P1 Android 验证输出](verification/p1-android.txt)。复现命令见 [内容模块 README](../../lmedia/lmedia-content/README.md)。未触碰连接的实体手机，未运行跨格式无缝、Hi-Res 或主观听感验收。
 
 发现并修复的验证问题：长 WAV 测试样本原先用 Int 中间乘法导致溢出，改为 Long 计算并限制测试时长；同时补充不同来源使用相同账户标识时目录隔离的回归测试。最后一轮安装与设备测试均在这些修正之后完成。
+
+
+## P2 实施记录（2026-10-26）
+
+Android 正式 `MService` 现持有共享核心；系统媒体会话、原有 `Playback` 入口与通用缓存已接通。模块边界、实际 UML、命令时序及限制见 [P2 正式播放说明](production-playback-session.md)。现有播放页、歌词、封面短过渡与定位预览沿用原组件；随机待播放增加独立意图行。未实现交叉淡化。
+
+交付内容：
+
+- 将原型运行时、范围 DataSource 与内容桥提升为 `lplayer` Android 正式组件，调试入口复用同一实现及独立缓存目录。
+- 以 `CoreSessionPlayer` 投影完整共享队列，ExoPlayer 仅执行当前音频；移除应用侧重复的来源等待和失败遍历。
+- 系统/应用命令统一，模式原子切换、随机单项待播、播完暂停、焦点抑制/暂停、耳机监听设置与历史位置恢复接入。
+- 来源完整目录与补丁持续写入缓存目录；启动补充缺失元数据；缓存完整可用性、版本/停用失效、设置开关及容量变更接入正式 UI。
+- Android 缓冲条以引擎连续缓冲位置为准，保留原进度拖动与歌词联动手感。
+
+### P2 最终验收
+
+| 检查 | 结果 |
+| --- | --- |
+| 共享播放核心 JVM | 20/20 通过，新增准备中恢复位置、系统抑制/暂停、Stop 后定位与播完暂停 |
+| 通用内容缓存 JVM | 17/17 通过，新增运行时容量调整、活动句柄保护与淘汰可用性回撤 |
+| 原有 UI/历史相关 JVM | 63/63 通过：进度/重组、歌词跟随、背景色、列表滚动、缓冲语义、历史恢复 |
+| Android 模拟器 | 11/11 通过：1 个正式应用+系统会话综合场景、4 个缓存场景、6 个运行时场景 |
+| 共享核心和内容模块 | iOS Simulator / Wasm 编译通过；不是这些平台音频运行时迁移完成的声明 |
+| Android debug / androidTest APK | 构建并安装到 `emulator-5554` 成功，未操作实体手机 |
+| 正式播放页 | 启动 MainActivity 并展开原播放页，检查实际截图中的曲目、队列与时间显示；歌词联动由既有测试回归 |
+
+正式场景覆盖：应用替换队列并保持暂停、应用播放、系统暂停/定位、暂停时应用下一首、系统恢复/下一首、元数据归属、应用切换随机模式保持曲目和进度、随机待播替换且不提前改队列、待播实际发声后清除，以及自然单曲重复的媒体会话事件。测试生成带 RIFF 标题的独立 WAV 并导入沙盒来源，结束时恢复原队列/模式/来源启用设置并删除测试音频。
+
+实际设备输出：[P2 Android 验证输出](verification/p2-android.txt)。正式播放页画面：[P2 播放页截图](verification/p2-player-paused.png)。
+
+验证发现并修复：应用直接写模式设置与系统媒体命令竞争，改为所有 Android 操作都经过会话命令，设置仅保存服务确认值；补齐无专用事件的缓冲位置轮询；历史恢复不再在客户端等待来源就绪；Stop 后定位重新准备原歌曲，避免等待已释放运行时的定位回调。测试前置条件也固定来源启用、唯一音频内容及初始模式，避免来源去重或用户原有随机设置影响断言。
+
+验证限制：模拟器拒绝应用及 shell 发送受保护的耳机断开广播，日志明确为系统 Permission Denial，因此没有把该模拟算作耳机断开验收；处理沿用 Media3 设置并映射到共享暂停事件，核心事件测试已通过，实际耳机/蓝牙/USB 断开和焦点打断仍需真机验证。截图与逻辑回归不替代主观听感或完整真实歌词素材的视觉验收。完整应用杀进程后的远端离线恢复与大库性能仍需专门验收。
+
+P3 仍负责真实无缝链路，当前单曲后端自然切歌可能有准备间隙；P4 负责其他平台运行时。交叉淡化不在本次交付范围。
+
+复现主要检查：
+
+```sh
+./gradlew :lplayer:playback-core:jvmTest :lmedia:lmedia-content:jvmTest
+./gradlew :lplayer:jvmTest --tests 'com.lalilu.lplayer.screen.*Test' --tests 'com.lalilu.lplayer.components.PlaylistScrollPlanTest' --tests 'com.lalilu.lplayer.viewmodel.PlayerLyricContentTest' --tests 'com.lalilu.lplayer.playback.HistoryQueueRestorerTest' --tests 'com.lalilu.lplayer.playback.BufferedPositionResolverTest'
+./gradlew :androidApp:assembleDebug :androidApp:assembleDebugAndroidTest
+adb -s emulator-5554 install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
+adb -s emulator-5554 install -r androidApp/build/outputs/apk/androidTest/debug/androidApp-debug-androidTest.apk
+adb -s emulator-5554 shell am instrument -w -e class com.lalilu.lmusic.prototype.ProductionSessionDeviceTest,com.lalilu.lmusic.prototype.ContentCacheDeviceTest,com.lalilu.lmusic.prototype.PlaybackCoreDeviceTest com.lalilu.lmusic.kmp.test/androidx.test.runner.AndroidJUnitRunner
+```
