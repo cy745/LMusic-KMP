@@ -19,6 +19,17 @@ import kotlin.test.assertTrue
  */
 class WebDavMetadataStoreTest {
 
+    @Test fun fullEmbeddedLyricsReplacePartialWithoutOverwritingSidecarLyrics() = runTest {
+        val store = newStore(freshRoot("embedded-upgrade"))
+        store.sidecar("song", WebDavSidecarKind.LYRIC, "sidecar-v1") { "external lyric".encodeToByteArray() }
+        store.writeEmbeddedLyric("song", "audio-v1", "partial".encodeToByteArray())
+        store.writeEmbeddedLyric("song", "audio-v1", "complete lyric".encodeToByteArray())
+        assertEquals("complete lyric", store.sidecar("song", WebDavSidecarKind.EMBEDDED_LYRIC, "audio-v1") { null }?.decodeToString())
+        assertEquals("external lyric", store.sidecar("song", WebDavSidecarKind.LYRIC, "sidecar-v1") { null }?.decodeToString())
+        assertNull(store.sidecar("song", WebDavSidecarKind.EMBEDDED_LYRIC, "audio-v2") { null })
+        assertFalse(WebDavExtractedMetadata(cover = byteArrayOf(1)).isEmpty)
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
     private val errors = mutableListOf<Throwable>()
 

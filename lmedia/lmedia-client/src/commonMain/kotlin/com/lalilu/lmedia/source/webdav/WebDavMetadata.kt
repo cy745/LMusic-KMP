@@ -72,7 +72,7 @@ internal data class WebDavExtractedMetadata(
 ) {
     /** 连标题都没读出来时视为"这次没提取到"，避免把文件名派生的信息覆盖成空。 */
     val isEmpty: Boolean
-        get() = title.isBlank() && artist.isBlank() && album.isBlank()
+        get() = title.isBlank() && artist.isBlank() && album.isBlank() && (cover == null || cover.isEmpty())
 
     fun toRecord(
         fingerprint: String,

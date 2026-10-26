@@ -1,0 +1,76 @@
+
+com.lalilu.lmusic.prototype.WebDavContentBridgeDeviceTest:..
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+com.lalilu.lmusic.prototype.SessionSelectionDeviceTest:.
+com.lalilu.lmusic.prototype.GaplessDeviceTest:.........
+com.lalilu.lmusic.prototype.PlaybackCoreDeviceTest:......
+com.lalilu.lmusic.prototype.ContentCacheDeviceTest:....
+
+Time: 52.595
+
+OK (23 tests)
+
+
+
+Cold-start regression (separate processes):
+
+Cold-start phase: prepare
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 4.567
+
+OK (1 test)
+
+Cold-start phase: removeLibraryRows
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.051
+
+OK (1 test)
+
+Cold-start phase: verify
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 7.895
+
+OK (1 test)
+
+Cold-start phase: removeCachedBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.035
+
+OK (1 test)
+
+Cold-start phase: verifyMissingBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 9.628
+
+OK (1 test)
+
+Cold-start phase: cleanup
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.039
+
+OK (1 test)
+
+JVM: content cache 18 passed; WebDAV 76 passed, 7 external-server tests skipped.
+iOS Simulator and Wasm compilation succeeded.
+
+Final stale-source guard regression:
+
+com.lalilu.lmusic.prototype.WebDavContentBridgeDeviceTest:..
+
+Time: 1.579
+
+OK (2 tests)
+
+

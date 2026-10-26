@@ -23,7 +23,7 @@ class ContentCacheDeviceTest {
     private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
     private fun client()=HttpClient(OkHttp) { install(HttpTimeout) { requestTimeoutMillis=10000 } }
     private fun descriptor(size:Int)=ContentDescriptor(MediaKey("device-http","song"),"device-account-root","wav-v1",size.toLong(),etag="\"wav-v1\"")
-    private class RangeServer(private val data:ByteArray, private val ignoreRange:Boolean=false) : AutoCloseable {
+    internal class RangeServer(private val data:ByteArray, private val ignoreRange:Boolean=false) : AutoCloseable {
         private val socket=ServerSocket(0,8,InetAddress.getByName("127.0.0.1"))
         val requests=Collections.synchronizedList(mutableListOf<LongRange>())
         val url="http://127.0.0.1:${socket.localPort}/audio.wav"

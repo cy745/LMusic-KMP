@@ -1,8 +1,8 @@
 package com.lalilu.lmedia.source.webdav
 
 import com.lalilu.lmedia.cache.MediaCacheStore
-import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.Taglib
+import co.touchlab.kermit.Logger
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import kotlinx.coroutines.CancellationException
@@ -146,6 +146,7 @@ internal class WebDavExtractor(
     private val queue = Channel<String>(Channel.UNLIMITED)
     private val pendingMerges = mutableMapOf<String, WebDavMetadataRecord>()
     private val mergeMutex = Mutex()
+    private val processMutex = Mutex()
     private val pendingCount = MutableStateFlow(0)
 
     /** 已经补发过补丁的键（同一个提取器实例内不再重复）。 */
@@ -220,10 +221,36 @@ internal class WebDavExtractor(
         return flush()
     }
 
-    private suspend fun process(key: String) {
-        val target = targets.targetOf(key) ?: return
+    private suspend fun process(key: String) = processMutex.withLock {
+        val target = targets.targetOf(key) ?: return@withLock
+        processCached(key, target, cache.filledSize(key), withLocalFile = { action ->
+            cache.localPath(key)?.let { action(it) }
+        })
+    }
+
+    suspend fun inspectCachedFile(
+        target: WebDavExtractionTarget,
+        prefixBytes: Long,
+        isCurrent: () -> Boolean,
+        withLocalFile: suspend (suspend (String) -> Unit) -> Unit,
+    ) = processMutex.withLock {
+        progressState.update { it.copy(running = it.running + 1) }
+        try {
+            processCached(WebDavSource.cacheKeyOf(target.audio.id), target, prefixBytes, withLocalFile, isCurrent)
+            if (isCurrent()) flush()
+        } finally { progressState.update { it.copy(running = it.running - 1) } }
+    }
+
+    private suspend fun processCached(
+        key: String,
+        target: WebDavExtractionTarget,
+        filled: Long,
+        withLocalFile: suspend (suspend (String) -> Unit) -> Unit,
+        isCurrent: () -> Boolean = { true },
+    ) {
+        if (!isCurrent()) return
         val existing = store.read(key)
-        val filled = cache.filledSize(key)
+        if (!isCurrent()) return
         val node = extractionNodeOf(filled = filled, total = target.totalSize)
         // 只认同一个指纹下的"已试过节点"：远端文件换了要重新走一遍节点
         val lastAttempted = attemptedNodes[key]
@@ -272,11 +299,19 @@ internal class WebDavExtractor(
         }
 
         val complete = decision == ExtractionDecision.FULL
+        var embeddedLyric: ByteArray? = null
         val extracted = try {
             // 内嵌封面（FLAC 的 PICTURE、MP3 的 APIC）都在文件头的元数据块里，30% 的缓存前缀
             // 就足够读出来——封面不必等整首下完。时长仍只在完整文件上采信：部分文件里它只能靠
             // 比特率估算，放到界面上就是错的。
-            readTags(key, includeCover = true, includeDuration = complete)
+            var tags: WebDavExtractedMetadata? = null
+            withLocalFile { path ->
+                embeddedLyric = try { Taglib.getLyric(path)?.takeIf(String::isNotBlank)?.encodeToByteArray() }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Throwable) { null }
+                tags = tagReader(path, true, complete)
+            }
+            tags
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (throwable: Throwable) {
@@ -291,16 +326,23 @@ internal class WebDavExtractor(
             return
         }
 
+        if (!isCurrent()) return
+        // Publish only after all reads and account/revision checks; UI retries must see the lyric first.
+        embeddedLyric?.let { store.writeEmbeddedLyric(key, target.fingerprint, it) }
+        if (!isCurrent()) return
         val now = clock()
         if (extracted == null || extracted.isEmpty) {
             // 没有标签的文件是合法状态：记一条空记录，避免每次都重试，但不覆盖文件名派生的信息
-            store.write(key, emptyRecord(target, complete, now), null)
+            val empty = emptyRecord(target, complete, now)
+            store.write(key, empty, null)
+            if (embeddedLyric != null && isCurrent()) onRecord(target, empty)
             logger.i { "提取完成 key=$key complete=$complete 但没有可用标签（落一条空记录避免重试）" }
             return
         }
 
         val record = extracted.toRecord(target.fingerprint, complete, now)
         store.write(key, record, extracted.cover)
+        if (!isCurrent()) return
         logger.i {
             "提取完成 key=$key complete=$complete title=${record.title} " +
                 "duration=${record.duration} cover=${extracted.cover?.size ?: 0}B"
@@ -333,15 +375,6 @@ internal class WebDavExtractor(
         complete = complete,
         extractedAt = now,
     )
-
-    private suspend fun readTags(
-        key: String,
-        includeCover: Boolean,
-        includeDuration: Boolean,
-    ): WebDavExtractedMetadata? {
-        val path = cache.localPath(key) ?: return null
-        return tagReader(path, includeCover, includeDuration)
-    }
 
     /** 库里那一首是否还缺这条记录能提供的信息。 */
     private fun WebDavExtractionTarget.needsPatch(record: WebDavMetadataRecord): Boolean {

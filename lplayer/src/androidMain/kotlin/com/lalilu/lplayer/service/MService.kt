@@ -87,7 +87,7 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
                 .forEach { database.mediaDao().upsertAudio(it) }
         })
         val items = mutableMapOf<TrackKey, MediaItem>()
-        val runtime = Media3CoreRuntime(this, access.dataSourceFactory, itemFactory = { ticket, resource ->
+        val runtime = Media3CoreRuntime(this, access.dataSourceFactory, cachedBufferTimeline = com.lalilu.lplayer.core.CachedBufferTimeline(access::cachedRanges), itemFactory = { ticket, resource ->
             items.getValue(ticket.key).buildUpon().setUri(resource.uri).build()
         })
         exoPlayer = runtime.player.apply {

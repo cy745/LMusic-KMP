@@ -21,6 +21,17 @@ class ContentCacheTest {
     private val d = ContentDescriptor(MediaKey("source", "song"), "account-root", "version-1", 200000)
     private fun bytes(offset: Long, count: Int) = ByteArray(count) { ((offset + it) % 251).toByte() }
 
+    @Test fun inspectionAndRecencyWritesDoNotEmitNewCoverageEvents() = runTest {
+        val io = StandardTestDispatcher(testScheduler)
+        var changes = 0
+        val cache = RangeContentCache(MemoryStorage(), RangeReader { _, start, count -> bytes(start, count) }, io = io,
+            onCoverageChanged = { _, _ -> changes++ })
+        cache.open(d).apply { read(0, 100); close() }
+        assertEquals(1, changes)
+        cache.open(d).apply { cachedSpans(); read(0, 100); close() }
+        assertEquals(1, changes, "Metadata readers must not trigger their own coverage callback again")
+    }
+
     @Test fun quotaChangesKeepActiveContentAndWithdrawEvictedAvailability() = runTest {
         val storage=MemoryStorage(); val io=StandardTestDispatcher(testScheduler)
         val coverage=mutableMapOf<ContentDescriptor,Boolean>()

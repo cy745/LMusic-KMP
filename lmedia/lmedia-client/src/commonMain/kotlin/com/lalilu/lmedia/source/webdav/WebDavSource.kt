@@ -705,6 +705,19 @@ class WebDavSource(
      * 内嵌歌词只有等整首缓存下来才能读到（taglib 需要本地文件），因此 `.lrc` 是唯一
      * "不用下载整首就能显示歌词"的来源——这正是本数据源首扫只做目录遍历的代价补偿。
      */
+    override suspend fun inspectCachedMedia(
+        song: LAudio, prefixBytes: Long, totalBytes: Long,
+        withLocalFile: suspend (suspend (String) -> Unit) -> Unit,
+    ) {
+        if (extractionNodeOf(prefixBytes, totalBytes) == null) return
+        val target = targetOf(song) ?: return
+        val identity = contentCacheIdentity(song)
+        val activeExtractor = ensureExtractor()
+        activeExtractor.inspectCachedFile(target, prefixBytes,
+            isCurrent = { extractor === activeExtractor && contentCacheIdentity(song) == identity },
+            withLocalFile = withLocalFile)
+    }
+
     override suspend fun getLyric(song: LAudio): String? {
         val key = cacheKeyOf(song.id)
         logger.i { "取歌词：${song.title}" }
@@ -714,6 +727,10 @@ class WebDavSource(
             ?.takeIf(String::isNotBlank)
             ?.let { return it }
 
+        targetOf(song)?.let { target ->
+            metadataStore?.sidecar(key, WebDavSidecarKind.EMBEDDED_LYRIC, target.fingerprint) { null }
+                ?.decodeToString()?.takeIf(String::isNotBlank)?.let { return it }
+        }
         val localPath = cacheController.localPath(keyOf(song)) ?: return null
         val embedded = runCatching { Taglib.getLyric(localPath) }.getOrNull()?.takeIf(String::isNotBlank)
         logger.i {
@@ -732,11 +749,13 @@ class WebDavSource(
         val path = when (kind) {
             WebDavSidecarKind.COVER -> extra?.get(EXTRA_COVER_PATH)
             WebDavSidecarKind.LYRIC -> extra?.get(EXTRA_LYRIC_PATH)
+            WebDavSidecarKind.EMBEDDED_LYRIC -> null
         }?.takeIf(String::isNotBlank) ?: return null
 
         val fingerprint = when (kind) {
             WebDavSidecarKind.COVER -> extra?.get(EXTRA_COVER_FINGERPRINT)
             WebDavSidecarKind.LYRIC -> extra?.get(EXTRA_LYRIC_FINGERPRINT)
+            WebDavSidecarKind.EMBEDDED_LYRIC -> null
         }
         val store = metadataStore ?: return null
         logger.i { "边车读取 kind=$kind path=$path" }
@@ -804,6 +823,8 @@ class WebDavSource(
             ),
         )
         patchFlow.emit(merged)
+        // Artwork and lyric consumers must retry after bytes become available, even if text tags are unchanged.
+        if (stateStore.contentState.value.isReady) stateStore.content.ready()
     }
 
     /**

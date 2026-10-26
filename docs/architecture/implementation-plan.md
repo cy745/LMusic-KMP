@@ -274,3 +274,39 @@ P2 的单项音频限制在 Android 体验路径已由“当前＋一个已授�
 复现：先构建并安装 `:androidApp:assembleDebug` 和 `:androidApp:assembleDebugAndroidTest` 对应 APK 到模拟器，再运行 `scripts/test-android-cold-start.sh emulator-5554`。如果脚本遭遇外部强杀导致未清理，可在同一模拟器上单独执行 `ColdStartDeviceTest`，传入 `-e coldStartPhase cleanup`；不要在真实用户设备上运行夹具。
 
 仍未验收：真实服务端认证失效、长时间断网再恢复、大库/长时间压力、厂商后台限制和真实蓝牙/耳机/USB 路由。自然下一首检查证明离线恢复后仍能继续调度；音频级无缝证明沿用 P3 PCM 测量，本轮没有新增硬件或主观听感结论。下一阶段先根据真机体验反馈处理实际问题，再推进非 Android 通用缓存和连续输出；交叉淡化继续暂缓。
+
+
+## 真机反馈修复：WebDAV 元数据与缓存条（2026-10-26）
+
+用户反馈全新安装 release 后，本地来源正常，WebDAV 封面/歌词不补全，缓冲条只比播放进度领先一段。定位为方案 B 接入遗漏，而非本地解码或页面过渡问题：播放字节已经进入 `RangeContentCache`，WebDAV 的提取触发与内嵌歌词读取仍依赖旧 `MediaCacheController`；同时正式会话只投影 ExoPlayer 的短期解码预读位置。
+
+修复边界：
+
+- `MediaDataSource.inspectCachedMedia` 是可选的缓存内容检查端口。Android 内容访问层合并缓存变化通知，提供已经缓存的连续前缀及按需临时本地文件；数据源决定是否达到提取节点。通用缓存不依赖 WebDAV 或 TagLib，不为提取另建长期音频副本。
+- WebDAV 复用现有提取决策、标签存储和库补丁流程。内嵌歌词独立持久化，与外部 `.lrc` 分开；完整提取可以覆盖部分歌词。封面/歌词就绪后增加内容 generation，使库与播放页重新请求，保持既有短过渡。
+- 缓存覆盖变化与访问时间更新分离，检查缓存或关闭句柄不会递归触发新的提取任务。提取工作在后台进行，来源切换或停用后拒绝迟到结果。
+- `CachedBufferTimeline` 记录 Media3 原生解析器的 SeekMap，用时间定位对应的字节范围查找**当前位置所在的连续缓存片段**。完整缓存显示到时长末尾；不把分散片段相加，也不按文件字节比例猜时间。无法可靠映射的格式回退原生真实预读位置；本地来源仍不显示网络缓冲条。
+
+```mermaid
+sequenceDiagram
+    participant Native as Media3 解码器
+    participant Access as 内容访问层
+    participant Cache as 通用分段缓存
+    participant Source as WebDAV 元数据提取器
+    participant UI as 媒体库与播放页
+    Native->>Access: 读取当前播放范围
+    Access->>Cache: 命中已有片段或补充缺失范围
+    Cache-->>Access: 缓存覆盖发生变化
+    Access->>Source: 已有连续前缀与临时文件访问入口
+    Source->>Source: 按节点读取标签、封面、歌词
+    Source-->>UI: 库补丁与内容 generation 更新
+    Native-->>Access: 解析器时间/字节定位表
+    Access-->>Native: 当前连续缓存范围对应的时间末端
+    Native-->>UI: 正式会话缓冲位置
+```
+
+验证使用全新隔离的 WebDAV 来源、真实 HTTP Range、真实 TagLib 和正式 `PlaybackContentAccess`/`Media3CoreRuntime`。合成 FLAC 自带封面和两行定时歌词，确认库标题补全、封面/歌词可读取、内容 generation 更新，旧缓存下载字节仍为零。另一项 180 秒 WAV 验证分散尾部缓存不会跨越中间空洞，以及磁盘完整时缓冲位置达到结尾，即使解码器预读仍小于 100 秒。
+
+本轮 Android 设备回归 23 项通过（新增 2 项 + 原正式入口、无缝、预加载及缓存 21 项），随后完整应用冷启动六阶段回归也通过；缓存 JVM 18 项通过，WebDAV JVM 76 项通过、7 项需要外部服务的测试跳过；iOS Simulator/Wasm 编译通过。证据见 [WebDAV 修复验证](verification/webdav-content-bridge.txt)。没有加入交叉淡化，也未修改本地来源播放策略。
+
+交付：修复版 release 已通过签名校验和模拟器冷启动检查，随后覆盖安装到用户真机并成功启动；未卸载、未清除数据。安装包为 `build/experience/LMusic-plan-b-release-webdav-fix-20261026.apk`，附 SHA-256，约 24 MiB，沿用本机调试证书签名的 release 构建。真实用户曲库的封面/歌词观感仍需继续收集反馈；设备自动化验证使用合成文件，没有操作用户的 WebDAV 服务端。

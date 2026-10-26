@@ -18,12 +18,13 @@ class Media3CoreRuntime(
     },
     private val gain: Float = 1f,
     renderersFactory: androidx.media3.exoplayer.RenderersFactory? = null,
+    private val cachedBufferTimeline: CachedBufferTimeline? = null,
 ) : PreloadingAudioRuntime {
     override var onEvent: ((RuntimeEvent) -> Unit)? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val player = ExoPlayer.Builder(context.applicationContext,
         renderersFactory ?: ContinuousAudioRenderersFactory(context))
-        .apply { dataSourceFactory?.let { setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(it)) } }
+        .apply { dataSourceFactory?.let { setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(it, cachedBufferTimeline?.extractors ?: androidx.media3.extractor.DefaultExtractorsFactory())) } }
         .build().apply { preloadConfiguration = ExoPlayer.PreloadConfiguration(5_000_000) }
     private var owner: LoadTicket? = null
     private var loaded: LoadTicket? = null
@@ -44,7 +45,9 @@ class Media3CoreRuntime(
             while (isActive) {
                 delay(100)
                 val ticket = loaded ?: continue
-                if (ticket == owner && prepared) onEvent?.invoke(RuntimeEvent.Position(ticket, player.currentPosition, duration(), player.bufferedPosition))
+                if (ticket == owner && prepared) onEvent?.invoke(RuntimeEvent.Position(ticket, player.currentPosition, duration(),
+                    cachedBufferTimeline?.bufferedPosition(player.currentMediaItem?.localConfiguration?.uri.toString(),
+                        player.currentPosition, duration(), player.bufferedPosition) ?: player.bufferedPosition))
             }
         }
     }

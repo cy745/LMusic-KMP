@@ -13,6 +13,15 @@ interface MediaDataSource {
     /** Return null unless size and a reliable content revision are known; never use a signed URL as identity. */
     fun contentCacheIdentity(song: LAudio): MediaCacheIdentity? = null
 
+    /** Inspect already cached bytes without fetching missing ranges or owning the playback cache.
+     * The temporary local file is valid only inside [withLocalFile]. */
+    suspend fun inspectCachedMedia(
+        song: LAudio,
+        prefixBytes: Long,
+        totalBytes: Long,
+        withLocalFile: suspend (suspend (String) -> Unit) -> Unit,
+    ) = Unit
+
     companion object {
         val Empty = object : MediaDataSource {}
     }

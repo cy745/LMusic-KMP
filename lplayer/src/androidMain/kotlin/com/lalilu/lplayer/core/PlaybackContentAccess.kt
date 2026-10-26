@@ -37,6 +37,13 @@ class PlaybackContentAccess(private val context: Context, private val sources: P
     private val descriptors = ConcurrentHashMap<String,ContentDescriptor>()
     private val known = ConcurrentHashMap<com.lalilu.lmedia.domain.model.MediaKey,LAudio>()
     private val verified = ConcurrentHashMap<MediaKey,ContentDescriptor>()
+    private val coverage = ConcurrentHashMap<ContentDescriptor, List<ByteSpan>>()
+    private val pendingInspection = ConcurrentHashMap<ContentDescriptor, Unit>()
+    private val inspectionSignals = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
+    private fun inspectLater(descriptor: ContentDescriptor) {
+        pendingInspection[descriptor] = Unit
+        inspectionSignals.trySend(Unit)
+    }
     private val reader = HttpRangeReader(http) { descriptor ->
         library.origin(descriptor) { key ->
             known[key] ?: audios.getAudios().first().firstOrNull { it.mediaKey==key }?.also { known[key]=it }
@@ -47,8 +54,21 @@ class PlaybackContentAccess(private val context: Context, private val sources: P
             if (complete && isCurrent(descriptor)) verified[descriptor.key]=descriptor
             else verified.remove(descriptor.key,descriptor)
             if (storagePrefix == "plan-b") publishAvailability(descriptor.key)
+            inspectLater(descriptor)
         })
     init {
+        scope.launch {
+            for (signal in inspectionSignals) {
+                delay(250) // Coalesce small decoder reads; tag work never runs on a loader or UI thread.
+                val batch = pendingInspection.keys.toList()
+                batch.forEach { descriptor ->
+                    pendingInspection.remove(descriptor)
+                    try { inspectCached(descriptor) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) { co.touchlab.kermit.Logger.w("Cached media inspection failed", error) }
+                }
+            }
+        }
         scope.launch {
             try {
                 val saved = library.cachedSongs()
@@ -109,6 +129,43 @@ class PlaybackContentAccess(private val context: Context, private val sources: P
             }
         }
     }
+    private suspend fun inspectCached(descriptor: ContentDescriptor) {
+        if (!isCurrent(descriptor)) return
+        val handle = cache.open(descriptor)
+        try {
+            val spans = handle.cachedSpans()
+            coverage[descriptor] = spans
+            val prefix = spans.firstOrNull { it.start == 0L }?.endExclusive ?: 0L
+            val audio = known[descriptor.key] ?: audios.getAudioByPlaybackId(descriptor.key.stableKey).first() ?: return
+            val source = sources.findEnabledSource(descriptor.key.sourceName) ?: return
+            source.dataSource.inspectCachedMedia(audio, prefix, descriptor.size) { action ->
+                if (!isCurrent(descriptor)) return@inspectCachedMedia
+                val extension = audio.extra?.get("path")?.substringAfterLast('.', "")
+                    ?.takeIf { it.length in 1..8 && it.all(Char::isLetterOrDigit) } ?: "audio"
+                val file = File.createTempFile("metadata-", ".$extension", context.cacheDir)
+                temporary += file
+                try {
+                    file.outputStream().use { output ->
+                        var offset = 0L
+                        while (offset < prefix) {
+                            currentCoroutineContext().ensureActive()
+                            val bytes = handle.read(offset, minOf(RangeContentCache.MAX_READ.toLong(), prefix - offset).toInt())
+                            check(bytes.isNotEmpty())
+                            output.write(bytes)
+                            offset += bytes.size
+                        }
+                    }
+                    if (isCurrent(descriptor)) action(file.path)
+                } finally { file.delete(); temporary.remove(file) }
+            }
+        } finally { handle.close() }
+    }
+
+    /** Immutable byte ranges, mapped to time using the extractor's seek map, never file-size ratios. */
+    fun cachedRanges(uri: String): Pair<Long, List<ByteSpan>>? = descriptors[uri]?.let { descriptor ->
+        if (isCurrent(descriptor)) coverage[descriptor]?.let { descriptor.size to it } else null
+    }
+
     private fun isCurrent(descriptor: ContentDescriptor): Boolean = library.isEnabled(descriptor) &&
         (known[descriptor.key]?.let(library::descriptor)?.let { it == descriptor } ?: true)
     private fun publishAvailability(key: MediaKey) {
@@ -125,6 +182,7 @@ class PlaybackContentAccess(private val context: Context, private val sources: P
     }
     private fun register(descriptor: ContentDescriptor): String {
         // Opaque process-local token: the playback URI never contains a server path or credential.
+        inspectLater(descriptor)
         val existing = descriptors.entries.firstOrNull { it.value==descriptor }?.key
         return existing ?: "lmusic-content://${UUID.randomUUID()}".also { descriptors[it]=descriptor }
     }

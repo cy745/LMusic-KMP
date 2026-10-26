@@ -62,8 +62,10 @@ class RangeContentCache(
         evict()
     }
     private fun save(key: String, entry: Entry, next: ContentIndex) {
+        val coverageChanged = entry.index.fragments != next.fragments
         storage.writeAtomic("$key.index", json.encodeToString(next).encodeToByteArray())
         entry.index = next
+        if (!coverageChanged) return
         var end = 0L
         next.fragments.sortedBy { it.start }.forEach { if (it.start <= end) end = maxOf(end, it.end) }
         onCoverageChanged(next.descriptor, end == next.descriptor.size)

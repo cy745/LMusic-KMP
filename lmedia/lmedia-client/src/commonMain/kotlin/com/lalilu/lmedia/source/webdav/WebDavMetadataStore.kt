@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 internal enum class WebDavSidecarKind(internal val suffix: String) {
     COVER("cover"),
     LYRIC("lyric"),
+    EMBEDDED_LYRIC("embedded-lyric"),
 }
 
 /** 元数据远端同步的对外状态，供源卡片展示。 */
@@ -215,6 +216,15 @@ internal class WebDavMetadataStore(
             SystemFileSystem.sink(path).buffered().use { it.write(bytes) }
         }
         return bytes
+    }
+
+    /** Full-file extraction may improve a lyric read from a partial prefix. */
+    fun writeEmbeddedLyric(key: String, fingerprint: String, bytes: ByteArray) {
+        ensureReady()
+        runCatching {
+            SystemFileSystem.sink(sidecarPath(key, WebDavSidecarKind.EMBEDDED_LYRIC, fingerprint))
+                .buffered().use { it.write(bytes) }
+        }
     }
 
     private fun readLocal(key: String): WebDavMetadataRecord? = readFile(metaPath(key))?.let(::decode)
