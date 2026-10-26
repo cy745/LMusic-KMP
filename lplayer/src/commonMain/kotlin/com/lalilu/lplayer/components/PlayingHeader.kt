@@ -8,9 +8,6 @@ import androidx.compose.animation.core.TweenSpec
 import androidx.compose.foundation.MarqueeSpacing
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,7 +27,6 @@ fun PlayingHeader(
     subTitle: () -> String,
     contentColor: () -> Color,
     isPlaying: () -> Boolean,
-    isLoading: () -> Boolean = { false },
 ) {
     val density = LocalDensity.current
     val slideMovement = remember { density.run { 50.dp.toPx().toInt() } }
@@ -101,14 +97,6 @@ fun PlayingHeader(
                     overflow = TextOverflow.Ellipsis,
                     color = contentColor().copy(alpha = 0.5f),
                     style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            if (isLoading()) {
-                CircularProgressIndicator(
-                    modifier = Modifier.padding(start = 8.dp).size(14.dp)
-                        .semantics { contentDescription = "正在加载音频，可暂停或切歌" },
-                    color = contentColor(),
-                    strokeWidth = 1.5.dp,
                 )
             }
         }

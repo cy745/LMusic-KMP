@@ -378,3 +378,9 @@ SongCard 将已成功加载的 Painter 作为 AnimatedContent 的目标，加载
 结果：31 项 JVM 测试与模拟器 5 项 WebDAV 内容桥接测试通过。像素测试在初版延迟零时长退出时检测到旧图提前消失，改为 ExitTransition.KeepUntilTransitionsFinished 后通过，确认加载中保留旧图、淡入中两层混合且不透明。证据见 [缓存完成与封面验证](verification/cache-completion-cover.txt)。
 
 交付：签名校验通过，release 已覆盖安装到模拟器和用户手机，两端启动成功；手机原安装时间 16:17:55 保持不变，更新时间为 2026-10-26 19:24:11，未清除数据。产物 `build/experience/LMusic-plan-b-release-retained-cover-20261026.apk`，大小与 SHA-256 已记录。
+
+## 移除副标题加载圈（2026-10-26）
+
+按用户要求删除 PlayingHeader 的加载圈及其语义节点，移除 PlayingToolbar、手机与平板页面仅为该圈服务的参数传递与状态订阅。Playback.isLoading 及各端状态维护逻辑保留，等待后续 UI 设计。低风险纯展示删除，仅做编译和 release 安装启动验证，不新增镜像实现的测试。
+
+验证与交付：assembleRelease 与签名校验通过；模拟器和手机覆盖安装、启动均成功。手机 firstInstallTime 保持 2026-10-26 16:17:55，lastUpdateTime 为 19:33:27，未清数据。产物 `build/experience/LMusic-plan-b-release-no-loading-ring-20261026.apk`，SHA-256 `3320d77d2a6d874245852704984ceb9f11d26d2830fafc55cf11705efae7a23a`。
