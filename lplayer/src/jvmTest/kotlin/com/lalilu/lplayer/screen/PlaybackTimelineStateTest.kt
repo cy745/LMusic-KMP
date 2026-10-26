@@ -13,6 +13,27 @@ import kotlin.test.assertTrue
  * 时间轴的纯逻辑测试：不依赖 Compose 组合，只喂采样与手势。
  */
 class PlaybackTimelineStateTest {
+    @Test fun fullCachedRangeIsImmediateAndDoesNotFollowDragging() {
+        val timeline = timelineOf()
+        timeline.accept(0, 200000, 200000, false, 16)
+        assertEquals(1f, timeline.bufferedProgress)
+        timeline.onDragStart(80000)
+        timeline.onDrag(150000)
+        timeline.accept(0, 200000, 200000, false, 16)
+        assertEquals(1f, timeline.bufferedProgress)
+        timeline.onSeek(150000)
+        timeline.accept(150000, 200000, 200000, false, 16)
+        assertEquals(1f, timeline.bufferedProgress)
+    }
+
+    @Test fun partialCachedRangeIsNotAnimatedOrAdvancedByTheClock() {
+        val timeline = timelineOf()
+        timeline.accept(1000, 200000, 60000, true, 16)
+        assertEquals(0.3f, timeline.bufferedProgress)
+        timeline.accept(30000, 200000, 60000, true, 16)
+        assertEquals(0.3f, timeline.bufferedProgress)
+    }
+
 
     private fun PlaybackTimelineState.feed(
         frames: Int,
@@ -213,14 +234,11 @@ class PlaybackTimelineStateTest {
     }
 
     @Test
-    fun bufferedProgressGlidesAndResetsOnKeySwitch() {
+    fun bufferedProgressUsesActualExtentAndResetsOnKeySwitch() {
         val timeline = timelineOf()
         timeline.feed(frames = 5, startMs = 0L, durationMs = 200_000L, bufferedMs = 100_000L)
 
-        // 缓冲推进是滑过去的，不是一个采样跳一步
-        val afterOneChunk = timeline.bufferedProgress
-        assertTrue(afterOneChunk > 0f && afterOneChunk < 0.5f, "缓冲比例应平滑推进：$afterOneChunk")
-        // 缓冲弹簧更软，收敛时间比播放进度长一些
+        assertEquals(0.5f, timeline.bufferedProgress)
         timeline.feed(frames = 90, startMs = 80L, durationMs = 200_000L, bufferedMs = 100_000L)
         assertTrue(abs(timeline.bufferedProgress - 0.5f) < 0.001f)
 

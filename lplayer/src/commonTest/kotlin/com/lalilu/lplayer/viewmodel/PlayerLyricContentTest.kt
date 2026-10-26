@@ -11,11 +11,30 @@ import com.lalilu.lmedia.domain.source.Snapshot
 import com.lalilu.lmedia.domain.source.SnapshotState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
 class PlayerLyricContentTest {
+    @Test fun nextSongMetadataDoesNotReloadCurrentLyrics() = runTest {
+        val source = FakeSource()
+        val audio = LAudio(id = "current", mediaSourceName = source.name)
+        var reads = 0
+        source.contentState.value = MediaContentState(MediaContentAvailability.Ready, generation = 1)
+        observeLyricContent(audio, source) { reads++; emptyList() }.test {
+            assertEquals(1L, awaitItem().generation)
+            source.contentState.value = source.contentState.value.copy(itemGenerations = mapOf("next" to 1L))
+            runCurrent()
+            expectNoEvents()
+            assertEquals(1, reads)
+            source.contentState.value = source.contentState.value.copy(itemGenerations = mapOf("next" to 1L, "current" to 1L))
+            assertEquals(2L, awaitItem().generation)
+            assertEquals(2, reads)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test
     fun unavailableSourcePublishesTerminalDocumentForCurrentAudio() = runTest {
         val source = FakeSource()

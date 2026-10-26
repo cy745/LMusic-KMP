@@ -28,6 +28,7 @@ import com.lalilu.lmedia.domain.repository.MediaSourceBindingRepository
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lplayer.core.actualBufferedPosition
 import com.lalilu.lplayer.LPlayerKV
 import com.lalilu.lplayer.extensions.PlayMode
 import com.lalilu.lplayer.extensions.playMode
@@ -82,7 +83,10 @@ class MPlayerPlayback(
         MediaBrowser
             .Builder(context, sessionToken)
             .setListener(object : MediaBrowser.Listener {
-                override fun onExtrasChanged(controller: androidx.media3.session.MediaController, extras: Bundle) { updatePending(extras) }
+                override fun onExtrasChanged(controller: androidx.media3.session.MediaController, extras: Bundle) {
+                    updatePending(extras)
+                    _currentBufferedPosition.value = controller.actualBufferedPosition(queue.currentItem()?.playbackId)
+                }
             })
             .buildAsync()
     }
@@ -103,10 +107,13 @@ class MPlayerPlayback(
     private val _pendingNext = MutableStateFlow<LAudio?>(null)
     override val pendingNext: StateFlow<LAudio?> = _pendingNext.asStateFlow()
     private var pendingJob: Job? = null
+    private var pendingNextId: String? = null
     private fun updatePending(extras: Bundle) {
         pauseWhenCompletion = extras.getBoolean("pauseAtEnd")
-        pendingJob?.cancel()
         val id = extras.getString("pendingNext")
+        if (id == pendingNextId) return
+        pendingNextId = id
+        pendingJob?.cancel()
         if (id == null) { _pendingNext.value = null; return }
         pendingJob = launch { _pendingNext.value = audioRepository.getAudioByPlaybackId(id).first() }
     }
@@ -153,7 +160,7 @@ class MPlayerPlayback(
         launch(Dispatchers.Main) {
             while (isActive) {
                 recordedPosition.value = browser.currentPosition.coerceAtLeast(0L)
-                _currentBufferedPosition.value = browser.bufferedPosition.coerceAtLeast(0L)
+                _currentBufferedPosition.value = browser.actualBufferedPosition(queue.currentItem()?.playbackId)
                 delay(200)
             }
         }
@@ -359,8 +366,8 @@ class MPlayerPlayback(
 
     override fun onEvents(player: Player, events: Player.Events) {
         _isLoading.value = player.playbackState == Player.STATE_BUFFERING
-        // MediaBrowser 的缓冲位置没有独立回调，只能在事件批里读取
-        _currentBufferedPosition.value = player.bufferedPosition.coerceAtLeast(0L)
+        // 缓存通知在暂停时也会更新；按媒体身份读取会话中的真实范围。
+        _currentBufferedPosition.value = (player as? MediaBrowser)?.actualBufferedPosition(queue.currentItem()?.playbackId) ?: player.bufferedPosition.coerceAtLeast(0L)
 
         // 引擎的真实时长。只靠 onMediaMetadataChanged 会漏：缓存命中的曲目往往在时长还没解析出来
         // 时就发出了那一次元数据回调，此后不再补发，_currentDuration 于是永远停在 0，

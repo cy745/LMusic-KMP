@@ -13,6 +13,20 @@ import kotlin.test.assertIs
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MediaContentStateStoreTest {
+    @Test fun itemChangesOnlyInvalidateThatSongAndGlobalRefreshStillInvalidatesAll() {
+        val store = MediaContentStateStore()
+        store.ready()
+        val a = store.state.value.forItem("a")
+        val b = store.state.value.forItem("b")
+        store.contentChanged("b")
+        assertEquals(a, store.state.value.forItem("a"))
+        assertEquals(b.generation + 1, store.state.value.forItem("b").generation)
+        assertEquals(1L, store.state.value.generation)
+        store.ready()
+        assertEquals(a.generation + 1, store.state.value.forItem("a").generation)
+        assertEquals(b.generation + 2, store.state.value.forItem("b").generation)
+    }
+
     @Test
     fun refreshCanPreserveExistingReadyState() {
         val store = MediaContentStateStore()

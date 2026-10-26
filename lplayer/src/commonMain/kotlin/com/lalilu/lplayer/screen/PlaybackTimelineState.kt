@@ -29,14 +29,6 @@ import kotlin.math.roundToLong
  */
 private const val SpringOmega = 14f
 
-/**
- * 缓冲比例的弹簧更软。
- *
- * 缓冲位置是按块推进的（Android 侧还受引擎事件节奏限制，大约每秒一次），
- * 用与播放进度相同的刚度会变成"一步一停"；更软一些可以把这些台阶连成连续滑动。
- */
-private const val BufferedSpringOmega = 8f
-
 /** 残差收敛到该值以内且速度足够小时直接归零。 */
 private const val ResidualSnapThresholdMs = 0.5f
 private const val ResidualSnapVelocityMs = 5f
@@ -129,9 +121,8 @@ private class SpringFollower(
  *    显示值保持连续，再以临界阻尼弹簧平滑过渡到真实位置；
  * 3. 用户提交 seek 后进入提交态，等待引擎落地期间显示值只前进、不回退。
  *
- * [progress] 与 [bufferedProgress] 是给绘制使用的比例，它们在比例空间单独跟随：
- * 稳态时目标值变化极慢，因此没有可感知的滞后；而切歌、时长修正或缓冲推进造成跳变时，
- * 它们会把跳变抹平。
+ * [progress] 在比例空间平滑跟随，保留拖动与歌词联动手感。
+ * [bufferedProgress] 直接呈现真实可播放范围，不对缓存事实做插值或模拟下载。
  */
 @Stable
 internal class PlaybackTimelineState(
@@ -150,7 +141,7 @@ internal class PlaybackTimelineState(
     var progress by mutableFloatStateOf(0f)
         private set
 
-    /** 当前缓冲进度比例（0..1），已做平滑。 */
+    /** 当前实际缓冲范围的末端（0..1）；直接显示事实，不模拟加载动画。 */
     var bufferedProgress by mutableFloatStateOf(0f)
         private set
 
@@ -184,12 +175,6 @@ internal class PlaybackTimelineState(
         snapThreshold = ProgressSnapThreshold,
         snapVelocity = ProgressSnapVelocity,
     )
-    private val bufferedFollower = SpringFollower(
-        initialValue = 0f,
-        omega = BufferedSpringOmega,
-        snapThreshold = ProgressSnapThreshold,
-        snapVelocity = ProgressSnapVelocity,
-    )
     private var commit: Commit? = null
     private var clockMs = 0L
 
@@ -213,7 +198,6 @@ internal class PlaybackTimelineState(
         isDragging = false
         commit = null
         bufferedPositionMs = 0L
-        bufferedFollower.snapTo(0f)
         bufferedProgress = 0f
     }
 
@@ -269,8 +253,8 @@ internal class PlaybackTimelineState(
         clockMs += elapsedMs
 
         // 拖动期间冻结时长域：手指下的比例换算不能因为时长修正而改变。
-        if (!isDragging) applyDuration(engineDurationMs)
         this.bufferedPositionMs = bufferedPositionMs
+        if (!isDragging) applyDuration(engineDurationMs)
 
         val previous = samplePositionMs
         samplePositionMs = enginePositionMs
@@ -281,8 +265,7 @@ internal class PlaybackTimelineState(
             setDisplayPosition(enginePositionMs)
             progressFollower.snapTo(ratioOf(positionMs))
             progress = progressFollower.value
-            bufferedFollower.snapTo(ratioOf(bufferedPositionMs))
-            bufferedProgress = bufferedFollower.value
+            bufferedProgress = ratioOf(bufferedPositionMs)
             return
         }
 
@@ -341,8 +324,7 @@ internal class PlaybackTimelineState(
         if (wasUnknown && durationMs > 0L) {
             progressFollower.snapTo(ratioOf(positionMs))
             progress = progressFollower.value
-            bufferedFollower.snapTo(ratioOf(bufferedPositionMs))
-            bufferedProgress = bufferedFollower.value
+            bufferedProgress = ratioOf(bufferedPositionMs)
         }
     }
 
@@ -355,15 +337,7 @@ internal class PlaybackTimelineState(
         }
         progress = progressFollower.value
 
-        // 缓冲推进用同一条弹簧滑过去；回退（换源 / seek 后重置）则直接对齐，
-        // 否则会出现"缓冲条往回爬"的怪相。
-        val bufferedTarget = ratioOf(bufferedPositionMs)
-        if (bufferedTarget < bufferedFollower.value) {
-            bufferedFollower.snapTo(bufferedTarget)
-        } else {
-            bufferedFollower.step(bufferedTarget, dtSeconds)
-        }
-        bufferedProgress = bufferedFollower.value
+        bufferedProgress = ratioOf(bufferedPositionMs)
     }
 
     private fun ratioOf(positionMs: Long): Float =

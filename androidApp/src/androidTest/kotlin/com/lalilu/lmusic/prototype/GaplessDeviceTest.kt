@@ -63,6 +63,36 @@ class GaplessDeviceTest {
     @Test fun wavToFlacKeepsExactSamplesAndTheSameAudioTrack() = measureBoundary("constant-16k.flac")
     @Test fun wavToMp3HonorsEncoderDelayAndPaddingWithoutRecreatingAudioTrack() = measureBoundary("tone-16k.mp3")
 
+    @Test fun experienceOutputKeepsItsRateAfterQueueReset() = runBlocking<Unit> {
+        val root = File(context.cacheDir, "p3-reset-${System.nanoTime()}")
+        val file = wave(root, "a", 1000, 2500)
+        val probe = Probe(rate = 48000, channels = 2)
+        val parent = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        lateinit var runtime: Media3CoreRuntime
+        lateinit var core: PlaybackCore
+        try {
+            withContext(Dispatchers.Main) {
+                runtime = Media3CoreRuntime(context, gain = 0.05f,
+                    renderersFactory = com.lalilu.lplayer.core.ContinuousAudioRenderersFactory(context, probe))
+                runtime.player.addAnalyticsListener(probe)
+                core = PlaybackCore(parent, ContentResolver { PlayableResource(file.toURI().toString()) }, runtime)
+            }
+            repeat(2) { iteration ->
+                core.command(PlaybackCommand.ReplaceQueue(listOf(a)))
+                core.await { it.phase == Phase.ReadyPaused }
+                core.command(PlaybackCommand.Play)
+                core.await { it.phase == Phase.Playing && it.positionMs > 100 }
+                waitFor { probe.tracks.get() >= iteration + 1 }
+                core.command(PlaybackCommand.ReplaceQueue(emptyList()))
+                core.await { it.phase == Phase.Empty }
+            }
+            assertTrue(probe.bytes().isNotEmpty())
+        } finally {
+            withContext(Dispatchers.Main) { core.close(); parent.cancel() }
+            root.deleteRecursively()
+        }
+    }
+
     private fun measureBoundary(asset: String? = null) = runBlocking<Unit> {
         val root=File(context.cacheDir,"p3-pcm-${System.nanoTime()}")
         val first=wave(root,"a",1000,2000)

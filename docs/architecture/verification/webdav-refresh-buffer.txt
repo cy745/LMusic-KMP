@@ -1,0 +1,34 @@
+Android emulator regression, 2026-10-26
+
+com.lalilu.lmusic.prototype.WebDavContentBridgeDeviceTest:..
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+com.lalilu.lmusic.prototype.SessionSelectionDeviceTest:.
+com.lalilu.lmusic.prototype.GaplessDeviceTest:..........
+com.lalilu.lmusic.prototype.PlaybackCoreDeviceTest:......
+com.lalilu.lmusic.prototype.ContentCacheDeviceTest:....
+com.lalilu.lmusic.prototype.WebDavLiveBufferDeviceTest:.
+
+Time: 46.685
+
+OK (25 tests)
+
+
+JVM regression: 163 passed, no failures or skips.
+- lplayer timeline/lyrics/queue/history/buffer selection: 66
+- lmedia-domain: 88
+- WebDavXmlTest: 9
+
+Read-only LAN WebDAV, production cache + real MediaSession/MediaBrowser:
+MP3: 3,238,131 bytes, duration 195,056 ms.
+FLAC: 3,912,367 bytes, duration 37,263 ms.
+Both retain complete buffer while paused, after seeking, and after reselecting.
+Credentials supplied only through local instrumentation arguments.
+
+The first regression exposed a pre-existing Sonic reset clearing the fixed output rate.
+A wrapper revision also required explicit forwarding of Media3's default flush method.
+Both were corrected before this passing run; no failed revision was installed on the phone.
+
+Final release: signature verified; emulator install/start succeeded; physical phone cover install/start succeeded.
+Phone original firstInstallTime retained: 2026-10-26 16:17:55; lastUpdateTime: 2026-10-26 17:43:29.
+No uninstall or data clearing.
+APK SHA-256: fa2063abf76f16bdba20e04ddb7899c1efba59a8a871055406e86c792dff41dd

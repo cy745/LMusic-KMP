@@ -5,6 +5,7 @@ import com.lalilu.lplayer.core.START_QUEUE_PLAYBACK
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import com.lalilu.lplayer.core.sessionPresentation
 import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.media3.common.*
@@ -111,11 +112,8 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
             .setSessionActivity(getLauncherPendingIntent())
             .build()
 
-        core.state.map { it.explicitNext to it.pauseAtEnd }.distinctUntilChanged().onEach { (pending, pauseAtEnd) ->
-            mediaSession?.setSessionExtras(Bundle().apply {
-                pending?.let { putString("pendingNext", MediaKey(it.source,it.id).stableKey) }
-                putBoolean("pauseAtEnd",pauseAtEnd)
-            })
+        core.state.map { it.sessionPresentation() }.distinctUntilChanged().onEach { presentation ->
+            mediaSession?.setSessionExtras(presentation.toBundle())
         }.launchIn(this)
         startListenForValuesUpdate()
     }

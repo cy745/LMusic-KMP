@@ -87,7 +87,7 @@ class WebDavContentBridgeDeviceTest {
     @Test fun newCacheExtractsArtworkLyricsAndPublishesLibraryMetadataWithoutLegacyDownload() = runBlocking {
         val bytes = instrumentation.context.assets.open("webdav/metadata.flac").use { it.readBytes() }
         fixture(bytes, "metadata.flac") { source, legacy, audio, access, core, _, uri ->
-            val generation = source.contentState.value.generation
+            val generation = source.contentState.value.forItem(audio.id).generation
             assertNull(source.getLyric(audio))
             assertNull(source.getPicture(audio, MediaFetchOptions.EMPTY))
             withContext(Dispatchers.Main) { core.dispatch(PlaybackCommand.ReplaceQueue(listOf(TrackKey(audio.mediaSourceName, audio.id)))) }
@@ -98,7 +98,7 @@ class WebDavContentBridgeDeviceTest {
             val picture = source.getPicture(updated, MediaFetchOptions.EMPTY) as? MediaData.Bytes
             assertNotNull(picture)
             assertTrue(picture!!.bytes.size > 20)
-            assertTrue(source.contentState.value.generation > generation)
+            assertTrue(source.contentState.value.forItem(audio.id).generation > generation)
             assertEquals(0L, legacy.filledSize(audio.id.md5()))
             until("complete disk cache is full duration even while paused") { core.state.value.durationMs > 0 && core.state.value.bufferedPositionMs == core.state.value.durationMs }
             assertEquals(bytes.size.toLong(), access.cachedRanges(uri)!!.second.single().endExclusive)

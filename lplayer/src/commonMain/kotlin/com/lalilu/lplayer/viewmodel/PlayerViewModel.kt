@@ -30,7 +30,7 @@ class PlayerViewModel(
 ) : ViewModel(), LifecycleEventObserver {
     private val logger = Logger.withTag("PlayerLyrics")
     val isPlaying = LPlayer.instance.isPlaying
-    val currentItem = LPlayer.instance.queue.currentItemFlow()
+    val currentItem = LPlayer.instance.queue.currentItemFlow().distinctUntilChanged()
     val lyricContent = mutableStateOf<LyricContent>(LyricContent.Loading(null))
 
     /** 播放列表数据 + 这次变化的成因（成因由队列命令边界给出，见 [QueueState.currentPickedByUser]） */
@@ -101,7 +101,10 @@ internal fun observeLyricContent(
     audio: LAudio,
     source: MediaSource,
     retrieve: suspend () -> List<LyricItem>,
-): Flow<LyricContent> = source.contentState.transformLatest { contentState ->
+): Flow<LyricContent> = source.contentState
+    .map { it.forItem(audio.id) }
+    .distinctUntilChanged()
+    .transformLatest { contentState ->
     when (val availability = contentState.availability) {
         MediaContentAvailability.Ready -> emit(
             LyricContent.Ready(

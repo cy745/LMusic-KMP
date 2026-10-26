@@ -61,7 +61,7 @@ fun rememberMediaCoverRequest(data: Any?): Any? {
     }
     val generation = if (source != null) {
         val contentState by source.contentState.collectAsState()
-        contentState.generation
+        contentState.forItem(audio.id).generation
     } else {
         0L
     }
@@ -92,7 +92,7 @@ fun rememberMediaCoverRequestState(data: Any?): State<Any?> {
     }
     val generation = if (source != null) {
         val contentState by source.contentState.collectAsState()
-        contentState.generation
+        contentState.forItem(audio.id).generation
     } else {
         0L
     }

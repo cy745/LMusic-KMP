@@ -824,7 +824,7 @@ class WebDavSource(
         )
         patchFlow.emit(merged)
         // Artwork and lyric consumers must retry after bytes become available, even if text tags are unchanged.
-        if (stateStore.contentState.value.isReady) stateStore.content.ready()
+        stateStore.content.contentChanged(target.audio.id)
     }
 
     /**

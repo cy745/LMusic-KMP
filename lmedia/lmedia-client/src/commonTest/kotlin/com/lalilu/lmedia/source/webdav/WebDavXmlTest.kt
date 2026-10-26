@@ -15,6 +15,15 @@ import kotlin.test.assertTrue
  * 等无关元素——这些都是最容易把朴素的按前缀解析写崩的地方。
  */
 class WebDavXmlTest {
+    @Test fun retainsEscapedAmpersandInFilePaths() {
+        val xml = """<D:multistatus xmlns:D="DAV:"><D:response>
+            <D:href>/Artist%20&amp;%20Guest%20-%20Song.mp3</D:href>
+            <D:propstat><D:prop><D:getcontentlength>100</D:getcontentlength></D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status></D:propstat>
+            </D:response></D:multistatus>"""
+        assertEquals("/Artist & Guest - Song.mp3", WebDavXml.parseMultiStatus(xml).single().path)
+    }
+
 
     private val apacheResponse = """
         <?xml version="1.0" encoding="utf-8"?>

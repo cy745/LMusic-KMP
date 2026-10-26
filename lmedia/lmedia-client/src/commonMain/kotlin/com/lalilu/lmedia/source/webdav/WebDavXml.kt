@@ -165,7 +165,7 @@ internal object WebDavXml {
 
         while (true) {
             when (reader.next()) {
-                EventType.TEXT, EventType.CDSECT, EventType.IGNORABLE_WHITESPACE ->
+                EventType.TEXT, EventType.CDSECT, EventType.IGNORABLE_WHITESPACE, EventType.ENTITY_REF ->
                     builder.append(reader.text)
 
                 EventType.START_ELEMENT -> skipElement(reader)

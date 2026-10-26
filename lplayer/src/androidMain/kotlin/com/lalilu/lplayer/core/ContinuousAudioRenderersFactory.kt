@@ -28,10 +28,20 @@ class ContinuousAudioRenderersFactory(
                 FloatArray(count*count) { if(it/count == it%count) 1f else 0f }))
         }
         val sonic = SonicAudioProcessor().apply { setOutputSampleRateHz(48000) }
+        // AudioSink resets processors when the execution window is replaced. Sonic's reset
+        // also clears its configured output rate; retain the experience output policy.
+        val stableRate = object : AudioProcessor by sonic {
+            override fun flush(streamMetadata: AudioProcessor.StreamMetadata) = sonic.flush(streamMetadata)
+            override fun reset() {
+                sonic.reset()
+                sonic.setOutputSampleRateHz(48000)
+            }
+        }
         val chain = object : DefaultAudioSink.DefaultAudioProcessorChain(arrayOf(channels),SilenceSkippingAudioProcessor(),sonic) {
             private val tee = observer?.let(::TeeAudioProcessor)
             override fun getAudioProcessors(): Array<AudioProcessor> = super.getAudioProcessors().let { processors ->
-                tee?.let { processors + it } ?: processors
+                val stable = processors.map { if (it === sonic) stableRate else it }.toTypedArray()
+                tee?.let { stable + it } ?: stable
             }
         }
         return DefaultAudioSink.Builder(context).setAudioProcessorChain(chain).build()

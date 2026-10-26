@@ -16,7 +16,14 @@ import kotlinx.coroutines.withTimeout
 data class MediaContentState(
     val availability: MediaContentAvailability = MediaContentAvailability.Uninitialized,
     val generation: Long = 0L,
+    /** Per-song content changes do not invalidate other songs in the same source. */
+    val itemGenerations: Map<String, Long> = emptyMap(),
 ) {
+    fun forItem(audioId: String): MediaContentState = copy(
+        generation = generation + (itemGenerations[audioId] ?: 0L),
+        itemGenerations = emptyMap(),
+    )
+
     val isReady: Boolean
         get() = availability is MediaContentAvailability.Ready
 }
@@ -52,6 +59,13 @@ class MediaContentStateStore {
                 availability = MediaContentAvailability.Ready,
                 generation = current.generation + if (contentChanged) 1 else 0,
             )
+        }
+    }
+
+    fun contentChanged(audioId: String) {
+        mutableState.update { current ->
+            current.copy(itemGenerations = current.itemGenerations +
+                (audioId to ((current.itemGenerations[audioId] ?: 0L) + 1L)))
         }
     }
 
