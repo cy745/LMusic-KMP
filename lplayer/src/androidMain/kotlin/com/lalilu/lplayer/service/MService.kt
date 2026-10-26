@@ -112,6 +112,8 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
             .setSessionActivity(getLauncherPendingIntent())
             .build()
 
+        bindSessionArtwork(this@MService, player as CoreSessionPlayer, platformMediaSource, repository)
+
         core.state.map { it.sessionPresentation() }.distinctUntilChanged().onEach { presentation ->
             mediaSession?.setSessionExtras(presentation.toBundle())
         }.launchIn(this)

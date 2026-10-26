@@ -5,7 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Bundle
-import android.util.Log
+import android.graphics.BitmapFactory
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.media3.common.C
@@ -17,9 +17,6 @@ import androidx.media3.common.util.Util
 import androidx.media3.session.*
 import androidx.media3.session.MediaNotification.Provider.Callback
 import coil3.Bitmap
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.toBitmap
 import com.google.common.collect.ImmutableList
 import com.lalilu.lplayer.extensions.FlymeStatusLyricHelper
 import kotlinx.coroutines.*
@@ -111,11 +108,8 @@ class MNotificationProvider(
                 .setContentText(metadata.artist)
 
             loadBitmapIntoNotification(
-                mediaSession = mediaSession,
                 metadata = metadata,
-                notificationId = notificationId,
-                builder = builder,
-                onNotificationChangedCallback = onNotificationChangedCallback
+                builder = builder
             )
 
             if (player.isPlaying) {
@@ -147,44 +141,20 @@ class MNotificationProvider(
         )
     }
 
-    private var loadedKey: Any? = null
+    private var loadedArtwork: ByteArray? = null
     private var loadedBitmap: Bitmap? = null
-    private var loadBitmapJob: Job? = null
     private fun loadBitmapIntoNotification(
-        mediaSession: MediaSession,
         metadata: MediaMetadata,
-        notificationId: Int,
         builder: NotificationCompat.Builder,
-        onNotificationChangedCallback: Callback
     ) {
-        val data = mediaSession.player.currentMediaItem
-            ?: metadata.artworkUri
-
-        if (loadedKey != data) {
-            builder.setLargeIcon(loadedBitmap)
-            loadedKey = data
+        // The session publishes bounded, decoded artwork for both System UI and this legacy
+        // notification. Reuse it on every rebuild, including play/pause and position updates.
+        val data = metadata.artworkData
+        if (loadedArtwork !== data && !(loadedArtwork != null && data != null && loadedArtwork!!.contentEquals(data))) {
+            loadedArtwork = data
+            loadedBitmap = data?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
         }
-
-        loadBitmapJob?.cancel()
-        loadBitmapJob = launch(Dispatchers.IO) {
-            val result = runCatching {
-                context.imageLoader.execute(
-                    ImageRequest.Builder(context)
-                        .data(data)
-                        .build()
-                ).image?.toBitmap()
-            }.getOrElse {
-                Log.w("MNotificationProvider", "Failed to load bitmap: ${it.message}")
-                null
-            }
-
-            if (!isActive) return@launch
-            loadedBitmap = result
-            builder.setLargeIcon(result)
-            val notification = MediaNotification(notificationId, builder.build())
-
-            onNotificationChangedCallback.onNotificationChanged(notification)
-        }
+        builder.setLargeIcon(loadedBitmap)
     }
 
 

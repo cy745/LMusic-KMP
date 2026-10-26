@@ -22,6 +22,17 @@ class CoreSessionPlayer(
     private var reportedEpoch = -1L
     private var repeat = REPEAT_MODE_ALL
     private var shuffle = false
+    private var artworkKey: TrackKey? = null
+    private var artworkData: ByteArray? = null
+
+    /** Presentation only: publishing artwork must never replace the queue or prepare audio again. */
+    fun setSessionArtwork(key: TrackKey?, data: ByteArray?) {
+        if (key != core.state.value.selected) return
+        if (artworkKey == key && (artworkData === data || artworkData?.contentEquals(data ?: byteArrayOf()) == true)) return
+        artworkKey = key
+        artworkData = data
+        invalidateState()
+    }
     private fun key(item: MediaItem): TrackKey {
         val identity = requireNotNull(MediaKey.parse(item.mediaId)) { "MediaSession needs source-qualified identity" }
         return TrackKey(identity.sourceName, identity.id)
@@ -39,7 +50,13 @@ class CoreSessionPlayer(
     override fun getState(): State {
         val s = core.state.value
         val playlist = s.queue.map { key ->
-            MediaItemData.Builder(key).setMediaItem(items.getValue(key)).setIsSeekable(true)
+            val item = items.getValue(key).let { item ->
+                if (key == s.selected && key == artworkKey && artworkData != null) {
+                    item.buildUpon().setMediaMetadata(item.mediaMetadata.buildUpon()
+                        .setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()).build()
+                } else item
+            }
+            MediaItemData.Builder(key).setMediaItem(item).setIsSeekable(true)
                 .setDurationUs(if (s.selected == key && s.durationMs > 0) s.durationMs * 1000 else C.TIME_UNSET).build()
         }
         return State.Builder()

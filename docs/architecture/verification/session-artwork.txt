@@ -1,0 +1,63 @@
+Android media notification artwork — 2026-10-26
+
+Root cause:
+- MNotificationProvider submitted MediaItem to Coil; no MediaItem mapper/fetcher exists.
+- Session metadata contained neither artworkData nor artworkUri. Android system media UI
+  could therefore not obtain artwork even if a notification-only loader were repaired.
+
+Implementation:
+- MService binds current selection + per-song content generation to the existing
+  MediaCoverRequest pipeline. Decode/PNG encode off main thread, exact 256px request.
+- Repository lookup waits for the selected row, and selection/content changes cancel
+  stale work. CoreSessionPlayer checks selected identity before publishing the bytes.
+- Artwork is presentation metadata only. No queue replacement or audio preparation.
+- Legacy notification reuses the bounded session bitmap on every rebuild; no stale
+  asynchronous notification builder can overwrite newer controls/artwork.
+
+Tests:
+
+com.lalilu.lmusic.prototype.SessionArtworkDeviceTest:.
+
+Time: 4.382
+
+OK (1 test)
+
+
+
+Combined regression: 21 tests, 20 passed; the transient-focus test timed out at
+"transient suppression". Session artwork, production service, gain ramps, all ten
+ gapless tests, five WebDAV content bridge tests and selection test passed.
+Unchanged isolated control suite:
+
+com.lalilu.lmusic.prototype.PlaybackControlDeviceTest:...
+
+Time: 6.006
+
+OK (3 tests)
+
+
+
+The isolated pass does not prove the cause of the combined-run focus timeout;
+retain as a test isolation / focus stability follow-up. No focus code changed here.
+
+Fixture correction:
+The existing synthetic FLAC's embedded PNG had an invalid IDAT CRC, previously
+undetected by byte-extraction tests. The generator now writes valid PNG chunks/CRCs.
+Initial notification test also used a 1-second clip with normal advancement;
+final test prepares paused and uses repeat-one during notification checks.
+Checks cover Media3 artwork bytes, actual platform MediaSession bitmap, posted
+notification large icon, pause/resume rebuilds, switching to an artless song and back.
+
+Release:
+build/experience/LMusic-plan-b-release-session-artwork-20261026.apk
+Bytes: 25405789
+SHA-256: c9423fb3f4bdad5e761cdbf86c5620b22cd44807bf59ef29283d077a17187900
+apksigner verify: passed.
+Emulator install -r / launch: Success / Status ok.
+Phone USB install -r / launch: Success / Status ok.
+Phone firstInstallTime: 2026-10-26 16:17:55 (unchanged).
+Phone lastUpdateTime: 2026-10-26 22:21:00.
+No uninstall or data clear.
+Read-only phone dumpsys notification confirms LMusic id=1001 has:
+  android.largeIcon=Icon (Icon(typ=BITMAP size=144x144))
+Physical notification appearance remains subject to the user's device UI/feedback.
