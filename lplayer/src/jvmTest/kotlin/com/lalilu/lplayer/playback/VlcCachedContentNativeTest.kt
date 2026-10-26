@@ -23,7 +23,7 @@ class VlcCachedContentNativeTest {
         val fixture = System.getenv("LMUSIC_NATIVE_AUDIO_FIXTURE")
         assumeTrue(resources != null && fixture != null)
         System.setProperty("compose.application.resources.dir", resources!!)
-        VLCPlayerLoader.initialize().join()
+        VLCPlayerLoader.initialize().await()
         val factory = MediaPlayerFactory(null as NativeDiscovery?, "--no-video", "--aout=dummy")
         val player = factory.mediaPlayers().newMediaPlayer()
         val root = Files.createTempDirectory("vlc-cache-test").toFile()

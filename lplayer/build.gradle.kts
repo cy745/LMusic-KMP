@@ -76,6 +76,7 @@ kotlin {
             api(libs.bundles.settings)
         }
         commonTest.dependencies {
+            implementation(project(":lmedia:lmedia-client"))
             implementation(libs.ktor.client.mock)
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)

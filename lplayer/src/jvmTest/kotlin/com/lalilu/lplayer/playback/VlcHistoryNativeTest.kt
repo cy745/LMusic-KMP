@@ -223,7 +223,7 @@ class VlcHistoryNativeTest {
         val fixture = System.getenv("LMUSIC_NATIVE_AUDIO_FIXTURE")
         assumeTrue("Native VLC resources and audio fixture not configured", resources != null && fixture != null)
         System.setProperty("compose.application.resources.dir", resources!!)
-        VLCPlayerLoader.initialize().join()
+        VLCPlayerLoader.initialize().await()
         val factory = MediaPlayerFactory(
             null as uk.co.caprica.vlcj.factory.discovery.NativeDiscovery?,
             "--verbose=2", "--no-video", "--aout=dummy",

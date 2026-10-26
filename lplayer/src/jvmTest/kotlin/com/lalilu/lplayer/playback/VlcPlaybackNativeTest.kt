@@ -122,7 +122,7 @@ class VlcPlaybackNativeTest {
         val fixture = System.getenv("LMUSIC_NATIVE_AUDIO_FIXTURE")
         assumeTrue("Native VLC resources and audio fixture not configured", resources != null && fixture != null)
         System.setProperty("compose.application.resources.dir", resources!!)
-        VLCPlayerLoader.initialize().join()
+        VLCPlayerLoader.initialize().await()
         val factory = MediaPlayerFactory(null as NativeDiscovery?, "--no-video", "--aout=dummy")
         val native = factory.mediaPlayers().newMediaPlayer()
         val job = SupervisorJob()

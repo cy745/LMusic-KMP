@@ -42,6 +42,7 @@ sealed interface PlaybackCommand {
     data class Seek(val positionMs: Long) : PlaybackCommand
     data object Play : PlaybackCommand
     data object Pause : PlaybackCommand
+    data object SystemPause : PlaybackCommand
     data object Stop : PlaybackCommand
     data object Next : PlaybackCommand
     data object Previous : PlaybackCommand

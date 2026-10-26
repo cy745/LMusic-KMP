@@ -5,15 +5,16 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import coil3.toBitmap
-import com.lalilu.common.ext.io
+import com.lalilu.lplayer.core.*
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lmedia.domain.model.mediaKey
+import com.lalilu.lmedia.domain.model.MediaKey
+import org.rococoa.Foundation
 import com.lalilu.lplayer.macos.*
 import com.lalilu.lplayer.menu.FoundationCallback
 import com.lalilu.lplayer.playback.Playback
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import com.lalilu.lplayer.action.launchPlayerAction
 import org.rococoa.Rococoa
 import org.rococoa.cocoa.foundation.*
@@ -28,9 +29,12 @@ fun interface SeekPositionCommandHandler {
 }
 
 class MacOSNotification(
-    private val playback: Playback
+    private val playback: Playback,
+    private val sources: PlatformMediaSource? = null,
 ) : CoroutineScope, CommandHandler, SeekPositionCommandHandler {
-    override val coroutineContext: CoroutineContext = Dispatchers.io + SupervisorJob()
+    companion object { private var active: MacOSNotification? = null }
+
+    override val coroutineContext: CoroutineContext = Dispatchers.Default.limitedParallelism(1) + SupervisorJob()
     private val nowPlayingInfoCenter by lazy { MPNowPlayingInfoCenter.defaultCenter() }
     private val remoteCommandCenter by lazy { MPRemoteCommandCenter.sharedCommandCenter() }
     private val nsCallback by lazy { FoundationCallback.wrap(this, ::handleCommand) }
@@ -42,42 +46,32 @@ class MacOSNotification(
             remoteCommandCenter.togglePlayPauseCommand(),
             remoteCommandCenter.nextTrackCommand(),
             remoteCommandCenter.previousTrackCommand(),
-            remoteCommandCenter.changeRepeatModeCommand(),
-            remoteCommandCenter.changeShuffleModeCommand(),
-            remoteCommandCenter.changePlaybackRateCommand(),
-            remoteCommandCenter.seekBackwardCommand(),
-            remoteCommandCenter.seekForwardCommand(),
-            remoteCommandCenter.ratingCommand(),
-            remoteCommandCenter.likeCommand(),
-            remoteCommandCenter.dislikeCommand(),
-            remoteCommandCenter.bookmarkCommand(),
-            remoteCommandCenter.enableLanguageOptionCommand(),
-            remoteCommandCenter.disableLanguageOptionCommand(),
         )
     }
     private val imageLoader by lazy { SingletonImageLoader.get(PlatformContext.INSTANCE) }
-    private val playInfoDictionary by lazy {
-        val keys = NSArray.CLASS.arrayWithObjects(
-            MPMediaItemProperty.Title.nativeValue,
-            MPMediaItemProperty.Artist.nativeValue,
-            MPMediaItemProperty.PlaybackDuration.nativeValue,
-            MPNowPlayingInfoProperty.PlaybackRate.nativeValue,
-            MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
-            MPNowPlayingInfoProperty.IsLiveStream.nativeValue,
+    private var snapshot = SystemMediaSnapshot(null, 0, 0, false)
+    private var artworkKey: MediaKey? = null
+    private var artwork: NSObject? = null
+    private val changePositionCallback by lazy { FoundationCallback.wrap(this, ::onPositionChange) }
+
+    private fun publish() {
+        val audio = snapshot.audio
+        val entries = linkedMapOf<NSObject, NSObject>(
+            MPMediaItemProperty.Title.nativeValue to NSString.stringWithString(audio?.title ?: ""),
+            MPMediaItemProperty.Artist.nativeValue to NSString.stringWithString(audio?.subtitle ?: ""),
+            MPMediaItemProperty.PlaybackDuration.nativeValue to NSNumber.CLASS.numberWithDouble(snapshot.durationMs / 1000.0),
+            MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue to NSNumber.CLASS.numberWithDouble(snapshot.positionMs / 1000.0),
+            MPNowPlayingInfoProperty.PlaybackRate.nativeValue to NSNumber.CLASS.numberWithDouble(if (snapshot.playing) 1.0 else 0.0),
         )
-        val values = NSArray.CLASS.arrayWithObjects(
-            NSString.stringWithString(""),
-            NSString.stringWithString(""),
-            NSNumber.CLASS.numberWithLong(0L),
-            NSNumber.CLASS.numberWithDouble(0.0),
-            NSNumber.CLASS.numberWithLong(0L),
-            NSNumber.CLASS.numberWithBool(false),
-        )
-        val dictionary = NSDictionary.CLASS.dictionaryWithObjects_forKeys(values, keys)
-        dictionary.mutableCopy()
+        if (audio?.mediaKey == artworkKey) artwork?.let { entries[MPMediaItemProperty.Artwork.nativeValue] = it }
+        val info = NSDictionary.CLASS.dictionaryWithObjects_forKeys(
+            NSArray.CLASS.arrayWithObjects(*entries.values.toTypedArray()),
+            NSArray.CLASS.arrayWithObjects(*entries.keys.toTypedArray()))
+        Foundation.runOnMainThread { if (isActive) nowPlayingInfoCenter.setNowPlayingInfo(info) }
     }
 
     init {
+        synchronized(MacOSNotification::class.java) { active?.close(); active = this }
         WrapperLibrary.instance
         enableCommand.forEach { command ->
             command.addTarget(
@@ -86,88 +80,44 @@ class MacOSNotification(
             )
         }
 
-        val changePositionCallback = FoundationCallback.wrap(this, ::onPositionChange)
         remoteCommandCenter.changePlaybackPositionCommand().addTarget(
             target = changePositionCallback.target.id(),
             selector = changePositionCallback.selector
         )
 
-        playback.isPlaying.onEach { isPlaying ->
-            playInfoDictionary.setValue(
-                key = MPNowPlayingInfoProperty.PlaybackRate.nativeValue,
-                value = NSNumber.CLASS.numberWithDouble(if (isPlaying) 1.0 else 0.0),
-            )
-            playInfoDictionary.setValue(
-                key = MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
-                value = NSNumber.CLASS.numberWithLong(playback.currentPosition() / 1000L)
-            )
-            nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
-        }.launchIn(this)
-
-        playback.stableDuration.onEach {
-            playInfoDictionary.setValue(
-                key = MPMediaItemProperty.PlaybackDuration.nativeValue,
-                value = NSNumber.CLASS.numberWithLong(it / 1000L)
-            )
-            nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
-        }.launchIn(this)
-
-        playback.queue.currentItemFlow().onEach { audio ->
-            Logger.i("currentItem: $audio")
-
-            val title = audio?.title ?: "Unknown"
-            val subtitle = audio?.subtitle ?: "sub"
-
-            val imageResult = audio?.let {
-                imageLoader.execute(
-                    ImageRequest.Builder(PlatformContext.INSTANCE)
-                        .data(audio)
-                        .build()
-                )
+        playback.systemMediaSnapshots().onEach { snapshot = it; publish() }.launchIn(this)
+        launch {
+            playback.systemArtworkRequests(sources).collectLatest { request ->
+                artworkKey = null
+                artwork = null
+                publish()
+                if (request == null) return@collectLatest
+                try {
+                    val result = imageLoader.execute(ImageRequest.Builder(PlatformContext.INSTANCE)
+                        .data(request).size(256, 256).build())
+                    ensureActive()
+                    if (playback.queue.currentItem()?.mediaKey != request.audio.mediaKey) return@collectLatest
+                    val bitmap = result.image?.toBitmap()
+                    val pixels = bitmap?.peekPixels()?.buffer
+                    val data = pixels?.takeIf { it.size > 0 }?.let { NSData.CLASS.dataWithBytes_length(it.bytes, it.size) }
+                    artwork = data?.let {
+                        Rococoa.wrap(WrapperLibrary.instance.createMediaItemArtwork(it.id(), bitmap.width,
+                            bitmap.height, 32, 8, bitmap.width * 4, 6), NSObject::class.java)
+                    }
+                    artworkKey = request.audio.mediaKey
+                    publish()
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (error: Exception) { Logger.w("System artwork load failed", error) }
             }
-            val bitmap = imageResult?.image?.toBitmap()
-            val pixels = bitmap?.peekPixels()?.buffer
+        }
+    }
 
-            val nsData = pixels?.takeIf { pixels.size > 0 }
-                ?.let { NSData.CLASS.dataWithBytes_length(it.bytes, it.size) }
-
-            val artwork = nsData?.let { data ->
-                val result = WrapperLibrary.instance.createMediaItemArtwork(
-                    bitmapData = data.id(),
-                    bitmapWidth = bitmap.width,
-                    bitmapHeight = bitmap.height,
-                    bitsPerPixel = 32,
-                    bitsPerComponent = 8,
-                    bytesPerRow = bitmap.width * 4,
-                    bitmapInfoType = 6
-                )
-                Rococoa.wrap(result, NSObject::class.java)
-            }
-
-            playInfoDictionary.setValue(
-                key = MPMediaItemProperty.Title.nativeValue,
-                value = NSString.stringWithString(title),
-            )
-            playInfoDictionary.setValue(
-                key = MPMediaItemProperty.Artist.nativeValue,
-                value = NSString.stringWithString(subtitle),
-            )
-            playInfoDictionary.setValue(
-                key = MPMediaItemProperty.PlaybackDuration.nativeValue,
-                value = NSNumber.CLASS.numberWithLong(playback.stableDuration.value / 1000L)
-            )
-            playInfoDictionary.setValue(
-                key = MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
-                value = NSNumber.CLASS.numberWithLong(playback.currentPosition() / 1000L)
-            )
-            if (artwork != null) {
-                playInfoDictionary.setValue(
-                    key = MPMediaItemProperty.Artwork.nativeValue,
-                    value = artwork
-                )
-            }
-            nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
-        }.launchIn(this)
+    fun close() {
+        cancel()
+        enableCommand.forEach { it.removeTarget(nsCallback.target.id(), nsCallback.selector) }
+        remoteCommandCenter.changePlaybackPositionCommand().removeTarget(changePositionCallback.target.id(), changePositionCallback.selector)
+        FoundationCallback.REFERENCE_MAP.remove(nsCallback.target)
+        FoundationCallback.REFERENCE_MAP.remove(changePositionCallback.target)
     }
 
     override fun handleCommand(event: MPRemoteCommandEvent): MPRemoteCommandHandlerStatus {
@@ -190,19 +140,8 @@ class MacOSNotification(
     }
 
     override fun onPositionChange(event: MPChangePlaybackPositionCommandEvent): MPRemoteCommandHandlerStatus {
-        val position = (event.positionTime() * 1000L).toLong()
-        launchPlayerAction {
-            playback.seekTo(position)
-            updatePosition(event.positionTime().toLong())
-        }
+        val seconds = event.positionTime()
+        if (seconds.isFinite() && seconds >= 0) launchPlayerAction { playback.seekTo((seconds * 1000).toLong()) }
         return MPRemoteCommandHandlerStatus.Success
-    }
-
-    private fun updatePosition(newPosition: Long) {
-        playInfoDictionary.setValue(
-            key = MPNowPlayingInfoProperty.ElapsedPlaybackTime.nativeValue,
-            value = NSNumber.CLASS.numberWithLong(newPosition)
-        )
-        nowPlayingInfoCenter.setNowPlayingInfo(playInfoDictionary)
     }
 }

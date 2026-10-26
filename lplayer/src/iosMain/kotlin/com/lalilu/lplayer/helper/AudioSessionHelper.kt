@@ -1,25 +1,27 @@
 package com.lalilu.lplayer.helper
 
 import co.touchlab.kermit.Logger
-import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
 import kotlinx.cinterop.*
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import com.lalilu.lplayer.action.launchPlayerAction
 import platform.AVFAudio.*
 import platform.Foundation.*
-import kotlin.coroutines.CoroutineContext
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-object AudioSessionHelper : CoroutineScope {
-    override val coroutineContext: CoroutineContext = Dispatchers.io
+object AudioSessionHelper {
+    private var bindingScope: CoroutineScope? = null
     private val audioSession by lazy { AVAudioSession.sharedInstance() }
     private val logger = Logger.withTag("AudioSessionInterruptionHelper")
-    private val errorPtr = nativeHeap.alloc<ObjCObjectVar<NSError?>>()
+    private var bindingGeneration = 0L
+    private val observers = mutableListOf<Any>()
     fun debugLog(message: String) = logger.i(messageString = message)
 
-    fun setUpAudioSession(): Boolean {
+    fun setUpAudioSession(): Boolean = memScoped {
+        val errorPtr = alloc<ObjCObjectVar<NSError?>>()
         if (!audioSession.setCategory(
                 category = AVAudioSessionCategoryPlayback,
                 mode = AVAudioSessionModeDefault,
@@ -43,7 +45,8 @@ object AudioSessionHelper : CoroutineScope {
         return true
     }
 
-    fun ensureAudioSessionActive() {
+    fun ensureAudioSessionActive() = memScoped {
+        val errorPtr = alloc<ObjCObjectVar<NSError?>>()
         if (!audioSession.setActive(active = true, withOptions = 0u, error = errorPtr.ptr)) {
             errorPtr.value?.let { error ->
                 debugLog("Error ensuring audio session active: ${error.localizedDescription}")
@@ -58,12 +61,22 @@ object AudioSessionHelper : CoroutineScope {
      * @param shouldHandleInterruption 可选的中断过滤（默认处理）。
      *                            当 MusicKitEngine 活跃时传入可跳过误中断。
      */
+    fun unbindPlayback() {
+        bindingScope?.cancel(); bindingScope = null
+        bindingGeneration++
+        observers.forEach { NSNotificationCenter.defaultCenter().removeObserver(it) }
+        observers.clear()
+    }
+
     fun bindPlayback(
         playback: Playback,
         shouldHandleInterruption: (() -> Boolean)? = null
     ) {
+        unbindPlayback()
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob()).also { bindingScope = it }
+        val generation = bindingGeneration
         var resumeToken: com.lalilu.lplayer.core.CorePlayback.InterruptionToken? = null
-        NSNotificationCenter.defaultCenter().addObserverForName(
+        observers += NSNotificationCenter.defaultCenter().addObserverForName(
             name = AVAudioSessionRouteChangeNotification,
             `object` = audioSession,
             queue = NSOperationQueue.mainQueue(),
@@ -71,11 +84,16 @@ object AudioSessionHelper : CoroutineScope {
                 val reason = notification?.userInfo?.get(AVAudioSessionRouteChangeReasonKey) as? NSNumber
                 if (reason?.unsignedLongValue == AVAudioSessionRouteChangeReasonOldDeviceUnavailable &&
                     com.lalilu.lplayer.LPlayerKV.handleBecomeNoisy.value) {
-                    launchPlayerAction { resumeToken = null; playback.pause() }
+                    scope.launchPlayerAction {
+                        if (generation != bindingGeneration) return@launchPlayerAction
+                        resumeToken = null
+                        if (playback is com.lalilu.lplayer.core.CorePlayback) playback.pauseForInterruption()
+                        else playback.pause()
+                    }
                 }
             }
         )
-        NSNotificationCenter.defaultCenter().addObserverForName(
+        observers += NSNotificationCenter.defaultCenter().addObserverForName(
             name = "AVAudioSessionInterruptionNotification",
             `object` = audioSession,
             queue = NSOperationQueue.mainQueue(),
@@ -89,7 +107,8 @@ object AudioSessionHelper : CoroutineScope {
 
                     when (typeValue) {
                         AVAudioSessionInterruptionTypeBegan -> {
-                            launchPlayerAction {
+                            scope.launchPlayerAction {
+                                if (generation != bindingGeneration) return@launchPlayerAction
                                 resumeToken = null
                                 if (com.lalilu.lplayer.LPlayerKV.handleAudioFocus.value) {
                                     // MusicKit owns its own session interruption; the host callback may elect to ignore it.
@@ -102,10 +121,11 @@ object AudioSessionHelper : CoroutineScope {
                         }
                         AVAudioSessionInterruptionTypeEnded -> {
                             val options = userInfo[AVAudioSessionInterruptionOptionKey] as? NSNumber
-                            launchPlayerAction {
+                            scope.launchPlayerAction {
+                                if (generation != bindingGeneration) return@launchPlayerAction
                                 val token = resumeToken
                                 resumeToken = null
-                                if (options?.unsignedLongValue == AVAudioSessionInterruptionOptionShouldResume && token != null &&
+                                if ((options?.unsignedLongValue ?: 0uL) and AVAudioSessionInterruptionOptionShouldResume != 0uL && token != null &&
                                     playback is com.lalilu.lplayer.core.CorePlayback) playback.resumeAfterInterruption(token)
                             }
                         }

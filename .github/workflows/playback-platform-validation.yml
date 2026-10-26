@@ -1,0 +1,94 @@
+name: Playback platform validation
+
+on:
+  push:
+    branches: [codex/playback-core-prototype]
+    paths:
+      - '.github/workflows/playback-platform-validation.yml'
+      - 'scripts/create-native-audio-fixture.py'
+      - 'lplayer/**'
+      - 'composeApp/**'
+      - 'lmedia/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playback-platform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-playback:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare Linux native runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvlc5 libvlccore9 vlc-plugin-base vlc-plugin-audio-output libasound2-dev xvfb
+          root="$GITHUB_WORKSPACE/lplayer/src/jvmMain/assets/linux"
+          mkdir -p "$root/vlc"
+          ln -s "$(find /usr/lib -name libvlc.so.5 -print -quit)" "$root/vlc/libvlc.so.5"
+          ln -s "$(find /usr/lib -name libvlccore.so.9 -print -quit)" "$root/vlc/libvlccore.so.9"
+          ln -s "$(find /usr/lib -path '*/vlc/plugins' -type d -print -quit)" "$root/vlc/plugins"
+          echo "LMUSIC_NATIVE_RESOURCES=$root" >> "$GITHUB_ENV"
+      - name: Prepare Windows native runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install vlc --version=3.0.21 -y --no-progress
+          $root = "$env:GITHUB_WORKSPACE/lplayer/src/jvmMain/assets/windows"
+          New-Item -ItemType Directory -Force "$root/vlc" | Out-Null
+          Copy-Item 'C:/Program Files/VideoLAN/VLC/*.dll' "$root/vlc"
+          Copy-Item 'C:/Program Files/VideoLAN/VLC/plugins' "$root/vlc" -Recurse
+          "LMUSIC_NATIVE_RESOURCES=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Create audio fixture
+        shell: bash
+        run: |
+          python scripts/create-native-audio-fixture.py "$RUNNER_TEMP/audio fixture.wav"
+          echo "LMUSIC_NATIVE_AUDIO_FIXTURE=$RUNNER_TEMP/audio fixture.wav" >> "$GITHUB_ENV"
+      - name: Native decoder, cache, core and history regression
+        shell: bash
+        run: |
+          ./gradlew :lplayer:jvmTest \
+            --tests '*VlcPcmNativeTest.twoNativeDecodersProduceOneContiguousSampleStream' \
+            --tests '*VlcPcmNativeTest.sharedCoreOwnsNaturalAdvanceAndPausedManualSelection' \
+            --tests '*VlcPcmNativeTest.unavailablePcmOutputFallsBackToNativePlayback' \
+            --tests '*VlcCachedContentNativeTest' --tests '*PackagedVlcDiscoveryTest' \
+            --tests '*CorePlaybackTest' --tests '*EnginePreloadingRuntimeTest' \
+            --tests '*HistoryPersistenceFailureTest' \
+            :lmedia:lmedia-content:jvmTest :lplayer:playback-core:jvmTest \
+            -Plalilu.disable.ios.targets=true --no-configuration-cache \
+            -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g' -Pkotlin.daemon.jvmargs=-Xmx3g
+      - name: Formal settings and application packaging
+        shell: bash
+        run: |
+          ./gradlew :composeApp:jvmTest --tests '*LargeValueSettingsTest' --tests '*DesktopDatabasePathTest' \
+            :composeApp:createDistributable -Plalilu.disable.ios.targets=true --no-configuration-cache \
+            -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g' -Pkotlin.daemon.jvmargs=-Xmx3g
+      - name: Save verification results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playback-validation-${{ runner.os }}
+          path: |
+            **/build/test-results/**/*.xml
+            **/build/reports/tests/**
+            composeApp/build/compose/logs/**
+          retention-days: 14

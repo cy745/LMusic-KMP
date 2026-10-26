@@ -27,6 +27,7 @@ class EngineAudioRuntime(
     private var teardown: Job? = null
     private var seeking: Job? = null
     private var desiredPlaying = false
+    private var playRevision = 0L
     private var gain = 1f
     private var staged: NextPlan? = null
     private var awaitingConfirmation: NextPlan? = null
@@ -106,15 +107,19 @@ class EngineAudioRuntime(
         observing?.cancel()
         observing = scope.launch {
             var started = false
+            var observedPlayRevision = -1L
             while (isActive && owner == ticket) {
                 val state = engine.state.value
                 if (state.error != null) { fail(ticket, state.error); break }
                 if (state.isLoading) emit(RuntimeEvent.Buffering(ticket))
-                if (started && !state.isPlaying && !state.isLoading && desiredPlaying) {
+                if (started && observedPlayRevision == playRevision && !state.isPlaying && !state.isLoading && desiredPlaying) {
                     desiredPlaying = false
                     emit(RuntimeEvent.PausedBySystem(ticket))
                 }
-                if (state.isPlaying && !state.isLoading && !started) emit(RuntimeEvent.Started(ticket))
+                if (state.isPlaying && !state.isLoading && desiredPlaying && (!started || observedPlayRevision != playRevision)) {
+                    observedPlayRevision = playRevision
+                    emit(RuntimeEvent.Started(ticket))
+                }
                 started = state.isPlaying && !state.isLoading
                 emit(RuntimeEvent.Position(ticket, engine.currentPosition().coerceAtLeast(0),
                     state.duration.coerceAtLeast(0), state.bufferedPosition.coerceAtLeast(0)))
@@ -175,6 +180,7 @@ class EngineAudioRuntime(
     override fun setPlaying(ticket: LoadTicket, playing: Boolean, transition: VolumeTransition) {
         if (owner != ticket) return
         val unchangedIntent = desiredPlaying == playing
+        if (playing && !unchangedIntent) playRevision++
         desiredPlaying = playing
         if (unchangedIntent && fading?.isActive == true && transition != VolumeTransition.Immediate) return
         fading?.cancel()

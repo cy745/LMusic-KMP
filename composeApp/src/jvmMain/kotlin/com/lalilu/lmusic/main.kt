@@ -21,7 +21,7 @@ fun main(args: Array<String>) {
         return
     }
 
-    DesktopCrashReportStore.latestReportId(onlyUnviewed = true)?.let { reportId ->
+    if ("--open-player" !in args) DesktopCrashReportStore.latestReportId(onlyUnviewed = true)?.let { reportId ->
         DesktopCrashReporter.show(DesktopCrashReportRequest(reportId))
         return
     }

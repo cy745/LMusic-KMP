@@ -26,6 +26,26 @@ class EnginePreloadingRuntimeTest {
         override fun currentPosition() = state.value.position
         override suspend fun release() { state.value = PlaybackEngineState.EMPTY }
     }
+    @Test fun pauseAndResumeBetweenObservationTicksStillReportStarted() = runTest {
+        val engine = Engine()
+        val runtime = EngineAudioRuntime(backgroundScope, listOf(engine))
+        val events = mutableListOf<RuntimeEvent>()
+        runtime.onEvent = { events += it }
+        val ticket = LoadTicket(TrackKey("s", "a"), 1)
+        runtime.silence(ticket)
+        runtime.prepare(ticket, runtime.resource(MediaData.Url("file:///a"), LAudio("a", mediaSourceName = "s")))
+        runCurrent()
+        runtime.setPlaying(ticket, true, VolumeTransition.Immediate)
+        advanceTimeBy(101); runCurrent()
+        events.clear()
+        runtime.setPlaying(ticket, false, VolumeTransition.Immediate); runCurrent()
+        runtime.setPlaying(ticket, true, VolumeTransition.Immediate); runCurrent()
+        advanceTimeBy(100); runCurrent()
+        assertEquals(1, events.filterIsInstance<RuntimeEvent.Started>().size)
+        assertTrue(events.none { it is RuntimeEvent.PausedBySystem })
+        runtime.release(); runCurrent()
+    }
+
     @Test fun nativeAdvanceUpdatesTicketAndRejectsLateOldCallbacks() = runTest {
         val engine = Engine()
         val runtime = EngineAudioRuntime(backgroundScope, listOf(engine))

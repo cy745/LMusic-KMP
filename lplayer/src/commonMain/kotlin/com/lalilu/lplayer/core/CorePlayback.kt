@@ -151,7 +151,7 @@ open class CorePlayback(
         gate.withLock {
             val state = core.state.value
             val token = state.ticket?.takeIf { state.intent == PlayIntent.Play }?.let { InterruptionToken(controlRevision, it) }
-            core.dispatch(PlaybackCommand.Pause)
+            core.dispatch(PlaybackCommand.SystemPause)
             publish()
             token
         }

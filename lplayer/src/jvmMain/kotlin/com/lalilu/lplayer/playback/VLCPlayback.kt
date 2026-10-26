@@ -40,16 +40,16 @@ class VLCPlayback internal constructor(
     playbackFailureRepository: PlaybackFailureRepository,
     scope: CoroutineScope = CoroutineScope(Dispatchers.IO.limitedParallelism(1) + SupervisorJob()),
     nativePlayerProvider: suspend () -> MediaPlayer = {
-        VLCPlayerLoader.initialize().join()
+        VLCPlayerLoader.initialize().await()
         checkNotNull(VLCPlayer.getPlayer()) { "VLC player initialization failed" }
     },
     installPlatformControls: (VLCPlayback) -> Unit = { playback ->
-        if (NativeExtractor.isMac()) { MacOSMenu(playback); MacOSNotification(playback) }
+        if (NativeExtractor.isMac()) { MacOSMenu(playback); MacOSNotification(playback, platformMediaSource) }
     },
     contentAccess: NativeContentAccess? = null,
     continuousOutput: Boolean = false,
     private val engine: PlaybackEngine = if (continuousOutput) VlcPcmEngine(scope, {
-        VLCPlayerLoader.initialize().join(); VLCPlayer.newAudioPlayer()
+        VLCPlayerLoader.initialize().await(); VLCPlayer.newAudioPlayer()
     }, contentAccess, fallbackFactory = { VlcEngine(scope, nativePlayerProvider, contentAccess) }) else VlcEngine(scope, nativePlayerProvider, contentAccess),
 ) : CorePlayback(scope, EngineAudioRuntime(scope, listOf(engine),
     volume = { _, v -> when (engine) { is VlcEngine -> engine.setVolume(v); is VlcPcmEngine -> engine.setVolume(v) } },

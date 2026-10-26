@@ -121,7 +121,7 @@ private class DesktopLocalTransport(
 internal object DesktopAppLauncher {
     fun launchCrashReporter(reportId: String): Boolean = launch("--crash-report=$reportId")
 
-    fun launchMainApplication(): Boolean = launch()
+    fun launchMainApplication(): Boolean = launch("--open-player")
 
     private fun launch(vararg applicationArguments: String): Boolean = runCatching {
         val processInfo = ProcessHandle.current().info()

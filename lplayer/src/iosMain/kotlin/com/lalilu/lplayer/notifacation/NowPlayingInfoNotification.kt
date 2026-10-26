@@ -1,143 +1,89 @@
 package com.lalilu.lplayer.notifacation
 
-import co.touchlab.kermit.Logger
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import coil3.toBitmap
-import com.lalilu.common.ext.io
-import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.MediaCoverRequest
+import com.lalilu.lmedia.domain.model.MediaKey
+import com.lalilu.lmedia.domain.model.mediaKey
+import com.lalilu.lmedia.domain.source.PlatformMediaSource
+import com.lalilu.lplayer.core.systemArtworkRequests
+import com.lalilu.lplayer.core.systemMediaSnapshots
 import com.lalilu.lplayer.playback.Playback
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.refTo
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
+import kotlinx.cinterop.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.collectLatest
 import platform.CoreGraphics.*
-import platform.Foundation.NSOperationQueue
 import platform.MediaPlayer.*
 import platform.UIKit.UIImage
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.resume
 
 @OptIn(ExperimentalForeignApi::class)
-object NowPlayingInfoNotification : CoroutineScope {
-    override val coroutineContext: CoroutineContext = Dispatchers.io
-    private val logger = Logger.withTag("NowPlayingInfoNotification")
-    private val nowPlayingInfoCenter = MPNowPlayingInfoCenter.defaultCenter()
-    private val nowPlayingInfo = mutableMapOf<String, Any>()
-    private val updateMutex = Mutex()
+object NowPlayingInfoNotification {
+    private var scope: CoroutineScope? = null
+    private val center = MPNowPlayingInfoCenter.defaultCenter()
 
-    fun debugLog(message: String) = logger.i(messageString = message)
+    fun unbind() { scope?.cancel(); scope = null; center.nowPlayingInfo = null }
 
-    fun bindPlayback(playback: Playback) {
-        debugLog("Binding playback to NowPlayingInfoNotification")
-        playback.queue.currentItemFlow()
-            .onEach { track ->
-                debugLog("Received new track: ${track?.title} by ${track?.subtitle}")
-                nowPlayingInfo.apply {
-                    this[MPMediaItemPropertyTitle] = track?.title ?: ""
-                    this[MPMediaItemPropertyArtist] = track?.subtitle ?: ""
-                    this[MPMediaItemPropertyAlbumTitle] = track?.subtitle ?: ""
-                    this[MPMediaItemPropertyPlaybackDuration] = playback.stableDuration.value.toDouble().div(1000)
-                    this[MPNowPlayingInfoPropertyPlaybackRate] = if (playback.isPlaying.value) 1.0 else 0.0
-                    this[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
-                }
-
-                val placeholderImage = UIImage.imageNamed("AppIcon")
-                debugLog("Placeholder image loaded: ${placeholderImage != null}")
-                UIImage.imageNamed("AppIcon")?.let { placeholderImage ->
-                    nowPlayingInfo[MPMediaItemPropertyArtwork] =
-                        MPMediaItemArtwork(boundsSize = placeholderImage.size) { _ -> placeholderImage }
-                }
-
-                debugLog("Updating now playing info with track info")
-                updateNowPlayingInfo()
-
-                debugLog("Loading album artwork for track")
-                loadAlbumArtwork(track)
-            }.launchIn(this)
-
-        playback.isPlaying
-            .combine(playback.stableDuration) { isPlaying, duration -> isPlaying to duration }
-            .onEach { (isPlaying, duration) ->
-                debugLog("Playback state changed, isPlaying: $isPlaying")
-                nowPlayingInfo.apply {
-                    this[MPMediaItemPropertyPlaybackDuration] = duration.toDouble().div(1000)
-                    this[MPNowPlayingInfoPropertyPlaybackRate] = if (isPlaying) 1.0 else 0.0
-                    this[MPNowPlayingInfoPropertyElapsedPlaybackTime] = playback.currentPosition().toDouble()
-                        .div(1000)
-                }
-                debugLog(
-                    "Playback info - Duration: ${nowPlayingInfo[MPMediaItemPropertyPlaybackDuration]}, " +
-                            "Rate: ${nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate]}, " +
-                            "Elapsed: ${nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime]}"
-                )
-                updateNowPlayingInfo()
-            }.launchIn(this)
-    }
-
-    private suspend fun loadAlbumArtwork(track: LAudio?) = withContext(Dispatchers.io) {
-        debugLog("Start loading album artwork for track: ${track?.title}")
-        val imageLoader = SingletonImageLoader.get(PlatformContext.INSTANCE)
-        val imageResult = track?.let {
-            imageLoader.execute(
-                ImageRequest.Builder(PlatformContext.INSTANCE)
-                    .data(track)
-                    .build()
-            )
+    fun bindPlayback(playback: Playback, sources: PlatformMediaSource? = null,
+        artworkLoader: suspend (MediaCoverRequest) -> UIImage? = ::loadArtwork) {
+        unbind()
+        val binding = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        scope = binding
+        val info = mutableMapOf<String, Any>()
+        var artworkKey: MediaKey? = null
+        var artwork: MPMediaItemArtwork? = null
+        fun publish() {
+            if (scope === binding) center.nowPlayingInfo = info.toMap()
         }
-        val bitmap = imageResult?.image?.toBitmap()
-        val bytes = bitmap?.readPixels()
-
-        debugLog("bitmap bytes loaded: ${bytes != null}, size: ${bytes?.size}")
-        if (bitmap == null || bytes == null) {
-            debugLog("No album artwork data found, removing artwork from now playing info")
-            nowPlayingInfo.remove(MPMediaItemPropertyArtwork)
-            updateNowPlayingInfo()
-            return@withContext
-        }
-
-        val colorSpace = CGColorSpaceCreateDeviceRGB()
-        val context = CGBitmapContextCreate(
-            data = bytes.refTo(0),
-            width = bitmap.width.toULong(),
-            height = bitmap.height.toULong(),
-            bitsPerComponent = 8u,
-            bytesPerRow = (4 * bitmap.width).toULong(),
-            space = colorSpace,
-            bitmapInfo = CGImageAlphaInfo.kCGImageAlphaPremultipliedFirst.value or
-                    kCGBitmapByteOrder32Little
-        )
-
-        val uiImage = CGBitmapContextCreateImage(context)
-            ?.let { UIImage.imageWithCGImage(it) }
-
-        debugLog("Album artwork data loaded, creating UIImage: ${uiImage != null}")
-        uiImage?.let { image ->
-            nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize = image.size) { _ -> image }
-            debugLog("Album artwork updated, refreshing now playing info")
-            updateNowPlayingInfo()
-        }
-    }
-
-    /**
-     * 刷新当前播放信息
-     */
-    private suspend fun updateNowPlayingInfo() {
-        updateMutex.withLock {
-            suspendCancellableCoroutine { continuation ->
-                NSOperationQueue.mainQueue().addOperationWithBlock {
-                    nowPlayingInfoCenter.nowPlayingInfo = nowPlayingInfo.toMap()
-                    continuation.resume(true)
-                }
+        binding.launch {
+            playback.systemMediaSnapshots().collect { snapshot ->
+                val audio = snapshot.audio
+                if (audio == null) { info.clear(); publish(); return@collect }
+                info[MPMediaItemPropertyTitle] = audio.title
+                info[MPMediaItemPropertyArtist] = audio.subtitle
+                info[MPMediaItemPropertyPlaybackDuration] = snapshot.durationMs / 1000.0
+                info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = snapshot.positionMs / 1000.0
+                info[MPNowPlayingInfoPropertyPlaybackRate] = if (snapshot.playing) 1.0 else 0.0
+                if (artworkKey == audio.mediaKey && artwork != null) info[MPMediaItemPropertyArtwork] = artwork!!
+                else info.remove(MPMediaItemPropertyArtwork)
+                publish()
             }
         }
+        binding.launch {
+            playback.systemArtworkRequests(sources).collectLatest { request ->
+                artworkKey = null; artwork = null; info.remove(MPMediaItemPropertyArtwork); publish()
+                if (request == null) return@collectLatest
+                try {
+                    val image = artworkLoader(request)
+                    ensureActive()
+                    if (scope !== binding || playback.queue.currentItem()?.mediaKey != request.audio.mediaKey) return@collectLatest
+                    artworkKey = request.audio.mediaKey
+                    artwork = image?.let { MPMediaItemArtwork(boundsSize = it.size) { _ -> it } }
+                    artwork?.let { info[MPMediaItemPropertyArtwork] = it }
+                    publish()
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (error: Exception) { co.touchlab.kermit.Logger.w("System artwork load failed", error) }
+            }
+        }
+    }
+
+    private suspend fun loadArtwork(request: MediaCoverRequest): UIImage? {
+        val result = SingletonImageLoader.get(PlatformContext.INSTANCE).execute(
+            ImageRequest.Builder(PlatformContext.INSTANCE).data(request).size(256, 256).build())
+        val bitmap = result.image?.toBitmap() ?: return null
+        val bytes = bitmap.readPixels() ?: return null
+        val colorSpace = CGColorSpaceCreateDeviceRGB()
+        try {
+            return bytes.usePinned { pinned ->
+                val context = CGBitmapContextCreate(pinned.addressOf(0), bitmap.width.toULong(), bitmap.height.toULong(),
+                    8u, (4 * bitmap.width).toULong(), colorSpace,
+                    CGImageAlphaInfo.kCGImageAlphaPremultipliedFirst.value or kCGBitmapByteOrder32Little) ?: return@usePinned null
+                try {
+                    val cgImage = CGBitmapContextCreateImage(context) ?: return@usePinned null
+                    try { UIImage.imageWithCGImage(cgImage) } finally { CGImageRelease(cgImage) }
+                } finally { CGContextRelease(context) }
+            }
+        } finally { CGColorSpaceRelease(colorSpace) }
     }
 }

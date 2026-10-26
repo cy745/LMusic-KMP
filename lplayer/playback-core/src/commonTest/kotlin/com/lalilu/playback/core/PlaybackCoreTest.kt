@@ -39,6 +39,18 @@ class PlaybackCoreTest {
     private fun TestScope.core(runtime: Runtime, resolver: ContentResolver = ContentResolver { PlayableResource(it.id) }) =
         PlaybackCore(backgroundScope, resolver, runtime, Random(7))
 
+    @Test fun systemPauseUsesImmediateGainAndCancelsPlayIntent() = runTest {
+        val runtime = Runtime()
+        val core = core(runtime)
+        core.dispatch(PlaybackCommand.ReplaceQueue(listOf(a), a, true))
+        runCurrent()
+        runtime.emit(RuntimeEvent.Prepared(core.state.value.ticket!!, 10000)); runCurrent()
+        core.dispatch(PlaybackCommand.SystemPause)
+        assertEquals(PlayIntent.Pause, core.state.value.intent)
+        assertEquals(VolumeTransition.Immediate, runtime.smoothing.last())
+        assertFalse(runtime.plays.last().second)
+    }
+
     @Test fun seekingKeepsVerifiedTargetCoverageEvenWhileOldPositionEventsArrive() = runTest {
         val runtime = Runtime().apply { cachedEnd = 10000 }
         val core = core(runtime)

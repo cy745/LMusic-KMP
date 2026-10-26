@@ -1,95 +1,46 @@
 package com.lalilu.lplayer.notifacation
 
-import co.touchlab.kermit.Logger
-import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import com.lalilu.lplayer.action.launchPlayerAction
+import kotlinx.coroutines.*
 import platform.MediaPlayer.*
-import kotlin.coroutines.CoroutineContext
 
-object RemoteCommandHandler : CoroutineScope {
-    override val coroutineContext: CoroutineContext = Dispatchers.io
-    private val remoteCommandCenter = MPRemoteCommandCenter.sharedCommandCenter()
-    private val logger = Logger.withTag("RemoteCommandHandler")
-    fun debugLog(message: String) = logger.i(messageString = message)
+/** Native commands forward intent even while the decoder is buffering or preparing. */
+object RemoteCommandHandler {
+    private val center = MPRemoteCommandCenter.sharedCommandCenter()
+    private var scope: CoroutineScope? = null
+    private val targets = mutableListOf<Pair<MPRemoteCommand, Any>>()
 
+    fun unbind() {
+        scope?.cancel(); scope = null
+        targets.forEach { (command, target) -> command.removeTarget(target) }
+        targets.clear()
+    }
 
     fun bindPlayback(playback: Playback) {
-        remoteCommandCenter.playCommand.setEnabled(true)
-        remoteCommandCenter.playCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            debugLog("playCommand")
-            if (!playback.isPlaying.value) {
-                launchPlayerAction { playback.play() }
-                MPRemoteCommandHandlerStatusSuccess
-            } else {
-                MPRemoteCommandHandlerStatusCommandFailed
+        unbind()
+        val boundScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        scope = boundScope
+        fun bind(command: MPRemoteCommand, action: suspend (MPRemoteCommandEvent?) -> Unit) {
+            command.enabled = true
+            val target = command.addTargetWithHandler { event ->
+                if (scope !== boundScope) MPRemoteCommandHandlerStatusCommandFailed
+                else {
+                    boundScope.launchPlayerAction { action(event) }
+                    MPRemoteCommandHandlerStatusSuccess
+                }
             }
+            targets += command to target
         }
-
-        remoteCommandCenter.pauseCommand.setEnabled(true)
-        remoteCommandCenter.pauseCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            debugLog("pauseCommand")
-            if (playback.isPlaying.value) {
-                launchPlayerAction { playback.pause() }
-                MPRemoteCommandHandlerStatusSuccess
-            } else {
-                MPRemoteCommandHandlerStatusCommandFailed
-            }
-        }
-
-        remoteCommandCenter.togglePlayPauseCommand.setEnabled(true)
-        remoteCommandCenter.togglePlayPauseCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            launchPlayerAction {
-                if (playback.isPlaying.value) playback.pause() else playback.play()
-            }
-            debugLog("togglePlayPauseCommand")
-            MPRemoteCommandHandlerStatusSuccess
-        }
-
-//        remoteCommandCenter.skipForwardCommand.setEnabled(true)
-//        remoteCommandCenter.skipForwardCommand.preferredIntervals = NSArray.arrayWithObject(NSNumber(double = 15.0))
-//        remoteCommandCenter.skipForwardCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-//            val seconds = (event as? MPSkipIntervalCommandEvent)?.interval ?: 15.0
-//            val current = playback.currentPosition().toDouble().div(1000)
-//            playback.seekTo(((current + seconds) * 1000).toLong())
-//            debugLog("skipForwardCommand: $seconds")
-//            MPRemoteCommandHandlerStatusSuccess
-//        }
-//
-//        remoteCommandCenter.skipBackwardCommand.setEnabled(true)
-//        remoteCommandCenter.skipBackwardCommand.preferredIntervals = NSArray.arrayWithObject(NSNumber(double = 15.0))
-//        remoteCommandCenter.skipBackwardCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-//            val seconds = (event as? MPSkipIntervalCommandEvent)?.interval ?: 15.0
-//            val current = playback.currentPosition().toDouble().div(1000)
-//            playback.seekTo(((current - seconds).coerceAtLeast(0.0) * 1000).toLong())
-//            debugLog("skipBackwardCommand: $seconds")
-//            MPRemoteCommandHandlerStatusSuccess
-//        }
-
-        remoteCommandCenter.nextTrackCommand.setEnabled(true)
-        remoteCommandCenter.nextTrackCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            debugLog("nextTrackCommand")
-            launchPlayerAction { playback.skipToNext() }
-            MPRemoteCommandHandlerStatusSuccess
-        }
-
-        remoteCommandCenter.previousTrackCommand.setEnabled(true)
-        remoteCommandCenter.previousTrackCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            debugLog("previousTrackCommand")
-            launchPlayerAction { playback.skipToPrevious() }
-            MPRemoteCommandHandlerStatusSuccess
-        }
-
-        remoteCommandCenter.changePlaybackPositionCommand.setEnabled(true)
-        remoteCommandCenter.changePlaybackPositionCommand.addTargetWithHandler { event: MPRemoteCommandEvent? ->
-            val seconds = (event as? MPChangePlaybackPositionCommandEvent)?.positionTime ?: 0.0
-            val millisecond = seconds.times(1000L)
-
-            debugLog("changePlaybackPositionCommand: $millisecond")
-            launchPlayerAction { playback.seekTo(millisecond.toLong()) }
-            MPRemoteCommandHandlerStatusSuccess
+        bind(center.playCommand) { playback.play() }
+        bind(center.pauseCommand) { playback.pause() }
+        bind(center.stopCommand) { playback.stop() }
+        bind(center.togglePlayPauseCommand) { playback.togglePlayPause() }
+        bind(center.nextTrackCommand) { playback.skipToNext() }
+        bind(center.previousTrackCommand) { playback.skipToPrevious() }
+        bind(center.changePlaybackPositionCommand) { event ->
+            val seconds = (event as? MPChangePlaybackPositionCommandEvent)?.positionTime
+            if (seconds != null && seconds.isFinite()) playback.seekTo((seconds.coerceAtLeast(0.0) * 1000).toLong())
         }
     }
 }

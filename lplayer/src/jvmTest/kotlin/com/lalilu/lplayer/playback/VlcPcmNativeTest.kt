@@ -17,7 +17,7 @@ class VlcPcmNativeTest {
         val fixture = System.getenv("LMUSIC_NATIVE_AUDIO_FIXTURE")
         assumeTrue(resources != null && fixture != null)
         System.setProperty("compose.application.resources.dir", resources!!)
-        VLCPlayerLoader.initialize().join()
+        VLCPlayerLoader.initialize().await()
         val factory = MediaPlayerFactory(null as NativeDiscovery?, "--no-video", "--aout=dummy")
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
         val player = factory.mediaPlayers().newMediaPlayer()
@@ -41,7 +41,7 @@ class VlcPcmNativeTest {
         val resources = System.getenv("LMUSIC_NATIVE_RESOURCES")
         assumeTrue(resources != null)
         System.setProperty("compose.application.resources.dir", resources!!)
-        VLCPlayerLoader.initialize().join()
+        VLCPlayerLoader.initialize().await()
         val factory = MediaPlayerFactory(null as NativeDiscovery?, "--no-video")
         val directory = Files.createTempDirectory("vlc-core-pcm").toFile()
         val file = directory.resolve("audio.wav").apply { writeBytes(wave(4096)) }
@@ -73,7 +73,7 @@ class VlcPcmNativeTest {
         val fixture = System.getenv("LMUSIC_NATIVE_AUDIO_FIXTURE")
         assumeTrue(resources != null && fixture != null)
         System.setProperty("compose.application.resources.dir", resources!!)
-        VLCPlayerLoader.initialize().join()
+        VLCPlayerLoader.initialize().await()
         val factory = MediaPlayerFactory(null as NativeDiscovery?, "--no-video")
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
         val engine = VlcPcmEngine(scope, { factory.mediaPlayers().newMediaPlayer() })
@@ -98,6 +98,42 @@ class VlcPcmNativeTest {
         withTimeout(5000) { while (Thread.getAllStackTraces().keys.any { it.isAlive && it.name == "LMusic-PCM-output" }) delay(20) }
     }
 
+    @Test fun rapidQueueChangesAndRepeatedSeekReleaseEveryOutputWorker() = runBlocking {
+        val resources = System.getenv("LMUSIC_NATIVE_RESOURCES")
+        val fixture = System.getenv("LMUSIC_NATIVE_AUDIO_FIXTURE")
+        assumeTrue(resources != null && fixture != null)
+        System.setProperty("compose.application.resources.dir", resources!!)
+        VLCPlayerLoader.initialize().await()
+        val factory = MediaPlayerFactory(null as NativeDiscovery?, "--no-video")
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+        val sinks = java.util.concurrent.CopyOnWriteArrayList<RecordingSink>()
+        val engine = VlcPcmEngine(scope, { factory.mediaPlayers().newMediaPlayer() },
+            sinkFactory = { RecordingSink(10).also(sinks::add) })
+        val runtime = com.lalilu.lplayer.core.EngineAudioRuntime(scope, listOf(engine))
+        val core = com.lalilu.playback.core.PlaybackCore(scope, com.lalilu.playback.core.ContentResolver { key ->
+            runtime.resource(MediaData.Url(fixture!!), LAudio(key.id, mediaSourceName = key.source))
+        }, runtime)
+        val songs = (0..7).map { com.lalilu.playback.core.TrackKey("stress", "$it") }
+        try {
+            core.dispatch(com.lalilu.playback.core.PlaybackCommand.ReplaceQueue(songs, songs[0], true))
+            repeat(20) { round ->
+                repeat(4) { core.dispatch(com.lalilu.playback.core.PlaybackCommand.Next) }
+                core.dispatch(com.lalilu.playback.core.PlaybackCommand.Pause)
+                withTimeout(10000) { while (core.state.value.phase != com.lalilu.playback.core.Phase.ReadyPaused) delay(10) }
+                core.dispatch(com.lalilu.playback.core.PlaybackCommand.Seek(1000L + round * 20))
+                withTimeout(5000) { while (core.state.value.pendingSeekId != null) delay(10) }
+                core.dispatch(com.lalilu.playback.core.PlaybackCommand.Play)
+                withTimeout(5000) { while (core.state.value.phase != com.lalilu.playback.core.Phase.Playing) delay(10) }
+                assertEquals(songs, core.state.value.queue)
+            }
+        } finally {
+            core.close(); delay(100); engine.release(); scope.cancel(); factory.release()
+        }
+        withTimeout(5000) { while (Thread.getAllStackTraces().keys.any { it.isAlive && it.name == "LMusic-PCM-output" }) delay(20) }
+        assertTrue(sinks.isNotEmpty())
+        assertTrue(sinks.all { it.closed })
+    }
+
     private class RecordingSink(private val delayMs: Long = 2) : PcmSink {
         val bytes = ByteArrayOutputStream()
         var opens = 1
@@ -114,7 +150,7 @@ class VlcPcmNativeTest {
         val resources = System.getenv("LMUSIC_NATIVE_RESOURCES")
         assumeTrue(resources != null)
         System.setProperty("compose.application.resources.dir", resources!!)
-        VLCPlayerLoader.initialize().join()
+        VLCPlayerLoader.initialize().await()
         val factory = MediaPlayerFactory(null as NativeDiscovery?, "--no-video")
         val directory = Files.createTempDirectory("vlc-pcm-test").toFile()
         val first = directory.resolve("a.wav").apply { writeBytes(wave(8192)) }

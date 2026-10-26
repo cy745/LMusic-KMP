@@ -31,7 +31,7 @@ fun provideAVPlayerPlayback(history: PlaybackHistory, audioRepository: AudioRepo
         } }, canFade = { it !is MusicKitEngine }, contentAccess = content)
     return CorePlayback(scope, runtime, platformMediaSource, audioRepository, history,
         failureRepository = playbackFailureRepository, classifyFailure = ::classifyIosLoadFailure).also { playback ->
-        NowPlayingInfoNotification.bindPlayback(playback)
+        NowPlayingInfoNotification.bindPlayback(playback, platformMediaSource)
         RemoteCommandHandler.bindPlayback(playback)
         if (AudioSessionHelper.setUpAudioSession()) AudioSessionHelper.bindPlayback(playback,
             shouldHandleInterruption = { runtime.activeEngine !is MusicKitEngine })

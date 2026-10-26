@@ -142,6 +142,7 @@ class PlaybackCore(
             is PlaybackCommand.PlayNext -> playNext(command.key)
             PlaybackCommand.Next -> { beginUserNavigation(1); move(1, natural = false) }
             PlaybackCommand.Previous -> { beginUserNavigation(-1); s = s.copy(explicitNext = null); move(-1, natural = false) }
+            PlaybackCommand.SystemPause -> pause(VolumeTransition.Immediate)
             PlaybackCommand.Pause -> {
                 pause(VolumeTransition.UserControl)
             }

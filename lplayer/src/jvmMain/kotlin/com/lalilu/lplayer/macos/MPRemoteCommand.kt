@@ -15,6 +15,8 @@ abstract class MPRemoteCommand : NSObject() {
      */
     abstract fun addTarget(target: ID, @NamedArg("action") selector: Selector)
 
+    abstract fun removeTarget(target: ID, @NamedArg("action") selector: Selector)
+
     abstract fun enabled(): Boolean
     abstract fun setEnabled(enabled: Boolean)
 }

@@ -5,6 +5,7 @@ import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.source.*
 import com.lalilu.lplayer.playback.*
 import com.lalilu.playback.core.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.test.*
@@ -131,6 +132,34 @@ class CorePlaybackTest {
         assertEquals(PlayIntent.Pause, f.playback.core.state.value.intent)
     }
 
+    @Test fun systemPresentationTracksPausedSeekAndResetsPositionOnSelection() = runTest {
+        val f = fixture()
+        val snapshots = mutableListOf<SystemMediaSnapshot>()
+        backgroundScope.launch { f.playback.systemMediaSnapshots().collect { snapshots += it } }
+        f.playback.updatePlaylist(f.songs, 0, false); runCurrent()
+        f.playback.seekTo(700); advanceTimeBy(501); runCurrent()
+        assertEquals(700L, snapshots.last().positionMs)
+        assertFalse(snapshots.last().playing)
+        f.playback.playAudio(f.songs[1]); runCurrent()
+        assertEquals("B", snapshots.last().audio?.id)
+        assertEquals(0L, snapshots.last().positionMs)
+        assertTrue(snapshots.filter { it.audio?.id == "B" }.all { it.positionMs == 0L })
+    }
+
+    @Test fun nextSongContentRefreshDoesNotReloadCurrentSystemArtwork() = runTest {
+        val f = fixture()
+        val requests = mutableListOf<com.lalilu.lmedia.MediaCoverRequest?>()
+        backgroundScope.launch { f.playback.systemArtworkRequests(PlatformMediaSource.provide(f.source)).collect { requests += it } }
+        f.playback.updatePlaylist(f.songs, 0, false); runCurrent()
+        val before = requests.size
+        val state = f.source.contentState as MutableStateFlow<MediaContentState>
+        state.value = state.value.copy(itemGenerations = mapOf("B" to 1L)); runCurrent()
+        assertEquals(before, requests.size)
+        state.value = state.value.copy(itemGenerations = mapOf("B" to 1L, "A" to 1L)); runCurrent()
+        assertEquals(before + 1, requests.size)
+        assertEquals("A", requests.last()?.audioId)
+    }
+
     private fun TestScope.fixture(read: suspend (LAudio) -> Unit = {}): Fixture {
         val songs = listOf("A", "B", "C").map { LAudio(id = it, mediaSourceName = "fixture") }
         val repository = object : AudioRepository {
@@ -154,9 +183,9 @@ class CorePlaybackTest {
                 override fun savedPosition() = 0L
                 override fun savePosition(position: Long) {}
             }))
-        return Fixture(playback, engine, songs)
+        return Fixture(playback, engine, songs, source)
     }
-    private data class Fixture(val playback: CorePlayback, val engine: Engine, val songs: List<LAudio>)
+    private data class Fixture(val playback: CorePlayback, val engine: Engine, val songs: List<LAudio>, val source: MediaSource)
     private class Engine : PlaybackEngine {
         override val state = MutableStateFlow(PlaybackEngineState.EMPTY)
         override var onEvent: (suspend (PlaybackEngineEvent) -> Unit)? = null
