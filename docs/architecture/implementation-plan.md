@@ -544,3 +544,14 @@ Desktop 设置入口增加大值文件存储：小值及旧设置继续走原 Pr
 额外完成 Linux ARM64 容器的 6 项原生检查：样本连续性、共享核心自然切歌和暂停选曲、输出回退、缓存读取和库发现。Alpine 使用系统提供的 musl JNA；直接加载面向 glibc 的 JNA 曾导致 native crash，改用容器的 java-jna-native 后通过。此结果不能代表 Linux GUI、实体声卡或 Windows 验收。
 
 独立工作流 `playback-platform-validation.yml` 仅运行测试和打包、保存结果，不发布应用、不触发 TestFlight 或合并。Windows/Linux 的完整应用、系统媒体控制、实体输出仍是后续工作，不能依据静态布局测试宣称全部完成。
+
+
+### 本轮最终交付与实机界面检查
+
+- iOS 模拟器：最新 Debug 应用已覆盖安装，保留数据。通过正式媒体源页面配置现有 WebDAV，显示 156 首已就绪；实际播放 Late summer waves，当前封面和下一首封面出现，进度持续推进，并自然切换到 stay tune。随后正常进程重启，持久化记录仍含 156 项队列、索引 2 和 129805 ms 位置。最后的界面自动化连接停留在失效的 Simulator 菜单，无法完成重启后的可视读数和锁屏控件操作；这些项目不宣称经过界面验收。系统中断、恢复令牌、暂停定位和旧封面取消已由模拟器内原生测试覆盖，真实锁屏、蓝牙和电话中断仍需 iPhone 验证。
+- macOS：正式应用包从 `/tmp` 启动，验证不依赖项目工作目录。156 首队列恢复，点击 Winter Sparkler 后正常推进，封面与歌词显示，系统应用菜单暂停在 00:46。最终包再次启动，仍显示 Winter Sparkler、00:46 和对应歌词，保持暂停。补齐原先无动作的随机播放菜单，移除尚未实现的收藏菜单；切换模式不会重新开始当前歌曲。
+- 最终 macOS 包：`composeApp/build/compose/binaries/main/app/com.lalilu.lmusic.app`。iOS 模拟器安装包：`/tmp/lmusic-ios-plan-b/Build/Products/Debug-iphonesimulator/LMusic-KMP.app`。macOS 最后打包通过，原生库发现路径测试修正后再次通过。Android 未另行测试，交叉淡化未加入。
+- 首轮远端验证 [40395291366](https://github.com/cy745/LMusic-KMP/actions/runs/40395291366)：Ubuntu 在安装不存在的 `vlc-plugin-audio-output` 包时中止；Windows 运行 21 项播放器测试，其中 20 项通过，1 项因测试直接比较 Windows 路径分隔符失败。已删除无效依赖，并以规范化文件路径比较修正断言，未忽略失败测试。
+- 修正提交 `d3aab4d3` 已推送，新的独立验证 [40397517769](https://github.com/cy745/LMusic-KMP/actions/runs/40397517769) 已启动，记录时尚未完成，不能记为通过。没有发布发行版、TestFlight 或合并主分支。
+
+本轮按用户调整后的 iOS 模拟器/macOS 范围交付：共用内容访问、缓存、系统信息采样与播放状态逻辑已经收敛，两个平台的构建及相关原生自动验证通过。后续保留 Windows/Linux 完整应用与实体输出、iPhone 真机锁屏/中断，以及完全断网进程冷启动的端到端体验检查；访问层离线测试不替代这些验证。
