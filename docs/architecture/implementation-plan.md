@@ -407,3 +407,5 @@ SongCard 将已成功加载的 Painter 作为 AnimatedContent 的目标，加载
 最终验证：68 项 JVM 测试（核心 35、共享适配/界面与真实 VLC 33，包含 5 项 VLC dummy-output 原生控制）通过；31 项 Android 测试通过，包含新增 3 项控制/系统焦点测试、既有正式会话/队列/无缝及真实只读 WebDAV 缓存验证。iOS Simulator 与 Wasm 的 lplayer 编译通过。Android 临时焦点使用真实 AudioManager 请求验证恢复行为，不等同于真实来电、蓝牙或 USB 路由验收。完整证据见 [播放控制与中断验证](verification/playback-control-transitions.txt)。
 
 交付状态：签名校验通过，同一 release 已在模拟器覆盖安装并启动成功。尝试安装手机时，原无线调试设备已断开，adb 与 mDNS 都无法发现手机；已请求重新连接，真机安装待完成，未清除数据。产物 `build/experience/LMusic-plan-b-release-control-fades-20261026.apk`（25,405,794 字节），SHA-256 已写入验证记录。
+
+真机交付补记（2026-10-26 21:51）：用户重新通过 USB 连接手机后，已完成相同 release 的覆盖安装与启动验证（Success / Status ok）。firstInstallTime 保持 16:17:55，lastUpdateTime 为 21:51:28，数据与缓存未清除。先前连接阻塞已解除，本阶段修复、回归、模拟器与真机交付完成；实体蓝牙/USB 路由与厂商后台限制的专项验收仍按上述后续计划推进。

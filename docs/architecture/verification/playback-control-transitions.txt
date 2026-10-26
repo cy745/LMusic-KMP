@@ -59,3 +59,10 @@ Emulator release install -r and launch passed (Status: ok).
 Phone install pending: prior wireless serial no longer available;
 adb devices lists only emulator and mDNS discovers no phone service.
 No uninstall, data clear, or phone package replacement occurred in this attempt.
+
+Phone delivery completed after reconnection via USB (2026-10-26):
+adb install -r: Success; activity launch: Status ok, COLD, 276 ms.
+firstInstallTime remains 2026-10-26 16:17:55;
+lastUpdateTime 2026-10-26 21:51:28. No uninstall or data clear.
+Installed artifact SHA-256 matches cfeb75b870774add4b3f7a207cab516cf4181d2f39577bf2d8bb270e7a06502a.
+The earlier phone-connection blocker is resolved.
