@@ -61,10 +61,18 @@ internal class PlatformQueueBridge(
         }
     }
 
-    suspend fun acceptPlatformSnapshot(ticket: Long, items: List<LAudio>, index: Int) = mutex.withLock {
+    suspend fun acceptPlatformSnapshot(ticket: Long, items: List<LAudio>, index: Int, selectedByUser: Boolean = false): Boolean = mutex.withLock {
+        var accepted = false
         backing.update(QueueUpdateReason.Sync, predicate = { generation.value == ticket }) {
+            accepted = true
             replaceAll(items, index)
         }
+        if (!accepted) return@withLock false
+        // Preserve the UI's user-selection transition cause, but only after the platform confirms it.
+        if (selectedByUser) items.getOrNull(index)?.let { audio ->
+            backing.update { selectOrInsert(audio) }
+        }
+        true
     }
 
     /** Caller owns native replacement. Check and apply on its native thread without an IO patch. */

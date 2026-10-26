@@ -1,0 +1,87 @@
+Android device regression, 2026-10-26
+
+com.lalilu.lmusic.prototype.WebDavContentBridgeDeviceTest:....
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+com.lalilu.lmusic.prototype.SessionSelectionDeviceTest:.
+com.lalilu.lmusic.prototype.GaplessDeviceTest:..........
+com.lalilu.lmusic.prototype.PlaybackCoreDeviceTest:......
+com.lalilu.lmusic.prototype.ContentCacheDeviceTest:....
+com.lalilu.lmusic.prototype.WebDavLiveBufferDeviceTest:.
+
+Time: 51.798
+
+OK (27 tests)
+
+
+
+Cache priority observations (180-second WAV fixtures):
+Current content: 5,760,044 bytes, fully cached before next audio requests.
+Next content before selection: 262,144 bytes (both manual and natural transition tests).
+After manual/natural promotion, the new current song fills completely.
+
+LAN WebDAV (read-only, no test-driven whole-file download):
+MP3 automatically completed: 3,238,131 bytes, duration 195,056 ms.
+FLAC automatically completed: 3,912,367 bytes, duration 37,263 ms.
+
+JVM: 98 passed, no failures/skips (content cache 22; player UI/queue/history/lyrics 76).
+Includes cancelled background network chunk allowing foreground seek and rapid clear/reselect ownership.
+
+Selection reproduction: old implementation fails when an unrelated queue item's library row is absent;
+new identity-based selection passes the same production-entry regression.
+This reproduces one rollback cause, not a capture of the user's exact phone incident.
+
+Cold-start separate-process regression:
+
+Cold-start phase: prepare
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 5.146
+
+OK (1 test)
+
+Cold-start phase: removeLibraryRows
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.062
+
+OK (1 test)
+
+Cold-start phase: verify
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 19.468
+
+OK (1 test)
+
+Cold-start phase: removeCachedBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.109
+
+OK (1 test)
+
+Cold-start phase: verifyMissingBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 15.469
+
+OK (1 test)
+
+Cold-start phase: cleanup
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.198
+
+OK (1 test)
+
+iOS Simulator / Wasm: common content module compilation passed.
+Final release signature verification passed. Emulator and phone install/start passed.
+Phone firstInstallTime retained: 2026-10-26 16:17:55; lastUpdateTime: 2026-10-26 18:19:20.
+No uninstall or data clearing.
+APK SHA-256: ca35f71cb3a2387059c5cf72fe9c4ac97f2cb9e3efae854020017bd888ac3ad3

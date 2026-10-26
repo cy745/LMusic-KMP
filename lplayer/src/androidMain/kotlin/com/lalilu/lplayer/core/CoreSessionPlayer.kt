@@ -135,6 +135,11 @@ class CoreSessionPlayer(
     override fun handleSetAudioAttributes(audioAttributes: AudioAttributes, handleAudioFocus: Boolean) = task {
         runtime.player.setAudioAttributes(audioAttributes,handleAudioFocus); invalidateState()
     }
+    fun queuedItem(playbackId: String): MediaItem? = currentItems().firstOrNull { it.mediaId == playbackId }
+    fun requestSelection(item: MediaItem, start: Boolean) = task {
+        items[key(item)] = item
+        core.dispatch(PlaybackCommand.Select(key(item), startPlayback = start))
+    }
     fun requestPlayNext(item: MediaItem) = task { items[key(item)]=item; core.dispatch(PlaybackCommand.PlayNext(key(item))) }
     fun pauseAtEnd(enabled: Boolean) = task { core.dispatch(PlaybackCommand.SetPauseAtEnd(enabled)) }
 }

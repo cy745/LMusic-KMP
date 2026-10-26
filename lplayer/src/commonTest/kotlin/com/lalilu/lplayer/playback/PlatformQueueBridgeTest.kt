@@ -16,6 +16,18 @@ class PlatformQueueBridgeTest {
     private val a = LAudio(id = "a")
     private val b = LAudio(id = "b")
 
+    @Test fun confirmedUserSelectionKeepsUiCauseWithoutAnotherPlatformCommand() = runTest {
+        var applied = 0
+        val bridge = PlatformQueueBridge(applyToPlatform = { applied++ }, readPlatformAfterApply = {})
+        bridge.acceptPlatformSnapshot(bridge.newPlatformSnapshot(), listOf(a, b), 0)
+        bridge.acceptPlatformSnapshot(bridge.newPlatformSnapshot(), listOf(a, b), 1, selectedByUser = true)
+        assertEquals(b, bridge.queue.currentItem())
+        assertEquals(true, bridge.queue.stateSnapshot().currentPickedByUser)
+        assertEquals(0, applied)
+        bridge.acceptPlatformSnapshot(bridge.newPlatformSnapshot(), listOf(a, b), 0)
+        assertFalse(bridge.queue.stateSnapshot().currentPickedByUser)
+    }
+
     @Test fun atomicSelectionUsesOnlyItsOwnPlatformApply() = runTest {
         var ordinary = 0
         var atomic = 0

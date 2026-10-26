@@ -56,6 +56,11 @@ class PlaybackContentAccess(private val context: Context, private val sources: P
             if (storagePrefix == "plan-b") publishAvailability(descriptor.key)
             inspectLater(descriptor)
         })
+    private val filler = PlaybackCacheFiller(scope, cache) {
+        co.touchlab.kermit.Logger.w("Current song cache fill deferred", it)
+    }
+    fun selectCurrent(uri: String?) { filler.select(uri?.let(descriptors::get)) }
+    fun canPreloadAfter(uri: String?): Boolean = uri?.let(descriptors::get)?.let(filler::isComplete) ?: true
     init {
         scope.launch {
             for (signal in inspectionSignals) {
@@ -177,7 +182,7 @@ class PlaybackContentAccess(private val context: Context, private val sources: P
         verified[audio.mediaKey]?.takeUnless(::isCurrent)?.let { verified.remove(audio.mediaKey,it) }
         publishAvailability(audio.mediaKey)
     }
-    val dataSourceFactory = ContentDataSourceFactory(DefaultDataSource.Factory(context),cache) { uri ->
+    val dataSourceFactory = ContentDataSourceFactory(DefaultDataSource.Factory(context), cache, filler) { uri ->
         descriptors[uri.toString()] ?: error("Expired content handle")
     }
     private fun register(descriptor: ContentDescriptor): String {

@@ -33,14 +33,14 @@ class WebDavContentBridgeDeviceTest {
         try { withTimeout(20000) { while (!condition()) delay(50) } }
         catch (error: TimeoutCancellationException) { throw AssertionError(label, error) }
     }
-    private suspend fun fixture(bytes: ByteArray, filename: String, test: suspend (WebDavSource, MediaCacheController, LAudio, PlaybackContentAccess, PlaybackCore, Media3CoreRuntime, String) -> Unit) {
+    private suspend fun fixture(bytes: ByteArray, filename: String, background: Boolean = false, songCount: Int = 1, onRequest: (String, LongRange) -> Unit = { _, _ -> }, test: suspend (WebDavSource, MediaCacheController, LAudio, PlaybackContentAccess, PlaybackCore, Media3CoreRuntime, String) -> Unit) {
         val directory = File(context.cacheDir, "webdav-bridge-${System.nanoTime()}")
         val prefix = "webdav-bridge-${System.nanoTime()}"
-        val server = ContentCacheDeviceTest.RangeServer(bytes)
+        val server = ContentCacheDeviceTest.RangeServer(bytes, onRequest = onRequest)
         val legacy = MediaCacheController({ directory.path }, Json { ignoreUnknownKeys = true })
         val source = WebDavSource(
             clientFactory = { object : WebDavClient {
-                override suspend fun propfind(path: String, depth: Int) = listOf(WebDavEntry("/$filename", false, bytes.size.toLong(), "\"wav-v1\""))
+                override suspend fun propfind(path: String, depth: Int) = (0 until songCount).map { WebDavEntry("/$it-$filename", false, bytes.size.toLong(), "\"wav-v1\"") }
                 override suspend fun download(path: String): ByteArray? = null
                 override suspend fun put(path: String, bytes: ByteArray, contentType: String) = error("No uploads")
                 override suspend fun mkcol(path: String) = false
@@ -55,7 +55,7 @@ class WebDavContentBridgeDeviceTest {
         var core: PlaybackCore? = null
         try {
             source.connect(server.url.substringBeforeLast('/'), "", "", "/").getOrThrow()
-            val audio = withTimeout(10000) { source.snapshot.filterNotNull().first().audios.single() }
+            val audio = withTimeout(10000) { source.snapshot.filterNotNull().first().audios.first() }
             val repository = object : AudioRepository {
                 override fun getAudios() = source.snapshot.map { it?.audios.orEmpty() }
                 override fun getAudios(ids: List<String>) = getAudios().map { rows -> rows.filter { it.id in ids } }
@@ -64,12 +64,12 @@ class WebDavContentBridgeDeviceTest {
             }
             access = PlaybackContentAccess(context, PlatformMediaSource(listOf(source)), repository, storagePrefix = prefix)
             val activeAccess = access
-            activeAccess.remember(listOf(audio))
+            activeAccess.remember(source.snapshot.value!!.audios)
             val uri = activeAccess.resolve(audio.mediaKey).uri
             lateinit var runtime: Media3CoreRuntime
             withContext(Dispatchers.Main) {
-                runtime = Media3CoreRuntime(context, activeAccess.dataSourceFactory, cachedBufferTimeline = CachedBufferTimeline(activeAccess::cachedRanges))
-                core = PlaybackCore(scope, ContentResolver { PlayableResource(uri) }, runtime)
+                runtime = Media3CoreRuntime(context, activeAccess.dataSourceFactory, contentAccess = activeAccess.takeIf { background }, cachedBufferTimeline = CachedBufferTimeline(activeAccess::cachedRanges))
+                core = PlaybackCore(scope, ContentResolver { activeAccess.resolve(com.lalilu.lmedia.domain.model.MediaKey(it.source, it.id)) }, runtime)
             }
             test(source, legacy, audio, activeAccess, core!!, runtime, uri)
         } finally {
@@ -102,6 +102,52 @@ class WebDavContentBridgeDeviceTest {
             assertEquals(0L, legacy.filledSize(audio.id.md5()))
             until("complete disk cache is full duration even while paused") { core.state.value.durationMs > 0 && core.state.value.bufferedPositionMs == core.state.value.durationMs }
             assertEquals(bytes.size.toLong(), access.cachedRanges(uri)!!.second.single().endExclusive)
+        }
+    }
+
+    @Test fun fillsCurrentBeforePreloadingOnlyNextPrefixAndPromotesNextOnSelection() = verifyFillPolicy(natural = false)
+    @Test fun naturalTransitionPromotesCandidateToFullSongFilling() = verifyFillPolicy(natural = true)
+
+    private fun verifyFillPolicy(natural: Boolean) = runBlocking {
+        val directory = File(context.cacheDir, "fill-priority-${System.nanoTime()}")
+        val bytes = PrototypeAudio.write(directory, "long", durationMs = 180000).readBytes()
+        directory.deleteRecursively()
+        val currentComplete = java.util.concurrent.atomic.AtomicBoolean(false)
+        val prematureNext = java.util.concurrent.atomic.AtomicBoolean(false)
+        val canPreload = java.util.concurrent.atomic.AtomicReference<() -> Boolean>({ false })
+        fixture(bytes, "long.wav", background = true, songCount = 2, onRequest = { path, _ ->
+            if (path.contains("1-long.wav") && !currentComplete.get()) {
+                if (canPreload.get().invoke()) currentComplete.set(true) else prematureNext.set(true)
+            }
+        }) { source, _, audio, access, core, runtime, uri ->
+            canPreload.set { access.canPreloadAfter(uri) }
+            val songs = source.snapshot.value!!.audios
+            val keys = songs.map { TrackKey(it.mediaSourceName, it.id) }
+            withContext(Dispatchers.Main) { core.dispatch(PlaybackCommand.ReplaceQueue(keys)) }
+            until("current fills autonomously") { access.canPreloadAfter(uri) }
+            currentComplete.set(true)
+            val nextUri = access.resolve(songs[1].mediaKey).uri
+            until("next prefix preloaded") { access.cachedRanges(nextUri)?.second?.isNotEmpty() == true }
+            delay(500)
+            assertFalse("Next must not download before current is complete", prematureNext.get())
+            val nextSpans = access.cachedRanges(nextUri)!!.second
+            assertTrue("Next is only a prefix, not the whole song", nextSpans.sumOf { it.endExclusive - it.start } < bytes.size / 2)
+            assertTrue("5-second WAV preload must not overshoot by a megabyte", nextSpans.sumOf { it.endExclusive - it.start } <= 512 * 1024)
+            assertEquals(keys[0], core.state.value.selected)
+            assertEquals(2, withContext(Dispatchers.Main) { runtime.player.mediaItemCount })
+            println("CACHE_PRIORITY_OK currentBytes=${bytes.size} nextBytes=${nextSpans.sumOf { it.endExclusive - it.start }} natural=$natural")
+            if (natural) {
+                withContext(Dispatchers.Main) {
+                    core.dispatch(PlaybackCommand.Seek(core.state.value.durationMs - 200))
+                    core.dispatch(PlaybackCommand.Play)
+                }
+                until("natural promotion") { core.state.value.selected == keys[1] && core.state.value.phase == Phase.Playing }
+                assertTrue(core.state.value.naturalTransition)
+                withContext(Dispatchers.Main) { core.dispatch(PlaybackCommand.Pause) }
+            } else withContext(Dispatchers.Main) { core.dispatch(PlaybackCommand.Select(keys[1])) }
+            until("selected former candidate fills completely") { access.canPreloadAfter(nextUri) }
+            assertEquals(keys[1], core.state.value.selected)
+            assertEquals(PlayIntent.Pause, core.state.value.intent)
         }
     }
 

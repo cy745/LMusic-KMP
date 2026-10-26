@@ -17,6 +17,7 @@ import com.lalilu.lmedia.data.database.ILMediaDatabase
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.*
 import kotlinx.coroutines.guava.await
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.*
 import org.junit.Test
 import org.koin.mp.KoinPlatform
@@ -155,6 +156,17 @@ class ProductionSessionDeviceTest {
             playback.setPlaybackMode(com.lalilu.lplayer.playback.PlaybackMode.LOOP)
             playback.updatePlaylist(imported, 0, true)
             waitFor("atomic app selection starts") { controller.isPlaying && controller.currentMediaItem?.mediaId == imported[0].playbackId && controller.currentPosition > 200 }
+            // A queued item may temporarily be absent during source/library refresh. It must not veto another selection.
+            val missingRow = database.audioDao().getAudiosByPlaybackIds(listOf(imported[1].playbackId)).first().single()
+            database.audioDao().delete(missingRow)
+            try {
+            com.lalilu.lplayer.action.PlayerAction.PlayByKey(com.lalilu.lmedia.domain.model.MediaKey(imported[2].mediaSourceName, imported[2].id)).action()
+            waitFor("playlist click selects another song") { controller.isPlaying && controller.currentMediaItem?.mediaId == imported[2].playbackId && controller.currentPosition > 200 }
+            } finally { database.mediaDao().upsertAudio(imported[1]) }
+            delay(500)
+            assertEquals(imported[2].playbackId, playback.queue.currentItem()?.playbackId)
+            playback.playAudio(imported[0])
+            waitFor("playlist click can select back") { controller.isPlaying && controller.currentMediaItem?.mediaId == imported[0].playbackId && controller.currentPosition > 200 }
             val beforeReplacement = withContext(Dispatchers.Main) { controller.currentPosition }
             playback.updatePlaylist(imported.reversed(), -1, false)
             waitFor("replacement preserves selected song and play intent") { controller.isPlaying && controller.currentMediaItem?.mediaId == imported[0].playbackId && controller.currentPosition >= beforeReplacement }

@@ -1,8 +1,6 @@
 package com.lalilu.lmusic.prototype
 
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.datasource.DataSpec
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.MediaSession
 import androidx.test.platform.app.InstrumentationRegistry
@@ -74,7 +72,7 @@ class WebDavLiveBufferDeviceTest {
             val items = songs.associate { TrackKey(it.mediaSourceName, it.id) to MediaItem.Builder().setMediaId(it.playbackId).build() }.toMutableMap()
             lateinit var runtime: Media3CoreRuntime
             withContext(Dispatchers.Main) {
-                runtime = Media3CoreRuntime(context, content.dataSourceFactory, cachedBufferTimeline = CachedBufferTimeline(content::cachedRanges))
+                runtime = Media3CoreRuntime(context, content.dataSourceFactory, contentAccess = content, cachedBufferTimeline = CachedBufferTimeline(content::cachedRanges))
                 core = PlaybackCore(scope, ContentResolver { content.resolve(com.lalilu.lmedia.domain.model.MediaKey(it.source, it.id)) }, runtime)
                 session = MediaSession.Builder(context, CoreSessionPlayer(core!!, runtime, scope, items)).setId(prefix).build()
                 core!!.state.map { it.sessionPresentation() }.distinctUntilChanged()
@@ -93,15 +91,7 @@ class WebDavLiveBufferDeviceTest {
                 val key = TrackKey(song.mediaSourceName, song.id)
                 withContext(Dispatchers.Main) { active.dispatch(PlaybackCommand.ReplaceQueue(listOf(key))) }
                 waitFor("native ready") { active.state.value.phase == Phase.ReadyPaused && controller.duration > 0 }
-                val uri = content.resolve(com.lalilu.lmedia.domain.model.MediaKey(key.source, key.id)).uri
-                withContext(Dispatchers.IO) {
-                    val reader = content.dataSourceFactory.createDataSource()
-                    try {
-                        reader.open(DataSpec.Builder().setUri(uri).build())
-                        val bytes = ByteArray(65536)
-                        while (reader.read(bytes, 0, bytes.size) != C.RESULT_END_OF_INPUT) Unit
-                    } finally { reader.close() }
-                }
+                // Production background filling must complete this paused selection without a test download.
                 waitFor("complete file core buffer") { active.state.value.bufferedPositionMs == active.state.value.durationMs }
                 waitFor("complete file controller buffer while paused") { controller.actualBufferedPosition() >= controller.duration - 1 }
                 withContext(Dispatchers.Main) { active.dispatch(PlaybackCommand.Seek(active.state.value.durationMs / 2)) }

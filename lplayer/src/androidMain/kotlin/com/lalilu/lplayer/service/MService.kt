@@ -88,7 +88,7 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
                 .forEach { database.mediaDao().upsertAudio(it) }
         })
         val items = mutableMapOf<TrackKey, MediaItem>()
-        val runtime = Media3CoreRuntime(this, access.dataSourceFactory, cachedBufferTimeline = com.lalilu.lplayer.core.CachedBufferTimeline(access::cachedRanges), itemFactory = { ticket, resource ->
+        val runtime = Media3CoreRuntime(this, access.dataSourceFactory, contentAccess = access, cachedBufferTimeline = com.lalilu.lplayer.core.CachedBufferTimeline(access::cachedRanges), itemFactory = { ticket, resource ->
             items.getValue(ticket.key).buildUpon().setUri(resource.uri).build()
         })
         exoPlayer = runtime.player.apply {
@@ -229,6 +229,13 @@ private class MServiceCallback(private val player: Player, private val scope: Co
                 when (action) {
                     SeekToNext -> player.seekToNext()
                     SeekToPrevious -> player.seekToPrevious()
+                    CustomCommand.SelectTrack -> {
+                        val id = requireNotNull(args.getString("playbackId"))
+                        val sessionPlayer = player as CoreSessionPlayer
+                        val item = sessionPlayer.queuedItem(id) ?: withContext(Dispatchers.IO) { MMedia.getItem(id) }
+                        requireNotNull(item) { "Selected playback item is unavailable" }
+                        sessionPlayer.requestSelection(item, args.getBoolean("start")).await()
+                    }
                     CustomCommand.PlayNext -> {
                         val item = withContext(Dispatchers.IO) { MMedia.getItem(requireNotNull(args.getString("playbackId"))) }
                             ?: return@withContext

@@ -8,12 +8,14 @@ import androidx.media3.datasource.DataSpec
 import com.lalilu.lmedia.content.ContentDescriptor
 import com.lalilu.lmedia.content.ContentHandle
 import com.lalilu.lmedia.content.RangeContentCache
+import com.lalilu.lmedia.content.PlaybackCacheFiller
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
 
 /** Media3 invokes this on its loader thread, never on the UI thread. Cancellation interrupts runBlocking. */
 class CachedContentDataSource(
     private val cache: RangeContentCache,
+    private val filler: PlaybackCacheFiller? = null,
     private val describe: (Uri) -> ContentDescriptor,
 ) : BaseDataSource(true) {
     private var handle: ContentHandle? = null
@@ -40,7 +42,11 @@ class CachedContentDataSource(
         if(remaining == 0L) return@guarded C.RESULT_END_OF_INPUT
         if (pendingOffset == pending.size) {
             // Extractors often ask for a few bytes at a time. Batch transport/disk reads without fetching the seek gap.
-            pending = runBlocking { checkNotNull(handle).read(position,minOf(remaining,RangeContentCache.MAX_READ.toLong()).toInt()) }
+            pending = runBlocking {
+                val current = checkNotNull(handle)
+                val read: suspend () -> ByteArray = { current.read(position, minOf(remaining, RangeContentCache.MAX_READ.toLong()).toInt()) }
+                filler?.foregroundRead(current.descriptor, position, read) ?: read()
+            }
             pendingOffset = 0
         }
         if(pending.isEmpty()) throw IOException("Unexpected cached content EOF")
@@ -66,6 +72,7 @@ class CachedContentDataSource(
 class ContentDataSourceFactory(
     private val fallback: DataSource.Factory,
     private val cache: RangeContentCache,
+    private val filler: PlaybackCacheFiller? = null,
     private val describe: (Uri) -> ContentDescriptor,
 ) : DataSource.Factory {
     override fun createDataSource(): DataSource = object : DataSource {
@@ -73,7 +80,7 @@ class ContentDataSourceFactory(
         private var active: DataSource? = null
         override fun addTransferListener(listener: androidx.media3.datasource.TransferListener) { listeners += listener; active?.addTransferListener(listener) }
         override fun open(dataSpec: DataSpec): Long {
-            val next = if(dataSpec.uri.scheme == "lmusic-content") CachedContentDataSource(cache,describe) else fallback.createDataSource()
+            val next = if(dataSpec.uri.scheme == "lmusic-content") CachedContentDataSource(cache,filler,describe) else fallback.createDataSource()
             active = next
             listeners.forEach(next::addTransferListener)
             return next.open(dataSpec)

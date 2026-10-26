@@ -19,16 +19,30 @@ class Media3CoreRuntime(
     private val gain: Float = 1f,
     renderersFactory: androidx.media3.exoplayer.RenderersFactory? = null,
     private val cachedBufferTimeline: CachedBufferTimeline? = null,
+    private val contentAccess: PlaybackContentAccess? = null,
 ) : PreloadingAudioRuntime {
     override var onEvent: ((RuntimeEvent) -> Unit)? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val player = ExoPlayer.Builder(context.applicationContext,
         renderersFactory ?: ContinuousAudioRenderersFactory(context))
-        .apply { dataSourceFactory?.let { setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(it, cachedBufferTimeline?.extractors ?: androidx.media3.extractor.DefaultExtractorsFactory())) } }
+        .apply { dataSourceFactory?.let { factory ->
+            val extractors = cachedBufferTimeline?.extractors ?: androidx.media3.extractor.DefaultExtractorsFactory()
+            val fallback = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(factory, extractors)
+            // Default progressive loading checks only every 1 MiB, which can read an entire short
+            // candidate despite the 5-second target. Check at the cache's bounded transport chunk.
+            val progressive = androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(factory, extractors)
+                .setContinueLoadingCheckIntervalBytes(com.lalilu.lmedia.content.RangeContentCache.MAX_READ)
+            setMediaSourceFactory(object : androidx.media3.exoplayer.source.MediaSource.Factory by fallback {
+                override fun createMediaSource(item: MediaItem): androidx.media3.exoplayer.source.MediaSource =
+                    if (item.localConfiguration?.uri?.scheme == "lmusic-content") progressive.createMediaSource(item)
+                    else fallback.createMediaSource(item)
+            })
+        } }
         .build().apply { preloadConfiguration = ExoPlayer.PreloadConfiguration(5_000_000) }
     private var owner: LoadTicket? = null
     private var loaded: LoadTicket? = null
     private var staged: NextPlan? = null
+    private var deferredNext: Pair<NextPlan, PlayableResource>? = null
     private var awaitingConfirmation: NextPlan? = null
     private var listener: Player.Listener? = null
     private var transition: Job? = null
@@ -44,6 +58,7 @@ class Media3CoreRuntime(
         scope.launch {
             while (isActive) {
                 delay(100)
+                appendDeferredNext()
                 val ticket = loaded ?: continue
                 if (ticket == owner && prepared) onEvent?.invoke(RuntimeEvent.Position(ticket, player.currentPosition, duration(),
                     cachedBufferTimeline?.bufferedPosition(player.currentMediaItem?.localConfiguration?.uri.toString(),
@@ -66,6 +81,7 @@ class Media3CoreRuntime(
             player.volume = 0f
             onEvent?.invoke(RuntimeEvent.Ended(plan.from))
         }
+        deferredNext = null
         staged = null
         // Setting the boundary guard is synchronous on the application thread, before native removal.
         player.pauseAtEndOfMediaItems = true
@@ -76,12 +92,27 @@ class Media3CoreRuntime(
     override fun stageNext(plan: NextPlan, resource: PlayableResource) {
         if (plan.from != owner || plan.from != loaded || !prepared) return
         cancelNext()
-        staged = plan
-        player.addMediaItem(itemFactory(plan.next, resource).buildUpon().setTag(plan).build())
-        player.pauseAtEndOfMediaItems = !desiredPlaying
+        deferredNext = plan to resource
+        appendDeferredNext()
+    }
+
+    private fun appendDeferredNext() {
+        val (plan, resource) = deferredNext ?: return
+        if (plan.from != owner || plan.from != loaded || !prepared) return
+        if (contentAccess?.canPreloadAfter(player.currentMediaItem?.localConfiguration?.uri.toString()) == false) return
+        deferredNext = null
+        try {
+            staged = plan
+            player.addMediaItem(itemFactory(plan.next, resource).buildUpon().setTag(plan).build())
+            player.pauseAtEndOfMediaItems = !desiredPlaying
+        } catch (error: Exception) {
+            cancelNext()
+            co.touchlab.kermit.Logger.w("Deferred next-song preparation failed", error)
+        }
     }
 
     override fun silence(next: LoadTicket?) {
+        contentAccess?.selectCurrent(null)
         owner = next
         desiredPlaying = false
         pendingLoad?.cancel()
@@ -107,6 +138,7 @@ class Media3CoreRuntime(
         pendingLoad = scope.launch {
             transition?.join()
             if (ticket != owner) return@launch
+            contentAccess?.selectCurrent(resource.uri)
             loaded = ticket
             prepared = false
             val callback = object : Player.Listener {
@@ -116,6 +148,7 @@ class Media3CoreRuntime(
                     val plan = staged ?: return
                     if (!valid() || plan.from != loaded || player.currentMediaItem?.localConfiguration?.tag != plan) return
                     staged = null
+                    contentAccess?.selectCurrent(player.currentMediaItem?.localConfiguration?.uri.toString())
                     awaitingConfirmation = plan
                     loaded = plan.next
                     owner = plan.next
@@ -235,6 +268,7 @@ class Media3CoreRuntime(
         for (step in 1..5) { delay(12); player.volume = initial + (target - initial) * step / 5f }
     }
     override fun release() {
+        contentAccess?.selectCurrent(null)
         onEvent = null
         scope.cancel()
         player.release()

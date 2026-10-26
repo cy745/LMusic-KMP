@@ -228,13 +228,15 @@ class MPlayerPlayback(
 
     override suspend fun skipTo(index: Int, start: Boolean) = queueEditMutex.withLock {
         if (index !in queue.stateSnapshot().list.indices || index == queue.stateSnapshot().index) return@withLock
-        queueBridge.editAndRun(block = { switchTo(index) }, apply = { applySelection(it, start) }) {}
+        selectTrack(queue.stateSnapshot().list[index], start)
     }
 
     override suspend fun skipToNext() = runWithBrowser {
+        pendingUserSelection = null
         sendCustomCommand(CustomCommand.SeekToNext.toSessionCommand(), Bundle.EMPTY).await()
     }
     override suspend fun skipToPrevious() = runWithBrowser {
+        pendingUserSelection = null
         sendCustomCommand(CustomCommand.SeekToPrevious.toSessionCommand(), Bundle.EMPTY).await()
     }
 
@@ -277,7 +279,7 @@ class MPlayerPlayback(
 
     override suspend fun playAudio(audio: LAudio) = queueEditMutex.withLock {
         if (queue.currentItem()?.mediaKey == audio.mediaKey) return@withLock
-        queueBridge.editAndRun(block = { selectOrInsert(audio) }, apply = { applySelection(it, start = true) }) {}
+        selectTrack(audio, start = true)
     }
 
     override suspend fun restoreFailedQueueEdit(expected: QueueState, original: QueueState, position: Long): Boolean =
@@ -297,8 +299,26 @@ class MPlayerPlayback(
         }).await()
     }
 
+    /** Selection is one identity-based core command, not an optimistic replacement of the entire queue. */
+    private var pendingUserSelection: String? = null
+
+    private suspend fun selectTrack(audio: LAudio, start: Boolean) = runWithBrowser {
+        pendingUserSelection = audio.playbackId
+        try {
+            val result = sendCustomCommand(CustomCommand.SelectTrack.toSessionCommand(), Bundle().apply {
+                putString("playbackId", audio.playbackId)
+                putBoolean("start", start)
+            }).await()
+            check(result.resultCode == androidx.media3.session.SessionResult.RESULT_SUCCESS) { "Selection rejected: ${result.resultCode}" }
+        } catch (error: Exception) {
+            if (pendingUserSelection == audio.playbackId) pendingUserSelection = null
+            throw error
+        }
+    }
+
     private suspend fun applySelection(selected: QueueState, start: Boolean) {
         runWithBrowser {
+            pendingUserSelection = null
             val items = selected.list.mapIndexed { index, audio ->
                 audio.toMediaItem().let { if (index == 0) it.withQueuePlaybackRequest(start) else it }
             }
@@ -450,7 +470,12 @@ class MPlayerPlayback(
             val items = ids.mapIndexed { index, id ->
                 resolved[index] ?: knownById[id] ?: return@launch
             }
-            queueBridge.acceptPlatformSnapshot(generation, items, currentIndex)
+            withContext(Dispatchers.Main) {
+                val picked = pendingUserSelection?.takeIf { it == items.getOrNull(currentIndex)?.playbackId }
+                if (queueBridge.acceptPlatformSnapshot(generation, items, currentIndex, selectedByUser = picked != null) && picked != null) {
+                    if (pendingUserSelection == picked) pendingUserSelection = null
+                }
+            }
         }
     }
 
