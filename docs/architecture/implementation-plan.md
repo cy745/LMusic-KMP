@@ -517,3 +517,13 @@ classDiagram
     IosCachedAsset --> NativeContentAccess : 字节读取
     CachedCallbackMedia --> NativeContentAccess : 字节读取
 ```
+
+## Desktop 大队列保存崩溃修复（2026-10-27）
+
+真机体验报告 30c7edac 显示，点击歌曲后保存 155 项队列产生 10412 字符的 JSON，超过 Java Preferences 单条字符串 8192 字符上限。异常来自 HistoryStorage → KvSettingsSaver → Preferences，而非音频解码。此前原生播放测试没有覆盖正式桌面设置后端的大队列保存。
+
+Desktop 设置入口增加大值文件存储：小值及旧设置继续走原 Preferences；大字符串写入应用数据目录，以同目录临时文件原子替换，完整保存队列，不截断或限制歌曲数量。已经使用文件的键缩小后继续更新同一记录，删除同时清除旧值。其他端沿用原设置实现。历史记录的后台写入隔离普通保存异常，保留协程取消语义，写入失败不会终止播放，后续采样仍可重试。
+
+回归使用真实 Preferences 复现旧异常，覆盖一万项队列、文件重开、Unicode、大小值转换、删除、旧值兼容与写盘失败；同时通过正式 HistoryStorage/KvSettingsSaver 链路保存恢复队列及位置，并检查历史写入失败后继续记录。
+
+验证完成：14 项相关 JVM 测试通过（设置大值/正式历史存储链路 2、保存失败隔离 1、历史策略 4、队列序列化 7）。重新生成 macOS 应用包并启动，使用现有 156 首歌曲库点击播放，观察进度从 00:04 推进至 00:45、歌词跟随和封面显示；读取实际落盘记录确认 156 项队列及进度均完整保存，未再次出现 Value too long。测试结束通过系统菜单暂停，保留应用和用户数据。首次打包时旧崩溃窗口仍打开，codesign 报 Operation not permitted；关闭窗口后重打包成功。本轮没有运行 Android 专项测试。

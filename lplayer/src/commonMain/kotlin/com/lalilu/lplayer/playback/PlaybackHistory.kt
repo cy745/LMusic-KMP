@@ -91,11 +91,11 @@ class PlaybackHistoryImpl(
 
         queuePersistence
             .onEach { (state, restore) ->
-                recordingMutex.withLock {
+                recordingMutex.persistHistory {
                     // Flow notifications may have waited behind another write. Never persist
                     // an obsolete queue or combine it with an obsolete restoration phase.
                     if (!isCurrentHistoryRecording(state, restore,
-                            playback.queue.stateSnapshot(), restoreState?.value)) return@withLock
+                            playback.queue.stateSnapshot(), restoreState?.value)) return@persistHistory
                     historyStorage.saveQueueIdentity(
                         historyIdentityForPersistence(state, restore as? HistoryRestoreState.Pending, historyStorage.savedQueueIdentity())
                     )
@@ -113,14 +113,14 @@ class PlaybackHistoryImpl(
             ?.onEach {
                 val expectedQueue = playback.queue.stateSnapshot()
                 val expectedWrites = positionWrites.value
-                recordingMutex.withLock {
+                recordingMutex.persistHistory {
                     if (!shouldClearFallbackPosition(
                             expectedQueue = expectedQueue,
                             currentQueue = playback.queue.stateSnapshot(),
                             currentRestore = restoreState.value,
                             expectedPositionWrites = expectedWrites,
                             currentPositionWrites = positionWrites.value,
-                        )) return@withLock
+                        )) return@persistHistory
                     historyStorage.savePosition(0L)
                 }
             }
@@ -136,7 +136,7 @@ class PlaybackHistoryImpl(
                         val position = playback.sampleHistoryPosition()
                         // Sampling can suspend while a newer restore/selection takes over.
                         if (position != null && canPersistPlaybackPosition(restoreState?.value)) {
-                            recordingMutex.withLock {
+                            recordingMutex.persistHistory {
                                 if (playback.queue.stateSnapshot() === expected && canPersistPlaybackPosition(restoreState?.value)) {
                                     historyStorage.saveSnapshot(historyIdentityForPersistence(
                                         expected, restoreState?.value as? HistoryRestoreState.Pending, historyStorage.savedQueueIdentity(),
@@ -235,4 +235,11 @@ internal fun historyQueuePersistence(
         currentId = if (shouldPreserveCurrent) null else state.currentItem()?.id.orEmpty(),
         playlistIds = if (isRestoringPartialQueue) null else queueIds,
     )
+}
+
+/** A persistence failure must not escape a recording collector and terminate playback. */
+internal suspend inline fun Mutex.persistHistory(action: () -> Unit) {
+    try { withLock { action() } }
+    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+    catch (failure: Exception) { co.touchlab.kermit.Logger.w("Playback history could not be saved", failure) }
 }

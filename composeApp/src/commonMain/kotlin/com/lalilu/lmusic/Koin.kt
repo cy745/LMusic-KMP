@@ -42,7 +42,7 @@ fun KoinApplication.koinSetup() {
 
 private val SharedModule = module {
     @OptIn(ExperimentalSettingsApi::class)
-    single<ObservableSettings> { Settings().makeObservable() }
+    single<ObservableSettings> { persistentAppSettings().makeObservable() }
     single<Settings> { get<ObservableSettings>() }
     // coerceInputValues / explicitNulls = false：容忍远端返回的 null 字段
     // （部分 Subsonic 服务器对缺省字段返回 null，而不是省略 key），
