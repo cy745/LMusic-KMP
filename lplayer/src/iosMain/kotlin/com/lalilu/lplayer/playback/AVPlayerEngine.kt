@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.update
 import platform.AVFoundation.*
 import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeMake
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import platform.Foundation.NSURL
 import platform.Foundation.removeObserver
 import kotlin.time.Duration
@@ -180,8 +182,16 @@ class AVPlayerEngine : PlaybackEngine {
 
     override suspend fun seekTo(positionMs: Long) {
         val time = CMTimeMake(value = positionMs, timescale = 1000)
-        avPlayer.seekToTime(time)
-        _state.update { it.copy(position = positionMs) }
+        val item = currentItem
+        suspendCancellableCoroutine<Unit> { continuation ->
+            avPlayer.seekToTime(time, completionHandler = { finished ->
+                if (continuation.isActive) {
+                    if (finished && currentItem == item) continuation.resume(Unit)
+                    else continuation.cancel(CancellationException("Native seek replaced"))
+                }
+            })
+        }
+        _state.update { it.copy(position = currentPosition()) }
     }
 
     /** AVPlayer 音量（用于 VolumeFadeHelper 淡入淡出） */

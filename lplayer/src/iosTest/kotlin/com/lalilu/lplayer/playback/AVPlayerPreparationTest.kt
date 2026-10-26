@@ -43,6 +43,65 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
 class AVPlayerPreparationTest {
+    @Test fun sharedCoreControlsNativeSelectionPauseSeekAndOutputFallback() = runNativeMainTest {
+        val file = PlatformFile(NSTemporaryDirectory() + "lmusic-p4-${Random.nextLong()}.wav")
+        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        val engine = AVPlayerEngine()
+        var playback: com.lalilu.lplayer.core.CorePlayback? = null
+        try {
+            file.sink().buffered().use { it.write(silentWave()) }
+            val songs = listOf("a", "b").map { LAudio(id = it, mediaSourceName = "p4") }
+            val repository = object : AudioRepository {
+                override fun getAudios() = kotlinx.coroutines.flow.flowOf(songs)
+                override fun getAudios(ids: List<String>) = kotlinx.coroutines.flow.flowOf(songs.filter { it.id in ids })
+                override fun getAudio(id: String) = kotlinx.coroutines.flow.flowOf(songs.find { it.id == id })
+                override suspend fun clearUnavailableAudio() {}
+            }
+            val source = object : com.lalilu.lmedia.domain.source.MediaSource {
+                override val name = "p4"
+                override val state = MutableStateFlow<com.lalilu.lmedia.domain.source.SnapshotState>(com.lalilu.lmedia.domain.source.SnapshotState.Idle)
+                override val snapshot = MutableStateFlow<com.lalilu.lmedia.domain.source.Snapshot?>(null)
+                override val contentState = MutableStateFlow(com.lalilu.lmedia.domain.source.MediaContentState(com.lalilu.lmedia.domain.source.MediaContentAvailability.Ready))
+                override val dataSource = object : com.lalilu.lmedia.domain.source.MediaDataSource {
+                    override suspend fun getMedia(song: LAudio) = MediaData.Url("file://${file.path}")
+                }
+            }
+            val runtime = com.lalilu.lplayer.core.EngineAudioRuntime(scope, listOf(engine),
+                volume = { _, value -> engine.setVolume(value) }, canFade = { true })
+            val host = com.lalilu.lplayer.core.CorePlayback(scope, runtime,
+                com.lalilu.lmedia.domain.source.PlatformMediaSource.provide(source), repository,
+                PlaybackHistoryImpl(object : HistoryStorage {
+                    override fun savedPosition() = 0L
+                    override fun savePosition(position: Long) {}
+                }))
+            playback = host
+            host.updatePlaylist(songs, 0, false)
+            withTimeout(10_000) { host.core.state.first { it.phase == com.lalilu.playback.core.Phase.ReadyPaused } }
+            host.seekTo(4000)
+            withTimeout(5_000) { host.core.state.first { it.pendingSeekId == null && it.positionMs >= 3900 } }
+            host.playAudio(songs[0])
+            assertFalse(host.isPlaying.value)
+            assertTrue(host.currentPosition() >= 3900)
+            host.play()
+            withTimeout(5_000) { host.core.state.first { it.phase == com.lalilu.playback.core.Phase.Playing && it.positionMs > 4100 } }
+            host.pause()
+            host.skipToNext()
+            withTimeout(5_000) { host.core.state.first { it.selected?.id == "b" && it.phase == com.lalilu.playback.core.Phase.ReadyPaused } }
+            assertFalse(engine.state.value.isPlaying)
+            host.skipToNext()
+            withTimeout(5_000) { host.core.state.first { it.selected?.id == "a" && it.phase == com.lalilu.playback.core.Phase.ReadyPaused } }
+            com.lalilu.lplayer.helper.IosOutputProbe.start()
+            val output = com.lalilu.lplayer.core.PlaybackOutput.capabilities.value
+            assertEquals(com.lalilu.playback.core.OutputMode.Experience, output.actualMode(com.lalilu.playback.core.OutputMode.Original))
+            assertNotNull(output.fallbackReason(com.lalilu.playback.core.OutputMode.Original))
+        } finally {
+            playback?.core?.close()
+            engine.release()
+            scope.cancel()
+            file.delete()
+        }
+    }
+
     @Test fun historyTakeoverKeepsQueueFillWithoutRestartingNativePlayback() = runNativeMainTest {
         val file = PlatformFile(NSTemporaryDirectory() + "lmusic-history-claim-${Random.nextLong()}.wav")
         val engine = AVPlayerEngine()

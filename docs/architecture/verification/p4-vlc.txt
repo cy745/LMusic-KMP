@@ -1,0 +1,7 @@
+VLC 3.0.21 / macOS arm64 / dummy audio output (decode and controls; not physical output measurement)
+{'name': 'VlcPlaybackNativeTest[jvm]', 'tests': '5', 'skipped': '0', 'failures': '0', 'errors': '0', 'timestamp': '2026-10-26T06:17:50.460Z', 'hostname': 'mikudeMac-mini.local', 'time': '16.315'}
+allFailuresAreBoundedAndPlayRetriesSelected[jvm] PASS 4.925s
+nativeDecodeFailureSkipsAndRepeatOneFailureStops[jvm] PASS 2.324s
+pausedNavigationAndSameSelectionMatchSharedCore[jvm] PASS 2.304s
+nativePositionAndHistoryStayPausedAfterSeek[jvm] PASS 3.868s
+slowSelectionCanBeReplacedAndPauseDoesNotResumeOnPrepare[jvm] PASS 2.89s

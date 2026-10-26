@@ -1,6 +1,7 @@
 package com.lalilu.lmusic.prototype
 
 import android.content.ComponentName
+import com.lalilu.lplayer.core.describe
 import androidx.media3.common.Player
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.SessionToken
@@ -36,6 +37,7 @@ class ProductionSessionDeviceTest {
         var activity: android.app.Activity?=null
         var browser:MediaBrowser?=null
         var original=emptyList<androidx.media3.common.MediaItem>()
+        val originalOutputRequest = com.lalilu.lplayer.LPlayerKV.originalOutputRequested.value
         var oldIndex=0; var oldPosition=0L; var oldRepeat=Player.REPEAT_MODE_OFF; var oldShuffle=false
         suspend fun waitFor(label: String, predicate:()->Boolean) {
             try { withTimeout(20000) { while(!withContext(Dispatchers.Main) { predicate() }) delay(50) } }
@@ -88,6 +90,20 @@ class ProductionSessionDeviceTest {
             screen.recycle()
             playback.play()
             waitFor("step 2") { controller.isPlaying && controller.currentPosition>100 }
+            waitFor("actual AudioTrack format") { com.lalilu.lplayer.core.PlaybackOutput.capabilities.value.apiFormat != null }
+            val output = com.lalilu.lplayer.core.PlaybackOutput.capabilities.value
+            assertEquals(48000, output.apiFormat!!.sampleRate)
+            assertEquals(com.lalilu.playback.core.Support.Unsupported, output.original)
+            val beforeOutputRequest = withContext(Dispatchers.Main) { controller.currentPosition }
+            withContext(Dispatchers.Main) { com.lalilu.lplayer.LPlayerKV.originalOutputRequested.value = true }
+            delay(300)
+            assertEquals(com.lalilu.playback.core.OutputMode.Experience,
+                output.actualMode(com.lalilu.playback.core.OutputMode.Original))
+            assertNotNull(output.fallbackReason(com.lalilu.playback.core.OutputMode.Original))
+            assertTrue(withContext(Dispatchers.Main) { controller.isPlaying && controller.currentPosition > beforeOutputRequest })
+            assertEquals(imported[0].playbackId, withContext(Dispatchers.Main) { controller.currentMediaItem?.mediaId })
+            File(context.getExternalFilesDir(null), "p4-output-report.txt").writeText(
+                output.describe(true))
             withContext(Dispatchers.Main) { controller.pause(); controller.seekTo(4000) }
             waitFor("step 3") { !controller.playWhenReady && controller.currentPosition>=3900 && controller.playbackState==Player.STATE_READY }
             assertEquals(imported[0].playbackId,playback.queue.currentItem()?.playbackId)
@@ -136,6 +152,7 @@ class ProductionSessionDeviceTest {
             withContext(Dispatchers.Main) { controller.pause() }
         } finally {
             withContext(Dispatchers.Main) {
+                com.lalilu.lplayer.LPlayerKV.originalOutputRequested.value = originalOutputRequest
                 browser?.apply {
                     pause()
                     setMediaItems(original,oldIndex.coerceAtLeast(0),oldPosition.coerceAtLeast(0))

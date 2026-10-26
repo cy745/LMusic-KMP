@@ -16,6 +16,9 @@
 
 package com.lalilu.lplayer
 
+import androidx.compose.runtime.collectAsState
+import com.lalilu.lplayer.core.PlaybackOutput
+import com.lalilu.lplayer.core.describe
 import com.lalilu.common.settings.NoOpToaster
 import com.lalilu.common.settings.SettingsGroup
 import com.lalilu.common.settings.settingsGroup
@@ -30,7 +33,7 @@ import org.koin.core.annotation.Named
  * 用 `@Factory` + `@Named("settings_lplayer")` 注入到 Koin，
  * 由 :lsettings 模块的 [com.lalilu.common.settings.SettingsCollector] 收集后渲染。
  *
- * 当前包含 5 个偏好项：
+ * 除下列已有偏好项外，P4 增加原样输出请求和只读输出能力说明：
  *
  * | key                                       | 类型      | 持久化字段                  |
  * |-------------------------------------------|-----------|-----------------------------|
@@ -50,6 +53,21 @@ fun provideLPlayerSettings(): SettingsGroup = settingsGroup(
     order = 10,
     title = { "播放器" },
 ) {
+    switch(
+        kv = LPlayerKV.originalOutputRequested,
+        title = { "请求原样输出" },
+        summary = { "仅在播放链路可确认时生效；不支持时保持正常播放，不中断当前歌曲" }
+    )
+    click(
+        key = "lplayer.output_status",
+        title = { "当前输出能力" },
+        summary = {
+            val capability = PlaybackOutput.capabilities.collectAsState().value
+            capability.describe(LPlayerKV.originalOutputRequested.value)
+        },
+        enabled = { false },
+        onClick = {}
+    )
     switch(
         kv = LPlayerKV.autoPlayWhenRestart,
         title = { "启动后自动播放" },

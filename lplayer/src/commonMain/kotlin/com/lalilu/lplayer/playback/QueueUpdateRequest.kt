@@ -28,6 +28,8 @@ class QueueUpdateRequest(
 ) : QueueMutationOps<QueueUpdateRequest> {
     private var pendingList: List<LAudio> = snapshot.list
     private var pendingIndex: Int = snapshot.index
+    internal var replacesAll: Boolean = false
+        private set
     private val selectionRevision = snapshot.selectionRevision
     private var selectionRequested = false
 
@@ -109,6 +111,7 @@ class QueueUpdateRequest(
      *              自动在 items 中查找与当前播放项 id 匹配的元素位置作为新索引。
      */
     override fun replaceAll(items: List<LAudio>, index: Int): QueueUpdateRequest {
+        replacesAll = true
         // 显式指定起始索引 = 用户要求「从这一项开始播」
         if (index >= 0) {
             selectionRequested = true

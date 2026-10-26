@@ -4,6 +4,7 @@ import com.lalilu.common.kv.KVContext
 import com.lalilu.lplayer.extensions.PlayMode
 
 object LPlayerKV : KVContext("lplayer") {
+    val originalOutputRequested = obtain("originalOutputRequested", false)
     val contentCacheEnabled = obtain("contentCacheEnabled", true)
     val contentCacheQuotaMiB = obtain("contentCacheQuotaMiB", "512")
     val autoPlayWhenRestart = obtain("autoPlayWhenRestart", false)

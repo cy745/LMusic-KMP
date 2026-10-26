@@ -1,0 +1,11 @@
+
+com.lalilu.lmusic.prototype.GaplessDeviceTest:.........
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+com.lalilu.lmusic.prototype.PlaybackCoreDeviceTest:......
+com.lalilu.lmusic.prototype.ContentCacheDeviceTest:....
+
+Time: 40.84
+
+OK (20 tests)
+
+

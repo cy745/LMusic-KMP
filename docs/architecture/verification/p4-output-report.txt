@@ -1,0 +1,7 @@
+当前使用体验输出；原样输出未生效：当前使用 48 kHz PCM 体验链路，未接入并验证独占或绕过系统 SRC 的输出路径
+播放后端：Media3 / AudioTrack
+系统路由：系统选择；当前实际路由未由 AudioTrack 暴露
+平台接口格式：48000 Hz / 2 声道 / PCM 16 bit（AudioTrack 初始化回调；不代表 DAC 实测）
+连续无缝输出：已接入（受内容、缓冲和路由条件限制）
+可用输出设备：sdk_gphone64_arm64 (type 2), sdk_gphone64_arm64 (type 18)
+杜比 / 空间音频：尚未验证实际生效

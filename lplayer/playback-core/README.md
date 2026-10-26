@@ -37,4 +37,4 @@ adb -s emulator-5554 shell am start -W \
 
 示例固定指定模拟器，不能省略 serial 误操作已连接的手机。进入原型暂停旧播放器，退出释放原型，不自动恢复旧播放意图。Activity 自带生成的 A/B/C 音频，也提供读取现有媒体库的入口。
 
-当前 Android 默认体验输出为 48 kHz PCM，单声道/立体声统一双声道；不代表原样输出或 Hi-Res 已验证。iOS/Web 目前仅验证共享核心可编译，没有接入对应音频后端。交叉淡化不在当前范围。模拟器 PCM/AudioTrack 测量和正式页面回归不能替代真机/DAC、蓝牙以及主观听感验证。
+当前 Android 默认体验输出为 48 kHz PCM，单声道/立体声统一双声道；不代表原样输出或 Hi-Res 已验证。P4 已将 iOS、桌面及 Web 正式入口接入共享核心，输出能力和验证边界见 [P4 记录](../../docs/architecture/multiplatform-output.md)。这些后端的单项播放器仍不宣称连续无缝输出。交叉淡化不在当前范围。模拟器 PCM/AudioTrack 测量和正式页面回归不能替代真机/DAC、蓝牙以及主观听感验证。

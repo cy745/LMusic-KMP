@@ -59,6 +59,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            api(project(":lplayer:playback-core"))
             api(project(":component"))
             api(project(":lmedia:lmedia-core"))
             api(project(":lmedia:lmedia-data"))
@@ -79,7 +80,6 @@ kotlin {
             implementation(libs.turbine)
         }
         androidMain.dependencies {
-            api(project(":lplayer:playback-core"))
             api(project(":lmedia:lmedia-content"))
             implementation(libs.ktor.client.okhttp)
             implementation(libs.media3.session)

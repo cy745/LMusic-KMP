@@ -55,13 +55,26 @@ object AudioSessionHelper : CoroutineScope {
      * 绑定 AudioSession 中断监听。
      *
      * @param playback Playback 实例
-     * @param onInterruptionBegan 可选的自定义中断处理（默认调 playback.pause()）。
+     * @param shouldHandleInterruption 可选的中断过滤（默认处理）。
      *                            当 MusicKitEngine 活跃时传入可跳过误中断。
      */
     fun bindPlayback(
         playback: Playback,
-        onInterruptionBegan: (suspend () -> Unit)? = null
+        shouldHandleInterruption: (() -> Boolean)? = null
     ) {
+        var resumeToken: com.lalilu.lplayer.core.CorePlayback.InterruptionToken? = null
+        NSNotificationCenter.defaultCenter().addObserverForName(
+            name = AVAudioSessionRouteChangeNotification,
+            `object` = audioSession,
+            queue = NSOperationQueue.mainQueue(),
+            usingBlock = { notification ->
+                val reason = notification?.userInfo?.get(AVAudioSessionRouteChangeReasonKey) as? NSNumber
+                if (reason?.unsignedLongValue == AVAudioSessionRouteChangeReasonOldDeviceUnavailable &&
+                    com.lalilu.lplayer.LPlayerKV.handleBecomeNoisy.value) {
+                    launchPlayerAction { resumeToken = null; playback.pause() }
+                }
+            }
+        )
         NSNotificationCenter.defaultCenter().addObserverForName(
             name = "AVAudioSessionInterruptionNotification",
             `object` = audioSession,
@@ -76,17 +89,24 @@ object AudioSessionHelper : CoroutineScope {
 
                     when (typeValue) {
                         AVAudioSessionInterruptionTypeBegan -> {
-                            if (onInterruptionBegan != null) {
-                                launchPlayerAction { onInterruptionBegan() }
-                            } else {
-                                launchPlayerAction { playback.pause() }
+                            launchPlayerAction {
+                                resumeToken = null
+                                if (com.lalilu.lplayer.LPlayerKV.handleAudioFocus.value) {
+                                    // MusicKit owns its own session interruption; the host callback may elect to ignore it.
+                                    if (shouldHandleInterruption?.invoke() == false) return@launchPlayerAction
+                                    if (playback is com.lalilu.lplayer.core.CorePlayback)
+                                        resumeToken = playback.pauseForInterruption()
+                                    else playback.pause()
+                                }
                             }
                         }
-
                         AVAudioSessionInterruptionTypeEnded -> {
                             val options = userInfo[AVAudioSessionInterruptionOptionKey] as? NSNumber
-                            if (options?.unsignedLongValue == AVAudioSessionInterruptionOptionShouldResume) {
-                                launchPlayerAction { playback.play() }
+                            launchPlayerAction {
+                                val token = resumeToken
+                                resumeToken = null
+                                if (options?.unsignedLongValue == AVAudioSessionInterruptionOptionShouldResume && token != null &&
+                                    playback is com.lalilu.lplayer.core.CorePlayback) playback.resumeAfterInterruption(token)
                             }
                         }
                     }

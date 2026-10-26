@@ -19,6 +19,7 @@ class PlaybackCore(
     private val resolver: ContentResolver,
     private val runtime: AudioRuntime,
     private val random: Random = Random.Default,
+    initialMode: PlayMode = PlayMode.Sequential,
 ) {
     private sealed interface Message {
         data class Command(val value: PlaybackCommand, val done: CompletableDeferred<Unit>) : Message
@@ -29,7 +30,7 @@ class PlaybackCore(
     private val job = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + job)
     private val inbox = Channel<Message>(Channel.UNLIMITED)
-    private val mutable = MutableStateFlow(PlaybackSnapshot())
+    private val mutable = MutableStateFlow(PlaybackSnapshot(mode = initialMode))
     val state: StateFlow<PlaybackSnapshot> = mutable.asStateFlow()
     private var s: PlaybackSnapshot
         get() = mutable.value
@@ -108,7 +109,10 @@ class PlaybackCore(
 
     private fun command(command: PlaybackCommand) {
         when (command) {
-            is PlaybackCommand.ReplaceQueue -> replaceQueue(command)
+            is PlaybackCommand.ReplaceQueue -> {
+                replaceQueue(command)
+                if (command.startPlayback) command(PlaybackCommand.Play)
+            }
             is PlaybackCommand.Select -> {
                 if (command.key == s.selected) return
                 var items = s.queue
@@ -116,6 +120,7 @@ class PlaybackCore(
                 s = s.copy(queue = items, explicitNext = null)
                 beginUserNavigation(1)
                 select(items.indexOf(command.key))
+                if (command.startPlayback) command(PlaybackCommand.Play)
             }
             is PlaybackCommand.Remove -> {
                 if (command.key !in s.queue) return

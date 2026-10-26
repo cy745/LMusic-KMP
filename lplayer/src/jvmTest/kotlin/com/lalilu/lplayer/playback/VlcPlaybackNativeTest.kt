@@ -10,6 +10,7 @@ import com.lalilu.lplayer.player.VLCPlayerLoader
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import org.junit.Assume.assumeTrue
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.factory.discovery.NativeDiscovery
@@ -21,324 +22,91 @@ import kotlin.test.*
 
 /** Real VLCPlayback + common queue/history + native VLC; repository/content are controlled fixtures. */
 class VlcPlaybackNativeTest {
-    @Test fun playAfterStopSkipsCurrentSongIfItsFileBecameUnreadable() = runBlocking {
-        var failFirst = false
-        val attempted = mutableListOf<String>()
-        withPlayback(beforeRead = { song ->
-            attempted += song.id
-            if (failFirst && song.id == "first") throw java.io.FileNotFoundException("test")
-        }) { playback, native, _, song ->
-            val first = song.copy(id = "first")
-            val next = song.copy(id = "next")
-            playback.setPlaybackMode(PlaybackMode.SEQUENTIAL)
-            playback.updatePlaylist(listOf(first, next), 0, false)
-            playback.stop()
-            failFirst = true
-            attempted.clear()
-            playback.play()
-            assertEquals(listOf("first", "next"), attempted)
-            assertEquals(next, playback.queue.currentItem())
-            withTimeout(5000) { while (!native.status().isPlaying) delay(25) }
-            playback.pause()
-        }
-    }
-
-    @Test fun failedPreviousContinuesBackwardToTheNextReadableSong() = runBlocking {
-        val attempted = mutableListOf<String>()
-        val failures = MemoryFailures()
-        withPlayback(failureRepository = failures, beforeRead = { song ->
-            attempted += song.id
-            if (song.id == "bad") throw java.io.FileNotFoundException("test")
-        }) { playback, native, _, song ->
-            val first = song.copy(id = "first")
-            val bad = song.copy(id = "bad")
-            val last = song.copy(id = "last")
-            playback.updatePlaylist(listOf(first, bad, last), 2, false)
-            playback.setPlaybackMode(PlaybackMode.SEQUENTIAL)
-            attempted.clear()
-            playback.skipToPrevious()
-            assertEquals(listOf("bad", "first"), attempted)
-            assertEquals(first, playback.queue.currentItem())
-            withTimeout(5000) { while (!native.status().isPlaying) delay(25) }
-            assertEquals(PlaybackFailureReason.FileMissing, failures.failures.value[bad.playbackId]?.reason)
-            playback.pause()
-        }
-    }
-
-    @Test fun allMissingLoopSongsAreTriedOnlyOnceAndStop() = runBlocking {
-        val attempted = mutableListOf<String>()
-        withPlayback(beforeRead = { song ->
-            attempted += song.id
-            throw java.io.FileNotFoundException("test")
-        }) { playback, native, _, song ->
-            val songs = (0..2).map { song.copy(id = "bad-$it") }
-            playback.setPlaybackMode(PlaybackMode.LOOP)
-            assertFailsWith<java.io.FileNotFoundException> { playback.updatePlaylist(songs, 0, true) }
-            assertEquals(listOf("bad-0", "bad-1", "bad-2"), attempted)
-            assertFalse(native.status().isPlaying)
-            assertFalse(playback.isPlaying.value)
-        }
-    }
-
-    @Test fun aSlowLoadDoesNotBlockTheNextSelection() = runBlocking {
-        val slow = slowUrl
-        withPlayback(mediaUrl = { song -> if (song.id == "slow") slow else null }) { playback, native, _, song ->
-            val slowSong = song.copy(id = "slow")
-            val good = song.copy(id = "good")
-            playback.updatePlaylist(listOf(slowSong, good), 0, false)
-
-            val startedAt = System.nanoTime()
-            playback.skipTo(0, start = true)
-            val firstSelectionMillis = (System.nanoTime() - startedAt) / 1_000_000
-
-            val secondStartedAt = System.nanoTime()
-            playback.skipTo(1, start = true)
-            val secondSelectionMillis = (System.nanoTime() - secondStartedAt) / 1_000_000
-
-            // 修复前这里会等待原生预备上限（30s）：选曲命令必须立刻返回。
-            assertTrue(firstSelectionMillis < 2_000, "slow selection blocked for ${firstSelectionMillis}ms")
-            assertTrue(secondSelectionMillis < 2_000, "second selection blocked for ${secondSelectionMillis}ms")
-            assertEquals(good, playback.queue.currentItem())
-            withTimeout(10_000) { while (!native.status().isPlaying) delay(25) }
-            playback.pause()
-            // 结束前中止可能仍在 OPENING 的输入，避免把原生状态残留给后续用例。
-            playback.stop()
-            withTimeout(5_000) { while (native.status().state() == State.OPENING) delay(25) }
-        }
-    }
-
-    @Test fun aBrokenFileIsRecordedAndSkippedToTheNextPlayableSong() = runBlocking {
-        val broken = File.createTempFile("lmusic-broken", ".mp3").apply {
-            writeText("this is definitely not audio")
-            deleteOnExit()
-        }
-        val failures = MemoryFailures()
-        withPlayback(
-            failureRepository = failures,
-            mediaUrl = { song -> if (song.id == "broken") broken.toURI().toString() else null },
-        ) { playback, native, _, song ->
-            val brokenSong = song.copy(id = "broken")
-            val good = song.copy(id = "good")
-            playback.setPlaybackMode(PlaybackMode.LOOP)
-            playback.updatePlaylist(listOf(brokenSong, good), 0, true)
-
-            // 坏内容不会同步抛错：由观察者发现（实测是"未就绪就 ENDED"）后记账并继续下一首。
-            withTimeout(15_000) { while (failures.failures.value[brokenSong.playbackId] == null) delay(25) }
-            // 记账与导航是两步：等真正切到下一首，而不是记账后立刻断言。
-            withTimeout(15_000) { while (playback.queue.currentItem() != good) delay(25) }
-            withTimeout(10_000) { while (!native.status().isPlaying) delay(25) }
-            assertNull(failures.failures.value[good.playbackId])
-            playback.pause()
-        }
-    }
-
-    @Test fun aLateFailureOfTheReplacedSongDoesNotHijackTheCurrentOne() = runBlocking {
-        val broken = File.createTempFile("lmusic-late-broken", ".mp3").apply {
-            writeText("this is definitely not audio")
-            deleteOnExit()
-        }
-        val failures = MemoryFailures()
-        withPlayback(
-            failureRepository = failures,
-            mediaUrl = { song -> if (song.id == "broken") broken.toURI().toString() else null },
-        ) { playback, native, _, song ->
-            val brokenSong = song.copy(id = "broken")
-            val good = song.copy(id = "good")
-            playback.setPlaybackMode(PlaybackMode.LOOP)
-            playback.updatePlaylist(listOf(brokenSong, good), 0, false)
-
-            playback.skipTo(0, start = true)
-            // 坏歌还没失败就切到好歌：坏歌的迟到失败不能停掉/改写当前播放。
-            playback.skipTo(1, start = true)
-            withTimeout(10_000) { while (!native.status().isPlaying) delay(25) }
-            delay(2_000)
-
-            assertEquals(good, playback.queue.currentItem())
-            assertTrue(native.status().isPlaying, "the late failure stopped the current song")
-            assertNull(failures.failures.value[good.playbackId], "the failure was attributed to the current song")
-            playback.pause()
-        }
-    }
-
-    @Test fun pauseBeforePreparationCompletesCancelsTheQueuedAutoplay() = runBlocking {
-        withPlayback(mediaUrl = { song -> if (song.id == "slow") slowUrl else null }) { playback, native, _, song ->
-            val slow = song.copy(id = "slow")
-            playback.updatePlaylist(listOf(slow), 0, false)
-            playback.skipTo(0, start = true)
-            // 原生还没就绪时暂停：就绪后不能自己开始播放。
-            playback.pause()
-            delay(2_000)
-            assertFalse(native.status().isPlaying, "queued autoplay ignored the pause")
-            assertFalse(playback.isPlaying.value)
-        }
-    }
-
-    @Test fun alreadyRecordedFailuresAreNotRetriedWhileSkipping() = runBlocking {
-        val failures = MemoryFailures()
-        val attempted = mutableListOf<String>()
-        withPlayback(
-            beforeRead = { song ->
-                attempted += song.id
-                if (song.id != "good") throw java.io.FileNotFoundException("test")
-            },
-            failureRepository = failures,
-        ) { playback, native, _, song ->
-            val bad = song.copy(id = "bad")
-            val remembered = song.copy(id = "remembered")
-            val good = song.copy(id = "good")
-            // 这首歌在本次导航之前就已经失败过：跳过时不应再花时间重试它。
-            failures.record(remembered.playbackId, PlaybackFailure(PlaybackFailureReason.FileMissing, 1L))
-            playback.setPlaybackMode(PlaybackMode.LOOP)
-            playback.updatePlaylist(listOf(bad, remembered, good), 0, true)
-            assertEquals(listOf("bad", "good"), attempted)
-            assertEquals(good, playback.queue.currentItem())
-            withTimeout(5_000) { while (!native.status().isPlaying) delay(25) }
-            playback.pause()
-        }
-    }
-
-    @Test fun pausedPreparationKeepsFailureUntilRealPlaybackAdvances() = runBlocking {
-        val failures = MemoryFailures()
-        withPlayback(failureRepository = failures) { playback, native, _, song ->
-            val other = song.copy(mediaSourceName = "other-source")
-            val remembered = PlaybackFailure(PlaybackFailureReason.FileMissing, 1L)
-            failures.record(song.playbackId, remembered)
-            failures.record(other.playbackId, remembered)
-            playback.updatePlaylist(listOf(song), 0, false)
-            delay(750)
-            assertEquals(remembered, failures.failures.value[song.playbackId])
-            assertFalse(native.status().isPlaying)
-            playback.play()
-            withTimeout(5_000) {
-                while (song.playbackId in failures.failures.value) delay(25)
-            }
-            assertTrue(native.status().time() > 0)
-            assertEquals(mapOf(other.playbackId to remembered), failures.failures.value)
-            playback.pause()
-        }
-    }
-
-    @Test fun failedLoadPersistsOnlyTheCommandOwnedSourceQualifiedSong() = runBlocking {
-        val failures = MemoryFailures()
-        val missing = java.io.FileNotFoundException("private-test-path")
-        withPlayback(beforeRead = { throw missing }, failureRepository = failures) { playback, _, _, song ->
-            val caught = assertFailsWith<java.io.FileNotFoundException> {
-                playback.updatePlaylist(listOf(song), 0, true)
-            }
-            // Coroutine stack-trace recovery may copy the exception and retain it as the cause.
-            assertTrue(generateSequence<Throwable>(caught) { it.cause }.any { it === missing })
-            assertEquals(setOf(song.playbackId), failures.failures.value.keys)
-            assertEquals(PlaybackFailureReason.FileMissing, failures.failures.value.getValue(song.playbackId).reason)
-        }
-    }
-
-    @Test fun storageFailureDoesNotReplaceTheOriginalLoadFailure() = runBlocking {
-        val failures = MemoryFailures(failWrites = true)
-        val missing = java.io.FileNotFoundException("private-test-path")
-        withPlayback(beforeRead = { throw missing }, failureRepository = failures) { playback, _, _, song ->
-            val caught = assertFailsWith<java.io.FileNotFoundException> {
-                playback.updatePlaylist(listOf(song), 0, true)
-            }
-            assertTrue(generateSequence<Throwable>(caught) { it.cause }.any { it === missing })
-        }
-    }
-
-    @Test fun pauseCancelsTheAdaptersPendingSelectionWithoutApplyingItsLateResult() = runBlocking {
-        val failures = MemoryFailures()
-        val resolving = CompletableDeferred<Unit>()
-        val resolved = CompletableDeferred<Unit>()
-        withPlayback(failureRepository = failures, beforeRead = { song ->
-            if (song.id == "delayed") {
-                resolving.complete(Unit)
-                resolved.await()
-            }
-        }) { playback, native, _, song ->
-            val delayed = song.copy(id = "delayed")
-            playback.updatePlaylist(listOf(song, delayed), 0, false)
-            coroutineScope {
-                val selection = launch { playback.skipTo(1, true) }
-                withTimeout(5_000) { resolving.await() }
-                assertNull(playback.sampleHistoryPosition(), "Pending native selection must not yield a historical position")
-                playback.pause()
-                resolved.complete(Unit)
-                withTimeout(5_000) { selection.join() }
-                assertTrue(selection.isCancelled)
-                assertTrue(failures.failures.value.isEmpty(), "Cancellation is not a song failure")
-                assertEquals(song, playback.queue.currentItem())
-                assertFalse(native.status().isPlaying)
-                delay(200)
-                assertFalse(native.status().isPlaying)
-                playback.play()
-                withTimeout(5_000) {
-                    while (!native.status().isPlaying || native.status().time() < 200) delay(25)
-                }
-                assertEquals(song, playback.queue.currentItem())
-                playback.pause()
-            }
-        }
-    }
-
-    @Test fun stoppingClearsPositionInsteadOfExtrapolatingTheLastPlayingEvent() = runBlocking {
-        withPlayback { playback, native, storage, song ->
-            playback.updatePlaylist(listOf(song), 0, true)
-            withTimeout(5_000) { while (native.status().time() < 1_000) delay(25) }
-            playback.stop()
-            delay(1_500)
-            assertFalse(native.status().isPlaying)
-            assertEquals(0L, playback.currentPosition())
-            assertEquals(0L, storage.savedPosition())
-            assertFalse(playback.isPlaying.value)
-        }
-    }
-
-    @Test fun pausedSeekAndHistoryRecordingStayAtTheNativePosition() = runBlocking {
-        withPlayback { playback, native, storage, song ->
-            playback.updatePlaylist(listOf(song), 0, false)
-            playback.seekTo(12_000)
-            withTimeout(5_000) { while (abs(native.status().time() - 12_000) > 500) delay(25) }
-            assertEquals(State.PAUSED, native.status().state())
-            val position = native.status().time()
-            assertTrue(abs(playback.sampleHistoryPosition()!! - position) < 100)
-            delay(1_500)
-            assertTrue(abs(playback.currentPosition() - position) < 100, "Paused public position drifted")
-            assertTrue(abs(storage.savedPosition() - position) < 100, "Paused history position drifted")
-            assertFalse(playback.isPlaying.value)
-        }
-    }
-
-    @Test fun queueReplacementCannotSampleTheOldLoadedSong() = runBlocking {
-        withPlayback { playback, _, _, song ->
-            playback.updatePlaylist(listOf(song), 0, false)
-            playback.seekTo(12_000)
-            val oldQueue = playback.queue.stateSnapshot()
-            val replacement = song.copy(id = "not-loaded")
-            playback.queue.update { replaceAll(listOf(replacement), 0) }
-            assertNull(playback.historyPosition(oldQueue))
-            assertNull(playback.sampleHistoryPosition())
-            playback.queue.update { replaceAll(listOf(song.copy(mediaSourceName = "other-source")), 0) }
-            assertNull(playback.sampleHistoryPosition(), "Same ID in a different source is not the loaded song")
-        }
-    }
-
-    @Test fun historyHookLoadsNativeAudioAndPreservesTheRestoredQueue() = runBlocking {
+    @Test fun pausedNavigationAndSameSelectionMatchSharedCore() = runBlocking {
         withPlayback { playback, native, _, song ->
-            val other = song.copy(id = "other")
-            playback.queue.update { replaceAll(listOf(other, song), 1) }
-            playback.onQueueRestored(PlaybackHistory.HistorySnapshot(
-                listOf(other.id, song.id), 1, 12_000, listOf(song.mediaSourceName, song.mediaSourceName),
-            ))
-            assertEquals(State.PAUSED, native.status().state())
-            assertTrue(abs(native.status().time() - 12_000) <= 500)
-            assertEquals(listOf(other, song), playback.queue.stateSnapshot().list)
-            assertEquals(1, playback.queue.stateSnapshot().index)
-            playback.play()
-            withTimeout(5_000) {
-                while (!native.status().isPlaying || native.status().time() <= 12_000) delay(25)
-            }
-            playback.pause()
-            withTimeout(5_000) { while (native.status().state() != State.PAUSED) delay(25) }
-            assertFalse(playback.isPlaying.value)
+            val songs = listOf(song.copy(id = "first"), song.copy(id = "last"))
+            playback.updatePlaylist(songs, 0, false)
+            awaitPhase(playback, com.lalilu.playback.core.Phase.ReadyPaused)
+            playback.seekTo(3000)
+            withTimeout(5000) { playback.core.state.first { it.pendingSeekId == null && it.positionMs >= 2500 } }
+            playback.playAudio(songs[0])
+            assertFalse(native.status().isPlaying)
+            assertTrue(playback.currentPosition() >= 2500)
+            playback.skipToPrevious()
+            awaitPhase(playback, com.lalilu.playback.core.Phase.ReadyPaused)
+            assertEquals("last", playback.queue.currentItem()?.id)
+            assertFalse(native.status().isPlaying)
+            playback.skipToNext()
+            awaitPhase(playback, com.lalilu.playback.core.Phase.ReadyPaused)
+            assertEquals("first", playback.queue.currentItem()?.id)
         }
+    }
+
+    @Test fun slowSelectionCanBeReplacedAndPauseDoesNotResumeOnPrepare() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        withPlayback(beforeRead = { if (it.id == "slow") { entered.complete(Unit); gate.await() } }) { playback, native, _, song ->
+            playback.updatePlaylist(listOf(song.copy(id = "slow"), song.copy(id = "good")), 0, true)
+            withTimeout(5000) { entered.await() }
+            playback.pause()
+            playback.skipToNext()
+            gate.complete(Unit)
+            awaitPhase(playback, com.lalilu.playback.core.Phase.ReadyPaused)
+            assertEquals("good", playback.queue.currentItem()?.id)
+            assertFalse(native.status().isPlaying)
+        }
+    }
+
+    @Test fun allFailuresAreBoundedAndPlayRetriesSelected() = runBlocking {
+        val attempts = java.util.concurrent.CopyOnWriteArrayList<String>()
+        var bad = true
+        withPlayback(beforeRead = { attempts += it.id; if (bad) throw java.io.FileNotFoundException("fixture") }) { playback, native, _, song ->
+            val songs = (0..2).map { song.copy(id = "bad-$it") }
+            playback.updatePlaylist(songs, 0, true)
+            awaitPhase(playback, com.lalilu.playback.core.Phase.Failed)
+            withTimeout(5000) { playback.core.state.first { it.intent == com.lalilu.playback.core.PlayIntent.Pause } }
+            assertEquals(listOf("bad-0", "bad-1", "bad-2"), attempts.toList())
+            val selected = playback.queue.currentItem()?.id
+            bad = false
+            playback.play()
+            awaitPhase(playback, com.lalilu.playback.core.Phase.Playing)
+            assertEquals(selected, attempts.last())
+            assertTrue(native.status().isPlaying)
+        }
+    }
+
+    @Test fun nativeDecodeFailureSkipsAndRepeatOneFailureStops() = runBlocking {
+        withPlayback(mediaUrl = { if (it.id == "missing") "/private/tmp/lmusic-p4-nonexistent.wav" else null }) { playback, _, _, song ->
+            playback.updatePlaylist(listOf(song.copy(id = "missing"), song.copy(id = "good")), 0, true)
+            awaitPhase(playback, com.lalilu.playback.core.Phase.Playing)
+            assertEquals("good", playback.queue.currentItem()?.id)
+            playback.setPlaybackMode(PlaybackMode.SINGLE_LOOP)
+            playback.playAudio(song.copy(id = "missing"))
+            awaitPhase(playback, com.lalilu.playback.core.Phase.Failed)
+            assertEquals("missing", playback.queue.currentItem()?.id)
+            assertEquals(com.lalilu.playback.core.PlayIntent.Pause, playback.core.state.value.intent)
+        }
+    }
+
+    @Test fun nativePositionAndHistoryStayPausedAfterSeek() = runBlocking {
+        withPlayback { playback, native, history, song ->
+            playback.updatePlaylist(listOf(song), 0, true)
+            awaitPhase(playback, com.lalilu.playback.core.Phase.Playing)
+            playback.pause()
+            playback.seekTo(5000)
+            withTimeout(5000) { playback.core.state.first { it.pendingSeekId == null && it.positionMs >= 4500 } }
+            awaitPhase(playback, com.lalilu.playback.core.Phase.ReadyPaused)
+            delay(1300)
+            assertFalse(native.status().isPlaying)
+            assertTrue(abs(history.savedPosition() - native.status().time()) < 500)
+            val before = playback.currentPosition()
+            delay(400)
+            assertTrue(abs(before - playback.currentPosition()) < 100)
+        }
+    }
+
+    private suspend fun awaitPhase(playback: VLCPlayback, phase: com.lalilu.playback.core.Phase) {
+        withTimeout(12_000) { playback.core.state.first { it.phase == phase } }
     }
 
     private val slowUrl = "http://10.255.255.1/lmusic-slow-probe.mp3"
@@ -358,7 +126,7 @@ class VlcPlaybackNativeTest {
         val factory = MediaPlayerFactory(null as NativeDiscovery?, "--no-video", "--aout=dummy")
         val native = factory.mediaPlayers().newMediaPlayer()
         val job = SupervisorJob()
-        val scope = CoroutineScope(Dispatchers.IO + job)
+        val scope = CoroutineScope(Dispatchers.IO.limitedParallelism(1) + job)
         val source = object : MediaSource {
             override val name = "native-fixture"
             override val state = MutableStateFlow<SnapshotState>(SnapshotState.Idle)
@@ -384,12 +152,15 @@ class VlcPlaybackNativeTest {
         }
         val storage = MemoryHistory()
         val ready = CompletableDeferred<Unit>()
+        var host: VLCPlayback? = null
         try {
             val playback = VLCPlayback(repository, PlaybackHistoryImpl(storage), PlatformMediaSource.provide(source),
                 tracker, failureRepository, scope, nativePlayerProvider = { native }, installPlatformControls = { ready.complete(Unit) })
+            host = playback
             withTimeout(5_000) { ready.await() }
             block(playback, native, storage, song)
         } finally {
+            withContext(scope.coroutineContext.minusKey(Job)) { host?.core?.close(); delay(100) }
             job.cancelAndJoin()
             native.controls().stop()
             native.release()

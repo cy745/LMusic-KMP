@@ -32,8 +32,8 @@ data class PlaybackSnapshot(
 }
 
 sealed interface PlaybackCommand {
-    data class ReplaceQueue(val items: List<TrackKey>, val selected: TrackKey? = null) : PlaybackCommand
-    data class Select(val key: TrackKey) : PlaybackCommand
+    data class ReplaceQueue(val items: List<TrackKey>, val selected: TrackKey? = null, val startPlayback: Boolean = false) : PlaybackCommand
+    data class Select(val key: TrackKey, val startPlayback: Boolean = false) : PlaybackCommand
     data class Remove(val key: TrackKey) : PlaybackCommand
     data class PlayNext(val key: TrackKey) : PlaybackCommand
     data class SetMode(val mode: PlayMode) : PlaybackCommand

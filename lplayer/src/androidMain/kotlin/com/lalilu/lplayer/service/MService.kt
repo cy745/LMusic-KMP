@@ -57,6 +57,7 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
 
     private var player: Player? = null
     private var exoPlayer: ExoPlayer? = null
+    private var outputProbe: com.lalilu.lplayer.core.AndroidOutputProbe? = null
     private var mediaSession: MediaLibrarySession? = null
     private var eqHelper: EQHelper? = null
     private var notificationProvider: MNotificationProvider? = null
@@ -94,6 +95,7 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
                 override fun onAudioSessionIdChanged(id: Int) { eqHelper?.audioSessionId = id }
             })
         }
+        outputProbe = com.lalilu.lplayer.core.AndroidOutputProbe(this, runtime.player)
         val core = PlaybackCore(this, ContentResolver { key -> access.resolve(MediaKey(key.source,key.id)) }, runtime)
         player = CoreSessionPlayer(core, runtime, this, items, access::close).apply {
             addListener(MPlayerListener(this))
@@ -117,6 +119,8 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
     }
 
     override fun onDestroy() {
+        outputProbe?.close()
+        outputProbe = null
         // 释放相关实例
         player?.stop()
         player?.release()
