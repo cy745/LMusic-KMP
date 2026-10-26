@@ -1,0 +1,62 @@
+Android emulator-5554; production runtime base 98f7c882
+Fixture: three synthetic WAV songs, real WebDAV configuration with unavailable endpoint.
+Cache bytes seeded directly; each phase runs after force-stop in a separate process.
+
+
+Cold-start phase: prepare
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 5.093
+
+OK (1 test)
+
+Cold-start phase: removeLibraryRows
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.034
+
+OK (1 test)
+
+Cold-start phase: verify
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 7.604
+
+OK (1 test)
+
+Cold-start phase: removeCachedBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.025
+
+OK (1 test)
+
+Cold-start phase: verifyMissingBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 9.522
+
+OK (1 test)
+
+Cold-start phase: cleanup
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.032
+
+OK (1 test)
+
+Post-cleanup production session regression:
+
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+
+Time: 11.404
+
+OK (1 test)
+
+

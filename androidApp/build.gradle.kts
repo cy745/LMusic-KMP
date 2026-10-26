@@ -114,6 +114,7 @@ dependencies {
     androidTestImplementation(project(":lmedia:lmedia-content"))
     androidTestImplementation(project(":lplayer"))
     androidTestImplementation(project(":lmedia:lmedia-data"))
+    androidTestImplementation(project(":lmedia:lmedia-client"))
     androidTestImplementation(libs.media3.session)
     androidTestImplementation(libs.kotlinx.coroutines.guava)
     androidTestImplementation(libs.ktor.client.okhttp)
