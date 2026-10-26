@@ -10,10 +10,12 @@ import com.lalilu.playback.core.*
 import kotlinx.coroutines.*
 
 /** Foreground prototype only. One native item, no native queue/repeat/shuffle policy. */
-class Media3PrototypeRuntime(context: Context) : AudioRuntime {
+class Media3PrototypeRuntime(context: Context, dataSourceFactory: androidx.media3.datasource.DataSource.Factory? = null) : AudioRuntime {
     override var onEvent: ((RuntimeEvent) -> Unit)? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val player = ExoPlayer.Builder(context.applicationContext).build()
+    private val player = ExoPlayer.Builder(context.applicationContext).apply {
+        dataSourceFactory?.let { setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(it)) }
+    }.build()
     private var owner: LoadTicket? = null
     private var loaded: LoadTicket? = null
     private var listener: Player.Listener? = null

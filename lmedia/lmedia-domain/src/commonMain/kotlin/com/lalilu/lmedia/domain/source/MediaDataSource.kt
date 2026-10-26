@@ -7,6 +7,12 @@ import kotlinx.coroutines.flow.Flow
  * Data source for media content (lyrics, pictures, playback data).
  */
 interface MediaDataSource {
+    /** Optional Plan B content contract. Scope must change when account/server/root changes. */
+    fun contentCacheScope(): String? = null
+
+    /** Return null unless size and a reliable content revision are known; never use a signed URL as identity. */
+    fun contentCacheIdentity(song: LAudio): MediaCacheIdentity? = null
+
     companion object {
         val Empty = object : MediaDataSource {}
     }

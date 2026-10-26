@@ -2,6 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity android:name="com.lalilu.lmusic.prototype.PlaybackPrototypeActivity"
-            android:exported="true" android:label="LMusic 播放核心原型" />
+            android:exported="true" android:launchMode="singleTask" android:label="LMusic 播放核心原型" />
     </application>
 </manifest>

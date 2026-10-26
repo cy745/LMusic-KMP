@@ -499,7 +499,7 @@ class WebDavSource(
     /**
      * 逐层遍历目录树。
      *
-     * 单个子目录请求失败只跳过该目录，不拖垮整次扫描——家用 NAS 上偶发的超时不应让整个媒体库不可用。
+     * 继续收集目录错误，但部分结果不能冒充完整快照，否则会误删未访问目录的旧歌曲。
      * 但**根目录失败是致命的**：那意味着地址、鉴权或根路径有误，此时若按"空结果"提交成功快照，
      * 数据库会把该源已有的歌曲全部标记为不可用，一次输错密码就会让用户的媒体库消失。
      */
@@ -571,6 +571,7 @@ class WebDavSource(
         if (successfulRequests == 0) {
             throw firstFailure ?: IllegalStateException("未能读取任何目录")
         }
+        firstFailure?.let { throw IllegalStateException("扫描未完成，保留上一次完整媒体库", it) }
 
         // 兜底去重：PROPFIND 偶尔会重复返回同一条目（反代/网关环境），
         // 同 id 重复会让快照里出现两首一模一样的歌，而库里其实只有一行。
@@ -651,6 +652,17 @@ class WebDavSource(
         if (cacheRootProvider.cacheRoot() == null) return null
         val url = originUrlOf(song) ?: return null
         return MediaData.Url(url)
+    }
+
+    override fun contentCacheScope(): String =
+        listOf(activeConfig.url, activeConfig.username, activeConfig.rootPath).joinToString("") { "${it.length}:$it" }.md5()
+
+    override fun contentCacheIdentity(song: LAudio): com.lalilu.lmedia.domain.source.MediaCacheIdentity? {
+        val size = song.fileSizeOrNull()?.takeIf { it > 0 } ?: return null
+        val etag = song.extra?.get(EXTRA_ETAG)?.takeUnless { it.startsWith("W/") || it.isBlank() }
+        val modified = song.extra?.get(EXTRA_LAST_MODIFIED)?.takeIf { it.isNotBlank() }
+        val revision = etag ?: modified ?: return null
+        return com.lalilu.lmedia.domain.source.MediaCacheIdentity(contentCacheScope(), "$size|$revision", size, etag, modified)
     }
 
     /** 访问远端所需的请求头：Basic 认证只在代理侧使用。 */

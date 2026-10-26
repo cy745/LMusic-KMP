@@ -27,6 +27,8 @@ class PlaybackPrototypeActivity : Activity() {
     private val media = mutableMapOf<TrackKey, LAudio>()
     private val fixtures = linkedMapOf<TrackKey, String>()
     private val temporaryMedia = mutableListOf<File>()
+    private var content: PrototypeContentAccess? = null
+    private val cachedUris = mutableMapOf<TrackKey, String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,10 +50,16 @@ class PlaybackPrototypeActivity : Activity() {
                         fixtures[TrackKey("prototype", name)] = PrototypeAudio.write(File(cacheDir,"playback-core-prototype"),name,220.0+index*110).toURI().toString()
                     }
                 }
-                val runtime = Media3PrototypeRuntime(this@PlaybackPrototypeActivity)
+                val access = withContext(Dispatchers.IO) {
+                    PrototypeContentAccess(this@PlaybackPrototypeActivity,
+                        KoinPlatform.getKoin().get<PlatformMediaSource>(), KoinPlatform.getKoin().get<AudioRepository>())
+                }
+                content = access
+                val runtime = Media3PrototypeRuntime(this@PlaybackPrototypeActivity, access.dataSourceFactory)
                 val instance = PlaybackCore(scope, ContentResolver { key ->
-                    val uri = fixtures[key] ?: run {
+                    val uri = fixtures[key] ?: cachedUris[key] ?: run {
                         val audio = media[key] ?: error("歌曲已不可用")
+                        access.uri(audio)?.let { return@ContentResolver PlayableResource(it) }
                         val data = KoinPlatform.getKoin().get<PlatformMediaSource>().resolveMediaData(audio)
                         when (data) {
                             is MediaData.Url -> data.url
@@ -105,11 +113,30 @@ class PlaybackPrototypeActivity : Activity() {
                 try {
                     core?.dispatch(PlaybackCommand.Pause)
                     val audios = KoinPlatform.getKoin().get<AudioRepository>().getAudios().first().filter { it.available }.take(20)
+                    content?.remember(audios)
+                    cachedUris.clear()
                     audios.forEach { media[TrackKey(it.mediaSourceName,it.id)] = it }
                     core?.dispatch(PlaybackCommand.ReplaceQueue(audios.map { TrackKey(it.mediaSourceName,it.id) }))
                 } catch (failure: Exception) {
                     if (failure is CancellationException) throw failure
                     status.append("\n媒体库读取失败：${failure.message}")
+                }
+            }
+        }
+        button("读取缓存目录（不等待数据源，保持暂停）") {
+            scope.launch {
+                try {
+                    core?.dispatch(PlaybackCommand.Pause)
+                    val saved = content?.cachedSongs().orEmpty()
+                    cachedUris.clear()
+                    saved.forEach { (audio, uri) ->
+                        val key = TrackKey(audio.mediaSourceName,audio.id)
+                        media[key] = audio; cachedUris[key] = uri
+                    }
+                    core?.dispatch(PlaybackCommand.ReplaceQueue(saved.map { TrackKey(it.first.mediaSourceName,it.first.id) }))
+                } catch (failure: Exception) {
+                    if (failure is CancellationException) throw failure
+                    status.append("\n缓存目录读取失败：${failure.message}")
                 }
             }
         }
@@ -134,6 +161,7 @@ class PlaybackPrototypeActivity : Activity() {
     }
     override fun onDestroy() {
         core?.close()
+        content?.close()
         scope.cancel()
         synchronized(temporaryMedia) { temporaryMedia.forEach { it.delete() }; temporaryMedia.clear() }
         super.onDestroy()

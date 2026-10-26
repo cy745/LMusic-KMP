@@ -156,17 +156,28 @@ class WebDavSourceTest {
     }
 
     @Test
-    fun `keeps scanning when a single directory fails`() = runTest {
+    fun `does not publish an incomplete scan as a full snapshot`() = runTest {
         val client = FakeWebDavClient(files, failingDirectories = setOf("/Music/MyGO!!!!!/"))
         val source = newSource(client)
 
         source.connect("http://dav.local:8080", "lmusic", "pw", "/Music").getOrThrow()
-        val snapshot = assertNotNull(awaitSnapshot(source))
-
-        assertEquals(2, snapshot.audios.size)
-        assertTrue(snapshot.audios.none { it.title.contains("ノンブレス") })
-        assertFalse(source.state.value is SnapshotState.Error)
+        assertTrue(awaitTerminal(source) is SnapshotState.Error)
+        assertNull(source.snapshot.value)
         source.deactivate()
+    }
+
+    @Test
+    fun `failed subdirectory refresh preserves previous complete library`() = runTest {
+        val failures = mutableSetOf<String>()
+        val source = newSource(FakeWebDavClient(files, failingDirectories = failures))
+        try {
+            source.connect("http://dav.local:8080", "lmusic", "pw", "/Music").getOrThrow()
+            val previous = assertNotNull(awaitSnapshot(source))
+            failures += "/Music/MyGO!!!!!/"
+            source.refresh().getOrThrow()
+            assertTrue(awaitTerminal(source) is SnapshotState.Error)
+            assertEquals(previous.audios, source.snapshot.value?.audios)
+        } finally { source.deactivate() }
     }
 
     @Test

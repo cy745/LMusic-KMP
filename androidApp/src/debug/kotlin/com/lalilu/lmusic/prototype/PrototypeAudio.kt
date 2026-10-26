@@ -10,7 +10,8 @@ import kotlin.math.sin
 object PrototypeAudio {
     fun write(directory: File, name: String, frequency: Double = 220.0, durationMs: Int = 8000): File {
         directory.mkdirs()
-        val frames = 16000 * durationMs / 1000
+        require(durationMs in 1..600_000) { "Test fixture duration must be within ten minutes" }
+        val frames = (16000L * durationMs / 1000).toInt()
         val size = frames * 2
         val data = ByteBuffer.allocate(44 + size).order(ByteOrder.LITTLE_ENDIAN)
         data.put("RIFF".toByteArray()).putInt(36 + size).put("WAVEfmt ".toByteArray())
