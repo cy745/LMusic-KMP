@@ -1,0 +1,54 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 建议：共享决策与内容服务，平台仅承载技术差异
+node "每个平台的应用宿主" {
+  artifact "UI / 系统媒体会话适配" as ui
+  artifact "KMP PlaybackCore\n单一实例 / 串行命令处理" as core
+  artifact "KMP MediaLibrary / ContentAccess\n持久化适配与缓存调度" as content
+  artifact "AudioRuntime facade" as runtime
+}
+node "普通音频的目标路径" {
+  artifact "共享原生音频运行时\n解封装 / 解码 / PCM 调度\n语言与库由原型验证后选定" as native
+  artifact "平台输出适配\nAndroid / Apple / Desktop" as output
+}
+node "受管媒体 / Web / 迁移后端" {
+  artifact "MusicKit 等受管后端" as managed
+  artifact "Web Audio 路径或明确降级后端" as web
+  artifact "临时 Media3 / AVPlayer / VLC 适配" as legacy
+}
+ui --> core : 命令
+core --> ui : 快照
+core --> content
+core --> runtime
+runtime --> native
+native --> content : 非实时线程读取
+native --> output
+runtime --> managed
+runtime --> web
+runtime --> legacy
+note bottom of native
+音频实时回调仅消费预分配缓冲；
+不调用网络、数据库或阻塞式协程。
+共享 native 与 KMP 通过粗粒度句柄 / 事件交互。
+end note
+note bottom of legacy
+临时后端用于逐步迁移与行为验证；
+能力必须实测，不能因接口统一就宣称能力一致。
+最终普通音频目标不是永久维护三套选曲规则。
+end note
+
+@enduml

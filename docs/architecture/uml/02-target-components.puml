@@ -1,0 +1,57 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 建议：职责边界（逻辑组件，不要求一组件一 Gradle 模块）
+component "应用装配\n唯一依赖注入入口" as app
+component "UI / 展示投影\n歌词、进度预览、队列显示" as ui
+component "系统媒体会话\n通知 / 耳机 / 焦点 / 后台宿主" as session
+component "PlaybackCore\n唯一播放决策者" as playback
+component "MediaLibrary\n目录缓存 / 对账 / 元数据查询" as library
+component "ContentAccess\n缓存优先读取 / 区间调度" as access
+component "SourceAdapter\n扫描协议 / 内容定位 / 鉴权" as source
+component "AudioRuntime\n准备、定位、时间、衔接" as runtime
+component "PCM 管线\n成熟解码组件 + 自研调度\n平台输出 / 短音量渐变" as pcm
+component "平台受管播放适配\n如 MusicKit" as managed
+component "持久化\n目录库 / 缓存索引 / 文件 / 历史" as storage
+component "图片适配 / 共享服务\n查询与内容访问的消费者" as consumers
+app ..> playback : 装配依赖
+app ..> runtime
+app ..> source
+ui ..> playback : 命令 / 只读快照
+ui ..> library : 元数据
+session ..> playback : 相同命令 / 快照
+playback ..> library : 只读目录与历史端口
+playback ..> access : 请求准备内容
+playback ..> runtime : 已选目标 / 执行计划
+library ..> source : 刷新目录
+library ..> storage
+access ..> source : 缺失区间与鉴权
+access ..> storage
+runtime ..> access : 读取媒体内容
+runtime ..> pcm
+runtime ..> managed
+consumers ..> library
+consumers ..> access
+note bottom of playback
+队列、模式、播放意图、失败遍历只有一个所有者。
+UI 和系统会话不直接操作底层播放器。
+end note
+note bottom of source
+来源不决定下一首，也不决定播放条怎样显示。
+远端断线不等于已有本地资源不可读。
+end note
+
+@enduml

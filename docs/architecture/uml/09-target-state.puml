@@ -1,0 +1,59 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 建议：准备阶段与播放意图分开（状态图）
+state "无选曲" as Empty
+state "准备中 / 安静等待" as Preparing
+state "就绪且暂停" as Paused
+state "正在播放" as Playing
+state "定位中" as Seeking
+state "缓冲等待" as Buffering
+state "失败停留" as Failed
+state "自然结束停留" as Ended
+[*] --> Empty
+Empty --> Preparing : 加入第一首 / intent=Pause
+Preparing --> Preparing : 换曲 / 新 epoch
+Preparing --> Preparing : 暂停 / intent=Pause，允许准备继续
+Preparing --> Playing : Prepared [intent=Play] / 开始
+Preparing --> Paused : Prepared [intent=Pause]
+Paused --> Playing : Play / 短渐入
+Playing --> Paused : Pause / 短渐出
+Playing --> Preparing : 手动换曲 / 旧曲短渐出后停
+Paused --> Preparing : 选中另一首 / 保留 Pause
+Playing --> Seeking : Seek / 新 seekId
+Paused --> Seeking : Seek / 保留 Pause
+Seeking --> Playing : SeekSettled [intent=Play]
+Seeking --> Paused : SeekSettled [intent=Pause]
+Seeking --> Seeking : Pause / intent=Pause
+Playing --> Buffering : 可播放数据耗尽
+Buffering --> Playing : 补齐 [intent=Play]
+Buffering --> Paused : Pause / 就绪后不自动播放
+Playing --> Ended : 自然结束 [顺序末尾或播放完成暂停]
+Playing --> Preparing : 自然下一首未就绪 / 保持 Play
+Playing --> Playing : 已授权下一首无缝接管 / 更新身份
+Preparing --> Failed : 失败 [暂停意图或单曲循环或遍历耗尽]
+Buffering --> Failed : 明确失败 [不能自动跳过]
+Playing --> Failed : 播放失败 [不能自动跳过]
+Preparing --> Preparing : 失败 [允许跳过] / 策略选择未尝试项
+Failed --> Preparing : Play / 重试当前，新失败轮次
+Ended --> Preparing : Play / 当前曲从头
+note bottom of Empty
+全局规则：清空队列 -> 无选曲并清除播放意图；
+手动选曲可打断等待、定位和失败；迟到事件按票据丢弃。
+图展示主要路径，完整判断以需求记录和状态转移测试为准。
+end note
+
+@enduml

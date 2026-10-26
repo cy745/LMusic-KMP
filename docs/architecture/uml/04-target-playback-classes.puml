@@ -1,0 +1,95 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 建议：统一状态与窄接口（名称为方案草案）
+class PlaybackCore {
+  +dispatch(command)
+  +accept(event)
+  +snapshot: PlaybackSnapshot
+}
+class PlaybackSnapshot {
+  +queue: List<MediaKey>
+  +selected: MediaKey?
+  +intent: Play | Pause
+  +phase: Phase
+  +mode: PlaybackMode
+  +selectionEpoch: Long
+  +explicitNext: MediaKey?
+}
+class QueuePolicy {
+  +selectNext(cause, history)
+  +applyEdit(command)
+  +onFailure(attempted)
+}
+class PlaybackProjection {
+  +queueForDisplay(snapshot)
+  +timeline(snapshot, preview)
+}
+interface ContentAccess {
+  +open(key, revision): ContentHandle
+  +readAt(handle, range)
+}
+interface AudioRuntime {
+  +prepare(ticket, content)
+  +setIntent(ticket, intent)
+  +seek(ticket, seekId, position)
+  +armNext(plan)
+  +invalidate(planId)
+  +events: RuntimeEvent
+}
+class RuntimeEvent {
+  +selectionEpoch
+  +mediaKey
+  +seekId / planId
+  +Prepared / Started / Position
+  +SeekSettled / Failed / Ended
+}
+class NextPlan {
+  +planId
+  +fromEpoch
+  +queueRevision
+  +targetKey
+}
+interface SourceAdapter {
+  +scan(cursor): ScanResult
+  +locate(key): ResourceDescriptor
+}
+class MediaLibrary {
+  +observeCatalog()
+  +refresh(source)
+}
+class ResourceDescriptor {
+  +sourceId / accountScope / itemId
+  +contentRevision
+  +local | rangedRemote | managed
+}
+PlaybackCore *-- PlaybackSnapshot
+PlaybackCore *-- QueuePolicy
+PlaybackCore --> AudioRuntime
+PlaybackCore --> ContentAccess
+PlaybackProjection ..> PlaybackSnapshot : 只读
+AudioRuntime ..> RuntimeEvent : 上报
+AudioRuntime ..> NextPlan : 执行一次性衔接计划
+ContentAccess ..> SourceAdapter : 缓存未命中才定位远端
+MediaLibrary --> SourceAdapter
+SourceAdapter ..> ResourceDescriptor
+note bottom of AudioRuntime
+不认识随机规则、失败跳歌规则或完整业务队列。
+可以持有当前项与一个获授权的下一项准备槽。
+迁移期原生后端也遵守此边界。
+end note
+
+@enduml

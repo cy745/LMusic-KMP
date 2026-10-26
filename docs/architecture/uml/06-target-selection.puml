@@ -1,0 +1,54 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 建议：快速切歌后暂停，迟到结果不能发声
+actor 用户
+participant "UI / 系统会话" as ui
+participant PlaybackCore as core
+participant ContentAccess as content
+participant AudioRuntime as runtime
+用户 -> ui : A -> B
+ui -> core : Select(B)
+core -> core : selected=B；epoch=21；保留播放意图
+core --> ui : 立即显示 B / 准备中
+core ->> runtime : 短渐出并停 A；撤销旧衔接计划
+core ->> content : prepare(B, epoch=21)
+用户 -> ui : 立即切 C
+ui -> core : Select(C)
+core -> core : selected=C；epoch=22
+core ->> content : cancelInterest(21)；prepare(C,22)
+note over core, content
+命令处理不等待网络、解码或淡化。
+取消使用权与可复用缓存分开。
+end note
+用户 -> ui : 暂停
+ui -> core : Pause
+core -> core : intent=Pause
+core ->> runtime : setIntent(22, Pause)
+content -->> core : B 迟到完成(21)
+core -> core : 代次不匹配，丢弃控制结果
+content -->> core : C 可读取(22)
+core ->> runtime : prepare(C,22)
+runtime -->> core : Prepared(C,22)
+core -> core : 保持 Pause；ReadyPaused
+core --> ui : C 已准备，保持暂停
+用户 -> ui : 播放
+ui -> core : Play
+core ->> runtime : setIntent(22,Play)，短渐入
+runtime -->> core : Started(C,22)
+core --> ui : C 正在播放
+
+@enduml

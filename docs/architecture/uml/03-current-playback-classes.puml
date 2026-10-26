@@ -1,0 +1,63 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 当前：Playback 接口统一，执行路径并不统一
+interface Playback
+abstract class AbstractPlayback
+class MPlayerPlayback
+class VLCPlayback
+class AVPlayerPlayback
+class AudioPlayback
+class PlatformQueueBridge
+class PlayableQueueImpl
+interface PlaybackEngine
+class PlaybackEngineRouter
+class AVPlayerEngine
+class AVAudioPlayerEngine
+class MusicKitEngine
+class "MediaBrowser / MService" as session
+class "QueueControlPlayer + ExoPlayer" as exo
+class "vlcj MediaPlayer" as vlc
+class "HTML Audio" as web
+class "历史 / 失败 / 时长 / 缓冲辅助对象" as helpers
+Playback <|.. MPlayerPlayback
+Playback <|.. AbstractPlayback
+AbstractPlayback <|-- VLCPlayback
+AbstractPlayback <|-- AVPlayerPlayback
+AbstractPlayback <|-- AudioPlayback
+AbstractPlayback *-- PlayableQueueImpl
+AbstractPlayback --> PlaybackEngineRouter
+PlaybackEngineRouter o-- PlaybackEngine
+PlaybackEngine <|.. AVPlayerEngine
+PlaybackEngine <|.. AVAudioPlayerEngine
+PlaybackEngine <|.. MusicKitEngine
+MPlayerPlayback *-- PlatformQueueBridge
+PlatformQueueBridge *-- PlayableQueueImpl
+MPlayerPlayback --> session
+session --> exo
+exo --> MPlayerPlayback : Timeline / 状态回调
+VLCPlayback --> vlc : 直接控制
+AudioPlayback --> web : 直接控制
+AVPlayerPlayback --> PlaybackEngineRouter : 选择引擎
+AbstractPlayback --> helpers
+MPlayerPlayback --> helpers
+note bottom of PlaybackEngineRouter
+iOS 使用引擎路由。
+VLC / Web 的 createEngines() 返回空列表，
+它们仍继承共享基类，但绕过此引擎路径。
+end note
+
+@enduml

@@ -1,0 +1,52 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 当前：目录持久化与内容访问之间仍有就绪门槛
+participant "应用 / Playback" as app
+participant "Room / Repository" as db
+participant "来源绑定" as binding
+participant "Source + StateStore" as source
+participant "resolveMediaData" as resolver
+participant "URL Rewriter / 前缀缓存代理" as cache
+participant "远端" as remote
+app -> db : 读取已有目录 / 恢复队列
+binding -> source : init()
+source -> remote : 扫描 / 建立连接
+alt 扫描成功
+  remote --> source : 完整快照
+  source -> binding : snapshot(revision)
+  binding -> db : 对账入库；缺失项不可用
+  source -> source : content Ready
+else 初次连接失败
+  remote --> source : 失败
+  source -> source : content Unavailable
+end
+app -> resolver : 播放某首已有歌曲
+resolver -> source : enabled? requireContentReady()
+alt 来源可读取
+  source --> resolver : getMedia -> URL / Bytes
+  resolver -> cache : 在线 URL 改写并注册
+  cache -> remote : 缺失前缀继续下载
+  cache --> app : 可播放地址
+else 来源明确不可用
+  resolver --> app : 失败（尚未查询音频缓存）
+end
+note over db, cache
+目录已入库、音频已缓存、来源已就绪
+是不同事实；当前播放入口仍受来源就绪限制。
+end note
+
+@enduml

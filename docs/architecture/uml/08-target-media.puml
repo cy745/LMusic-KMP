@@ -1,0 +1,50 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 建议：目录先显示，内容按资源独立读取
+participant "应用 / Playback" as app
+participant MediaLibrary as library
+database "目录库 / 资源索引" as catalog
+participant ContentAccess as access
+database "分段音频缓存" as cache
+participant SourceAdapter as source
+participant "远端" as remote
+app -> library : observeCatalog()
+library -> catalog : 读取持久化目录
+catalog --> app : 立即显示已有歌曲及缓存状态
+library ->> source : 后台 refresh()
+app -> access : open(mediaKey, revision)
+access -> catalog : 定位资源与本地覆盖范围
+access -> cache : 检查所需区间
+alt 本地已覆盖
+  cache --> access : 本地区间
+  access --> app : ContentHandle（无需远端就绪）
+else 存在缺口
+  access -> source : locate / refreshCredentials
+  source -> remote : 取得资源、鉴权或刷新地址
+  source --> access : descriptor + capabilities
+  access -> remote : 请求实际所需字节范围
+  remote --> cache : 校验版本后提交区间
+  access --> app : ContentHandle
+end
+source -->> library : ScanResult(scope, complete, revision)
+library -> catalog : 只在确认完整的范围内对账
+note over access, remote
+定位由解封装器提供需要的范围；服务端不支持 Range 时显式降级。
+缓存与目录按账号、来源、稳定身份和内容版本隔离。
+end note
+
+@enduml

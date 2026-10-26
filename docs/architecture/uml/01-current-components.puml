@@ -1,0 +1,53 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 当前：构建模块与主要职责（省略第三方库）
+package "应用装配" {
+component "Compose 应用 / Koin" as app
+}
+component "lplayer\nUI + Playback + 平台实现" as player
+component "lmedia-ui\n来源配置 / 状态界面" as ui
+component "lmedia-coil\n封面加载适配" as coil
+component "lmedia-data\nRoom / Repository / 来源入库" as data
+component "lmedia-client\nRemote / Subsonic / WebDAV\n缓存代理 / WebDAV 提取同步" as client
+component "lmedia-server\n媒体共享服务" as server
+component "lmedia-core\n本地来源 / TagLib / 配置\n平台文件与网络能力" as core
+component "lmedia-domain\nLAudio / Source / Repository 接口" as domain
+app ..> player
+app ..> ui
+app ..> coil
+app ..> data : 装配
+player ..> core : api
+player ..> data : api
+ui ..> client
+ui ..> server
+ui ..> core
+coil ..> core
+client ..> core
+server ..> core
+data ..> core
+data ..> domain
+core ..> domain
+note bottom of player
+运行时还通过 Koin 取得来源与仓库。
+Playback、UI 和平台技术同在一个构建模块。
+end note
+note bottom of core
+core 同时导出 Compose、Ktor 等依赖；
+图中依赖是构建关系，不代表每个类都使用它们。
+end note
+
+@enduml

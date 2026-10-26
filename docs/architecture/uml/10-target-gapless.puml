@@ -1,0 +1,46 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 建议：自然衔接提前准备，不能等结束回调才启动下一首
+participant PlaybackCore as core
+participant "准备任务 / ContentAccess" as content
+participant AudioRuntime as runtime
+participant "输出设备" as output
+participant "UI / 系统会话" as ui
+core -> core : 私下选择 B；实际队列与 UI 不变
+core ->> content : 低优先级准备 B
+content -->> runtime : B 可解码的内容
+runtime -> runtime : 准备 B 首帧；识别编码延迟 / padding
+runtime -->> core : NextPrepared(B)
+core -> runtime : armNext(planId, epoch, queueRevision, B)
+runtime -> output : 输出 A 的最后有效帧
+alt 计划有效且 B 可衔接
+  runtime -> output : 紧接输出 B 首个有效帧（不淡化）
+  runtime -->> core : TransitionStarted(planId,B,position=0)
+  core -> core : 确认当前 B；随机换位 / 消费指定意图
+  core --> ui : B 的歌词、位置、时长和短视觉过渡
+else B 尚未就绪
+  runtime -> output : 不重播 A；保持安静
+  runtime -->> core : WaitingForNext(B)
+  core --> ui : 选中 B / 加载中
+end
+note over core, runtime
+Pause、直接选曲、队列编辑可撤销或替换计划。
+控制提交与音频边界必须有明确线性化顺序；
+原生后端只有满足此契约才可声明支持无缝计划。
+end note
+
+@enduml

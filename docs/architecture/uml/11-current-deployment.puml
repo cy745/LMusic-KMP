@@ -1,0 +1,54 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 当前：各平台运行路径（部署图，未断言独立进程）
+node "Android 应用" {
+  artifact "Compose UI + MPlayerPlayback" as androidUI
+  artifact "MediaBrowser" as browser
+  artifact "MService / MediaSession\nQueueControlPlayer / ExoPlayer" as service
+  artifact "LMediaDataSource" as androidSource
+}
+node "iOS 应用" {
+  artifact "AVPlayerPlayback\nEngineRouter" as ios
+  artifact "AVPlayer / AVAudioPlayer\nMusicKit Swift wrapper" as iosEngine
+}
+node "桌面 JVM 应用" {
+  artifact "VLCPlayback" as desktop
+  artifact "vlcj / libVLC\n平台媒体控制" as native
+}
+node "浏览器" {
+  artifact "AudioPlayback / HTML Audio\nBrowser MediaSession" as web
+}
+node "共享实现（各平台各自运行）" {
+  artifact "lmedia 来源与目录库" as media
+  artifact "本地回环缓存代理\n有文件系统平台" as proxy
+}
+androidUI --> browser
+browser --> service : 媒体会话命令与事件
+service --> androidSource
+androidSource --> media
+ios --> iosEngine
+ios --> media
+desktop --> native
+desktop --> media
+web --> media
+media --> proxy : 在线 URL 改写
+note bottom of proxy
+WebDAV 当前不支持无缓存目录的平台。
+此图是平台路径汇总，不代表多个设备共享同一进程或数据库。
+end note
+
+@enduml

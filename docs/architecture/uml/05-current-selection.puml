@@ -1,0 +1,51 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 14
+skinparam ArrowColor #475569
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam roundcorner 8
+skinparam maxMessageSize 65
+skinparam noteBackgroundColor #FFF8DD
+skinparam noteBorderColor #D6B65C
+skinparam classBackgroundColor #EFF6FF
+skinparam componentBackgroundColor #EFF6FF
+skinparam stateBackgroundColor #EFF6FF
+title 当前：点歌到发声（两类主要路径）
+actor 用户
+participant "页面 / Action" as ui
+participant "平台 Playback" as pb
+participant "队列 / Bridge" as q
+participant "原生播放器或 Engine" as engine
+participant "lmedia 内容解析" as media
+participant "来源 / 数据库 / 代理" as source
+用户 -> ui : 点歌
+ui -> pb : playAudio / skipTo / updatePlaylist
+alt Android
+  pb -> q : 修改业务队列并应用原生队列
+  q -> engine : MediaBrowser -> Service -> MediaItems
+  pb -> engine : 选中 / 准备 / 播放意图
+  engine -> media : LMediaDataSource 打开 lmusic URI
+  media -> source : 查歌曲、等来源就绪、解析 URL
+  source --> engine : 内容或代理地址
+  engine --> pb : Timeline / 当前项 / 播放事件
+  pb -> q : 代次校验后回写平台快照
+else iOS / JVM / Web
+  pb -> q : 修改共享队列
+  pb -> media : resolveMediaData(song)
+  media -> source : 等来源就绪 / getMedia / 缓存改写
+  source --> pb : Url / Bytes
+  pb -> engine : iOS 路由 Engine；JVM / Web 直接调用
+  engine --> pb : 回调、StateFlow 或轮询
+end
+pb --> ui : 多个状态流
+note over pb, engine
+暂停意图、取消、失败恢复和自然结束
+由不同平台路径与辅助对象共同处理。
+这是结构示意，不代表各入口的先后顺序完全相同。
+end note
+
+@enduml
