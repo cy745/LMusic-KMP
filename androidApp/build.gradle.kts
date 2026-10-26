@@ -43,6 +43,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     packaging {
@@ -101,6 +102,15 @@ if (upxEnabled) {
 }
 
 dependencies {
+    debugImplementation(project(":lplayer:playback-core"))
+    debugImplementation(project(":lplayer"))
+    debugImplementation(project(":lmedia:lmedia-domain"))
+    debugImplementation(libs.media3.exoplayer)
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation(project(":lplayer:playback-core"))
+    androidTestImplementation(libs.media3.exoplayer)
+    androidTestImplementation(libs.kotlinx.coroutines.core)
     implementation(project(":composeApp"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
