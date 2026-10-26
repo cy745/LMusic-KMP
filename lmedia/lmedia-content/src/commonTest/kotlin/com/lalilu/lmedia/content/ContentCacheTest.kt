@@ -174,4 +174,25 @@ class ContentCacheTest {
         assertTrue(CatalogCache(storage,io).visible(d.scope).isEmpty())
         catalog.setEnabled(d.scope,true); assertEquals(listOf(a),catalog.visible(d.scope))
     }
+    @Test fun failedIndexCommitRemovesUnreferencedFragmentsWithoutLosingExistingCache() = runTest {
+        val memory = MemoryStorage()
+        var failIndex = false
+        val storage = object : CacheStorage by memory {
+            override fun writeAtomic(name: String, bytes: ByteArray) {
+                if (failIndex && name.endsWith(".index")) throw kotlinx.io.IOException("index disk full")
+                memory.writeAtomic(name, bytes)
+            }
+        }
+        val handle = RangeContentCache(storage, RangeReader { _, offset, n -> bytes(offset, n) },
+            io = StandardTestDispatcher(testScheduler)).open(d)
+        handle.read(0, 100)
+        val before = memory.names().toSet()
+        failIndex = true
+        assertContentEquals(bytes(1000, 100000), handle.read(1000, 100000))
+        assertEquals(before, memory.names().toSet(), "A rejected index must not leave unaccounted data files")
+        assertContentEquals(bytes(0, 100), handle.readCached(0, 100))
+        failIndex = false
+        handle.close()
+    }
+
 }

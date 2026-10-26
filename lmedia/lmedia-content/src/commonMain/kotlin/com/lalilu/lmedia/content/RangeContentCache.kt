@@ -136,14 +136,26 @@ class RangeContentCache(
                                 bestEffortWrite {
                                     // Large transport requests, small independently verified disk fragments.
                                     // Decoder cache hits should not reread/hash a whole MiB for a few bytes.
-                                    val fragments = (fetched.indices step DECODER_READ).map { start ->
-                                        val part = fetched.copyOfRange(start, minOf(start + DECODER_READ, fetched.size))
-                                        val hash = digest(part)
-                                        val file = "$key-${position + start}-$hash.bin"
-                                        storage.writeAtomic(file, part)
-                                        Fragment(position + start, part.size, hash, file)
+                                    val written = mutableListOf<String>()
+                                    try {
+                                        val fragments = (fetched.indices step DECODER_READ).map { start ->
+                                            val part = fetched.copyOfRange(start, minOf(start + DECODER_READ, fetched.size))
+                                            val hash = digest(part)
+                                            val file = "$key-${position + start}-$hash.bin"
+                                            storage.writeAtomic(file, part)
+                                            written += file
+                                            Fragment(position + start, part.size, hash, file)
+                                        }
+                                        save(key, entry, entry.index.copy(fragments = entry.index.fragments + fragments, used = ++serial))
+                                    } catch (failure: IOException) {
+                                        // A failed index commit must not leave bytes outside quota accounting.
+                                        // Never remove a fragment referenced by the still-valid previous index.
+                                        val retained = entry.index.fragments.map { it.file }.toSet()
+                                        written.filterNot { it in retained }.forEach { file ->
+                                            try { storage.delete(file) } catch (cleanup: IOException) { failure.addSuppressed(cleanup) }
+                                        }
+                                        throw failure
                                     }
-                                    save(key, entry, entry.index.copy(fragments = entry.index.fragments + fragments, used = ++serial))
                                     evict()
                                 }
                             }

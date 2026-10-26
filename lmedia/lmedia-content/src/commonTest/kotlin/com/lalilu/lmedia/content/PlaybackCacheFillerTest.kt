@@ -197,4 +197,28 @@ class PlaybackCacheFillerTest {
         filler.close()
     }
 
+    @Test fun unwritableCacheParksFillButForegroundRemainsPlayableAndManualRetryRecovers() = runTest {
+        val storage = MemoryStorage().apply { failWrite = true }
+        var requests = 0
+        val cache = RangeContentCache(storage, RangeReader { _, _, n ->
+            requests++; delay(10); ByteArray(n)
+        }, io = StandardTestDispatcher(testScheduler))
+        val filler = PlaybackCacheFiller(backgroundScope, cache)
+        filler.select(a)
+        advanceTimeBy(1000); runCurrent()
+        assertEquals(1, requests, "An unwritable disk must not cause endless whole-song downloads")
+        assertFalse(filler.isComplete(a))
+        val handle = cache.open(a)
+        assertEquals(100, filler.foregroundRead(a, 0) { handle.read(0, 100) }.size)
+        filler.retry(a.key.sourceName) // Network/source changes cannot repair disk persistence.
+        advanceTimeBy(1000); runCurrent()
+        assertEquals(2, requests)
+        storage.failWrite = false
+        filler.retry(); runCurrent(); advanceTimeBy(20); runCurrent()
+        assertTrue(filler.isComplete(a))
+        handle.close(); filler.close(); runCurrent()
+        cache.updateQuota(0)
+        assertTrue(storage.names().none { it.endsWith(".bin") }, "Closed filler releases its cache pin")
+    }
+
 }

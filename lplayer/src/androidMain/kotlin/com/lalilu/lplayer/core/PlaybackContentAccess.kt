@@ -100,7 +100,10 @@ class PlaybackContentAccess(private val context: Context, private val sources: P
         }
         if (storagePrefix == "plan-b") scope.launch {
             com.lalilu.lplayer.LPlayerKV.contentCacheQuotaMiB.flow().collect {
-                try { cache.updateQuota((it.toIntOrNull() ?: 512).coerceAtLeast(64).toLong()*1024*1024) }
+                try {
+                    cache.updateQuota((it.toIntOrNull() ?: 512).coerceAtLeast(64).toLong()*1024*1024)
+                    filler.retry() // A storage/quota change can make a previously rejected write possible.
+                }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (error: Exception) { co.touchlab.kermit.Logger.w("Content cache quota update failed",error) }
             }

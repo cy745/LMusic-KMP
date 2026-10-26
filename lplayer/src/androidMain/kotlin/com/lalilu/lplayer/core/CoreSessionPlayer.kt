@@ -22,6 +22,13 @@ class CoreSessionPlayer(
     private var reportedEpoch = -1L
     private var repeat = REPEAT_MODE_ALL
     private var shuffle = false
+    private data class ProjectionKey(val queue: List<TrackKey>, val selected: TrackKey?, val durationMs: Long, val metadataRevision: Long)
+    private var metadataRevision = 0L
+    private var projectionKey: ProjectionKey? = null
+    private var projectionBase: State? = null
+    private var activeTasks = 0
+    private var prunePending = false
+    private var released = false
     private var artworkKey: TrackKey? = null
     private var artworkData: ByteArray? = null
 
@@ -31,6 +38,7 @@ class CoreSessionPlayer(
         if (artworkKey == key && (artworkData === data || artworkData?.contentEquals(data ?: byteArrayOf()) == true)) return
         artworkKey = key
         artworkData = data
+        metadataRevision++
         invalidateState()
     }
     private fun key(item: MediaItem): TrackKey {
@@ -38,9 +46,27 @@ class CoreSessionPlayer(
         return TrackKey(identity.sourceName, identity.id)
     }
     private fun currentItems() = core.state.value.queue.map { items.getValue(it) }
-    private fun task(block: suspend () -> Unit): ListenableFuture<Unit> = scope.future { block() }
+    private fun task(block: suspend () -> Unit): ListenableFuture<Unit> = scope.future {
+        activeTasks++
+        try { block() } finally {
+            activeTasks--
+            // Pending commands may have registered metadata before the core accepts their queue.
+            // Prune only after all those mutations settle, retaining a random explicit-next item too.
+            if (activeTasks == 0 && prunePending) {
+                val snapshot = core.state.value
+                val retained = snapshot.queue.toMutableSet().apply { snapshot.explicitNext?.let(::add) }
+                items.keys.retainAll(retained)
+                prunePending = false
+            }
+        }
+    }
+    private fun rememberItem(item: MediaItem) {
+        if (items.put(key(item), item) != item) metadataRevision++
+        prunePending = true
+    }
     private suspend fun replace(list: List<MediaItem>, selected: TrackKey? = null, startPlayback: Boolean = false, force: Boolean = false) {
-        list.forEach { items[key(it)] = it }
+        prunePending = true
+        list.forEach(::rememberItem)
         val keys = list.map(::key).distinct()
         if (force || startPlayback || keys != core.state.value.queue || (selected != null && selected != core.state.value.selected)) {
             core.dispatch(PlaybackCommand.ReplaceQueue(keys, selected, startPlayback))
@@ -48,18 +74,27 @@ class CoreSessionPlayer(
         invalidateState()
     }
     override fun getState(): State {
+        if (released) return State.Builder().build()
         val s = core.state.value
-        val playlist = s.queue.map { key ->
-            val item = items.getValue(key).let { item ->
-                if (key == s.selected && key == artworkKey && artworkData != null) {
-                    item.buildUpon().setMediaMetadata(item.mediaMetadata.buildUpon()
-                        .setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()).build()
-                } else item
+        val identity = ProjectionKey(s.queue, s.selected, s.durationMs, metadataRevision)
+        if (projectionKey != identity) {
+            val playlist = s.queue.map { key ->
+                val item = items.getValue(key).let { item ->
+                    if (key == s.selected && key == artworkKey && artworkData != null) {
+                        item.buildUpon().setMediaMetadata(item.mediaMetadata.buildUpon()
+                            .setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()).build()
+                    } else item
+                }
+                MediaItemData.Builder(key).setMediaItem(item).setIsSeekable(true)
+                    .setDurationUs(if (s.selected == key && s.durationMs > 0) s.durationMs * 1000 else C.TIME_UNSET).build()
             }
-            MediaItemData.Builder(key).setMediaItem(item).setIsSeekable(true)
-                .setDurationUs(if (s.selected == key && s.durationMs > 0) s.durationMs * 1000 else C.TIME_UNSET).build()
+            // Keep a playlist-only base: one-shot discontinuities must never be copied from a
+            // previous dynamic state. Media3 buildUpon reuses the already validated timeline.
+            projectionBase = State.Builder().setPlaylist(playlist)
+                .setCurrentMediaItemIndex(if (playlist.isEmpty()) C.INDEX_UNSET else s.index).build()
+            projectionKey = identity
         }
-        return State.Builder()
+        return checkNotNull(projectionBase).buildUpon()
             .setAvailableCommands(Player.Commands.Builder().addAll(
                 COMMAND_PLAY_PAUSE, COMMAND_PREPARE, COMMAND_STOP, COMMAND_RELEASE,
                 COMMAND_GET_CURRENT_MEDIA_ITEM, COMMAND_GET_TIMELINE, COMMAND_GET_METADATA,
@@ -68,8 +103,7 @@ class CoreSessionPlayer(
                 COMMAND_SEEK_TO_PREVIOUS, COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
                 COMMAND_SET_REPEAT_MODE, COMMAND_SET_SHUFFLE_MODE, COMMAND_GET_AUDIO_ATTRIBUTES, COMMAND_SET_AUDIO_ATTRIBUTES,
             ).build())
-            .setPlaylist(playlist)
-            .setCurrentMediaItemIndex(if (playlist.isEmpty()) C.INDEX_UNSET else s.index)
+            .setCurrentMediaItemIndex(if (s.queue.isEmpty()) C.INDEX_UNSET else s.index)
             .setContentPositionMs(s.positionMs)
             .setContentBufferedPositionMs { s.bufferedPositionMs }
             .setTotalBufferedDurationMs { (s.bufferedPositionMs - s.positionMs).coerceAtLeast(0) }
@@ -99,8 +133,14 @@ class CoreSessionPlayer(
     override fun handlePrepare() = task { /* Queue selection already prepares asynchronously, including while paused. */ }
     override fun handleStop() = task { core.dispatch(PlaybackCommand.Stop) }
     override fun handleRelease(): ListenableFuture<Unit> {
+        released = true
         observation.cancel()
         core.close()
+        items.clear()
+        artworkData = null
+        artworkKey = null
+        projectionKey = null
+        projectionBase = null
         onRelease()
         return com.google.common.util.concurrent.Futures.immediateFuture(Unit)
     }
@@ -154,9 +194,9 @@ class CoreSessionPlayer(
     }
     fun queuedItem(playbackId: String): MediaItem? = currentItems().firstOrNull { it.mediaId == playbackId }
     fun requestSelection(item: MediaItem, start: Boolean) = task {
-        items[key(item)] = item
+        rememberItem(item)
         core.dispatch(PlaybackCommand.Select(key(item), startPlayback = start))
     }
-    fun requestPlayNext(item: MediaItem) = task { items[key(item)]=item; core.dispatch(PlaybackCommand.PlayNext(key(item))) }
+    fun requestPlayNext(item: MediaItem) = task { rememberItem(item); core.dispatch(PlaybackCommand.PlayNext(key(item))) }
     fun pauseAtEnd(enabled: Boolean) = task { core.dispatch(PlaybackCommand.SetPauseAtEnd(enabled)) }
 }

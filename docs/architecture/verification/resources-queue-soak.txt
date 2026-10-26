@@ -1,0 +1,121 @@
+Android resources and large-queue projection — 2026-10-26
+
+Scope: prevent useless background downloads on storage failure, clean uncommitted
+cache fragments, reuse session timelines, and release obsolete metadata/resources.
+No crossfade or playback-page redesign.
+
+Reproduced before fixes:
+- Unwritable storage: 101 background downloads in 1000ms virtual time, expected 1.
+- Failed index commit: 2 unreferenced .bin files, expected 0; existing bytes retained.
+- Real CoreSessionPlayer with 10000 songs and 100 injected progress events:
+  1100000 metadata lookups, 1171ms; timeline identity assertion failed.
+
+After fixes:
+- Shared cache JVM: 33 tests, zero failures/errors/skips.
+- iOS Simulator arm64 and Wasm shared-cache compilation passed.
+- Large-queue device test passed: 0 metadata lookups, 31ms for the same measured
+  update loop. This is a session projection microbenchmark, not UI frame timing.
+- Metadata/artwork refresh, random explicit-next outside the queue, and removal
+  of obsolete metadata after queue replacement are covered.
+
+Sustained real native decoding/output (muted, local fixture, 5000-item queue):
+An initial 300-second run passed playback/control/descriptor bounds, then failed
+the final thread-count assertion. Samples at 60/120/180/240 seconds recorded
+16/31/47/62 natural transitions; descriptors stayed 120-121; native window <=2.
+Diagnosis captured ExoPlayer:BackgroundExecutor waiting in its executor queue.
+Media3 1.10.1 BackgroundExecutor.java explicitly guarantees process-lifetime
+existence. AudioTrackReleaseThread was also observed during asynchronous release;
+its source shuts it down after pending releases. Playback threads had exited.
+The test now excludes only the named process singleton and still waits for all
+other ExoPlayer threads to return to baseline. No production workaround added.
+
+Release artifact:
+build/experience/LMusic-plan-b-release-resources-20261026.apk
+Bytes: 25405781
+SHA-256: 84bc4afe31b98d26514613863ce585a8edfe327f34a7bd2ff5d9f53aa915f229
+apksigner verify: passed.
+
+Limits: short native runs do not prove hours of hardware stability, heap-leak
+absence, physical Bluetooth/USB/call handling, or large-library UI frame rate.
+Crossfade and AI transitions remain deferred.
+
+Final combined device regression (2026-10-27):
+
+com.lalilu.lmusic.prototype.SessionArtworkDeviceTest:.
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+com.lalilu.lmusic.prototype.PlaybackControlDeviceTest:...
+com.lalilu.lmusic.prototype.NetworkRecoveryDeviceTest:....
+com.lalilu.lmusic.prototype.GaplessDeviceTest:..........
+com.lalilu.lmusic.prototype.WebDavContentBridgeDeviceTest:.....
+com.lalilu.lmusic.prototype.ContentCacheDeviceTest:....
+com.lalilu.lmusic.prototype.SessionSelectionDeviceTest:.
+com.lalilu.lmusic.prototype.QueueProjectionDeviceTest:.
+com.lalilu.lmusic.prototype.PlaybackSoakDeviceTest:.
+com.lalilu.lmusic.prototype.WebDavLiveBufferDeviceTest:.
+
+Time: 143.919
+
+OK (32 tests)
+
+
+
+Corrected 60-second release revalidation:
+10-27 00:01:59.479 23378 23452 I System.out: PLAYBACK_SOAK_OK elapsedMs=60047 queue=5000 operations=11 selections=26 natural=16 window=2 fdBaseline=186 fdPeak=186 fdFinal=185 fdReleased=182 threadsBefore=2 threadsAfter=1
+This corrected run passed, including release; the earlier 300-second run is
+reported above with its original failed assertion, not relabeled as fully passing.
+
+Cold-start subprocess verification:
+
+Cold-start phase: prepare
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 3.017
+
+OK (1 test)
+
+Cold-start phase: removeLibraryRows
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.049
+
+OK (1 test)
+
+Cold-start phase: verify
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 6.037
+
+OK (1 test)
+
+Cold-start phase: removeCachedBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.138
+
+OK (1 test)
+
+Cold-start phase: verifyMissingBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 49.851
+
+OK (1 test)
+
+Cold-start phase: cleanup
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.06
+
+OK (1 test)
+
+Phone install -r: Success; launch Status: ok.
+Phone firstInstallTime: 2026-10-26 16:17:55 (unchanged).
+Phone lastUpdateTime: 2026-10-27 00:02:33.
+No uninstall or data clear.
+Emulator release install -r: Success; launch Status: ok.
