@@ -1,6 +1,6 @@
 # 方案 B 实施计划与接口约定
 
-状态：用户已认可方案 B，授权自主决策、持续推进及模拟器验证。分支：`codex/playback-core-prototype`。当前推进 P2 Android 正式接入；下方 P0/P1 内容为分阶段历史记录，最新边界见文末及 [P2 正式播放说明](production-playback-session.md)。
+状态：用户已认可方案 B，授权自主决策、持续推进及模拟器验证。分支：`codex/playback-core-prototype`。当前已推进 P3 Android 预加载与连续输出；下方 P0/P1 内容为分阶段历史记录，最新边界见文末及 [P3 预加载与无缝说明](gapless-preloading.md)。
 
 ## P0 最小闭环（历史记录）
 
@@ -194,3 +194,36 @@ adb -s emulator-5554 install -r androidApp/build/outputs/apk/debug/androidApp-de
 adb -s emulator-5554 install -r androidApp/build/outputs/apk/androidTest/debug/androidApp-debug-androidTest.apk
 adb -s emulator-5554 shell am instrument -w -e class com.lalilu.lmusic.prototype.ProductionSessionDeviceTest,com.lalilu.lmusic.prototype.ContentCacheDeviceTest,com.lalilu.lmusic.prototype.PlaybackCoreDeviceTest com.lalilu.lmusic.kmp.test/androidx.test.runner.AndroidJUnitRunner
 ```
+
+## P3 实施记录（2026-10-26）
+
+实现私有候选预选、可撤销原生执行授权、真实提前缓冲、连续自然衔接，以及默认 48 kHz 体验输出。模块关系、UML 时序、输出格式和验收限制见 [P3 预加载与无缝说明](gapless-preloading.md)。原播放页、歌词、进度联动和短手动过渡组件没有修改；交叉淡化未实现。
+
+P2 的单项音频限制在 Android 体验路径已由“当前＋一个已授权候选”的短执行窗口替代。完整业务队列仍只由共享核心持有，系统媒体会话继续投影核心快照。
+
+### P3 最终验收
+
+| 检查 | 结果 |
+| --- | --- |
+| 共享核心 JVM | 27/27 通过，含 7 项新预加载协议场景 |
+| 内容缓存 JVM | 17/17 通过 |
+| 播放页/歌词/历史相关 JVM | 63/63 通过 |
+| Android 模拟器 | 20/20 通过：9 项 P3 测量/失效场景 + 11 项原正式会话、缓存及运行时场景 |
+| iOS Simulator / Wasm 共享核心 | 编译通过；对应平台运行时仍属 P4 |
+| Android debug / androidTest APK | 构建成功并安装到 `emulator-5554`；未操作连接的实体手机 |
+
+实际音频测量：
+
+- WAV→WAV 与 WAV→FLAC：各 96,000 字节 PCM，与合成源逐字节相同；1 个 AudioTrack，0 次中途释放，0 次欠载。当前项暂停时，候选已经 LoadCompleted，正式队列尚未变化。
+- WAV→MP3→WAV：128,000 字节，确认中间 MP3 的编码延迟及尾部填充被裁剪；1 个 AudioTrack、0 次释放/欠载。没有把最终停播时的尾部行为当作歌曲间裁剪证明。
+- 16 kHz 单声道→44.1 kHz 双声道：生产体验输出共 576,000 字节（3 秒、48 kHz、双声道、16-bit PCM），边界未插入零样本；1 个 AudioTrack、0 次释放/欠载。
+- 单曲循环：前两轮 PCM 完整且逐字节相同，业务队列始终只有一项，执行窗口最多两项；1 个 AudioTrack、0 次释放/欠载。
+- 原生候选读取失败时，当前曲完整 PCM 没有被截断；候选解析未完成和原生读取阻塞分别验证进入新曲加载状态，暂停或再次选曲不会被迟到准备结果覆盖。
+
+归档：[完整设备结果](verification/p3-android.txt)、[音频测量值](verification/p3-audio-measurements.txt)、[正式播放页截图](verification/p3-player-paused.png)。合成编码夹具可由 [生成脚本](../../scripts/generate-p3-audio-fixtures.py) 重建。
+
+决策与修正：使用 Media3 连续管线而非自行引入第二套解码/输出引擎；业务队列始终在共享核心。为不同采样率的连续输出固定默认体验格式，保留多声道原布局。补充原生边界确认，防止撤销与自动衔接竞争；预加载错误仅影响候选，不提前写入当前歌曲失败状态。没有加入 UI 超时推断或交叉淡化。
+
+限制：这些是 Android 模拟器的软件输出测量，不是声卡/DAC 外部环回验收。更多编解码器、真机路由/蓝牙、多声道布局切换、长时间漂移和压力场景还需专项验证。当前默认 48 kHz 体验输出不是原样/Hi-Res 输出。候选未准备好或被极晚撤销时正确选曲和安静等待优先，不能保证无网络停顿。其他平台运行时继续进入 P4。
+
+复现 P3 核心和音频场景见 [模块 README](../../lplayer/playback-core/README.md)。

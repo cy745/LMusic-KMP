@@ -1,0 +1,4 @@
+10-26 13:47:54.575 14813 14853 I System.out: P3 normalized 16k mono -> 44.1k stereo: bytes=576000, AudioTracks=1, underruns=0
+10-26 13:47:58.742 14813 14853 I System.out: P3 boundary tone-16k.mp3: PCM bytes=128000, AudioTracks=1, releases=0, underruns=0, successor loads=1
+10-26 13:48:04.005 14813 14853 I System.out: P3 boundary wav: PCM bytes=96000, AudioTracks=1, releases=0, underruns=0, successor loads=1
+10-26 13:48:08.292 14813 14853 I System.out: P3 boundary constant-16k.flac: PCM bytes=96000, AudioTracks=1, releases=0, underruns=0, successor loads=1

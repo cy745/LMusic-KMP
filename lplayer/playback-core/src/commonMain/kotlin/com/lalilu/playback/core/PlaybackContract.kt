@@ -64,6 +64,9 @@ interface AudioRuntime {
 
 sealed interface RuntimeEvent {
     val ticket: LoadTicket
+    data class Transitioned(val plan: NextPlan, val durationMs: Long, val positionMs: Long, val playing: Boolean) : RuntimeEvent {
+        override val ticket: LoadTicket get() = plan.from
+    }
     data class PausedBySystem(override val ticket: LoadTicket) : RuntimeEvent
     data class Suppressed(override val ticket: LoadTicket) : RuntimeEvent
     data class Prepared(override val ticket: LoadTicket, val durationMs: Long) : RuntimeEvent
@@ -73,4 +76,15 @@ sealed interface RuntimeEvent {
     data class Buffering(override val ticket: LoadTicket) : RuntimeEvent
     data class Failed(override val ticket: LoadTicket, val message: String) : RuntimeEvent
     data class Ended(override val ticket: LoadTicket) : RuntimeEvent
+}
+
+/** Private, revocable execution authorization; never part of the visible queue snapshot. */
+data class NextPlan(val serial: Long, val from: LoadTicket, val next: LoadTicket)
+
+/** Optional capability. A runtime without continuous output keeps the normal Ended/prepare path. */
+interface PreloadingAudioRuntime : AudioRuntime {
+    fun stageNext(plan: NextPlan, resource: PlayableResource)
+    fun cancelNext()
+    /** Acknowledge the native boundary only after the core accepts its still-current plan. */
+    fun confirmNext(plan: NextPlan)
 }

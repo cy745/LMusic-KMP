@@ -9,7 +9,7 @@ import com.lalilu.playback.core.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.guava.future
 
-/** MediaSession projects the full core queue. ExoPlayer itself owns only the currently loaded audio item. */
+/** MediaSession projects the full core queue. ExoPlayer holds only the current item and one private, core-authorized successor. */
 @UnstableApi
 class CoreSessionPlayer(
     val core: PlaybackCore,

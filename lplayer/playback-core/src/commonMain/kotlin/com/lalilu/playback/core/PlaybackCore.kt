@@ -23,6 +23,7 @@ class PlaybackCore(
     private sealed interface Message {
         data class Command(val value: PlaybackCommand, val done: CompletableDeferred<Unit>) : Message
         data class Resolved(val ticket: LoadTicket, val resource: PlayableResource) : Message
+        data class CandidateResolved(val plan: NextPlan, val resource: PlayableResource) : Message
         data class Event(val value: RuntimeEvent) : Message
     }
     private val job = SupervisorJob(parentScope.coroutineContext[Job])
@@ -34,6 +35,12 @@ class PlaybackCore(
         get() = mutable.value
         set(value) { mutable.value = value }
     private var resolving: Job? = null
+    private data class CandidateBasis(val ticket: LoadTicket, val queue: List<TrackKey>, val mode: PlayMode, val explicit: TrackKey?, val pauseAtEnd: Boolean)
+    private var candidateBasis: CandidateBasis? = null
+    private var candidatePlan: NextPlan? = null
+    private var candidateResource: PlayableResource? = null
+    private var candidateJob: Job? = null
+    private var planSerial = 0L
     private var seekSerial = 0L
     private var direction = 1
     private var naturalTraversal = false
@@ -52,8 +59,19 @@ class PlaybackCore(
                         when (message) {
                             is Message.Command -> command(message.value)
                             is Message.Resolved -> if (message.ticket == s.ticket) runtime.prepare(message.ticket, message.resource)
+                            is Message.CandidateResolved -> if (candidatePlan == message.plan) {
+                                try {
+                                    (runtime as PreloadingAudioRuntime).stageNext(message.plan, message.resource)
+                                    candidateResource = message.resource
+                                } catch (failure: Exception) {
+                                    // Native speculative preparation is best-effort, just like source resolution.
+                                    candidateResource = null
+                                    (runtime as PreloadingAudioRuntime).cancelNext()
+                                }
+                            }
                             is Message.Event -> event(message.value)
                         }
+                        reconcileCandidate()
                         if (message is Message.Command) message.done.complete(Unit)
                     } catch (cancelled: CancellationException) {
                         if (message is Message.Command) message.done.cancel(cancelled)
@@ -125,6 +143,7 @@ class PlaybackCore(
                 s.ticket?.let { runtime.setPlaying(it, false) }
             }
             PlaybackCommand.Stop -> {
+                cancelCandidate()
                 resolving?.cancel()
                 runtime.silence(null)
                 s = s.copy(intent = PlayIntent.Pause, phase = if (s.selected == null) Phase.Empty else Phase.Ended,
@@ -188,6 +207,8 @@ class PlaybackCore(
     }
 
     private fun select(index: Int, natural: Boolean = false) {
+        val cachedResource = candidateResource.takeIf { natural && candidatePlan?.next?.key == s.queue.getOrNull(index) }
+        cancelCandidate()
         fadeOnStart = !natural
         resolving?.cancel()
         s = s.copy(index = index, epoch = s.epoch + 1, naturalTransition = natural, phase = Phase.Preparing,
@@ -198,7 +219,7 @@ class PlaybackCore(
         runtime.silence(ticket)
         resolving = scope.launch {
             try {
-                val resource = resolver.resolve(ticket.key)
+                val resource = cachedResource ?: resolver.resolve(ticket.key)
                 inbox.send(Message.Resolved(ticket, resource))
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { inbox.send(Message.Event(RuntimeEvent.Failed(ticket, failure.message ?: "Content unavailable"))) }
@@ -206,6 +227,7 @@ class PlaybackCore(
     }
 
     private fun empty() {
+        cancelCandidate()
         resolving?.cancel()
         attempted.clear()
         recent.clear()
@@ -220,7 +242,7 @@ class PlaybackCore(
         if (natural && s.mode == PlayMode.RepeatOne && !failed) { select(s.index, natural = true); return }
         if (s.mode == PlayMode.Random && step > 0) {
             val explicit = s.explicitNext?.takeIf { it !in attempted }
-            val key = explicit ?: randomCandidate() ?: return finishFailure()
+            val key = explicit ?: candidatePlan?.next?.key?.takeIf { natural && !failed } ?: randomCandidate() ?: return finishFailure()
             var items = s.queue.toMutableList()
             if (key !in items) items.add(key)
             val target = (s.index - 1 + items.size) % items.size
@@ -261,6 +283,41 @@ class PlaybackCore(
     private fun event(event: RuntimeEvent) {
         if (event.ticket != s.ticket) return
         when (event) {
+            is RuntimeEvent.Transitioned -> {
+                if (candidatePlan != event.plan) return
+                if (s.pendingSeekId != null) {
+                    val position = s.positionMs
+                    select(s.index)
+                    command(PlaybackCommand.Seek(position))
+                    return
+                }
+                (runtime as PreloadingAudioRuntime).confirmNext(event.plan)
+                val key = event.plan.next.key
+                val items = s.queue.toMutableList()
+                val index = if (s.mode == PlayMode.Random) {
+                    if (key !in items) items.add(key)
+                    val target = (s.index - 1 + items.size) % items.size
+                    val source = items.indexOf(key)
+                    val displaced = items[target]
+                    items[target] = key
+                    items[source] = displaced
+                    target
+                } else if (s.mode == PlayMode.RepeatOne) s.index else items.indexOf(key)
+                candidateJob?.cancel()
+                candidatePlan = null
+                candidateResource = null
+                candidateBasis = null
+                startedTicket = null
+                endedTicket = null
+                direction = 1
+                naturalTraversal = true
+                s = s.copy(queue = items, index = index, epoch = event.plan.next.epoch, naturalTransition = true,
+                    phase = if (s.intent == PlayIntent.Play) Phase.Starting else Phase.ReadyPaused,
+                    positionMs = event.positionMs, durationMs = event.durationMs, bufferedPositionMs = event.positionMs,
+                    pendingSeekId = null, error = null)
+                if (s.intent == PlayIntent.Pause) runtime.setPlaying(event.plan.next, false, smooth = false)
+                else if (event.playing) event(RuntimeEvent.Started(event.plan.next))
+            }
             is RuntimeEvent.PausedBySystem -> command(PlaybackCommand.Pause)
             is RuntimeEvent.Suppressed -> if (s.intent == PlayIntent.Play) s = s.copy(phase = Phase.Suppressed)
             is RuntimeEvent.Prepared -> {
@@ -317,6 +374,44 @@ class PlaybackCore(
                 }
                 if (s.intent == PlayIntent.Play) move(1, natural = true)
                 else s = s.copy(phase = Phase.Ended)
+            }
+        }
+    }
+
+    private fun cancelCandidate() {
+        candidateJob?.cancel()
+        candidateJob = null
+        candidatePlan = null
+        candidateResource = null
+        candidateBasis = null
+        (runtime as? PreloadingAudioRuntime)?.cancelNext()
+    }
+
+    private fun reconcileCandidate() {
+        if (runtime !is PreloadingAudioRuntime) return
+        val ticket = s.ticket
+        if (ticket == null || s.phase in setOf(Phase.Empty, Phase.Preparing, Phase.Failed, Phase.Ended) || s.pauseAtEnd) {
+            if (candidateBasis != null) cancelCandidate()
+            return
+        }
+        val basis = CandidateBasis(ticket, s.queue, s.mode, s.explicitNext, s.pauseAtEnd)
+        if (basis == candidateBasis) return
+        cancelCandidate()
+        candidateBasis = basis
+        val key = when (s.mode) {
+            PlayMode.RepeatOne -> ticket.key
+            PlayMode.Sequential -> s.queue.getOrNull(s.index + 1)
+            PlayMode.Loop -> s.queue[(s.index + 1) % s.queue.size]
+            PlayMode.Random -> s.explicitNext ?: randomCandidate()
+        } ?: return
+        val plan = NextPlan(++planSerial, ticket, LoadTicket(key, ticket.epoch + 1))
+        candidatePlan = plan
+        candidateJob = scope.launch {
+            try {
+                inbox.send(Message.CandidateResolved(plan, resolver.resolve(key)))
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) {
+                // Speculative failure is not a playback failure. Retry only when this item is selected.
             }
         }
     }
