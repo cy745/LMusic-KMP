@@ -3,6 +3,9 @@ package com.lalilu.lplayer.menu
 import co.touchlab.kermit.Logger
 import com.lalilu.common.ext.io
 import com.lalilu.lplayer.playback.Playback
+import com.lalilu.lplayer.playback.PlaybackMode
+import com.lalilu.lplayer.LPlayerKV
+import com.lalilu.lplayer.extensions.PlayMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import com.lalilu.lplayer.action.launchPlayerAction
@@ -43,7 +46,6 @@ class MacOSMenu(private val playback: Playback) : CoroutineScope {
             MenuItem.PlayPause,
             MenuItem.Next,
             MenuItem.Previous,
-            MenuItem.Like,
             MenuItem.RandomPlay,
         ).map { it.toNSMenuItem(::onClickMenuItem) }
 
@@ -62,7 +64,11 @@ class MacOSMenu(private val playback: Playback) : CoroutineScope {
             MenuItem.Next -> launchPlayerAction { playback.skipToNext() }
             MenuItem.PlayPause -> launchPlayerAction { playback.togglePlayPause() }
             MenuItem.Previous -> launchPlayerAction { playback.skipToPrevious() }
-            MenuItem.RandomPlay -> {}
+            MenuItem.RandomPlay -> launchPlayerAction {
+                val shuffle = playback.playbackMode.value != PlaybackMode.SHUFFLE
+                playback.setPlaybackMode(if (shuffle) PlaybackMode.SHUFFLE else PlaybackMode.LOOP)
+                LPlayerKV.playMode.value = (if (shuffle) PlayMode.Shuffle else PlayMode.ListRecycle).name
+            }
         }
     }
 }

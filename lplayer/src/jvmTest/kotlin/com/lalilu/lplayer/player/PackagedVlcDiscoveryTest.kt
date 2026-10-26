@@ -27,7 +27,7 @@ class PackagedVlcDiscoveryTest {
                 val strategy = DefaultVlcDiscoverer(windows, { root.path }, { paths += it; true })
                 assertEquals(lib.absolutePath, strategy.discover())
                 assertTrue(strategy.onSetPluginPath(lib.path))
-                assertEquals(listOf(plugins.path), paths)
+                assertEquals(listOf(plugins.canonicalFile), paths.map { java.io.File(it).canonicalFile })
             } finally { root.deleteRecursively() }
         }
     }

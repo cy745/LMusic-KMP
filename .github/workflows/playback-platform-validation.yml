@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvlc5 libvlccore9 vlc-plugin-base vlc-plugin-audio-output libasound2-dev xvfb
+          sudo apt-get install -y libvlc5 libvlccore9 vlc-plugin-base libasound2-dev xvfb
           root="$GITHUB_WORKSPACE/lplayer/src/jvmMain/assets/linux"
           mkdir -p "$root/vlc"
           ln -s "$(find /usr/lib -name libvlc.so.5 -print -quit)" "$root/vlc/libvlc.so.5"
