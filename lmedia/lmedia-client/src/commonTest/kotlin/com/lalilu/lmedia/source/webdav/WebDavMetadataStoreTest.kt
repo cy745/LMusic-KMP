@@ -22,8 +22,9 @@ class WebDavMetadataStoreTest {
     @Test fun fullEmbeddedLyricsReplacePartialWithoutOverwritingSidecarLyrics() = runTest {
         val store = newStore(freshRoot("embedded-upgrade"))
         store.sidecar("song", WebDavSidecarKind.LYRIC, "sidecar-v1") { "external lyric".encodeToByteArray() }
-        store.writeEmbeddedLyric("song", "audio-v1", "partial".encodeToByteArray())
-        store.writeEmbeddedLyric("song", "audio-v1", "complete lyric".encodeToByteArray())
+        assertTrue(store.writeEmbeddedLyric("song", "audio-v1", "partial".encodeToByteArray()))
+        assertFalse(store.writeEmbeddedLyric("song", "audio-v1", "partial".encodeToByteArray()))
+        assertTrue(store.writeEmbeddedLyric("song", "audio-v1", "complete lyric".encodeToByteArray()))
         assertEquals("complete lyric", store.sidecar("song", WebDavSidecarKind.EMBEDDED_LYRIC, "audio-v1") { null }?.decodeToString())
         assertEquals("external lyric", store.sidecar("song", WebDavSidecarKind.LYRIC, "sidecar-v1") { null }?.decodeToString())
         assertNull(store.sidecar("song", WebDavSidecarKind.EMBEDDED_LYRIC, "audio-v2") { null })

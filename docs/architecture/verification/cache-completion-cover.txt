@@ -1,0 +1,40 @@
+Cache completion and retained playlist cover — 2026-10-26
+
+Root cause: WebDAV publishRecord unconditionally incremented per-song content
+generation even when full extraction only changed duration/complete/timestamp.
+Extractor now compares cover bytes; lyric writes report actual successful changes.
+Metadata patches still publish, but identical artwork/lyrics do not invalidate UI.
+
+Android real TagLib/content bridge regression: 5 passed, no failures.
+
+com.lalilu.lmusic.prototype.WebDavContentBridgeDeviceTest:.....
+
+Time: 6.844
+
+OK (5 tests)
+
+
+
+New staged fixture feeds identical media tags at partial and full extraction nodes:
+initial generation increments, full-stage generation remains unchanged,
+lyric and picture bytes remain available and identical.
+Existing production-cache metadata extraction and next preload priority pass.
+
+JVM: 31 passed, no failures/errors/skips.
+- WebDAV metadata storage/extraction decisions: 25
+- lyric content, cover retry, retained-cover rendering: 6
+
+Compose pixel test verifies red image remains during a pending replacement,
+red/blue blend stays opaque midway through replacement, then settles on blue.
+The first implementation using zero-duration delayed fadeOut failed this test
+(midpoint blue alpha ~0.514 with no red beneath). Replacing it with
+ExitTransition.KeepUntilTransitionsFinished made the same test pass.
+Actual async image loading only submits successful painters to this component;
+null loading/error states retain the previous image within the same song identity.
+
+Release: build/experience/LMusic-plan-b-release-retained-cover-20261026.apk
+Size: 25405785 bytes
+SHA-256: 8a3d422c96046c3ab630e4190b7854d10f18c8508c232603c0f3a94948257aa2
+apksigner verify passed. Emulator and phone install -r succeeded; launches Status: ok.
+Phone firstInstallTime remains 2026-10-26 16:17:55;
+lastUpdateTime 2026-10-26 19:24:11. No data clear or uninstall.

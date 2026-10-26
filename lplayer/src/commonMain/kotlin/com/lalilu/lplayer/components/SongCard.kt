@@ -13,11 +13,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.painter.Painter
+import coil3.compose.AsyncImagePainter
+import coil3.compose.LocalPlatformContext
+import coil3.compose.rememberAsyncImagePainter
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
@@ -71,7 +84,7 @@ fun SongCard(
             tonalElevation = 2.dp,
             shape = RoundedCornerShape(5.dp)
         ) {
-            AsyncImage(
+            RetainedSongCover(
                 modifier = Modifier
                     .size(64.dp)
                     .aspectRatio(1f)
@@ -86,8 +99,7 @@ fun SongCard(
                         onClick = onClick
                     ),
                 model = coverData,
-                contentScale = ContentScale.Crop,
-                contentDescription = "Song Card Image"
+                identity = id,
             )
         }
 
@@ -152,5 +164,37 @@ private fun SongCardPreview() = preview {
                 subtitle = stringValue("subtitle")
             )
         }
+    }
+}
+
+/** Only ready images become animation targets; a pending/failed replacement cannot erase the cover. */
+@Composable
+private fun RetainedSongCover(modifier: Modifier, model: Any?, identity: String) = key(identity) {
+    val context = LocalPlatformContext.current
+    val pixels = with(LocalDensity.current) { 64.dp.roundToPx() }
+    val request = remember(context, model, pixels) {
+        ImageRequest.Builder(context).data(model).size(pixels).crossfade(false).build()
+    }
+    val loader = rememberAsyncImagePainter(request)
+    val result by loader.state.collectAsState()
+    RetainedSongCoverImage((result as? AsyncImagePainter.State.Success)?.painter, modifier)
+}
+
+@Composable
+internal fun RetainedSongCoverImage(loaded: Painter?, modifier: Modifier = Modifier) {
+    var ready by remember { mutableStateOf<Painter?>(null) }
+    LaunchedEffect(loaded) { if (loaded != null) ready = loaded }
+    AnimatedContent(
+        targetState = ready,
+        modifier = modifier,
+        transitionSpec = {
+            // New image fades over an opaque old image, then the old layer is removed.
+            (fadeIn(tween(180)) togetherWith ExitTransition.KeepUntilTransitionsFinished)
+                .apply { targetContentZIndex = 1f }
+        },
+        label = "SongCover",
+    ) { painter ->
+        if (painter != null) Image(painter, "Song Card Image", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        else Box(Modifier.fillMaxSize())
     }
 }

@@ -219,12 +219,13 @@ internal class WebDavMetadataStore(
     }
 
     /** Full-file extraction may improve a lyric read from a partial prefix. */
-    fun writeEmbeddedLyric(key: String, fingerprint: String, bytes: ByteArray) {
+    fun writeEmbeddedLyric(key: String, fingerprint: String, bytes: ByteArray): Boolean {
+        val path = sidecarPath(key, WebDavSidecarKind.EMBEDDED_LYRIC, fingerprint)
+        if (bytes.contentEquals(readFile(path))) return false
         ensureReady()
-        runCatching {
-            SystemFileSystem.sink(sidecarPath(key, WebDavSidecarKind.EMBEDDED_LYRIC, fingerprint))
-                .buffered().use { it.write(bytes) }
-        }
+        return runCatching {
+            SystemFileSystem.sink(path).buffered().use { it.write(bytes) }
+        }.isSuccess
     }
 
     private fun readLocal(key: String): WebDavMetadataRecord? = readFile(metaPath(key))?.let(::decode)

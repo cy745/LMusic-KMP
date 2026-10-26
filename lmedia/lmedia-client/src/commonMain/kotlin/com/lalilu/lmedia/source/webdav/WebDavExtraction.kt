@@ -130,6 +130,7 @@ internal class WebDavExtractor(
     private val progressState: MutableStateFlow<WebDavExtractionState>,
     private val onRecord: suspend (WebDavExtractionTarget, WebDavMetadataRecord) -> Unit,
     private val onFlush: suspend (Map<String, WebDavMetadataRecord>) -> Unit,
+    private val onContentChanged: suspend (WebDavExtractionTarget) -> Unit = {},
     private val concurrency: Int = 2,
     private val batchSize: Int = BATCH_SIZE,
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
@@ -328,7 +329,10 @@ internal class WebDavExtractor(
 
         if (!isCurrent()) return
         // Publish only after all reads and account/revision checks; UI retries must see the lyric first.
-        embeddedLyric?.let { store.writeEmbeddedLyric(key, target.fingerprint, it) }
+        val lyricChanged = embeddedLyric?.let { store.writeEmbeddedLyric(key, target.fingerprint, it) } == true
+        val coverChanged = extracted?.cover?.takeIf { it.isNotEmpty() }?.let {
+            !it.contentEquals(store.readCover(key))
+        } == true
         if (!isCurrent()) return
         val now = clock()
         if (extracted == null || extracted.isEmpty) {
@@ -336,6 +340,7 @@ internal class WebDavExtractor(
             val empty = emptyRecord(target, complete, now)
             store.write(key, empty, null)
             if (embeddedLyric != null && isCurrent()) onRecord(target, empty)
+            if (lyricChanged && isCurrent()) onContentChanged(target)
             logger.i { "提取完成 key=$key complete=$complete 但没有可用标签（落一条空记录避免重试）" }
             return
         }
@@ -349,6 +354,7 @@ internal class WebDavExtractor(
         }
         markExtracted()
         onRecord(target, record)
+        if ((coverChanged || lyricChanged) && isCurrent()) onContentChanged(target)
 
         val shouldFlush = mergeMutex.withLock {
             pendingMerges[key] = record

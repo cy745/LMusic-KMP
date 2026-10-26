@@ -782,6 +782,7 @@ class WebDavSource(
                 store = store,
                 targets = TargetResolver(),
                 onRecord = { target, record -> publishRecord(target, record) },
+                onContentChanged = { target -> stateStore.content.contentChanged(target.audio.id) },
                 onFlush = { batch -> mergeIntoSnapshot(batch) },
                 progressState = mutableProgress,
             )
@@ -823,8 +824,6 @@ class WebDavSource(
             ),
         )
         patchFlow.emit(merged)
-        // Artwork and lyric consumers must retry after bytes become available, even if text tags are unchanged.
-        stateStore.content.contentChanged(target.audio.id)
     }
 
     /**

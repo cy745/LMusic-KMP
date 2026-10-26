@@ -84,6 +84,27 @@ class WebDavContentBridgeDeviceTest {
         }
     }
 
+    @Test fun completingCacheWithIdenticalArtworkAndLyricsDoesNotInvalidatePresentation() = runBlocking {
+        val bytes = instrumentation.context.assets.open("webdav/metadata.flac").use { it.readBytes() }
+        fixture(bytes, "metadata.flac") { source, _, audio, _, _, _, _ ->
+            val file = File.createTempFile("metadata-stages-", ".flac", context.cacheDir)
+            try {
+                file.writeBytes(bytes)
+                val initial = source.contentState.value.forItem(audio.id).generation
+                // Reuse identical tags at two extraction stages, so completion changes duration/status only.
+                source.inspectCachedMedia(audio, bytes.size.toLong() / 2, bytes.size.toLong()) { it(file.path) }
+                val partial = source.contentState.value.forItem(audio.id).generation
+                assertTrue(partial > initial)
+                val lyric = source.getLyric(audio)
+                val cover = (source.getPicture(audio, MediaFetchOptions.EMPTY) as MediaData.Bytes).bytes
+                source.inspectCachedMedia(audio, bytes.size.toLong(), bytes.size.toLong()) { it(file.path) }
+                assertEquals(partial, source.contentState.value.forItem(audio.id).generation)
+                assertEquals(lyric, source.getLyric(audio))
+                assertArrayEquals(cover, (source.getPicture(audio, MediaFetchOptions.EMPTY) as MediaData.Bytes).bytes)
+            } finally { file.delete() }
+        }
+    }
+
     @Test fun newCacheExtractsArtworkLyricsAndPublishesLibraryMetadataWithoutLegacyDownload() = runBlocking {
         val bytes = instrumentation.context.assets.open("webdav/metadata.flac").use { it.readBytes() }
         fixture(bytes, "metadata.flac") { source, legacy, audio, access, core, _, uri ->

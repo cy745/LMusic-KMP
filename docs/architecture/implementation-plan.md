@@ -366,3 +366,15 @@ sequenceDiagram
 验证结果：JVM 117 项通过；Android 本轮较早完整回归 27/27 通过，最终构建后的完整回归为 26/27（WAV→MP3 一次多出 1408 PCM 字节），不改代码单独复测无缝套件 10/10 通过。保留该偶发失败作为待跟踪项，不宣称已彻底消除。修复恢复竞态后，跨进程冷启动/离线缓存六阶段全部通过。内容与核心模块 iOS Simulator/Wasm 编译通过。局域网真实文件经生产链路自动补齐：MP3 3.24 MB 约 311 ms，FLAC 3.91 MB 约 807 ms，计时包含准备，仅代表本次网络环境。详细证据见 [补齐速度与时间轴验证](verification/cache-speed-timeline.txt)。
 
 交付：签名校验及模拟器 release 安装启动通过；已通过无线调试覆盖安装到用户手机并启动成功。firstInstallTime 仍为 2026-10-26 16:17:55，lastUpdateTime 为 19:02:37，未卸载或清除数据。产物 `build/experience/LMusic-plan-b-release-speed-lyrics-20261026.apk`，25,405,808 字节，SHA-256 见验证记录。
+
+## 缓存完成误刷新与播放列表封面闪空（2026-10-26）
+
+完整缓存会再次提取标签，原 publishRecord 无条件增加歌曲内容代次，导致即便封面/歌词字节相同也重新触发主封面、歌词和队列封面刷新。现在将库元数据补丁与内容刷新通知分开：提取器比较封面字节，内嵌歌词存储对相同字节去重，仅实际内容变化且仍为当前源身份时发送刷新；时长、complete 和提取时间仍正常入库。
+
+SongCard 将已成功加载的 Painter 作为 AnimatedContent 的目标，加载中与失败保留上一张成功图片。新图约 180 ms 淡入，旧层保持不透明直到过渡完成；关闭 Coil 自身的二次 crossfade，图片按 64 dp 所需像素解码，共享元素和点击手势仍挂在单一外容器。保留状态以歌曲身份隔离。
+
+验证新增分阶段相同媒体提取测试、重复歌词写入去重断言，以及 Compose 像素采样测试（加载中旧图仍在、过渡中两图混合且不透明）。
+
+结果：31 项 JVM 测试与模拟器 5 项 WebDAV 内容桥接测试通过。像素测试在初版延迟零时长退出时检测到旧图提前消失，改为 ExitTransition.KeepUntilTransitionsFinished 后通过，确认加载中保留旧图、淡入中两层混合且不透明。证据见 [缓存完成与封面验证](verification/cache-completion-cover.txt)。
+
+交付：签名校验通过，release 已覆盖安装到模拟器和用户手机，两端启动成功；手机原安装时间 16:17:55 保持不变，更新时间为 2026-10-26 19:24:11，未清除数据。产物 `build/experience/LMusic-plan-b-release-retained-cover-20261026.apk`，大小与 SHA-256 已记录。
