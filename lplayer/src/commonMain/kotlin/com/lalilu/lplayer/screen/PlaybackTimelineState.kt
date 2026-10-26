@@ -122,15 +122,21 @@ private class SpringFollower(
  * 3. 用户提交 seek 后进入提交态，等待引擎落地期间显示值只前进、不回退。
  *
  * [progress] 在比例空间平滑跟随，保留拖动与歌词联动手感。
- * [bufferedProgress] 直接呈现真实可播放范围，不对缓存事实做插值或模拟下载。
+ * [bufferedProgress] 平滑追随真实范围，不能超过实际末端；完整缓存直接显示到结尾。
  */
 @Stable
 internal class PlaybackTimelineState(
     initialPositionMs: Long = 0L,
     initialPlaybackKey: Any? = null,
 ) {
-    /** 当前用于渲染与歌词的时间（毫秒）。 */
+    /** 当前用于进度条渲染的时间（毫秒），保留切歌回滑。 */
     var positionMs by mutableLongStateOf(initialPositionMs)
+        private set
+
+    /** Lyrics follow the new song immediately; only dragging/seek interaction shares the displayed position. */
+    var lyricPositionMs by mutableLongStateOf(initialPositionMs)
+        private set
+    internal var needsPositionSample = false
         private set
 
     /** 当前曲目的稳定时长（毫秒），来自 Playback 层。0 表示未知，此时不允许拖动。 */
@@ -141,7 +147,7 @@ internal class PlaybackTimelineState(
     var progress by mutableFloatStateOf(0f)
         private set
 
-    /** 当前实际缓冲范围的末端（0..1）；直接显示事实，不模拟加载动画。 */
+    /** 缓冲范围末端的平滑显示（0..1），始终不超过实际缓存末端。 */
     var bufferedProgress by mutableFloatStateOf(0f)
         private set
 
@@ -160,6 +166,7 @@ internal class PlaybackTimelineState(
 
     val canSeek: Boolean get() = durationMs > 0L
 
+    private var lyricTrackTransition = false
     private var dragPlaybackKey: Any? = null
     private var samplePositionMs = initialPositionMs
     private var bufferedPositionMs = 0L
@@ -174,6 +181,10 @@ internal class PlaybackTimelineState(
         omega = SpringOmega,
         snapThreshold = ProgressSnapThreshold,
         snapVelocity = ProgressSnapVelocity,
+    )
+    private val bufferedFollower = SpringFollower(
+        initialValue = 0f, omega = SpringOmega,
+        snapThreshold = ProgressSnapThreshold, snapVelocity = ProgressSnapVelocity,
     )
     private var commit: Commit? = null
     private var clockMs = 0L
@@ -194,10 +205,14 @@ internal class PlaybackTimelineState(
         if (key == playbackKey) return
 
         playbackKey = key
+        lyricPositionMs = 0L
+        lyricTrackTransition = true
+        needsPositionSample = true
         dragPlaybackKey = null
         isDragging = false
         commit = null
         bufferedPositionMs = 0L
+        bufferedFollower.snapTo(0f)
         bufferedProgress = 0f
     }
 
@@ -258,6 +273,8 @@ internal class PlaybackTimelineState(
 
         val previous = samplePositionMs
         samplePositionMs = enginePositionMs
+        lyricPositionMs = enginePositionMs.coerceAtLeast(0)
+        needsPositionSample = false
 
         if (elapsedMs > MaxContinuityGapMs) {
             // 后台或长暂停之后，连续性已经没有意义，直接对齐真实位置。
@@ -265,7 +282,8 @@ internal class PlaybackTimelineState(
             setDisplayPosition(enginePositionMs)
             progressFollower.snapTo(ratioOf(positionMs))
             progress = progressFollower.value
-            bufferedProgress = ratioOf(bufferedPositionMs)
+            bufferedFollower.snapTo(ratioOf(bufferedPositionMs))
+            bufferedProgress = bufferedFollower.value
             return
         }
 
@@ -309,11 +327,15 @@ internal class PlaybackTimelineState(
 
         residual.step(target = 0f, dtSeconds = dtSeconds)
         positionMs = (enginePositionMs + residual.value).roundToLong()
+        lyricPositionMs = if (lyricTrackTransition) enginePositionMs.coerceAtLeast(0) else positionMs
+        if ((positionMs - enginePositionMs).absoluteValue <= 1L) lyricTrackTransition = false
         refreshProgress(dtSeconds)
     }
 
     private fun setDisplayPosition(positionMs: Long) {
         this.positionMs = positionMs
+        lyricPositionMs = positionMs
+        lyricTrackTransition = false
         residual.snapTo((positionMs - samplePositionMs).toFloat())
     }
 
@@ -324,7 +346,8 @@ internal class PlaybackTimelineState(
         if (wasUnknown && durationMs > 0L) {
             progressFollower.snapTo(ratioOf(positionMs))
             progress = progressFollower.value
-            bufferedProgress = ratioOf(bufferedPositionMs)
+            bufferedFollower.snapTo(ratioOf(bufferedPositionMs))
+            bufferedProgress = bufferedFollower.value
         }
     }
 
@@ -337,7 +360,10 @@ internal class PlaybackTimelineState(
         }
         progress = progressFollower.value
 
-        bufferedProgress = ratioOf(bufferedPositionMs)
+        val actualEnd = ratioOf(bufferedPositionMs)
+        if (actualEnd >= 1f || actualEnd < bufferedFollower.value) bufferedFollower.snapTo(actualEnd)
+        else bufferedFollower.step(actualEnd, dtSeconds)
+        bufferedProgress = bufferedFollower.value.coerceIn(0f, actualEnd)
     }
 
     private fun ratioOf(positionMs: Long): Float =
@@ -410,7 +436,7 @@ internal fun rememberPlaybackTimelineState(
                     else frameTimeMs - lastFrameMs
                     lastFrameMs = frameTimeMs
 
-                    val sampleDue = isPlaying ||
+                    val sampleDue = state.needsPositionSample || isPlaying ||
                             frameTimeMs - lastSampleMs >= PausedPollIntervalMs
                     if (sampleDue) {
                         samplePositionMs = currentReadPosition()

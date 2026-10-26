@@ -21,6 +21,25 @@ class ContentCacheTest {
     private val d = ContentDescriptor(MediaKey("source", "song"), "account-root", "version-1", 200000)
     private fun bytes(offset: Long, count: Int) = ByteArray(count) { ((offset + it) % 251).toByte() }
 
+    @Test fun cacheOnlyReadsDoNotFetchHolesOrTrustCorruptFragments() = runTest {
+        val storage = MemoryStorage()
+        var fetches = 0
+        val cache = RangeContentCache(storage, RangeReader { _, offset, n -> fetches++; bytes(offset, n) }, io = StandardTestDispatcher(testScheduler))
+        val handle = cache.open(d)
+        handle.read(0, 100)
+        assertContentEquals(bytes(0, 100), handle.readCached(0, 100))
+        assertNull(handle.readCached(90, 20))
+        assertEquals(1, fetches)
+        val file = storage.files.keys.single { it.endsWith(".bin") }
+        storage.files[file] = ByteArray(100)
+        assertNull(handle.readCached(0, 100))
+        assertEquals(1, fetches)
+        assertContentEquals(bytes(0, 100), handle.read(0, 100))
+        assertEquals(2, fetches)
+        handle.close()
+        assertFailsWith<IllegalStateException> { handle.readCached(0, 1) }
+    }
+
     @Test fun inspectionAndRecencyWritesDoNotEmitNewCoverageEvents() = runTest {
         val io = StandardTestDispatcher(testScheduler)
         var changes = 0

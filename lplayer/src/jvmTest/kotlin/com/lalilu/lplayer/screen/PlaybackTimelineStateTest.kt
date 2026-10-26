@@ -13,6 +13,48 @@ import kotlin.test.assertTrue
  * 时间轴的纯逻辑测试：不依赖 Compose 组合，只喂采样与手势。
  */
 class PlaybackTimelineStateTest {
+    @Test fun lyricsSwitchImmediatelyWhileSeekbarKeepsItsShortReturnTransition() {
+        val timeline = timelineOf()
+        timeline.accept(180000, 200000, 200000, false, 5000)
+        timeline.onPlaybackKeyChanged("b")
+        assertEquals(0L, timeline.lyricPositionMs)
+        assertTrue(timeline.needsPositionSample)
+        timeline.accept(0, 240000, 60000, false, 16)
+        assertEquals(0L, timeline.lyricPositionMs)
+        assertTrue(timeline.positionMs > 150000, "Seekbar retains the old visual transition")
+        assertFalse(timeline.needsPositionSample)
+        timeline.onDragStart(30000)
+        timeline.onDrag(60000)
+        assertEquals(60000L, timeline.lyricPositionMs)
+        timeline.onSeek(60000)
+        timeline.accept(60000, 240000, 120000, false, 16)
+        assertEquals(60000L, timeline.lyricPositionMs)
+    }
+
+    @Test fun cancellingDragKeepsLyricsLinkedToTheExistingReturnGesture() {
+        val timeline = timelineOf()
+        timeline.accept(10000, 200000, 200000, false, 5000)
+        timeline.onDragStart(80000)
+        timeline.onDrag(100000)
+        timeline.onDragCancel()
+        timeline.accept(10000, 200000, 200000, false, 16)
+        assertTrue(timeline.positionMs > 80000)
+        assertEquals(timeline.positionMs, timeline.lyricPositionMs)
+    }
+
+    @Test fun bufferGrowthIsSmoothButNeverExceedsFactsAndFullCacheIsImmediate() {
+        val timeline = timelineOf()
+        timeline.accept(0, 200000, 60000, false, 16)
+        timeline.accept(0, 200000, 120000, false, 16)
+        assertTrue(timeline.bufferedProgress > 0.3f && timeline.bufferedProgress < 0.6f)
+        repeat(120) { timeline.accept(0, 200000, 120000, false, 16); assertTrue(timeline.bufferedProgress <= 0.6f) }
+        assertTrue(abs(timeline.bufferedProgress - 0.6f) < 0.001f)
+        timeline.accept(0, 200000, 40000, false, 16)
+        assertEquals(0.2f, timeline.bufferedProgress)
+        timeline.accept(0, 200000, 200000, false, 16)
+        assertEquals(1f, timeline.bufferedProgress)
+    }
+
     @Test fun fullCachedRangeIsImmediateAndDoesNotFollowDragging() {
         val timeline = timelineOf()
         timeline.accept(0, 200000, 200000, false, 16)

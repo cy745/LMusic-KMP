@@ -172,7 +172,7 @@ class PlaybackCore(
                 if (s.phase == Phase.Ended) select(s.index)
                 val seekId = ++seekSerial
                 val preparing = s.phase == Phase.Preparing
-                s = s.copy(phase = if (preparing) Phase.Preparing else Phase.Seeking, pendingSeekId = seekId, positionMs = target, bufferedPositionMs = 0)
+                s = s.copy(phase = if (preparing) Phase.Preparing else Phase.Seeking, pendingSeekId = seekId, positionMs = target, bufferedPositionMs = runtime.bufferedPositionAt(s.ticket!!, target))
                 if (!preparing) runtime.seek(s.ticket!!, seekId, target)
             }
         }
@@ -355,7 +355,7 @@ class PlaybackCore(
                 if (s.phase == Phase.Failed || s.phase == Phase.Preparing) return
                 s = s.copy(positionMs = if (s.pendingSeekId == null) event.positionMs.coerceAtLeast(0) else s.positionMs,
                     durationMs = event.durationMs.takeIf { it > 0 } ?: s.durationMs,
-                    bufferedPositionMs = if (s.pendingSeekId == null) event.bufferedPositionMs.coerceAtLeast(0) else 0)
+                    bufferedPositionMs = if (s.pendingSeekId == null) event.bufferedPositionMs.coerceAtLeast(0) else runtime.bufferedPositionAt(event.ticket, s.positionMs))
             }
             is RuntimeEvent.SeekSettled -> if (event.seekId == s.pendingSeekId) {
                 s = s.copy(pendingSeekId = null, positionMs = event.positionMs.coerceAtLeast(0),

@@ -88,19 +88,24 @@ class WebDavLiveBufferDeviceTest {
                 }
             }
             for (song in songs) {
+                val fillStarted = System.nanoTime()
                 val key = TrackKey(song.mediaSourceName, song.id)
                 withContext(Dispatchers.Main) { active.dispatch(PlaybackCommand.ReplaceQueue(listOf(key))) }
                 waitFor("native ready") { active.state.value.phase == Phase.ReadyPaused && controller.duration > 0 }
                 // Production background filling must complete this paused selection without a test download.
                 waitFor("complete file core buffer") { active.state.value.bufferedPositionMs == active.state.value.durationMs }
+                val fillMillis = (System.nanoTime() - fillStarted) / 1_000_000
                 waitFor("complete file controller buffer while paused") { controller.actualBufferedPosition() >= controller.duration - 1 }
-                withContext(Dispatchers.Main) { active.dispatch(PlaybackCommand.Seek(active.state.value.durationMs / 2)) }
+                withContext(Dispatchers.Main) {
+                    active.dispatch(PlaybackCommand.Seek(active.state.value.durationMs / 2))
+                    assertEquals("Seek must not publish an empty buffer frame", active.state.value.durationMs, active.state.value.bufferedPositionMs)
+                }
                 waitFor("seek keeps full buffer") { active.state.value.phase == Phase.ReadyPaused && controller.actualBufferedPosition() >= controller.duration - 1 }
                 withContext(Dispatchers.Main) { active.dispatch(PlaybackCommand.ReplaceQueue(emptyList())) }
                 waitFor("empty before replay") { active.state.value.phase == Phase.Empty }
                 withContext(Dispatchers.Main) { active.dispatch(PlaybackCommand.ReplaceQueue(listOf(key))) }
                 waitFor("replay retains disk coverage") { active.state.value.phase == Phase.ReadyPaused && controller.duration > 0 && controller.actualBufferedPosition() >= controller.duration - 1 }
-                println("LIVE_CACHE_OK format=${song.extra?.get("path")?.substringAfterLast('.')} size=${song.extra?.get("file_size")} duration=${active.state.value.durationMs}")
+                println("LIVE_CACHE_OK format=${song.extra?.get("path")?.substringAfterLast('.')} size=${song.extra?.get("file_size")} duration=${active.state.value.durationMs} fillMs=$fillMillis")
             }
         } finally {
             withContext(Dispatchers.Main) { browser?.release(); session?.release(); core?.close(); scope.cancel() }

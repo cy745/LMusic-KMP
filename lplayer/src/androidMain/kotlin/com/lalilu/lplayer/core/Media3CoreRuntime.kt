@@ -31,7 +31,7 @@ class Media3CoreRuntime(
             // Default progressive loading checks only every 1 MiB, which can read an entire short
             // candidate despite the 5-second target. Check at the cache's bounded transport chunk.
             val progressive = androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(factory, extractors)
-                .setContinueLoadingCheckIntervalBytes(com.lalilu.lmedia.content.RangeContentCache.MAX_READ)
+                .setContinueLoadingCheckIntervalBytes(com.lalilu.lmedia.content.RangeContentCache.DECODER_READ)
             setMediaSourceFactory(object : androidx.media3.exoplayer.source.MediaSource.Factory by fallback {
                 override fun createMediaSource(item: MediaItem): androidx.media3.exoplayer.source.MediaSource =
                     if (item.localConfiguration?.uri?.scheme == "lmusic-content") progressive.createMediaSource(item)
@@ -254,6 +254,13 @@ class Media3CoreRuntime(
                 if (!desiredPlaying) player.pause()
             }
         }
+    }
+
+    override fun bufferedPositionAt(ticket: LoadTicket, positionMs: Long): Long {
+        if (ticket != owner || ticket != loaded) return positionMs
+        val nativeEnd = if (positionMs in player.currentPosition..player.bufferedPosition) player.bufferedPosition else positionMs
+        return cachedBufferTimeline?.bufferedPosition(player.currentMediaItem?.localConfiguration?.uri.toString(),
+            positionMs, duration(), nativeEnd) ?: nativeEnd
     }
 
     override fun seek(ticket: LoadTicket, seekId: Long, positionMs: Long) {

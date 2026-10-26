@@ -125,7 +125,12 @@ class ColdStartDeviceTest {
             playback.updatePlaylist(items, 1, false)
             waitFor("cached fixture ready") { controller.playbackState == Player.STATE_READY && controller.currentMediaItem?.mediaId == items[1].playbackId }
             playback.seekTo(3500)
-            waitFor("paused seek saved to disk") { HistoryStorageImpl().savedPosition() in 3400L..3600L }
+            waitFor("paused queue and seek saved") {
+                val storage = HistoryStorageImpl()
+                val identity = storage.savedQueueIdentity()
+                storage.savedPosition() in 3400L..3600L && identity?.index == 1 &&
+                    identity.ids == items.map { it.id } && identity.sourceNames == items.map { it.mediaSourceName }
+            }
             assertFalse(withContext(Dispatchers.Main) { controller.playWhenReady })
             waitFor("cached songs exposed as available offline") { items.all { it.mediaKey in CachedMediaAvailability.complete.value } }
             state.put("preparedPid", android.os.Process.myPid())

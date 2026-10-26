@@ -10,6 +10,38 @@ class PlaybackCacheFillerTest {
     private val a = ContentDescriptor(MediaKey("source", "a"), "scope", "v1", 200000)
     private val b = a.copy(key = MediaKey("source", "b"))
 
+    @Test fun bulkFillUsesMiBRequestsWithoutArtificialDelay() = runTest {
+        var requests = 0
+        val song = a.copy(size = 8L * 1024 * 1024)
+        val cache = RangeContentCache(MemoryStorage(), RangeReader { _, _, n ->
+            requests++; delay(50); ByteArray(n)
+        }, io = StandardTestDispatcher(testScheduler))
+        val filler = PlaybackCacheFiller(backgroundScope, cache)
+        filler.select(song)
+        advanceTimeBy(500); runCurrent()
+        assertTrue(filler.isComplete(song))
+        assertEquals(8, requests, "One network round trip per MiB, not per 64 KiB")
+        filler.close()
+    }
+
+    @Test fun cachedPlaybackReadDoesNotWaitForOrCancelBackgroundNetwork() = runTest {
+        var block = false
+        var cancelled = false
+        val cache = RangeContentCache(MemoryStorage(), RangeReader { _, _, n ->
+            if (block) try { awaitCancellation() } finally { cancelled = true }
+            ByteArray(n)
+        }, io = StandardTestDispatcher(testScheduler))
+        val foreground = cache.open(a)
+        foreground.read(0, 65536)
+        block = true
+        val filler = PlaybackCacheFiller(backgroundScope, cache)
+        filler.select(a); runCurrent()
+        assertEquals(100, foreground.readCached(0, 100)!!.size)
+        assertFalse(cancelled)
+        filler.close(); runCurrent()
+        foreground.close()
+    }
+
     @Test fun fillsOnlySelectedSongAndReusesCompleteCache() = runTest {
         val reads = mutableListOf<ContentDescriptor>()
         val cache = RangeContentCache(MemoryStorage(), RangeReader { d, _, n -> reads += d; ByteArray(n) }, io = StandardTestDispatcher(testScheduler))

@@ -27,6 +27,8 @@ class PlaybackCoreTest {
         val plays = mutableListOf<Pair<LoadTicket, Boolean>>()
         val smoothing = mutableListOf<Boolean>()
         var seek: Triple<LoadTicket, Long, Long>? = null
+        var cachedEnd: Long? = null
+        override fun bufferedPositionAt(ticket: LoadTicket, positionMs: Long) = cachedEnd ?: positionMs
         override fun silence(next: LoadTicket?) = Unit
         override fun prepare(ticket: LoadTicket, resource: PlayableResource) { prepared += ticket }
         override fun setPlaying(ticket: LoadTicket, playing: Boolean, smooth: Boolean) { plays += ticket to playing; smoothing += smooth }
@@ -36,6 +38,23 @@ class PlaybackCoreTest {
     }
     private fun TestScope.core(runtime: Runtime, resolver: ContentResolver = ContentResolver { PlayableResource(it.id) }) =
         PlaybackCore(backgroundScope, resolver, runtime, Random(7))
+
+    @Test fun seekingKeepsVerifiedTargetCoverageEvenWhileOldPositionEventsArrive() = runTest {
+        val runtime = Runtime().apply { cachedEnd = 10000 }
+        val core = core(runtime)
+        core.dispatch(PlaybackCommand.ReplaceQueue(listOf(a)))
+        runCurrent()
+        val ticket = core.state.value.ticket!!
+        runtime.emit(RuntimeEvent.Prepared(ticket, 10000)); runCurrent()
+        core.dispatch(PlaybackCommand.Seek(5000))
+        assertEquals(10000L, core.state.value.bufferedPositionMs)
+        runtime.emit(RuntimeEvent.Position(ticket, 0, 10000, 0)); runCurrent()
+        assertEquals(5000L, core.state.value.positionMs)
+        assertEquals(10000L, core.state.value.bufferedPositionMs)
+        runtime.cachedEnd = null
+        core.dispatch(PlaybackCommand.Seek(8000))
+        assertEquals(8000L, core.state.value.bufferedPositionMs, "Uncached targets must not reuse a previous range")
+    }
 
     @Test fun quickSelectionAndPauseRejectLateEvents() = runTest {
         val pendingB = CompletableDeferred<PlayableResource>()

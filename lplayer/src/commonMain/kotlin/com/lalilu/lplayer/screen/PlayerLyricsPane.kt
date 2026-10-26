@@ -110,7 +110,7 @@ internal fun PlayerLyricsPane(
                         if (inputBlocked) Modifier.clearAndSetSemantics { }
                         else Modifier,
                     ),
-                currentTime = { timeline.positionMs },
+                currentTime = { timeline.lyricPositionMs },
                 sampledPlaybackKey = sampledPlaybackKey,
                 screenConstraints = screenConstraints,
                 lyricContent = lyricContent,

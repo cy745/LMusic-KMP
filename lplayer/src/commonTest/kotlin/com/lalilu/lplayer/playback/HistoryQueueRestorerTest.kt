@@ -17,6 +17,36 @@ import kotlin.test.assertFalse
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryQueueRestorerTest {
+    @OptIn(kotlinx.coroutines.InternalCoroutinesApi::class)
+    @Test fun delayedInitialQueueNotificationCannotCancelResolvedHistory() = runTest {
+        val repository = FakeAudioRepository().apply { seed(audio("a")) }
+        val backing = PlayableQueueImpl()
+        val releaseNotification = CompletableDeferred<Unit>()
+        val finishPreparation = CompletableDeferred<Unit>()
+        val queue = object : PlayableQueue by backing {
+            override val expandedItems = object : kotlinx.coroutines.flow.StateFlow<QueueState> by backing.expandedItems {
+                override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<QueueState>): Nothing {
+                    val initial = value
+                    releaseNotification.await()
+                    collector.emit(initial)
+                    backing.expandedItems.collect(collector)
+                }
+            }
+        }
+        val restorer = HistoryQueueRestorer(PlaybackHistory.HistorySnapshot(listOf("a"), 0, 3500), repository)
+        var prepared = false
+        restorer.start(backgroundScope, queue) { finishPreparation.await(); prepared = true }
+        runCurrent()
+        assertEquals("a", queue.currentItem()?.id)
+        releaseNotification.complete(Unit)
+        runCurrent()
+        assertIs<HistoryRestoreState.Pending>(restorer.state.value)
+        finishPreparation.complete(Unit)
+        runCurrent()
+        assertTrue(prepared)
+        assertIs<HistoryRestoreState.Complete>(restorer.state.value)
+    }
+
     @Test fun immediateNativeMirrorDoesNotCancelAnIdenticalRestoredQueue() = runTest {
         val repository = FakeAudioRepository().apply { seed(audio("a"), audio("b")) }
         val backing = PlayableQueueImpl()

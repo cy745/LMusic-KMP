@@ -26,7 +26,10 @@ class RangeContentCache(
     private val onCacheFailure: (IOException) -> Unit = {},
     private val onCoverageChanged: (ContentDescriptor, Boolean) -> Unit = { _, _ -> },
 ) {
-    companion object { const val MAX_READ = 64 * 1024 }
+    companion object {
+        const val MAX_READ = 1024 * 1024
+        const val DECODER_READ = 64 * 1024
+    }
     private val json = Json { ignoreUnknownKeys = true }
     private val mutex = Mutex()
     private data class Entry(var index: ContentIndex, val reads: Mutex = Mutex(), var pins: Int = 0)
@@ -94,7 +97,7 @@ class RangeContentCache(
         }
         object : ContentHandle {
             override val descriptor = descriptor
-            private var closed = false // only accessed under the entry read mutex
+            private var closed = false // reads hold either mutex; close holds both
             override suspend fun read(offset: Long, length: Int): ByteArray = withContext(io) {
                 require(offset >= 0 && length in 1..MAX_READ)
                 entry.reads.withLock {
@@ -130,11 +133,17 @@ class RangeContentCache(
                             require(fetched.size == size) { "Truncated or oversized range response" }
                             requireEnabled(descriptor)
                             mutex.withLock {
-                                val hash = digest(fetched)
-                                val file = "$key-$position-$hash.bin"
                                 bestEffortWrite {
-                                    storage.writeAtomic(file, fetched)
-                                    save(key, entry, entry.index.copy(fragments = entry.index.fragments + Fragment(position, size, hash, file), used = ++serial))
+                                    // Large transport requests, small independently verified disk fragments.
+                                    // Decoder cache hits should not reread/hash a whole MiB for a few bytes.
+                                    val fragments = (fetched.indices step DECODER_READ).map { start ->
+                                        val part = fetched.copyOfRange(start, minOf(start + DECODER_READ, fetched.size))
+                                        val hash = digest(part)
+                                        val file = "$key-${position + start}-$hash.bin"
+                                        storage.writeAtomic(file, part)
+                                        Fragment(position + start, part.size, hash, file)
+                                    }
+                                    save(key, entry, entry.index.copy(fragments = entry.index.fragments + fragments, used = ++serial))
                                     evict()
                                 }
                             }
@@ -146,6 +155,33 @@ class RangeContentCache(
                     requireEnabled(descriptor)
                     // Cache hits need no disk write. Persist recency on close or the next fragment commit.
                     mutex.withLock { entry.index = entry.index.copy(used = ++serial) }
+                    output
+                }
+            }
+            override suspend fun readCached(offset: Long, length: Int): ByteArray? = withContext(io) {
+                require(offset >= 0 && length in 1..MAX_READ)
+                // Immutable fragments can be read without waiting for another handle's network request.
+                mutex.withLock {
+                    check(!closed)
+                    requireEnabled(descriptor)
+                    val count = minOf(length.toLong(), (descriptor.size - offset).coerceAtLeast(0)).toInt()
+                    val output = ByteArray(count)
+                    var written = 0
+                    while (written < count) {
+                        val position = offset + written
+                        val fragment = entry.index.fragments.firstOrNull { position >= it.start && position < it.end }
+                            ?: return@withLock null
+                        val bytes = storage.read(fragment.file)
+                        if (bytes == null || bytes.size != fragment.length || digest(bytes) != fragment.hash) {
+                            save(key, entry, entry.index.copy(fragments = entry.index.fragments - fragment))
+                            storage.delete(fragment.file)
+                            return@withLock null
+                        }
+                        val take = minOf(count - written, (fragment.end - position).toInt())
+                        bytes.copyInto(output, written, (position - fragment.start).toInt(), (position - fragment.start).toInt() + take)
+                        written += take
+                    }
+                    entry.index = entry.index.copy(used = ++serial)
                     output
                 }
             }
@@ -176,8 +212,8 @@ class RangeContentCache(
             override suspend fun close() = withContext(io) {
                 entry.reads.withLock {
                     if (!closed) {
-                        closed = true
                         mutex.withLock {
+                            closed = true
                             entry.pins--
                             bestEffortWrite { save(key, entry, entry.index); evict() }
                         }

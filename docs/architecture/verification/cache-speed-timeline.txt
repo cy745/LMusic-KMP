@@ -1,0 +1,115 @@
+Cache throughput and timeline regression — 2026-10-26
+
+Download policy:
+- No successful-download sleep or configured bandwidth cap.
+- Filler transport batch 1 MiB, decoder/disk fragments 64 KiB.
+- Cache-only hit bypasses network-lock wait and foreground preemption.
+- Misses still preempt background work; current completes before next bounded preload.
+
+Deterministic performance check: 8 MiB with 50 ms per request uses 8 requests,
+completes within 500 virtual milliseconds. This is a request-overhead test,
+not a claim of a 16x real-world bandwidth improvement.
+
+Android suite before the additional history notification guard: 27 tests passed.
+Read-only LAN WebDAV production automatic fill (preparation included):
+MP3 3,238,131 bytes, 195,056 ms duration: 311 ms to complete.
+FLAC 3,912,367 bytes, 37,263 ms duration: 807 ms to complete.
+Immediate seek buffer assertions passed, including complete-cache reuse.
+180-second WAV priority fixtures: current 5,760,044 bytes complete before next;
+next 262,144 bytes before manual/natural promotion; promoted current fills fully.
+These measurements describe this LAN run, not a universal network guarantee.
+
+Cross compilation: common content and playback-core modules compiled for
+IosSimulatorArm64 and WasmJs. No full iOS UI/native device claim.
+
+Cold-start audit:
+Initial run timed out during queue/paused-position restoration; cleanup passed.
+Unmodified rerun passed all six separate-process phases.
+A deterministic delayed-initial-notification test then reproduced an independent
+history restoration race (expected Pending, actual Cancelled) before its fix.
+Observer now ignores obsolete snapshots under restoration lock.
+The precise cause of the original device timeout was not captured.
+
+Final JVM regression: 117 passed, zero failures/errors/skips.
+- content cache: 25
+- playback core: 31
+- player timeline/lyrics/playlist and history restorer: 61
+The added history race test fails before the guard and passes after it;
+existing user-takeover, duplicate occurrence and later-fill tests also pass.
+
+Final separate-process cold-start regression: all 6 phases passed.
+
+Cold-start phase: prepare
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 3.148
+
+OK (1 test)
+
+Cold-start phase: removeLibraryRows
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.062
+
+OK (1 test)
+
+Cold-start phase: verify
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 6.095
+
+OK (1 test)
+
+Cold-start phase: removeCachedBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.061
+
+OK (1 test)
+
+Cold-start phase: verifyMissingBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 8.675
+
+OK (1 test)
+
+Cold-start phase: cleanup
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.071
+
+OK (1 test)
+
+Final Android full-suite rerun: 26/27 passed; WAV→MP3 sample count failed once
+(expected 128000, observed 129408 PCM bytes) while release compilation ran.
+This uses the test's plain DefaultAudioSink renderer, not the production
+ContinuousAudioRenderersFactory. No source evidence proves host load caused it.
+Earlier full suite on the same cache/timeline implementation passed 27/27;
+the final common history guard does not alter audio processing.
+Do not discard this intermittent failure or claim unconditional sample-exactness.
+
+Release artifact: build/experience/LMusic-plan-b-release-speed-lyrics-20261026.apk
+Bytes: 25405808
+SHA-256: fe74f38123ed82a825cc06d331913a2a38eb3171feaf7530f61b164981007b88
+apksigner verify: passed (existing local signing setup).
+
+Isolated final gapless rerun after build completion (no code changes):
+
+com.lalilu.lmusic.prototype.GaplessDeviceTest:..........
+
+Time: 27.631
+
+OK (10 tests)
+
+
+
+Delivery: same verified release installed with adb install -r on emulator and phone.
+Both launches Status: ok. Phone firstInstallTime 2026-10-26 16:17:55,
+lastUpdateTime 2026-10-26 19:02:37. No uninstall or data clear.

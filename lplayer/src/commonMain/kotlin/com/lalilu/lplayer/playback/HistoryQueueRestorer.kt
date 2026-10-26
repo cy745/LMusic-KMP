@@ -147,6 +147,9 @@ class HistoryQueueRestorer(
         queueWatcherJob = scope.launch {
             queue.expandedItems.collect { queueState ->
                 val shouldStop = stateMutex.withLock {
+                    // A notification can wait behind database restoration. It must not cancel
+                    // the newer queue/delivery that replaced it while this collector was waiting.
+                    if (queueState !== queue.stateSnapshot()) return@withLock false
                     if (mutableState.value !is HistoryRestoreState.Pending) return@withLock false
                     if (
                         queueState.updateReason is QueueUpdateReason.HistoryRestore ||

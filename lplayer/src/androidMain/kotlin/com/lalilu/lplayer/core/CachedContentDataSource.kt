@@ -44,8 +44,11 @@ class CachedContentDataSource(
             // Extractors often ask for a few bytes at a time. Batch transport/disk reads without fetching the seek gap.
             pending = runBlocking {
                 val current = checkNotNull(handle)
-                val read: suspend () -> ByteArray = { current.read(position, minOf(remaining, RangeContentCache.MAX_READ.toLong()).toInt()) }
-                filler?.foregroundRead(current.descriptor, position, read) ?: read()
+                val count = minOf(remaining, RangeContentCache.DECODER_READ.toLong()).toInt()
+                current.readCached(position, count) ?: run {
+                    val read: suspend () -> ByteArray = { current.read(position, count) }
+                    filler?.foregroundRead(current.descriptor, position, read) ?: read()
+                }
             }
             pendingOffset = 0
         }
