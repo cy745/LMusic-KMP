@@ -111,16 +111,25 @@ class PlaybackControlDeviceTest {
             .setOnAudioFocusChangeListener({}, android.os.Handler(android.os.Looper.getMainLooper())).build()
         val temporary = request(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
         val permanent = request(android.media.AudioManager.AUDIOFOCUS_GAIN)
+        var outputStarted = false
         var focusPauseNotifications = 0
         var resumedAfterUserPause = false
         var userPausedDuringInterruption = false
         try {
             withContext(Dispatchers.Main) {
+                runtime.player.addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+                    override fun onAudioPositionAdvancing(eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime, playoutStartSystemTimeMs: Long) {
+                        outputStarted = true
+                        println("FOCUS_OUTPUT advancing=true")
+                    }
+                })
                 runtime.player.setAudioAttributes(androidx.media3.common.AudioAttributes.Builder().setUsage(androidx.media3.common.C.USAGE_MEDIA)
                     .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
                 player.play()
             }
-            waitFor("focused playback") { runtime.player.isPlaying }
+            // isPlaying is optimistic before the asynchronous native focus request completes.
+            // Interrupt real AudioTrack output, not an in-flight startup request that could win later.
+            waitFor("focused playback output") { outputStarted && runtime.player.isPlaying }
             withContext(Dispatchers.Main) {
                 runtime.player.addListener(object : Player.Listener {
                     override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) {

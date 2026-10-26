@@ -1,5 +1,7 @@
 package com.lalilu.lplayer.core
 
+import com.lalilu.lmedia.content.contentReadFailure
+
 import android.content.Context
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -31,6 +33,7 @@ class Media3CoreRuntime(
             // Default progressive loading checks only every 1 MiB, which can read an entire short
             // candidate despite the 5-second target. Check at the cache's bounded transport chunk.
             val progressive = androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(factory, extractors)
+                .setLoadErrorHandlingPolicy(ContentLoadErrorPolicy())
                 .setContinueLoadingCheckIntervalBytes(com.lalilu.lmedia.content.RangeContentCache.DECODER_READ)
             setMediaSourceFactory(object : androidx.media3.exoplayer.source.MediaSource.Factory by fallback {
                 override fun createMediaSource(item: MediaItem): androidx.media3.exoplayer.source.MediaSource =
@@ -209,7 +212,7 @@ class Media3CoreRuntime(
                     if (valid()) {
                         advance()
                         preparationTimeout?.cancel()
-                        loaded?.let { onEvent?.invoke(RuntimeEvent.Failed(it, error.message ?: error.errorCodeName)) }
+                        loaded?.let { onEvent?.invoke(RuntimeEvent.Failed(it, error.contentReadFailure()?.message ?: error.message ?: error.errorCodeName)) }
                     }
                 }
                 override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {

@@ -378,4 +378,46 @@ class PlaybackCoreTest {
         assertEquals(b,core.state.value.selected)
         assertTrue(core.state.value.naturalTransition)
     }
+    @Test fun largeQueueFailureRoundIsBoundedAndExplicitRetryStaysOnSelectedSong() = runTest {
+        val songs = (0 until 5000).map { TrackKey("large-source", "$it") }
+        val runtime = Runtime()
+        val attempts = mutableListOf<TrackKey>()
+        val core = core(runtime, ContentResolver { key -> attempts += key; error("offline") })
+        core.dispatch(PlaybackCommand.ReplaceQueue(songs, startPlayback = true))
+        runCurrent()
+        assertEquals(songs, attempts)
+        assertEquals(PlayIntent.Pause, core.state.value.intent)
+        assertEquals(Phase.Failed, core.state.value.phase)
+        assertEquals(songs.last(), core.state.value.selected)
+        core.dispatch(PlaybackCommand.SetSkipFailures(false))
+        core.dispatch(PlaybackCommand.Play); runCurrent()
+        assertEquals(songs.last(), attempts.last())
+        assertEquals(5001, attempts.size)
+        assertEquals(songs, core.state.value.queue)
+    }
+
+    @Test fun thousandsOfTransitionsKeepQueueAndLatestIntentConsistent() = runTest {
+        val songs = (0 until 10000).map { TrackKey("large-source", "$it") }
+        val runtime = Runtime()
+        val core = core(runtime)
+        core.dispatch(PlaybackCommand.ReplaceQueue(songs, startPlayback = true)); runCurrent()
+        repeat(3000) { index ->
+            val ticket = core.state.value.ticket!!
+            runtime.emit(RuntimeEvent.Prepared(ticket, 180000)); runCurrent()
+            runtime.emit(RuntimeEvent.Started(ticket)); runCurrent()
+            runtime.emit(RuntimeEvent.Position(ticket, 179999, 180000, 180000)); runCurrent()
+            runtime.emit(RuntimeEvent.Ended(ticket)); runCurrent()
+            // Late old events may not reclaim the new selection or its timeline.
+            runtime.emit(RuntimeEvent.Failed(ticket, "late callback")); runCurrent()
+            assertEquals(songs[index + 1], core.state.value.selected)
+            assertEquals(PlayIntent.Play, core.state.value.intent)
+            assertEquals(0L, core.state.value.positionMs)
+        }
+        core.dispatch(PlaybackCommand.Pause); runCurrent()
+        val last = core.state.value.ticket!!
+        runtime.emit(RuntimeEvent.Prepared(last, 180000)); runCurrent()
+        assertEquals(last to false, runtime.plays.last())
+        assertEquals(songs, core.state.value.queue)
+    }
+
 }

@@ -40,8 +40,59 @@ class HttpRangeReaderTest {
                 })
             })
             try {
-                assertFailsWith<IllegalStateException>("$case") { HttpRangeReader(client) { ContentOrigin("https://example.test/song") }.read(d,500,100) }
+                assertFailsWith<ContentReadFailure>("$case") { HttpRangeReader(client) { ContentOrigin("https://example.test/song") }.read(d,500,100) }
             } finally { client.close() }
         }
     }
+    @Test fun separatesAuthenticationAndPermanentFailuresFromTemporaryOutages() = runTest {
+        for ((status, kind) in listOf(401 to ContentFailureKind.Authentication, 403 to ContentFailureKind.Authentication,
+            404 to ContentFailureKind.Missing, 410 to ContentFailureKind.Missing,
+            412 to ContentFailureKind.Changed, 416 to ContentFailureKind.Changed,
+            408 to ContentFailureKind.Temporary, 429 to ContentFailureKind.Temporary, 503 to ContentFailureKind.Temporary)) {
+            val client = HttpClient(MockEngine { respond("private server details", HttpStatusCode.fromValue(status)) })
+            try {
+                val failure = assertFailsWith<ContentReadFailure> {
+                    HttpRangeReader(client) { ContentOrigin("https://example.test/private?token=secret") }.read(d, 0, 100)
+                }
+                assertEquals(kind, failure.kind)
+                assertEquals(status, failure.statusCode)
+                assertEquals(kind == ContentFailureKind.Temporary, failure.retryable)
+                assertFalse(failure.message.orEmpty().contains("secret"))
+                assertFalse(failure.message.orEmpty().contains("private"))
+            } finally { client.close() }
+        }
+    }
+
+    @Test fun authenticationFailurePreservesCachedRangesAndReResolvesCredentialsOnRetry() = runTest {
+        var token = "valid"
+        var requests = 0
+        val client = HttpClient(MockEngine { request ->
+            requests++
+            if (request.headers[HttpHeaders.Authorization] != "valid") respond("", HttpStatusCode.Unauthorized)
+            else {
+                val range = request.headers[HttpHeaders.Range]!!.removePrefix("bytes=")
+                val (start, end) = range.split('-').map(String::toInt)
+                respond(ByteArray(end - start + 1) { (start + it).toByte() }, HttpStatusCode.PartialContent,
+                    headersOf(HttpHeaders.ContentRange to listOf("bytes $range/1000"), HttpHeaders.ETag to listOf("\"v1\"")))
+            }
+        })
+        try {
+            val cache = RangeContentCache(MemoryStorage(), HttpRangeReader(client) {
+                ContentOrigin("https://example.test/song", mapOf(HttpHeaders.Authorization to token))
+            }, io = kotlinx.coroutines.test.StandardTestDispatcher(testScheduler))
+            val handle = cache.open(d)
+            handle.read(0, 100)
+            token = "expired"
+            assertFailsWith<ContentReadFailure> { handle.read(500, 100) }
+            assertEquals(listOf(ByteSpan(0, 100)), handle.cachedSpans())
+            val before = requests
+            assertEquals(100, handle.read(0, 100).size)
+            assertEquals(before, requests, "Cached bytes do not depend on working credentials")
+            token = "valid"
+            assertEquals(100, handle.read(500, 100).size)
+            assertEquals(listOf(ByteSpan(0, 100), ByteSpan(500, 600)), handle.cachedSpans())
+            handle.close()
+        } finally { client.close() }
+    }
+
 }

@@ -25,26 +25,40 @@ class HttpRangeReader(
             descriptor.etag?.takeUnless { it.startsWith("W/") }?.let { header(HttpHeaders.IfMatch, it) }
                 ?: descriptor.lastModified?.let { header(HttpHeaders.IfUnmodifiedSince, it) }
         }.execute { response ->
-            check(response.status == HttpStatusCode.PartialContent ||
-                (response.status == HttpStatusCode.OK && offset == 0L && length.toLong() == descriptor.size)) {
-                "Expected a validated byte range, received HTTP ${response.status.value}"
+            val status = response.status.value
+            if (status != 206 && !(status == 200 && offset == 0L && length.toLong() == descriptor.size)) {
+                val kind = when (status) {
+                    401, 403 -> ContentFailureKind.Authentication
+                    404, 410 -> ContentFailureKind.Missing
+                    412, 416 -> ContentFailureKind.Changed
+                    408, 429, in 500..599 -> ContentFailureKind.Temporary
+                    else -> ContentFailureKind.InvalidResponse
+                }
+                val message = when (kind) {
+                    ContentFailureKind.Authentication -> "Source authentication failed; check account credentials"
+                    ContentFailureKind.Missing -> "The source file is no longer available"
+                    ContentFailureKind.Changed -> "The source file changed; refresh the library before retrying"
+                    ContentFailureKind.Temporary -> "Source temporarily unavailable"
+                    ContentFailureKind.InvalidResponse -> "Source did not return a valid byte range"
+                }
+                throw ContentReadFailure(kind, status, "$message (HTTP $status)")
             }
-            check(response.headers[HttpHeaders.ContentEncoding].let { it == null || it.equals("identity", true) }) { "Encoded response cannot be cached by byte offset" }
+            requireValidContent(response.headers[HttpHeaders.ContentEncoding].let { it == null || it.equals("identity", true) }, "Encoded response cannot be cached by byte offset")
             if (response.status == HttpStatusCode.PartialContent) {
                 val range = Regex("bytes (\\d+)-(\\d+)/(\\d+)").matchEntire(response.headers[HttpHeaders.ContentRange].orEmpty())
-                    ?: error("Missing or invalid Content-Range")
-                check(range.groupValues[1].toLong() == offset && range.groupValues[2].toLong() == end && range.groupValues[3].toLong() == descriptor.size) { "Content range or total size changed" }
+                    ?: throw ContentReadFailure(ContentFailureKind.InvalidResponse, message = "Missing or invalid Content-Range")
+                requireValidContent(range.groupValues[1].toLongOrNull() == offset && range.groupValues[2].toLongOrNull() == end && range.groupValues[3].toLongOrNull() == descriptor.size, "Content range or total size changed")
             }
             descriptor.etag?.let { expected ->
-                check(response.headers[HttpHeaders.ETag] == expected) { "Missing or changed content ETag" }
+                if (response.headers[HttpHeaders.ETag] != expected) throw ContentReadFailure(ContentFailureKind.Changed, message = "Missing or changed content ETag")
             }
             if (descriptor.etag == null) descriptor.lastModified?.let { expected ->
-                check(response.headers[HttpHeaders.LastModified] == expected) { "Missing or changed content modification time" }
+                if (response.headers[HttpHeaders.LastModified] != expected) throw ContentReadFailure(ContentFailureKind.Changed, message = "Missing or changed content modification time")
             }
-            response.headers[HttpHeaders.ContentLength]?.let { check(it.toLongOrNull() == length.toLong()) { "Wrong range length" } }
+            response.headers[HttpHeaders.ContentLength]?.let { requireValidContent(it.toLongOrNull() == length.toLong(), "Wrong range length") }
             val channel = response.bodyAsChannel()
             val bytes = channel.readBuffer(length + 1).readByteArray()
-            check(bytes.size == length) { "Truncated or oversized byte range" }
+            requireValidContent(bytes.size == length, "Truncated or oversized byte range")
             bytes
         }
     }

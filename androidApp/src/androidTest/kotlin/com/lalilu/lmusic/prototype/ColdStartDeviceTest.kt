@@ -46,8 +46,8 @@ class ColdStartDeviceTest {
         .flatMap { root -> root.walkTopDown().filter { it.isFile }.map { it.absolutePath }.toList() }.toSet()
     private fun read() = JSONObject(manifest.readText())
     private fun songs(state: JSONObject) = Json.decodeFromString<List<LAudio>>(state.getString("songs"))
-    private suspend fun waitFor(label: String, predicate: () -> Boolean) {
-        try { withTimeout(20000) { while (!withContext(Dispatchers.Main) { predicate() }) delay(50) } }
+    private suspend fun waitFor(label: String, timeoutMs: Long = 20000, predicate: () -> Boolean) {
+        try { withTimeout(timeoutMs) { while (!withContext(Dispatchers.Main) { predicate() }) delay(50) } }
         catch (error: TimeoutCancellationException) { throw AssertionError("Timed out: $label", error) }
     }
     private suspend fun browser() = withContext(Dispatchers.Main) {
@@ -198,13 +198,14 @@ class ColdStartDeviceTest {
         val activity = launch()
         val controller = browser()
         try {
-            waitFor("missing bytes fail paused current") { controller.currentMediaItem?.mediaId == items[1].playbackId && controller.playerError != null && !controller.playWhenReady }
+            // Foreground network recovery now has a bounded ~24s retry window (30s initial preparation cap).
+            waitFor("missing bytes fail paused current", timeoutMs = 35000) { controller.currentMediaItem?.mediaId == items[1].playbackId && controller.playerError != null && !controller.playWhenReady }
             assertFalse(items[1].mediaKey in CachedMediaAvailability.complete.value)
             delay(300)
             assertEquals(items[1].playbackId, withContext(Dispatchers.Main) { controller.currentMediaItem?.mediaId })
             assertFalse(withContext(Dispatchers.Main) { controller.isPlaying })
             LPlayer.instance.play()
-            waitFor("explicit retry may skip failed current") { controller.currentMediaItem?.mediaId == items[2].playbackId && controller.isPlaying }
+            waitFor("explicit retry may skip failed current", timeoutMs = 35000) { controller.currentMediaItem?.mediaId == items[2].playbackId && controller.isPlaying }
             LPlayer.instance.pause()
         } finally { withContext(Dispatchers.Main) { controller.release(); activity.finish() } }
     }

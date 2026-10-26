@@ -1,0 +1,130 @@
+Android network recovery and queue stress — 2026-10-26
+
+Scope: cached-content playback and background filling; no crossfade or UI redesign.
+HTTP failures are classified without URL/credential/response-body disclosure.
+401/403, missing/replaced files and invalid ranges stop automatic transport retries.
+Transient I/O/HTTP failures have bounded foreground retry, background exponential
+backoff, and selected-content/source recovery wakeup. Valid cached ranges survive.
+A recovery-version check covers refresh/success arriving before an old failure parks.
+
+JVM:
+- lmedia-content: 31 tests, 0 failures/errors.
+- playback-core: 37 tests, 0 failures/errors.
+- 5000-item all-failure round visits each once; explicit retry starts at selected song.
+- 10000-item queue with 3000 simulated natural transitions ignores stale events.
+These are accelerated policy tests, not hours of native/hardware playback or UI profiling.
+
+Final related device regression:
+
+com.lalilu.lmusic.prototype.SessionArtworkDeviceTest:.
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+com.lalilu.lmusic.prototype.PlaybackControlDeviceTest:...
+com.lalilu.lmusic.prototype.NetworkRecoveryDeviceTest:....
+com.lalilu.lmusic.prototype.GaplessDeviceTest:..........
+com.lalilu.lmusic.prototype.WebDavContentBridgeDeviceTest:.....
+com.lalilu.lmusic.prototype.ContentCacheDeviceTest:....
+com.lalilu.lmusic.prototype.SessionSelectionDeviceTest:.
+
+Time: 77.726
+
+OK (29 tests)
+
+
+
+Real socket failure cases: 503 during prepare + user pause; 401 with no automatic
+same-load retry and explicit Play recovery; hard socket close at a seek target;
+prolonged post-prepare 503 with seven failed requests (initial + six retries).
+Earlier standalone network validation: 4/4 passed, ~28s.
+
+Cold-start subprocess verification:
+
+Cold-start phase: prepare
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 3.805
+
+OK (1 test)
+
+Cold-start phase: removeLibraryRows
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.047
+
+OK (1 test)
+
+Cold-start phase: verify
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 6.168
+
+OK (1 test)
+
+Cold-start phase: removeCachedBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.056
+
+OK (1 test)
+
+Cold-start phase: verifyMissingBytes
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 49.816
+
+OK (1 test)
+
+Cold-start phase: cleanup
+
+com.lalilu.lmusic.prototype.ColdStartDeviceTest:.
+
+Time: 0.058
+
+OK (1 test)
+
+The initial missing-cache phase used a 20s test timeout and expired before the
+new bounded retry window. Its two expected-failure waits now allow 35s, covering
+~23.5s retry delays and the existing 30s preparation deadline. No production success
+is inferred from a timeout. Final missing-cache phase passes (~50s for both attempts).
+
+Read-only live WebDAV MP3/FLAC production-cache validation:
+
+com.lalilu.lmusic.prototype.WebDavLiveBufferDeviceTest:.
+
+Time: 5.88
+
+OK (1 test)
+
+
+
+Shared content compilation: iOS Simulator arm64 and Wasm passed.
+
+Focus test investigation:
+An earlier final batch reported 28/29 because transient suppression timed out.
+Captured MediaFocusControl log ordering (same test process):
+22:53:54.289 temporary test focus request req=2
+22:53:54.289 native Media3 focus request req=1 (arrived after the test request)
+22:53:54.590 FOCUS_OBS phase=Playing intent=Play nativePlaying=true suppression=0
+The old precondition read optimistic isPlaying before native startup/focus finished.
+The test now waits for AnalyticsListener.onAudioPositionAdvancing (real AudioTrack
+output) before interrupting. The same ordered 29-test batch then passed. No production
+focus workaround was added. This does not substitute for real calls or physical routes.
+
+Release:
+build/experience/LMusic-plan-b-release-network-recovery-20261026.apk
+Bytes: 25405788
+SHA-256: eb1416cfd1f2dbf3624ebd1f43a73d3651a8f7814a660f49ff9951ad00910cf5
+apksigner verify: passed.
+Emulator install -r / launch: Success / Status ok.
+Phone wireless install -r / launch: Success / Status ok.
+Phone firstInstallTime: 2026-10-26 16:17:55 (unchanged).
+Phone lastUpdateTime: 2026-10-26 23:00:19.
+No uninstall or data clear.
+
+Remaining work: real long-duration/large-library UI profiling; calls, Bluetooth/USB
+and vendor background restrictions; legacy bridge cleanup; non-Android cache and
+continuous-output parity; hardware original-output validation. Crossfade/AI deferred.

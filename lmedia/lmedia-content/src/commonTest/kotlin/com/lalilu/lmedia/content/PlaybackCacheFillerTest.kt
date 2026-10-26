@@ -117,4 +117,84 @@ class PlaybackCacheFillerTest {
         assertTrue(filler.isComplete(b))
         filler.close()
     }
+    @Test fun authenticationFailureParksUntilSourceRefreshInsteadOfHammeringServer() = runTest {
+        var denied = true
+        var requests = 0
+        val cache = RangeContentCache(MemoryStorage(), RangeReader { _, _, n ->
+            requests++
+            if (denied) throw ContentReadFailure(ContentFailureKind.Authentication, 401, "credentials expired")
+            ByteArray(n)
+        }, io = StandardTestDispatcher(testScheduler))
+        val filler = PlaybackCacheFiller(backgroundScope, cache)
+        filler.select(a); runCurrent()
+        advanceTimeBy(120_000); runCurrent()
+        assertEquals(1, requests)
+        assertFalse(filler.isComplete(a))
+        filler.retry("different-source"); runCurrent()
+        assertEquals(1, requests)
+        denied = false
+        filler.retry(a.key.sourceName); runCurrent()
+        assertTrue(filler.isComplete(a))
+        assertEquals(2, requests)
+        filler.close()
+    }
+
+    @Test fun transientOutageBacksOffAndSuccessfulForegroundMissRestartsFill() = runTest {
+        var offline = true
+        val times = mutableListOf<Long>()
+        val cache = RangeContentCache(MemoryStorage(), RangeReader { _, _, n ->
+            times += testScheduler.currentTime
+            if (offline) throw ContentReadFailure(ContentFailureKind.Temporary, 503, "offline")
+            ByteArray(n)
+        }, io = StandardTestDispatcher(testScheduler))
+        val filler = PlaybackCacheFiller(backgroundScope, cache)
+        filler.select(a); runCurrent()
+        advanceTimeBy(7_001); runCurrent()
+        assertEquals(listOf(0L, 1000L, 3000L, 7000L), times)
+        offline = false
+        val handle = cache.open(a)
+        filler.foregroundRead(a, 150000) { handle.read(150000, 100) }
+        runCurrent()
+        assertTrue(filler.isComplete(a), "Do not wait out the old backoff once transport works again")
+        handle.close(); filler.close()
+    }
+
+    @Test fun explicitReselectionRetriesParkedFillAndOldSourceCannotWakeNewSong() = runTest {
+        var denied = true
+        var attempts = 0
+        val cache = RangeContentCache(MemoryStorage(), RangeReader { _, _, n ->
+            attempts++
+            if (denied) throw ContentReadFailure(ContentFailureKind.Authentication, 403, "forbidden")
+            ByteArray(n)
+        }, io = StandardTestDispatcher(testScheduler))
+        val filler = PlaybackCacheFiller(backgroundScope, cache)
+        filler.select(a); runCurrent()
+        denied = false
+        filler.select(a); runCurrent()
+        assertTrue(filler.isComplete(a))
+        filler.retry(); runCurrent()
+        assertEquals(2, attempts, "A healthy complete fill is not restarted")
+        filler.close()
+    }
+
+    @Test fun recoveryArrivingBeforeFailureIsParkedIsNotLost() = runTest {
+        var denied = true
+        var attempts = 0
+        val cache = RangeContentCache(MemoryStorage(), RangeReader { _, _, n ->
+            attempts++
+            if (denied) throw ContentReadFailure(ContentFailureKind.Authentication, 401, "old credentials")
+            ByteArray(n)
+        }, io = StandardTestDispatcher(testScheduler))
+        lateinit var filler: PlaybackCacheFiller
+        filler = PlaybackCacheFiller(backgroundScope, cache) {
+            // Source refresh wins the race with the old failure's transition into waiting.
+            denied = false
+            filler.retry(a.key.sourceName)
+        }
+        filler.select(a); runCurrent()
+        assertTrue(filler.isComplete(a))
+        assertEquals(2, attempts)
+        filler.close()
+    }
+
 }

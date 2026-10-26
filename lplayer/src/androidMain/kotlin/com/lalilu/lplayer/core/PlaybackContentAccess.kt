@@ -108,6 +108,7 @@ class PlaybackContentAccess(private val context: Context, private val sources: P
         sources.sources.forEach { source ->
             scope.launch {
                 source.contentState.collect {
+                    filler.retry(source.name)
                     verified.entries.filter { !library.isEnabled(it.value) }.forEach { (key,value) ->
                         verified.remove(key,value)
                         publishAvailability(key)
