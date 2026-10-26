@@ -46,13 +46,14 @@ internal class PlatformQueueBridge(
     /** No platform callback can change the selected index between insertion and the seek. */
     suspend fun editAndRun(
         block: QueueUpdateRequest.() -> Unit,
+        apply: suspend (QueueState) -> Unit = applyToPlatform,
         command: suspend (QueueState) -> Unit,
     ) = mutex.withLock {
         newPlatformSnapshot()
         try {
             backing.update(block = block)
             val selected = backing.stateSnapshot()
-            applyToPlatform(selected)
+            apply(selected)
             command(selected)
         } finally {
             newPlatformSnapshot()

@@ -14,6 +14,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import com.lalilu.lplayer.LPlayer
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,12 +45,14 @@ internal fun PlayerToolbarContent(
     showExtraActions: () -> Boolean,
     onDoubleClick: () -> Unit = {},
 ) {
+    val loading = LPlayer.instance.isLoading.collectAsState()
     PlayingToolbar(
         modifier = modifier,
         title = title,
         subtitle = subtitle,
         contentColor = contentColor,
         isPlaying = isPlaying,
+        isLoading = { loading.value },
         isUserTouchEnable = isUserTouchEnabled,
         isExtraVisible = showExtraActions,
         // 单击 / 双击都由 PlayingToolbar 内部同一个手势识别器处理，这里只传语义动作

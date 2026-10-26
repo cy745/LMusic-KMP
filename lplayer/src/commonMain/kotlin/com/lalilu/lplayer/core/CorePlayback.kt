@@ -44,6 +44,8 @@ open class CorePlayback(
         runtime.resource(data, audio)
     }, runtime, initialMode = history.historyStorage.savedPlaybackMode().toCore())
     private val queueState = MutableStateFlow(QueueState())
+    private val loading = MutableStateFlow(false)
+    override val isLoading = loading.asStateFlow()
     private val playing = MutableStateFlow(false)
     private val duration = MutableStateFlow(0L)
     private val buffered = MutableStateFlow(0L)
@@ -84,6 +86,8 @@ open class CorePlayback(
             list.getOrNull(list.indexOfFirst { it.key() == target.key() } - 1)
         }
     }
+    override val canSkipNext: Flow<Boolean> = queue.expandedItems.map { it.list.isNotEmpty() }
+    override val canSkipPrevious: Flow<Boolean> = canSkipNext
     private val durationResolver = PlaybackDurationResolver(queue.currentItemFlow(), duration, scope,
         engineItemKey = engineKey)
     override val stableDuration = durationResolver.stableDuration
@@ -263,6 +267,7 @@ open class CorePlayback(
         val changed = old.currentItem()?.key() != state.selected
         queueState.value = old.copy(list = list, index = state.index.coerceAtLeast(0),
             currentPickedByUser = picked ?: if (changed) false else old.currentPickedByUser)
+        loading.value = state.phase in setOf(Phase.Preparing, Phase.Starting, Phase.Buffering, Phase.Seeking)
         playing.value = state.phase == Phase.Playing
         duration.value = state.durationMs
         engineKey.value = list.getOrNull(state.index)?.playbackId

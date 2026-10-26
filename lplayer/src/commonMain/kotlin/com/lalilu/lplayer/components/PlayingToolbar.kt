@@ -21,6 +21,7 @@ fun PlayingToolbar(
     title: () -> String,
     subtitle: () -> String,
     isPlaying: () -> Boolean = { false },
+    isLoading: () -> Boolean = { false },
     isUserTouchEnable: () -> Boolean = { false },
     isExtraVisible: () -> Boolean = { true },
     contentColor: () -> Color,
@@ -96,7 +97,8 @@ fun PlayingToolbar(
             title = title,
             subTitle = subtitle,
             contentColor = contentColor,
-            isPlaying = isPlaying
+            isPlaying = isPlaying,
+            isLoading = isLoading
         )
 
         fixContent()

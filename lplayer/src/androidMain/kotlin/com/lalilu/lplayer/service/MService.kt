@@ -1,5 +1,7 @@
 package com.lalilu.lplayer.service
 
+import com.lalilu.lplayer.core.withQueuePlaybackRequest
+import com.lalilu.lplayer.core.START_QUEUE_PLAYBACK
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -337,7 +339,10 @@ private class MServiceCallback(private val player: Player, private val scope: Co
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
         return scope.future(Dispatchers.IO) {
             val ids = mediaItems.map { it.mediaId }
-            val items = MMedia.getItems(ids)
+            val startPlayback = mediaItems.firstOrNull()?.requestMetadata?.extras?.getBoolean(START_QUEUE_PLAYBACK) == true
+            val items = MMedia.getItems(ids).mapIndexed { index, item ->
+                if (index == 0) item.withQueuePlaybackRequest(startPlayback) else item
+            }
 
             MediaSession.MediaItemsWithStartPosition(
                 items,

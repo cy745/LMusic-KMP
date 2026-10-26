@@ -61,11 +61,13 @@ class CorePlaybackTest {
         val gate = CompletableDeferred<Unit>()
         val f = fixture { audio -> if (audio.id == "A") gate.await() }
         f.playback.updatePlaylist(f.songs, 0, true); runCurrent()
+        assertTrue(f.playback.isLoading.value)
         f.playback.pause()
         f.playback.skipToNext(); runCurrent()
         gate.complete(Unit); runCurrent()
         assertEquals("B", f.engine.loaded)
         assertEquals(Phase.ReadyPaused, f.playback.core.state.value.phase)
+        assertFalse(f.playback.isLoading.value)
         assertFalse(f.engine.state.value.isPlaying)
     }
 

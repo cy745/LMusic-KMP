@@ -12,6 +12,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import com.lalilu.lplayer.LPlayer
 import androidx.compose.runtime.State
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
@@ -35,6 +37,7 @@ internal fun PadNowPlayingPanel(
     isPlaying: State<Boolean>,
     timeline: PlaybackTimelineState,
 ) {
+    val loading = LPlayer.instance.isLoading.collectAsState()
     val accentColor = MaterialTheme.colorScheme.primary
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
     val isGreaterThanMedium = windowSizeClass.isHeightAtLeastBreakpoint(HEIGHT_DP_MEDIUM_LOWER_BOUND)
@@ -81,6 +84,7 @@ internal fun PadNowPlayingPanel(
                 subtitle = { currentItem.value?.subtitle ?: "....." },
                 contentColor = { Color.White },
                 isPlaying = { isPlaying.value },
+                isLoading = { loading.value },
                 contentPadding = PaddingValues(0.dp),
             )
         }

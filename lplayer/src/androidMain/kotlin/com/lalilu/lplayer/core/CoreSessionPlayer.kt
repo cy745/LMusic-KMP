@@ -28,11 +28,11 @@ class CoreSessionPlayer(
     }
     private fun currentItems() = core.state.value.queue.map { items.getValue(it) }
     private fun task(block: suspend () -> Unit): ListenableFuture<Unit> = scope.future { block() }
-    private suspend fun replace(list: List<MediaItem>, selected: TrackKey? = null) {
+    private suspend fun replace(list: List<MediaItem>, selected: TrackKey? = null, startPlayback: Boolean = false, force: Boolean = false) {
         list.forEach { items[key(it)] = it }
         val keys = list.map(::key).distinct()
-        if (keys != core.state.value.queue || (selected != null && selected != core.state.value.selected)) {
-            core.dispatch(PlaybackCommand.ReplaceQueue(keys, selected))
+        if (force || startPlayback || keys != core.state.value.queue || (selected != null && selected != core.state.value.selected)) {
+            core.dispatch(PlaybackCommand.ReplaceQueue(keys, selected, startPlayback))
         }
         invalidateState()
     }
@@ -88,7 +88,8 @@ class CoreSessionPlayer(
         return com.google.common.util.concurrent.Futures.immediateFuture(Unit)
     }
     override fun handleSetMediaItems(mediaItems: List<MediaItem>, startIndex: Int, startPositionMs: Long) = task {
-        replace(mediaItems,mediaItems.getOrNull(startIndex)?.let(::key))
+        val start = mediaItems.firstOrNull()?.requestMetadata?.extras?.getBoolean(START_QUEUE_PLAYBACK) == true
+        replace(mediaItems.map { it.withQueuePlaybackRequest(false) },mediaItems.getOrNull(startIndex)?.let(::key), start, force = true)
         if (startPositionMs > 0) core.dispatch(PlaybackCommand.Seek(startPositionMs))
     }
     override fun handleAddMediaItems(index: Int, mediaItems: List<MediaItem>) = task {

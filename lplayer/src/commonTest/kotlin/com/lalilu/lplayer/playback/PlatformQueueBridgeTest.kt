@@ -16,6 +16,18 @@ class PlatformQueueBridgeTest {
     private val a = LAudio(id = "a")
     private val b = LAudio(id = "b")
 
+    @Test fun atomicSelectionUsesOnlyItsOwnPlatformApply() = runTest {
+        var ordinary = 0
+        var atomic = 0
+        val bridge = PlatformQueueBridge(applyToPlatform = { ordinary++ }, readPlatformAfterApply = {})
+        bridge.editAndRun(block = { replaceAll(listOf(a, b), 1) }, apply = {
+            atomic++
+            assertEquals(b, it.currentItem())
+        }) {}
+        assertEquals(0, ordinary)
+        assertEquals(1, atomic)
+    }
+
     @Test fun sameSlotCommandAdvancesRevisionAndNativeMirrorPreservesIt() = runTest {
         val bridge = PlatformQueueBridge(applyToPlatform = {}, readPlatformAfterApply = {})
         bridge.editAndRun({ replaceAll(listOf(a), 0) }) {}

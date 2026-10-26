@@ -150,6 +150,48 @@ class ProductionSessionDeviceTest {
             }
             waitFor("natural single repeat keeps session identity") { repeated && controller.isPlaying && controller.currentPosition<3000 }
             withContext(Dispatchers.Main) { controller.pause() }
+
+            // Real app-entry boundaries: no forced pause or restart on queue replacement.
+            playback.setPlaybackMode(com.lalilu.lplayer.playback.PlaybackMode.LOOP)
+            playback.updatePlaylist(imported, 0, true)
+            waitFor("atomic app selection starts") { controller.isPlaying && controller.currentMediaItem?.mediaId == imported[0].playbackId && controller.currentPosition > 200 }
+            val beforeReplacement = withContext(Dispatchers.Main) { controller.currentPosition }
+            playback.updatePlaylist(imported.reversed(), -1, false)
+            waitFor("replacement preserves selected song and play intent") { controller.isPlaying && controller.currentMediaItem?.mediaId == imported[0].playbackId && controller.currentPosition >= beforeReplacement }
+            playback.pause()
+            waitFor("pause before same selection") { !controller.playWhenReady }
+            playback.seekTo(3500)
+            waitFor("paused seek before same selection") { controller.currentPosition >= 3400 }
+            playback.playAudio(imported[0])
+            delay(200)
+            assertFalse(withContext(Dispatchers.Main) { controller.playWhenReady })
+            assertTrue(withContext(Dispatchers.Main) { controller.currentPosition >= 3400 })
+            playback.editQueueWithReceipt({ remove(imported[0]) }) { receipt ->
+                assertEquals(imported[2].playbackId, receipt.currentItem()?.playbackId)
+            }
+            waitFor("deleting last current wraps to first") { controller.currentMediaItem?.mediaId == imported[2].playbackId && controller.playbackState == Player.STATE_READY }
+            assertFalse(withContext(Dispatchers.Main) { controller.playWhenReady })
+            playback.updatePlaylist(listOf(imported[1], imported[0]), -1, false)
+            waitFor("replacement without current picks first") { controller.currentMediaItem?.mediaId == imported[1].playbackId && controller.playbackState == Player.STATE_READY }
+            playback.editQueue { replaceAll(listOf(imported[0], imported[2])) }
+            waitFor("queue-edit replacement selects first") { controller.currentMediaItem?.mediaId == imported[0].playbackId && controller.playbackState == Player.STATE_READY }
+            playback.play()
+            waitFor("background fixture playing") { controller.isPlaying }
+            instrumentation.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME)
+            val backgroundPosition = withContext(Dispatchers.Main) { controller.currentPosition }
+            delay(1200)
+            assertTrue(withContext(Dispatchers.Main) { controller.isPlaying && controller.currentPosition > backgroundPosition + 500 })
+            instrumentation.uiAutomation.executeShellCommand("input keyevent 223").close()
+            try {
+                val beforeScreenOff = withContext(Dispatchers.Main) { controller.currentPosition }
+                delay(700)
+                assertTrue(withContext(Dispatchers.Main) { controller.isPlaying && controller.currentPosition > beforeScreenOff })
+                withContext(Dispatchers.Main) { controller.pause() }
+                waitFor("system pause while screen off") { !controller.playWhenReady }
+                val pausedPosition = withContext(Dispatchers.Main) { controller.currentPosition }
+                delay(300)
+                assertTrue(withContext(Dispatchers.Main) { kotlin.math.abs(controller.currentPosition - pausedPosition) < 150 })
+            } finally { instrumentation.uiAutomation.executeShellCommand("input keyevent 224").close() }
         } finally {
             withContext(Dispatchers.Main) {
                 com.lalilu.lplayer.LPlayerKV.originalOutputRequested.value = originalOutputRequest

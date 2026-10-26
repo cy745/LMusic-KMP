@@ -1,5 +1,6 @@
 package com.lalilu.lplayer.playback
 
+import com.lalilu.lplayer.core.withQueuePlaybackRequest
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
@@ -90,6 +91,8 @@ class MPlayerPlayback(
         private set
 
     // Protected mutable state flows
+    private val _isLoading = MutableStateFlow(false)
+    override val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     private val _isPlaying = MutableStateFlow(false)
     private val _errors = MutableSharedFlow<Throwable>()
     private val _currentDuration = MutableStateFlow(0L)
@@ -146,6 +149,7 @@ class MPlayerPlayback(
         browserInstance = browser
         updatePending(browser.sessionExtras)
         browser.addListener(this@MPlayerPlayback)
+        _isLoading.value = browser.playbackState == Player.STATE_BUFFERING
         launch(Dispatchers.Main) {
             while (isActive) {
                 recordedPosition.value = browser.currentPosition.coerceAtLeast(0L)
@@ -217,9 +221,7 @@ class MPlayerPlayback(
 
     override suspend fun skipTo(index: Int, start: Boolean) = queueEditMutex.withLock {
         if (index !in queue.stateSnapshot().list.indices || index == queue.stateSnapshot().index) return@withLock
-        queueBridge.editAndRun(block = { switchTo(index) }) {
-            applySelection(it, start)
-        }
+        queueBridge.editAndRun(block = { switchTo(index) }, apply = { applySelection(it, start) }) {}
     }
 
     override suspend fun skipToNext() = runWithBrowser {
@@ -239,24 +241,36 @@ class MPlayerPlayback(
             return
         }
         queueEditMutex.withLock {
-            queueBridge.editAndRun(block = { replaceAll(playlist, startIndex.coerceIn(playlist.indices)) }) {
-                applySelection(it, start)
-            }
+            val selected = if (startIndex in playlist.indices) startIndex else
+                playlist.indexOfFirst { it.mediaKey == queue.currentItem()?.mediaKey }.coerceAtLeast(0)
+            queueBridge.editAndRun(block = { replaceAll(playlist, selected) }, apply = { applySelection(it, start) }) {}
         }
     }
 
     override suspend fun editQueue(block: QueueUpdateRequest.() -> Unit) = editQueueWithReceipt(block) {}
 
     override suspend fun editQueueWithReceipt(block: QueueUpdateRequest.() -> Unit, onApplied: (QueueState) -> Unit) = queueEditMutex.withLock {
-        queueBridge.editAndRun(block) { /* Service-owned core preserves selection/intent atomically. */ }
+        val before = queue.stateSnapshot()
+        var replacing = false
+        queueBridge.editAndRun(block = {
+            block()
+            replacing = replacesAll
+            val proposed = build(QueueUpdateReason.Inner)
+            if (proposed.selectionRevision == before.selectionRevision &&
+                proposed.list.none { it.mediaKey == before.currentItem()?.mediaKey }) {
+                val successor = if (replacing) null else before.list.drop(before.index + 1)
+                    .firstOrNull { old -> proposed.list.any { it.mediaKey == old.mediaKey } }
+                switchTo(successor?.let { next -> proposed.list.indexOfFirst { it.mediaKey == next.mediaKey } } ?: 0)
+            }
+        }, apply = { selected ->
+            if (replacing) applySelection(selected, start = false) else applyQueueState(selected)
+        }) {}
         onApplied(queue.stateSnapshot())
     }
 
     override suspend fun playAudio(audio: LAudio) = queueEditMutex.withLock {
         if (queue.currentItem()?.mediaKey == audio.mediaKey) return@withLock
-        queueBridge.editAndRun(block = { selectOrInsert(audio) }) { selected ->
-            applySelection(selected, start = true)
-        }
+        queueBridge.editAndRun(block = { selectOrInsert(audio) }, apply = { applySelection(it, start = true) }) {}
     }
 
     override suspend fun restoreFailedQueueEdit(expected: QueueState, original: QueueState, position: Long): Boolean =
@@ -277,11 +291,11 @@ class MPlayerPlayback(
     }
 
     private suspend fun applySelection(selected: QueueState, start: Boolean) {
-        val audio = selected.currentItem() ?: return
         runWithBrowser {
-            if (currentMediaItem?.mediaId != audio.playbackId) seekTo(selected.index,0)
-            playWhenReady = start
-            prepare()
+            val items = selected.list.mapIndexed { index, audio ->
+                audio.toMediaItem().let { if (index == 0) it.withQueuePlaybackRequest(start) else it }
+            }
+            setMediaItems(items, selected.index, androidx.media3.common.C.TIME_UNSET)
         }
     }
 
@@ -344,6 +358,7 @@ class MPlayerPlayback(
     }
 
     override fun onEvents(player: Player, events: Player.Events) {
+        _isLoading.value = player.playbackState == Player.STATE_BUFFERING
         // MediaBrowser 的缓冲位置没有独立回调，只能在事件批里读取
         _currentBufferedPosition.value = player.bufferedPosition.coerceAtLeast(0L)
 
@@ -450,7 +465,14 @@ class MPlayerPlayback(
                 // Metadata refresh does not change queue intent or current position.
                 browser.replaceMediaItems(0, browser.mediaItemCount, mediaItems)
             } else {
-                browser.setMediaItems(mediaItems, state.index.coerceAtLeast(0), androidx.media3.common.C.TIME_UNSET)
+                val oldCurrent = browser.currentMediaItem?.mediaId
+                val newIds = mediaItems.map { it.mediaId }
+                val removedCurrent = oldCurrent != null && oldCurrent !in newIds && !state.currentPickedByUser
+                val target = if (removedCurrent) {
+                    val following = ids.drop(browser.currentMediaItemIndex + 1).firstOrNull { it in newIds }
+                    following?.let(newIds::indexOf) ?: 0
+                } else state.index.coerceAtLeast(0)
+                browser.setMediaItems(mediaItems, target, androidx.media3.common.C.TIME_UNSET)
             }
         }
     }

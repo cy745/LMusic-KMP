@@ -1,0 +1,22 @@
+
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+com.lalilu.lmusic.prototype.SessionSelectionDeviceTest:.
+com.lalilu.lmusic.prototype.GaplessDeviceTest:.........
+com.lalilu.lmusic.prototype.PlaybackCoreDeviceTest:......
+com.lalilu.lmusic.prototype.ContentCacheDeviceTest:....
+
+Time: 44.024
+
+OK (21 tests)
+
+
+
+Final queue receipt adjustment: targeted production session rerun
+
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+
+Time: 11.795
+
+OK (1 test)
+
+

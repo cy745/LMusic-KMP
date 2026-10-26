@@ -1,0 +1,3 @@
+lplayer/playback-core {'tests': 30, 'failures': 0, 'skipped': 0}
+lmedia/lmedia-content {'tests': 17, 'failures': 0, 'skipped': 0}
+lplayer {'tests': 81, 'failures': 0, 'skipped': 0}
