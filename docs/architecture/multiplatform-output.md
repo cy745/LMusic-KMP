@@ -29,7 +29,7 @@ classDiagram
     class AudioRuntime {
         <<interface>>
         prepare(ticket, resource)
-        setPlaying(ticket, playing)
+        setPlaying(ticket, playing, transition)
         seek(ticket, seekId, positionMs)
     }
     class EngineAudioRuntime {

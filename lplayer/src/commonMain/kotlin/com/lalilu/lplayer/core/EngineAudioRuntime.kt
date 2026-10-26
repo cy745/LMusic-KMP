@@ -47,7 +47,7 @@ class EngineAudioRuntime(
         teardown = scope.launch {
             previous?.join()
             if (engine != null && engine === activeEngine) {
-                if (engine.state.value.isPlaying) fade(engine, 0f)
+                if (engine.state.value.isPlaying) fade(engine, 0f, VolumeTransition.TrackChange)
                 engine.release()
                 if (activeEngine === engine) activeEngine = null
             }
@@ -103,18 +103,20 @@ class EngineAudioRuntime(
         }
     }
 
-    override fun setPlaying(ticket: LoadTicket, playing: Boolean, smooth: Boolean) {
+    override fun setPlaying(ticket: LoadTicket, playing: Boolean, transition: VolumeTransition) {
         if (owner != ticket) return
+        val unchangedIntent = desiredPlaying == playing
         desiredPlaying = playing
+        if (unchangedIntent && fading?.isActive == true && transition != VolumeTransition.Immediate) return
         fading?.cancel()
         fading = scope.launch {
             try {
                 val engine = activeEngine ?: return@launch
                 if (playing) {
                     engine.play()
-                    if (smooth) fade(engine, 1f) else { gain = 1f; volume(engine, gain) }
+                    if (transition != VolumeTransition.Immediate) fade(engine, 1f, transition) else { gain = 1f; volume(engine, gain) }
                 } else {
-                    if (smooth) fade(engine, 0f)
+                    if (transition != VolumeTransition.Immediate && engine.state.value.isPlaying) fade(engine, 0f, transition)
                     engine.pause()
                     gain = 0f; volume(engine, gain)
                 }
@@ -138,15 +140,11 @@ class EngineAudioRuntime(
         }
     }
 
-    private suspend fun fade(engine: PlaybackEngine, target: Float) {
-        val from = gain
-        if (canFade(engine)) repeat(6) { step ->
-            gain = from + (target - from) * (step + 1) / 6
-            volume(engine, gain)
-            delay(10)
+    private suspend fun fade(engine: PlaybackEngine, target: Float, transition: VolumeTransition) {
+        rampVolume(gain, target, if (canFade(engine)) transition else VolumeTransition.Immediate) {
+            gain = it
+            volume(engine, it)
         }
-        gain = target
-        volume(engine, target)
     }
 
     private fun fail(ticket: LoadTicket, message: String) {

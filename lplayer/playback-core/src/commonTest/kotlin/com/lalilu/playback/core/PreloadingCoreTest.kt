@@ -25,7 +25,7 @@ class PreloadingCoreTest {
         override fun confirmNext(plan: NextPlan) { if(unconfirmed == plan) unconfirmed = null }
         override fun silence(next: LoadTicket?) { silenceCount++ }
         override fun prepare(ticket: LoadTicket, resource: PlayableResource) = Unit
-        override fun setPlaying(ticket: LoadTicket, playing: Boolean, smooth: Boolean) { plays += ticket to playing }
+        override fun setPlaying(ticket: LoadTicket, playing: Boolean, transition: VolumeTransition) { plays += ticket to playing }
         override fun seek(ticket: LoadTicket, seekId: Long, positionMs: Long) = Unit
         override fun release() = Unit
         fun emit(value: RuntimeEvent) { onEvent?.invoke(value) }

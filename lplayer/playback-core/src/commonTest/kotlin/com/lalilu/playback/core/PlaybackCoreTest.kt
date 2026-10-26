@@ -25,13 +25,13 @@ class PlaybackCoreTest {
         override var onEvent: ((RuntimeEvent) -> Unit)? = null
         val prepared = mutableListOf<LoadTicket>()
         val plays = mutableListOf<Pair<LoadTicket, Boolean>>()
-        val smoothing = mutableListOf<Boolean>()
+        val smoothing = mutableListOf<VolumeTransition>()
         var seek: Triple<LoadTicket, Long, Long>? = null
         var cachedEnd: Long? = null
         override fun bufferedPositionAt(ticket: LoadTicket, positionMs: Long) = cachedEnd ?: positionMs
         override fun silence(next: LoadTicket?) = Unit
         override fun prepare(ticket: LoadTicket, resource: PlayableResource) { prepared += ticket }
-        override fun setPlaying(ticket: LoadTicket, playing: Boolean, smooth: Boolean) { plays += ticket to playing; smoothing += smooth }
+        override fun setPlaying(ticket: LoadTicket, playing: Boolean, transition: VolumeTransition) { plays += ticket to playing; smoothing += transition }
         override fun seek(ticket: LoadTicket, seekId: Long, positionMs: Long) { seek = Triple(ticket, seekId, positionMs) }
         override fun release() = Unit
         fun emit(event: RuntimeEvent) { onEvent?.invoke(event) }
@@ -251,13 +251,13 @@ class PlaybackCoreTest {
         core.dispatch(PlaybackCommand.ReplaceQueue(listOf(a,b,c)))
         core.dispatch(PlaybackCommand.Play)
         runtime.emit(RuntimeEvent.Prepared(core.state.value.ticket!!,1000)); runCurrent()
-        assertTrue(runtime.smoothing.last())
+        assertEquals(VolumeTransition.UserControl, runtime.smoothing.last())
         runtime.emit(RuntimeEvent.Ended(core.state.value.ticket!!)); runCurrent()
         runtime.emit(RuntimeEvent.Prepared(core.state.value.ticket!!,1000)); runCurrent()
-        assertFalse(runtime.smoothing.last())
+        assertEquals(VolumeTransition.Immediate, runtime.smoothing.last())
         core.dispatch(PlaybackCommand.Next)
         runtime.emit(RuntimeEvent.Prepared(core.state.value.ticket!!,1000)); runCurrent()
-        assertTrue(runtime.smoothing.last())
+        assertEquals(VolumeTransition.TrackChange, runtime.smoothing.last())
     }
 
     @Test fun repeatOneNaturalRepeatAndManualNextAreDifferent() = runTest {
@@ -315,6 +315,26 @@ class PlaybackCoreTest {
         assertEquals(ticket to false,runtime.plays.last())
     }
 
+    @Test fun selectingDuringSystemSuppressionRevokesAutomaticResume() = runTest {
+        val runtime = Runtime(); val core = core(runtime)
+        core.dispatch(PlaybackCommand.ReplaceQueue(listOf(a,b)))
+        core.dispatch(PlaybackCommand.Play)
+        val old = core.state.value.ticket!!
+        runtime.emit(RuntimeEvent.Prepared(old,5000)); runCurrent()
+        runtime.emit(RuntimeEvent.Started(old)); runCurrent()
+        runtime.emit(RuntimeEvent.Suppressed(old)); runCurrent()
+        core.dispatch(PlaybackCommand.Next)
+        val selected = core.state.value.ticket!!
+        runtime.emit(RuntimeEvent.Prepared(selected,5000)); runCurrent()
+        runtime.emit(RuntimeEvent.Started(old)); runCurrent()
+        assertEquals(b, core.state.value.selected)
+        assertEquals(PlayIntent.Pause, core.state.value.intent)
+        assertEquals(Phase.ReadyPaused, core.state.value.phase)
+        core.dispatch(PlaybackCommand.Play)
+        assertEquals(selected to true, runtime.plays.last())
+        assertEquals(VolumeTransition.UserControl, runtime.smoothing.last())
+    }
+
     @Test fun systemSuppressionAndPauseDoNotCreateASecondPlaybackIntent() = runTest {
         val runtime=Runtime(); val core=core(runtime)
         core.dispatch(PlaybackCommand.ReplaceQueue(listOf(a,b)))
@@ -326,6 +346,7 @@ class PlaybackCoreTest {
         assertEquals(Phase.Suppressed,core.state.value.phase)
         assertEquals(PlayIntent.Play,core.state.value.intent)
         runtime.emit(RuntimeEvent.PausedBySystem(ticket)); runCurrent()
+        assertEquals(VolumeTransition.Immediate, runtime.smoothing.last())
         runtime.emit(RuntimeEvent.Started(ticket)); runCurrent()
         assertEquals(PlayIntent.Pause,core.state.value.intent)
         assertEquals(Phase.ReadyPaused,core.state.value.phase)

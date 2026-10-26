@@ -126,7 +126,7 @@ class Media3CoreRuntime(
         prepared = false
         pendingSeeks.clear()
         transition = scope.launch {
-            if (player.isPlaying) ramp(0f)
+            if (player.isPlaying) ramp(0f, VolumeTransition.TrackChange)
             player.stop()
             player.clearMediaItems()
         }
@@ -234,24 +234,29 @@ class Media3CoreRuntime(
         }
     }
 
-    override fun setPlaying(ticket: LoadTicket, playing: Boolean, smooth: Boolean) {
+    override fun setPlaying(ticket: LoadTicket, playing: Boolean, transition: VolumeTransition) {
         if (ticket != owner && ticket != awaitingConfirmation?.from) return
+        val unchangedIntent = desiredPlaying == playing
         desiredPlaying = playing
         player.pauseAtEndOfMediaItems = !playing || staged == null
         if ((ticket != loaded && ticket != awaitingConfirmation?.from) || !prepared) return
+        if (unchangedIntent && fade?.isActive == true && transition != VolumeTransition.Immediate) return
         fade?.cancel()
         if (playing) {
-            if (!smooth) player.volume = gain
+            if (transition == VolumeTransition.Immediate) player.volume = gain
             player.play()
             if (player.isPlaying) loaded?.let { onEvent?.invoke(RuntimeEvent.Started(it)) }
-            if (smooth) fade = scope.launch { ramp(gain) }
-        } else if (!smooth) {
-            player.pause()
+            if (transition != VolumeTransition.Immediate) fade = scope.launch { ramp(gain, transition) }
+        } else if (transition == VolumeTransition.Immediate || !player.isPlaying) {
+            // No audible output to fade while buffered/suppressed. Revoke native auto-resume now.
+            // Reissuing pause when the system already paused also changes Media3's reason and
+            // can cause a focus-loss -> core pause -> native pause notification feedback loop.
+            if (player.playWhenReady) player.pause()
             player.volume = 0f
         } else {
             fade = scope.launch {
-                ramp(0f)
-                if (!desiredPlaying) player.pause()
+                ramp(0f, transition)
+                if (!desiredPlaying && player.playWhenReady) player.pause()
             }
         }
     }
@@ -270,10 +275,8 @@ class Media3CoreRuntime(
     }
 
     private fun duration() = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0
-    private suspend fun ramp(target: Float) {
-        val initial = player.volume
-        for (step in 1..5) { delay(12); player.volume = initial + (target - initial) * step / 5f }
-    }
+    private suspend fun ramp(target: Float, transition: VolumeTransition) =
+        rampVolume(player.volume, target, transition) { player.volume = it }
     override fun release() {
         contentAccess?.selectCurrent(null)
         onEvent = null

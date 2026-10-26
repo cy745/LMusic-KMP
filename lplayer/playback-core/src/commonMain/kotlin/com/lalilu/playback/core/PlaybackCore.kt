@@ -45,7 +45,7 @@ class PlaybackCore(
     private var seekSerial = 0L
     private var direction = 1
     private var naturalTraversal = false
-    private var fadeOnStart = true
+    private var startTransition = VolumeTransition.TrackChange
     private val attempted = mutableSetOf<TrackKey>()
     private val recent = mutableListOf<TrackKey>()
     private var startedTicket: LoadTicket? = null
@@ -143,9 +143,7 @@ class PlaybackCore(
             PlaybackCommand.Next -> { beginUserNavigation(1); move(1, natural = false) }
             PlaybackCommand.Previous -> { beginUserNavigation(-1); s = s.copy(explicitNext = null); move(-1, natural = false) }
             PlaybackCommand.Pause -> {
-                s = s.copy(intent = PlayIntent.Pause,
-                    phase = if (s.phase in setOf(Phase.Playing, Phase.Starting, Phase.Buffering, Phase.Suppressed)) Phase.ReadyPaused else s.phase)
-                s.ticket?.let { runtime.setPlaying(it, false) }
+                pause(VolumeTransition.UserControl)
             }
             PlaybackCommand.Stop -> {
                 cancelCandidate()
@@ -161,6 +159,9 @@ class PlaybackCore(
                 if (phase == Phase.Failed || phase == Phase.Ended) {
                     beginUserNavigation(1)
                     select(s.index)
+                    startTransition = VolumeTransition.UserControl
+                } else if (phase == Phase.Preparing) {
+                    startTransition = VolumeTransition.UserControl
                 } else if (phase != Phase.Preparing && phase != Phase.Seeking && phase != Phase.Playing) {
                     s = s.copy(phase = Phase.Starting)
                     runtime.setPlaying(s.ticket!!, true)
@@ -206,6 +207,9 @@ class PlaybackCore(
     }
 
     private fun beginUserNavigation(value: Int) {
+        // A temporary interruption may auto-resume only the untouched selection.
+        // Navigation revokes that implicit permission; an explicit Play can grant it again.
+        if (s.phase == Phase.Suppressed) pause(VolumeTransition.Immediate)
         direction = value
         naturalTraversal = false
         attempted.clear()
@@ -214,7 +218,7 @@ class PlaybackCore(
     private fun select(index: Int, natural: Boolean = false) {
         val cachedResource = candidateResource.takeIf { natural && candidatePlan?.next?.key == s.queue.getOrNull(index) }
         cancelCandidate()
-        fadeOnStart = !natural
+        startTransition = if (natural) VolumeTransition.Immediate else VolumeTransition.TrackChange
         resolving?.cancel()
         s = s.copy(index = index, epoch = s.epoch + 1, naturalTransition = natural, phase = Phase.Preparing,
             positionMs = 0, durationMs = 0, bufferedPositionMs = 0, pendingSeekId = null, error = null)
@@ -320,10 +324,10 @@ class PlaybackCore(
                     phase = if (s.intent == PlayIntent.Play) Phase.Starting else Phase.ReadyPaused,
                     positionMs = event.positionMs, durationMs = event.durationMs, bufferedPositionMs = event.positionMs,
                     pendingSeekId = null, error = null)
-                if (s.intent == PlayIntent.Pause) runtime.setPlaying(event.plan.next, false, smooth = false)
+                if (s.intent == PlayIntent.Pause) runtime.setPlaying(event.plan.next, false, transition = VolumeTransition.Immediate)
                 else if (event.playing) event(RuntimeEvent.Started(event.plan.next))
             }
-            is RuntimeEvent.PausedBySystem -> command(PlaybackCommand.Pause)
+            is RuntimeEvent.PausedBySystem -> pause(VolumeTransition.Immediate)
             is RuntimeEvent.Suppressed -> if (s.intent == PlayIntent.Play) s = s.copy(phase = Phase.Suppressed)
             is RuntimeEvent.Prepared -> {
                 if (s.phase != Phase.Preparing) return
@@ -334,11 +338,11 @@ class PlaybackCore(
                     return
                 }
                 s = s.copy(durationMs = event.durationMs.coerceAtLeast(0), phase = if (s.intent == PlayIntent.Play) Phase.Starting else Phase.ReadyPaused)
-                runtime.setPlaying(event.ticket, s.intent == PlayIntent.Play, smooth = fadeOnStart)
+                runtime.setPlaying(event.ticket, s.intent == PlayIntent.Play, transition = startTransition)
             }
             is RuntimeEvent.Started -> {
                 if (s.intent != PlayIntent.Play || s.phase == Phase.Failed || s.phase == Phase.Ended) {
-                    runtime.setPlaying(event.ticket, false)
+                    runtime.setPlaying(event.ticket, false, VolumeTransition.Immediate)
                     return
                 }
                 if (startedTicket != event.ticket) {
@@ -421,9 +425,15 @@ class PlaybackCore(
         }
     }
 
+    private fun pause(transition: VolumeTransition) {
+        s = s.copy(intent = PlayIntent.Pause,
+            phase = if (s.phase in setOf(Phase.Playing, Phase.Starting, Phase.Buffering, Phase.Suppressed)) Phase.ReadyPaused else s.phase)
+        s.ticket?.let { runtime.setPlaying(it, false, transition) }
+    }
+
     private fun finishFailure() {
         s = s.copy(phase = Phase.Failed, intent = PlayIntent.Pause, pendingSeekId = null,
             error = s.error ?: "No playable candidate")
-        s.ticket?.let { runtime.setPlaying(it, false) }
+        s.ticket?.let { runtime.setPlaying(it, false, VolumeTransition.Immediate) }
     }
 }

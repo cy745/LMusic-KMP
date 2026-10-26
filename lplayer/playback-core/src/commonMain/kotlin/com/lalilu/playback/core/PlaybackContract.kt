@@ -57,7 +57,7 @@ interface AudioRuntime {
     /** Invalidates prior output ownership immediately; its short fade must not block commands. */
     fun silence(next: LoadTicket?)
     fun prepare(ticket: LoadTicket, resource: PlayableResource)
-    fun setPlaying(ticket: LoadTicket, playing: Boolean, smooth: Boolean = true)
+    fun setPlaying(ticket: LoadTicket, playing: Boolean, transition: VolumeTransition = VolumeTransition.UserControl)
     /** Actual coverage at a seek target, before changing the decoder position. Unknown means no lookahead. */
     fun bufferedPositionAt(ticket: LoadTicket, positionMs: Long): Long = positionMs
     fun seek(ticket: LoadTicket, seekId: Long, positionMs: Long)

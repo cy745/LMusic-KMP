@@ -15,7 +15,7 @@ Kotlin Multiplatform 共享播放规则。唯一状态写入者为 `PlaybackCore
 
 Android 正式服务已在 P2 接入共享核心，P3 接入私有候选与连续输出。可选能力 `PreloadingAudioRuntime` 使用 `stageNext / cancelNext / confirmNext` 管理带独立序号的 `NextPlan`；候选不是正式队列项，只有实际自然边界经过核心确认后才改变当前项。见 [P3 协议与测量](../../docs/architecture/gapless-preloading.md)。
 
-调试示例位于 `androidApp/src/debug/kotlin/com/lalilu/lmusic/prototype`，复用正式 Android 运行时但使用独立缓存目录。手动切歌/播放/暂停仍采用约 60 ms 音量渐变，自然衔接不做淡化。
+调试示例位于 `androidApp/src/debug/kotlin/com/lalilu/lmusic/prototype`，复用正式 Android 运行时但使用独立缓存目录。播放/暂停采用约 220 ms 的短音量过渡，手动切歌采用约 60 ms；自然衔接不淡化，系统强制中断或没有实际声音时立即暂停。核心通过 VolumeTransition 指定用途，各运行时共用单调时间增益曲线。
 
 ## 构建与模拟器验证
 

@@ -1,0 +1,61 @@
+Playback control and interruption regression — 2026-10-26
+
+Before: explicit pause through CoreSessionPlayer produced 5 Media3 volume events:
+0.20, 0.15, 0.10, 0.05, 0.00 (test gain 0.25); first-to-last span 50 ms.
+New perceptible-ramp regression failed before fix as intended.
+
+After: common VolumeTransition.UserControl=220ms, TrackChange=60ms,
+Immediate=0. Software events measured ~200–210ms first-to-last (first event
+arrives after start). Natural transitions bypass gain animation.
+Runtime cancels prior jobs; forced/system/already-suppressed pause is immediate.
+
+JVM final: 68 tests passed (playback-core 35; player UI/core/native VLC 33).
+Includes 5 real VLC decode/control tests using dummy audio output, not speakers.
+Initial VLC harness missed its plugin-directory symlink and failed to initialize;
+fixed the temporary test resource layout without altering production dependencies.
+
+Earlier Android full regression: 30 passed after gain and focus-loop fixes.
+Final Android rerun additionally covers navigation during transient focus loss.
+Physical wired/Bluetooth/USB routes and vendor background limits still require
+hardware validation; no claim that these were exercised by simulated focus requests.
+
+Final Android suite (31 passed):
+
+com.lalilu.lmusic.prototype.PlaybackControlDeviceTest:...
+com.lalilu.lmusic.prototype.ProductionSessionDeviceTest:.
+com.lalilu.lmusic.prototype.SessionSelectionDeviceTest:.
+com.lalilu.lmusic.prototype.PlaybackCoreDeviceTest:......
+com.lalilu.lmusic.prototype.GaplessDeviceTest:..........
+com.lalilu.lmusic.prototype.WebDavContentBridgeDeviceTest:.....
+com.lalilu.lmusic.prototype.ContentCacheDeviceTest:....
+com.lalilu.lmusic.prototype.WebDavLiveBufferDeviceTest:.
+
+Time: 54.391
+
+OK (31 tests)
+
+
+
+Transient focus tests use real Android AudioManager focus requests from another
+focus client in the test process. They verify untouched playback resumes,
+user pause revokes native intent immediately with no transient restart,
+selection during interruption stays paused, permanent loss does not auto-resume,
+and permanent-loss notification count stays bounded (no feedback loop).
+
+Cross compilation: :lplayer:compileKotlinIosSimulatorArm64 and
+:lplayer:compileKotlinWasmJs passed. Not an iOS/Web device playback measurement.
+
+Release: build/experience/LMusic-plan-b-release-control-fades-20261026.apk
+Bytes: 25405794
+SHA-256: cfeb75b870774add4b3f7a207cab516cf4181d2f39577bf2d8bb270e7a06502a
+apksigner verify: passed.
+
+Final measured Media3 events:
+FOCUS_OBS phase=Suppressed intent=Play nativePlaying=false nativeIntent=true suppression=1
+CONTROL_FADE pause samples=17 durationMs=208
+CONTROL_FADE resume samples=17 durationMs=208
+
+Emulator release install -r and launch passed (Status: ok).
+Phone install pending: prior wireless serial no longer available;
+adb devices lists only emulator and mDNS discovers no phone service.
+No uninstall, data clear, or phone package replacement occurred in this attempt.
