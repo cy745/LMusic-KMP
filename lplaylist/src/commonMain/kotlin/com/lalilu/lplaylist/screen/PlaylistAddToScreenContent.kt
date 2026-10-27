@@ -73,6 +73,16 @@ internal fun PlaylistAddToScreenContent(
             }
         }
 
+        if (playlists().isEmpty()) {
+            item {
+                com.lalilu.component.LibraryEmptyState(
+                    "还没有可添加的歌单", "先新建一个歌单，再选择它来添加歌曲",
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 52.dp, bottom = 32.dp),
+                    actionLabel = "新建歌单",
+                    onAction = { AppRouter.intent(NavIntent.Push(PlaylistEditScreen())) },
+                )
+            }
+        }
         items(
             items = playlists(),
             key = { it.id },

@@ -9,6 +9,7 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,22 +74,25 @@ fun SharedContextScope.CoverTitleHeader(
         medium = { 12.dp }
     ).animated()
 
+    val currentTitleContent = rememberUpdatedState(titleContent)
+    val currentSubtitleContent = rememberUpdatedState(subtitleContent)
+    val currentExtraContent = rememberUpdatedState(extraContent)
     val titleContent = remember {
         movableContentOf { modifier: Modifier, atColumn: Boolean ->
             Column(
                 modifier = modifier,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                titleContent(
+                currentTitleContent.value(
                     Modifier.padding(top = 8.dp)
                         .sharedBoundsV2(key = "TITLE")
                 )
 
-                subtitleContent(
+                currentSubtitleContent.value(
                     Modifier.sharedBoundsV2("SUBTITLE")
                 )
 
-                extraContent?.invoke(this, Modifier)
+                currentExtraContent.value?.invoke(this, Modifier)
             }
         }
     }

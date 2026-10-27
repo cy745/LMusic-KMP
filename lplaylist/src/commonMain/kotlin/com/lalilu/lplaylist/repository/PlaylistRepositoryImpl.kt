@@ -182,7 +182,7 @@ internal class PlaylistRepositoryImpl(
             )
         }
 
-        return exist
+        return true
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

@@ -167,6 +167,8 @@ data class PlaylistDetailScreen(
         )
 
         PlaylistDetailScreenContent(
+            searchKeyword = state.searchKeyWord,
+            onClearSearch = { vm.intent(PlaylistDetailAction.SearchFor("")) },
             songs = songs,
             playlist = playlist,
             enableDraggable = sortAction.value is SortRuleNormal,

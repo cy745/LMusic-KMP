@@ -2,12 +2,23 @@ package com.lalilu.lhome.screen
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.material3.*
+import com.lalilu.RemixIcon
+import com.lalilu.common.ext.requestFor
+import com.lalilu.lplayer.LPlayer
+import org.koin.core.qualifier.named
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
@@ -30,7 +41,9 @@ import com.lalilu.navigation.AppRouter
 import com.lalilu.navigation.Screen
 import com.lalilu.navigation.ScreenAction
 import com.lalilu.navigation.ScreenActionFactory
-import com.lalilu.navigation.deepLink
+import com.lalilu.navigation.smartbar.ActionIconButton
+import com.lalilu.lplayer.playback.Playback
+import com.lalilu.lplayer.playback.PlaybackMode
 import com.lalilu.packed.CoverTitleHeader
 import com.lalilu.preview.preview
 import com.lalilu.lmedia.domain.model.LAudio
@@ -60,24 +73,14 @@ data class SongDetailScreen(
 
     @Composable
     override fun provideScreenActions(): List<ScreenAction> {
-        val vm = koinViewModel<SongDetailVM>(parameters = { parametersOf(mediaId) })
-
-        return remember {
-            val nextAction = ScreenAction.Static(
-                title = { "下一首" },
-                onAction = { PlayerAction.SkipToNext.action() }
-            )
-            val playAction = ScreenAction.Static(
-                title = { "播放" },
-                onAction = { PlayerAction.PlayById(mediaId).action() }
-            )
-            listOf(
-                nextAction,
-                playAction,
-                nextAction.deepLink("next"),
-                playAction.deepLink("play"),
-            )
+        val playback = LPlayer.instance
+        val likeAction = remember(mediaId) {
+            requestFor<ScreenAction>(named("like_action")) { parametersOf(mediaId) }
         }
+        val addToPlaylistAction = remember(mediaId) {
+            requestFor<ScreenAction>(named("add_song_to_playlist_action")) { parametersOf(mediaId) }
+        }
+        return rememberSongDetailActions(mediaId, playback, likeAction, addToPlaylistAction)
     }
 
     @Composable
@@ -89,12 +92,51 @@ data class SongDetailScreen(
 
         SongDetailScreenContent(
             song = song,
-            albums = (albumsList ?: emptyList()).ifEmpty { emptyList() },
-            artists = (artistsList ?: emptyList()).ifEmpty { emptyList() },
+            albums = albumsList.orEmpty(),
+            artists = artistsList.orEmpty(),
             coverCacheKey = coverCacheKey,
             sharedMap = sharedMap
         )
     }
+}
+
+/** The action instances stay stable; playback observations live inside Dynamic content. */
+@Composable
+internal fun rememberSongDetailActions(
+    mediaId: String,
+    playback: Playback,
+    likeAction: ScreenAction?,
+    addToPlaylistAction: ScreenAction?,
+): List<ScreenAction> = remember(mediaId, playback, likeAction, addToPlaylistAction) {
+    val next: (com.lalilu.navigation.ActionContext) -> Unit = { PlayerAction.AddToNext(mediaId).action() }
+    val play: (com.lalilu.navigation.ActionContext) -> Unit = { PlayerAction.PlayOrToggleById(mediaId).action() }
+    listOfNotNull(
+        ScreenAction.Dynamic { context ->
+            val mode by playback.playbackMode.collectAsState()
+            ActionIconButton(
+                context = context,
+                title = "下一首播放",
+                icon = if (mode == PlaybackMode.SHUFFLE) RemixIcon.Editor.insertRowTop
+                else RemixIcon.Editor.insertRowBottom,
+                onClick = { next(context) },
+            )
+        },
+        addToPlaylistAction,
+        ScreenAction.Dynamic { context ->
+            val queue by playback.queue.expandedItems.collectAsState()
+            val wantsToPlay by playback.wantsToPlay.collectAsState()
+            val pause = queue.currentItem()?.playbackId == mediaId && wantsToPlay
+            ActionIconButton(
+                context = context,
+                title = if (pause) "暂停" else "播放",
+                icon = if (pause) RemixIcon.Media.pauseFill else RemixIcon.Media.playFill,
+                onClick = { play(context) },
+            )
+        },
+        likeAction,
+        ScreenAction.DeepLink("next", next),
+        ScreenAction.DeepLink("play", play),
+    )
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -145,6 +187,47 @@ fun SongDetailScreenContent(
                 coverData = coverData,
                 title = song?.title ?: "Unknown",
                 subtitle = song?.subtitle,
+                subtitleContent = { modifier ->
+                    if (artists.isNotEmpty()) {
+                        FlowRow(
+                            modifier = modifier,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            artists.forEachIndexed { index, artist ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (index > 0) {
+                                        Text("·", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 4.dp),
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
+                                    }
+                                    val interaction = remember(artist.id) { MutableInteractionSource() }
+                                    val hovered by interaction.collectIsHoveredAsState()
+                                    val pressed by interaction.collectIsPressedAsState()
+                                    Text(
+                                        text = artist.title,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(
+                                            alpha = if (hovered || pressed) 1f else 0.65f),
+                                        modifier = Modifier.clickable(
+                                            interactionSource = interaction,
+                                            indication = null,
+                                            role = Role.Button,
+                                        ) {
+                                            AppRouter.route("/pages/artists/detail")
+                                                .with("artistId", artist.id)
+                                                .with("artist", artist)
+                                                .push()
+                                        }.heightIn(min = 44.dp).wrapContentHeight(),
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text(song?.artistName.orEmpty(), modifier = modifier,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
                 extraContent = {
                     val tagContents = listOf("music_tags", "lyrico_tags", "lddc_tags")
                         .mapNotNull { key -> slotContent(key)?.let { key to it } }

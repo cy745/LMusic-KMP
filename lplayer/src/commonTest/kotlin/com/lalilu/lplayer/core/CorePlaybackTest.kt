@@ -1,5 +1,6 @@
 package com.lalilu.lplayer.core
 
+import com.lalilu.lplayer.action.playOrToggleById
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.source.*
@@ -13,6 +14,22 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CorePlaybackTest {
+    @Test fun detailTransportTogglesCurrentWithoutSeekingAndPlaysAnotherSelection() = runTest {
+        val f = fixture()
+        f.playback.updatePlaylist(f.songs, 0, false); runCurrent()
+        f.playback.seekTo(400); runCurrent()
+        f.playback.playOrToggleById(f.songs[0].playbackId) { error("Current item needs no lookup") }
+        runCurrent()
+        assertEquals(PlayIntent.Play, f.playback.core.state.value.intent)
+        assertEquals(400, f.playback.currentPosition())
+        f.playback.playOrToggleById(f.songs[0].playbackId) { error("Current item needs no lookup") }
+        runCurrent()
+        assertEquals(PlayIntent.Pause, f.playback.core.state.value.intent)
+        f.playback.playOrToggleById(f.songs[1].playbackId) { f.songs[1] }; runCurrent()
+        assertEquals(f.songs[1], f.playback.queue.currentItem())
+        assertEquals(PlayIntent.Play, f.playback.core.state.value.intent)
+    }
+
     @Test fun pausedNavigationWrapsAndSameSelectionPreservesPosition() = runTest {
         val f = fixture()
         f.playback.updatePlaylist(f.songs, 0, false)
@@ -63,7 +80,9 @@ class CorePlaybackTest {
         val f = fixture { audio -> if (audio.id == "A") gate.await() }
         f.playback.updatePlaylist(f.songs, 0, true); runCurrent()
         assertTrue(f.playback.isLoading.value)
+        assertTrue(f.playback.wantsToPlay.value)
         f.playback.pause()
+        assertFalse(f.playback.wantsToPlay.value)
         f.playback.skipToNext(); runCurrent()
         gate.complete(Unit); runCurrent()
         assertEquals("B", f.engine.loaded)

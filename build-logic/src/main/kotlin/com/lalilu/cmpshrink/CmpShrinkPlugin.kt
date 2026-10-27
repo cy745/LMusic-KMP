@@ -69,6 +69,17 @@ class CmpShrinkPlugin : Plugin<Project> {
         project.tasks.matching(mergeAssetsSpec)
             .configureEach(object : Action<Task> {
                 override fun execute(task: Task) {
+                    // This hook deletes files from AGP's merged output. An incremental merge
+                    // cannot restore a previously removed icon when only Kotlin references
+                    // change. Always start with a fresh, non-incremental asset merge.
+                    // Keep InputChanges tracking (required by AGP), but force a full execution
+                    // and prevent reuse of an output pruned for a different set of references.
+                    task.outputs.upToDateWhen(object : Spec<Task> {
+                        override fun isSatisfiedBy(element: Task) = false
+                    })
+                    task.outputs.doNotCacheIf("CMP icon pruning depends on current Kotlin references", object : Spec<Task> {
+                        override fun isSatisfiedBy(element: Task) = true
+                    })
                     task.doLast(object : Action<Task> {
                         override fun execute(t: Task) {
                             // 扫描推迟到任务执行时：debug 变体不匹配任务，因此完全不扫描、不剔除

@@ -42,6 +42,8 @@ internal fun PlaylistDetailScreenContent(
     playlist: LPlaylist? = null,
     songs: SortResult<LAudio> = SortResult.empty(),
     enableDraggable: Boolean = false,
+    searchKeyword: String = "",
+    onClearSearch: () -> Unit = {},
     eventFlow: Flow<PlaylistDetailEvent> = emptyFlow(),
     keys: () -> Collection<Any> = { emptyList() },
     recorder: () -> ItemRecorder,
@@ -136,6 +138,18 @@ internal fun PlaylistDetailScreenContent(
                             contentDescription = null
                         )
                     }
+                }
+            }
+
+            if (songs.itemList.isEmpty()) {
+                item(key = "EMPTY") {
+                    com.lalilu.component.LibraryEmptyState(
+                        title = if (searchKeyword.isNotBlank()) "没有找到相关歌曲" else if (playlist?.id == com.lalilu.lplaylist.repository.PlaylistRepository.FAVOURITE_PLAYLIST_ID) "还没有喜欢的歌曲" else "歌单里还没有歌曲",
+                        description = if (searchKeyword.isNotBlank()) "试试其他歌名或清除搜索" else if (playlist?.id == com.lalilu.lplaylist.repository.PlaylistRepository.FAVOURITE_PLAYLIST_ID) "在歌曲详情点击爱心，喜欢的歌曲就会出现在这里" else "前往曲库，在歌曲详情中将歌曲添加到歌单",
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 52.dp, bottom = 32.dp),
+                        actionLabel = if (searchKeyword.isBlank()) "浏览歌曲" else "清除搜索",
+                        onAction = { if (searchKeyword.isBlank()) AppRouter.route("/pages/songs").jump() else onClearSearch() },
+                    )
                 }
             }
 

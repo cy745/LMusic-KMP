@@ -17,6 +17,8 @@ interface Playback {
     val isLoading: StateFlow<Boolean> get() = NotLoading
     // Playback State
     val isPlaying: StateFlow<Boolean>
+    /** Transport button state: remains true while waiting for playback to become audible. */
+    val wantsToPlay: StateFlow<Boolean> get() = isPlaying
     val errors: SharedFlow<Throwable>
     val playbackMode: StateFlow<PlaybackMode>
 

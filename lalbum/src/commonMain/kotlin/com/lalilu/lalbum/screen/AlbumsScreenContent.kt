@@ -21,6 +21,8 @@ internal fun AlbumsScreenContent(
     modifier: Modifier = Modifier,
     albums: SortResult<LAlbum> = SortResult.empty(),
     showText: () -> Boolean = { true },
+    searchKeyword: String = "",
+    onClearSearch: () -> Unit = {},
     onClickAlbum: (LAlbum, SharedMap) -> Unit
 ) {
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
@@ -50,12 +52,24 @@ internal fun AlbumsScreenContent(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalItemSpacing = 8.dp
     ) {
-        item {
+        item(span = androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan.FullLine) {
             NavigatorHeader(
                 modifier = Modifier.fillMaxWidth(),
-                title = "Albums",
-                subTitle = "${albums.itemList.size} albums"
+                title = "专辑",
+                subTitle = if (searchKeyword.isBlank()) "共 ${albums.itemList.size} 张专辑" else "搜索：$searchKeyword"
             )
+        }
+
+        if (albums.itemList.isEmpty()) {
+            item(span = androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan.FullLine) {
+                com.lalilu.component.LibraryEmptyState(
+                    title = if (searchKeyword.isBlank()) "还没有专辑" else "没有找到相关专辑",
+                    description = if (searchKeyword.isBlank()) "添加媒体源后，会根据歌曲信息整理专辑" else "试试其他专辑名称或清除搜索",
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 32.dp),
+                    actionLabel = if (searchKeyword.isBlank()) "添加媒体源" else "清除搜索",
+                    onAction = { if (searchKeyword.isBlank()) com.lalilu.navigation.AppRouter.route("/media_source").jump() else onClearSearch() },
+                )
+            }
         }
 
         items(

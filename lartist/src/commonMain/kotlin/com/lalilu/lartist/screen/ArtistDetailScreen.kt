@@ -169,6 +169,8 @@ data class ArtistDetailScreen(
         val scope = rememberCoroutineScope()
         ArtistDetailScreenContent(
             songs = songs,
+            searchKeyword = state.searchKeyWord,
+            onClearSearch = { vm.intent(ArtistDetailAction.SearchFor("")) },
             artist = currentArtist,
             relatedArtists = state.relatedArtists,
             sharedMap = sharedMap,

@@ -63,13 +63,10 @@ object LatestPanel : LazyGridContent {
                 span = { GridItemSpan(maxLineSpan) }
             ) {
                 if (items.isEmpty()) {
-                    Text(
-                        modifier = Modifier.fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        text = "暂无数据",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(0.8f)
+                    com.lalilu.component.LibraryEmptyState(
+                        "还没有歌曲", "添加媒体源后，你的歌曲会出现在这里",
+                        actionLabel = "添加媒体源",
+                        onAction = { AppRouter.route("/media_source").jump() },
                     )
                     return@item
                 }

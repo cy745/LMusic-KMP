@@ -47,6 +47,8 @@ import kotlin.time.toDuration
 internal fun AlbumDetailScreenContent(
     album: LAlbum? = null,
     songs: SortResult<LAudio> = SortResult.empty(),
+    searchKeyword: String = "",
+    onClearSearch: () -> Unit = {},
     sharedMap: SharedMap = emptyMap(),
     coverCacheKey: String? = null,
     eventFlow: Flow<AlbumDetailEvent> = emptyFlow(),
@@ -133,6 +135,7 @@ internal fun AlbumDetailScreenContent(
                         ) {
                             TextButton(
                                 onClick = onClickAddToPlaylist,
+                                enabled = songs.itemList.isNotEmpty(),
                                 colors = ButtonDefaults.elevatedButtonColors(),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.08f)),
                                 shape = RoundedCornerShape(4.dp),
@@ -141,6 +144,7 @@ internal fun AlbumDetailScreenContent(
                             }
                             TextButton(
                                 onClick = onClickPlayAll,
+                                enabled = songs.itemList.isNotEmpty(),
                                 colors = ButtonDefaults.elevatedButtonColors(),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.08f)),
                                 shape = RoundedCornerShape(4.dp),
@@ -166,6 +170,18 @@ internal fun AlbumDetailScreenContent(
                         }
                     }
                 )
+            }
+
+            if (songs.itemList.isEmpty()) {
+                item(key = "empty") {
+                    com.lalilu.component.LibraryEmptyState(
+                        title = if (searchKeyword.isBlank()) "这张专辑还没有歌曲" else "没有找到相关歌曲",
+                        description = if (searchKeyword.isBlank()) "可前往媒体源检查歌曲是否已导入" else "试试其他歌名或清除搜索条件",
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 32.dp),
+                        actionLabel = if (searchKeyword.isBlank()) "查看媒体源" else "清除搜索",
+                        onAction = { if (searchKeyword.isBlank()) com.lalilu.navigation.AppRouter.route("/media_source").jump() else onClearSearch() },
+                    )
+                }
             }
 
             songs.draw {

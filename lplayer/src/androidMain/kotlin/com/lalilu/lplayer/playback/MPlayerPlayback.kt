@@ -98,6 +98,7 @@ class MPlayerPlayback(
     private val _isLoading = MutableStateFlow(false)
     override val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     private val _isPlaying = MutableStateFlow(false)
+    private val _wantsToPlay = MutableStateFlow(false)
     private val _errors = MutableSharedFlow<Throwable>()
     private val _currentDuration = MutableStateFlow(0L)
     private val _currentEngineItemKey = MutableStateFlow<String?>(null)
@@ -119,6 +120,7 @@ class MPlayerPlayback(
     }
 
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+    override val wantsToPlay: StateFlow<Boolean> = _wantsToPlay.asStateFlow()
     override val errors: SharedFlow<Throwable> = _errors.asSharedFlow()
     override val currentDuration: StateFlow<Long> = _currentDuration.asStateFlow()
     override val currentEngineItemKey: StateFlow<String?> = _currentEngineItemKey.asStateFlow()
@@ -385,6 +387,7 @@ class MPlayerPlayback(
     }
 
     override fun onEvents(player: Player, events: Player.Events) {
+        _wantsToPlay.value = player.playWhenReady
         _isLoading.value = player.playbackState == Player.STATE_BUFFERING
         // 缓存通知在暂停时也会更新；按媒体身份读取会话中的真实范围。
         _currentBufferedPosition.value = (player as? MediaBrowser)?.actualBufferedPosition(queue.currentItem()?.playbackId) ?: player.bufferedPosition.coerceAtLeast(0L)

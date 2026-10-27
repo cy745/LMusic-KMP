@@ -88,14 +88,7 @@ fun LazyGridScope.dailyRecommendForSideCompat(
     ) {
         val list = items()
         if (list.isEmpty()) {
-            Text(
-                modifier = Modifier.fillMaxWidth()
-                    .padding(vertical = 32.dp),
-                text = "暂无数据",
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(0.8f)
-            )
+            com.lalilu.component.LibraryEmptyState("等待发现你的音乐", "曲库准备好后，来这里发现想听的歌曲")
             return@item
         }
 

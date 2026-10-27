@@ -160,6 +160,8 @@ data class AlbumDetailScreen(
         val scope = rememberCoroutineScope()
         AlbumDetailScreenContent(
             songs = songs,
+            searchKeyword = state.searchKeyWord,
+            onClearSearch = { vm.intent(AlbumDetailAction.SearchFor("")) },
             album = album,
             sharedMap = sharedMap,
             coverCacheKey = coverCacheKey,

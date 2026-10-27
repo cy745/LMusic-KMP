@@ -47,6 +47,7 @@ open class CorePlayback(
     private val loading = MutableStateFlow(false)
     override val isLoading = loading.asStateFlow()
     private val playing = MutableStateFlow(false)
+    private val playIntent = MutableStateFlow(false)
     private val duration = MutableStateFlow(0L)
     private val buffered = MutableStateFlow(0L)
     private val engineKey = MutableStateFlow<String?>(null)
@@ -61,6 +62,7 @@ open class CorePlayback(
     private var controlRevision = 0L
     data class InterruptionToken(val revision: Long, val ticket: LoadTicket)
     override val isPlaying = playing.asStateFlow()
+    override val wantsToPlay = playIntent.asStateFlow()
     override val errors = failures.asSharedFlow()
     override val currentDuration = duration.asStateFlow()
     override val currentEngineItemKey = engineKey.asStateFlow()
@@ -269,6 +271,7 @@ open class CorePlayback(
             currentPickedByUser = picked ?: if (changed) false else old.currentPickedByUser)
         loading.value = state.phase in setOf(Phase.Preparing, Phase.Starting, Phase.Buffering, Phase.Seeking)
         playing.value = state.phase == Phase.Playing
+        playIntent.value = state.intent == PlayIntent.Play
         duration.value = state.durationMs
         engineKey.value = list.getOrNull(state.index)?.playbackId
         buffered.value = state.bufferedPositionMs

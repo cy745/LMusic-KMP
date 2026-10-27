@@ -72,14 +72,7 @@ class HistoryPanel : LazyGridContent {
                 val items by vm.historyState
 
                 if (items.isEmpty()) {
-                    Text(
-                        modifier = Modifier.fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        text = "暂无数据",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(0.8f)
-                    )
+                    com.lalilu.component.LibraryEmptyState("还没有播放记录", "播放一首喜欢的歌，从这里继续聆听")
                     return@item
                 }
 

@@ -249,7 +249,7 @@ fun ActionItemContent(
 
     Surface(
         modifier = modifier,
-        color = color.copy(alpha = 0.2f),
+        color = contentColor.copy(alpha = 0.2f),
         onClick = onAction
     ) {
         Box(
@@ -265,7 +265,7 @@ fun ActionItemContent(
                         modifier = Modifier.size(20.dp),
                         imageVector = vectorResource(icon),
                         contentDescription = title,
-                        colorFilter = ColorFilter.tint(color = color)
+                        colorFilter = ColorFilter.tint(color = contentColor)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                 }

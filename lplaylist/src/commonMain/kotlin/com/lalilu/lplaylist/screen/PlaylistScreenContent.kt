@@ -38,6 +38,8 @@ internal fun PlaylistScreenContent(
     modifier: Modifier = Modifier,
     isSearching: () -> Boolean = { true },
     onStartSearch: () -> Unit = {},
+    searchKeyword: String = "",
+    onClearSearch: () -> Unit = {},
     isSelecting: () -> Boolean = { true },
     isSelected: (LPlaylist) -> Boolean = { false },
     playlists: () -> List<LPlaylist> = { emptyList() },
@@ -73,7 +75,7 @@ internal fun PlaylistScreenContent(
             NavigatorHeader(
                 modifier = Modifier.statusBarsPadding(),
                 title = stringResource(Res.string.playlist_screen_title),
-                subTitle = "长按后拖拽调整歌单显示顺序",
+                subTitle = if (searchKeyword.isNotBlank()) "搜索：$searchKeyword" else if (playlistState.isEmpty()) "共 0 个歌单" else "长按后拖拽调整歌单显示顺序",
                 rowExtraSpace = 8.dp,
                 extraContent = rowExtra@{
                     TextButton(
@@ -123,6 +125,18 @@ internal fun PlaylistScreenContent(
                     }
                 }
             )
+        }
+
+        if (playlistState.isEmpty()) {
+            item(key = "EMPTY") {
+                com.lalilu.component.LibraryEmptyState(
+                    title = if (searchKeyword.isBlank()) "还没有歌单" else "没有找到相关歌单",
+                    description = if (searchKeyword.isBlank()) "新建歌单，把喜欢的歌曲整理在一起" else "试试其他歌单名称或清除搜索",
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 48.dp, bottom = 32.dp),
+                    actionLabel = if (searchKeyword.isBlank()) "新建歌单" else "清除搜索",
+                    onAction = { if (searchKeyword.isBlank()) AppRouter.route("/pages/playlist/edit").push() else onClearSearch() },
+                )
+            }
         }
 
         items(

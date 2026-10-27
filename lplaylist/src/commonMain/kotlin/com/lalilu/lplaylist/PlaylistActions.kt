@@ -36,6 +36,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.graphics.RectangleShape
+import kotlinx.coroutines.CancellationException
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -53,6 +58,7 @@ import com.lalilu.extensions.GlobalToaster
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lplaylist.repository.PlaylistRepository
 import com.lalilu.navigation.AppRouter
+import com.lalilu.navigation.smartbar.ActionIconButton
 import com.lalilu.navigation.ScreenAction
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +85,20 @@ fun provideAddToPlaylistAction(
             .jump()
     }
 )
+
+/** Single-song entry exposed to detail screens without a playlist module dependency. */
+@Factory(binds = [ScreenAction::class])
+@Named("add_song_to_playlist_action")
+fun provideAddSongToPlaylistAction(
+    @org.koin.core.annotation.InjectedParam mediaId: String,
+) = ScreenAction.Dynamic { context ->
+    ActionIconButton(context, "添加到歌单", RemixIcon.Media.playListAddLine) {
+        context.onDismiss()
+        AppRouter.route("/playlist/add")
+            .with("mediaIds", listOf(mediaId))
+            .jump()
+    }
+}
 
 @OptIn(DelicateCoroutinesApi::class)
 @Factory(binds = [ScreenAction::class])
@@ -115,19 +135,21 @@ fun provideAddToFavouriteAction(
 @Factory(binds = [ScreenAction::class])
 @Named("like_action")
 fun provideLikeAction(
-    mediaId: String,
+    @org.koin.core.annotation.InjectedParam mediaId: String,
     playlistRepo: PlaylistRepository,
 ) = ScreenAction.Dynamic { actionContext ->
-    val isLiked by playlistRepo.isItemInFavourite(mediaId)
-        .collectAsState(initial = false)
+    val favouriteState by remember(playlistRepo, mediaId) { playlistRepo.isItemInFavourite(mediaId) }
+        .collectAsState(initial = null)
+    val isLiked = favouriteState == true
+    var saving by remember(mediaId) { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
     val haptic = LocalHapticFeedback.current
     val pressedState = interactionSource.collectIsPressedAsState()
     val iconColor by animateColorAsState(
-        targetValue = if (isLiked) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.onBackground.copy(0.3f),
+        targetValue = if (isLiked) Color(0xFFFF3C3C)
+        else MaterialTheme.colorScheme.onSurfaceVariant,
         label = ""
     )
     val scaleValue by animateFloatAsState(
@@ -138,24 +160,33 @@ fun provideLikeAction(
 
     Surface(
         modifier = Modifier,
-        color = iconColor.copy(0.15f)
+        color = iconColor.copy(0.15f),
+        shape = RectangleShape,
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 20.dp)
+                .heightIn(min = 48.dp)
                 .toggleable(
                     value = isLiked,
+                    enabled = favouriteState != null && !saving,
                     onValueChange = { like ->
+                        saving = true
                         scope.launch {
-                            if (like) playlistRepo.addMediaIdsToFavourite(mediaIds = listOf(mediaId))
-                            else playlistRepo.removeMediaIdsFromFavourite(mediaIds = listOf(mediaId))
+                            try {
+                                if (like) playlistRepo.addMediaIdsToFavourite(mediaIds = listOf(mediaId))
+                                else playlistRepo.removeMediaIdsFromFavourite(mediaIds = listOf(mediaId))
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (error: Exception) {
+                                GlobalToaster?.show("收藏状态更新失败，请重试")
+                            } finally { saving = false }
                         }
                         if (like) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     },
                     role = Role.Checkbox,
                     interactionSource = interactionSource,
                     indication = null
-                ),
+                ).padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -166,12 +197,12 @@ fun provideLikeAction(
                 imageVector = if (isLiked) vectorResource(RemixIcon.HealthAndMedical.heart3Fill)
                 else vectorResource(RemixIcon.HealthAndMedical.heart3Line),
                 tint = iconColor,
-                contentDescription = "A Checkable Button"
+                contentDescription = if (isLiked) "取消喜欢" else "我喜欢"
             )
 
             if (actionContext.isFullyExpanded) {
                 Text(
-                    text = "收藏",
+                    text = if (isLiked) "已喜欢" else "我喜欢",
                     fontSize = 14.sp,
                     lineHeight = 14.sp,
                     color = iconColor,

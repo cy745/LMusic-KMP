@@ -112,6 +112,8 @@ data class AlbumsScreen(
         )
 
         AlbumsScreenContent(
+            searchKeyword = state.searchKeyWord,
+            onClearSearch = { vm.intent(AlbumsAction.SearchFor("")) },
             albums = albums,
             showText = { state.showText },
             onClickAlbum = { album, sharedMap ->

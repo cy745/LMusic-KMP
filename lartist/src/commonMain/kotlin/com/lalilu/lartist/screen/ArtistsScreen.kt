@@ -104,6 +104,8 @@ data class ArtistsScreen(
         )
 
         ArtistsScreenContent(
+            searchKeyword = state.searchKeyWord,
+            onClearSearch = { vm.intent(ArtistsAction.SearchFor("")) },
             artists = artists,
             onClickArtist = { artist, sharedMap ->
                 val coverCacheKey = context.retrieveCacheKey(artist)

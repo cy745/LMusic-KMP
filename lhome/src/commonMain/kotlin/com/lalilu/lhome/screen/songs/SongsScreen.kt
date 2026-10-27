@@ -192,7 +192,8 @@ data class SongsScreen(
             state = { state },
             songs = { songs },
             eventFlow = { vm.eventFlow() },
-            onClickGroup = { vm.intent(SongsAction.ToggleJumperDialog) }
+            onClickGroup = { vm.intent(SongsAction.ToggleJumperDialog) },
+            onClearSearch = { vm.intent(SongsAction.SearchFor("")) }
         )
     }
 }
@@ -206,7 +207,8 @@ fun SongsScreenContent(
     selector: () -> ItemSelector<LAudio>,
     eventFlow: () -> Flow<SongsEvent> = { emptyFlow() },
     keys: () -> Collection<Any> = { emptyList() },
-    onClickGroup: (GroupId) -> Unit = {}
+    onClickGroup: (GroupId) -> Unit = {},
+    onClearSearch: () -> Unit = {},
 ) {
     val songs: SortResult<LAudio> = songs()
     val state: SongsState = state()
@@ -257,25 +259,6 @@ fun SongsScreenContent(
     }
 
 
-    if (songs.itemList.isEmpty()) {
-        AnimateVisibleForOnce(
-            modifier = Modifier.fillMaxSize(),
-            delay = 300.milliseconds
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.Start
-            ) {
-                Text(
-                    text = "暂无数据",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        }
-        return
-    }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -294,6 +277,16 @@ fun SongsScreenContent(
                         "搜索: ${state.searchKeyWord} (${songs.itemList.size} 首)"
                     }
                 )
+            }
+
+            if (songs.itemList.isEmpty()) {
+                item(key = "empty") {
+                    SongsEmptyState(
+                        searching = state.searchKeyWord.isNotBlank(),
+                        onClearSearch = onClearSearch,
+                        onAddSource = { AppRouter.route("/media_source").jump() },
+                    )
+                }
             }
 
             songs.draw {
@@ -353,4 +346,19 @@ fun SongsScreenContent(
             }
         }
     }
+}
+
+@Composable
+internal fun SongsEmptyState(
+    searching: Boolean,
+    onClearSearch: () -> Unit,
+    onAddSource: () -> Unit,
+) {
+    com.lalilu.component.LibraryEmptyState(
+        title = if (searching) "没有找到相关歌曲" else "还没有歌曲",
+        description = if (searching) "试试其他歌名、歌手或专辑关键词" else "添加媒体源后，你的歌曲会出现在这里",
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 32.dp),
+        actionLabel = if (searching) "清除搜索" else "添加媒体源",
+        onAction = if (searching) onClearSearch else onAddSource,
+    )
 }

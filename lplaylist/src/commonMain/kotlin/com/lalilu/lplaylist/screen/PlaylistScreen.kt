@@ -89,6 +89,8 @@ object PlaylistScreen : Screen, ScreenInfoFactory, ScreenBarFactory {
         )
 
         PlaylistScreenContent(
+            searchKeyword = state.searchKeyWord,
+            onClearSearch = { vm.intent(PlaylistsAction.SearchFor("")) },
             isSearching = { state.searchKeyWord.isNotBlank() && !state.showSearcherPanel },
             onStartSearch = { vm.intent(PlaylistsAction.ShowSearcherPanel) },
             isSelected = { vm.selector.isSelected(it) },

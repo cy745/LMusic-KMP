@@ -1,0 +1,1381 @@
+{
+  "version": "2.20",
+  "children": [
+    {
+      "type": "frame",
+      "id": "bi8Au",
+      "x": 0,
+      "y": 0,
+      "name": "Frame",
+      "clip": true,
+      "width": 800,
+      "height": 600,
+      "fill": "#FFFFFF",
+      "layout": "none"
+    },
+    {
+      "type": "frame",
+      "id": "t0O4SG",
+      "x": 860,
+      "y": 0,
+      "name": "A · 轻量文字",
+      "clip": true,
+      "width": 800,
+      "height": 1640,
+      "fill": "#30241F",
+      "layout": "vertical",
+      "gap": 20,
+      "padding": 32,
+      "children": [
+        {
+          "type": "text",
+          "id": "TSZ4e",
+          "name": "方案名称",
+          "fill": "#F0DED8",
+          "content": "A · 轻量文字",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 26,
+          "fontWeight": "bold"
+        },
+        {
+          "type": "text",
+          "id": "RUZU9",
+          "name": "方案说明",
+          "fill": "#B7A49D",
+          "content": "主文字与操作入口加粗；副文字缩小淡化；点击态不出现胶囊底色。",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "dqOOP",
+          "name": "空状态对比说明",
+          "fill": "#B7A49D",
+          "content": "上：曲库完全没有歌曲     下：搜索无结果",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "LOhnZ",
+          "name": "曲库完全没有歌曲 · 内容区",
+          "width": "fill_container",
+          "height": 345,
+          "fill": "#1B120D",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 28,
+          "children": [
+            {
+              "type": "text",
+              "id": "mIZ2C",
+              "name": "页面标题",
+              "fill": "#F0DED8",
+              "content": "歌曲",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 28,
+              "fontWeight": "bold"
+            },
+            {
+              "type": "text",
+              "id": "A36Tl",
+              "name": "曲库数量",
+              "fill": "#8F7D77",
+              "content": "共 0 首歌曲",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "NLFoF",
+              "name": "左对齐空状态",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "padding": [
+                72,
+                0,
+                0,
+                0
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "NggTB",
+                  "name": "空状态标题",
+                  "fill": "#F0DED8",
+                  "content": "还没有歌曲",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "bold"
+                },
+                {
+                  "type": "text",
+                  "id": "Jg41t",
+                  "name": "空状态说明",
+                  "fill": "#95847D",
+                  "content": "添加媒体源后，你的歌曲会出现在这里",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "NLiH7",
+                  "name": "清除搜索文字入口",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    8,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "F5WVkN",
+                      "name": "添加媒体源",
+                      "fill": "#F0DED8",
+                      "content": "添加媒体源",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "bold"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "X3bjSR",
+                      "name": "清除搜索箭头",
+                      "width": 16,
+                      "height": 16,
+                      "icon": "arrow-right",
+                      "library": "lucide",
+                      "fill": "#B7A49D"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "pbJZL",
+          "name": "搜索无结果 · 内容区",
+          "width": "fill_container",
+          "height": 345,
+          "fill": "#1B120D",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 28,
+          "children": [
+            {
+              "type": "text",
+              "id": "FjXUw",
+              "name": "页面标题",
+              "fill": "#F0DED8",
+              "content": "歌曲",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 28,
+              "fontWeight": "bold"
+            },
+            {
+              "type": "text",
+              "id": "dKn9l",
+              "name": "搜索摘要",
+              "fill": "#8F7D77",
+              "content": "搜索：找不到的歌曲 · 0 首",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "qGHZW",
+              "name": "左对齐空状态",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "padding": [
+                72,
+                0,
+                0,
+                0
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Ttv2M",
+                  "name": "空状态标题",
+                  "fill": "#F0DED8",
+                  "content": "没有找到相关歌曲",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "bold"
+                },
+                {
+                  "type": "text",
+                  "id": "Ko4tq",
+                  "name": "空状态说明",
+                  "fill": "#95847D",
+                  "content": "试试其他歌名、歌手或专辑关键词",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "rviPc",
+                  "name": "清除搜索文字入口",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    8,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "IzmXQ",
+                      "name": "清除搜索",
+                      "fill": "#F0DED8",
+                      "content": "清除搜索",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "bold"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "aEF1q",
+                      "name": "清除搜索箭头",
+                      "width": 16,
+                      "height": 16,
+                      "icon": "arrow-right",
+                      "library": "lucide",
+                      "fill": "#B7A49D"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "f1bIg",
+          "name": "歌曲详情 · 歌手入口",
+          "clip": true,
+          "width": "fill_container",
+          "height": 430,
+          "fill": "#1B120D",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "rectangle",
+              "id": "l2GdN",
+              "name": "原封面局部 · 保留现有封面设计",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "./song-detail-reference.png",
+                "mode": "cover",
+                "transform": [
+                  1.428571,
+                  0,
+                  0,
+                  1.428571,
+                  -0.428571,
+                  0
+                ]
+              },
+              "width": "fill_container",
+              "height": 170
+            },
+            {
+              "type": "frame",
+              "id": "xEOhF",
+              "name": "歌曲信息",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 18,
+              "padding": 28,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "kCQOU",
+                  "name": "歌名",
+                  "fill": "#F0DED8",
+                  "content": "Pulse in Flora",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "bold"
+                },
+                {
+                  "type": "frame",
+                  "id": "DqS8M",
+                  "name": "独立文字链接",
+                  "width": "fill_container",
+                  "gap": 14,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "AFxZ5",
+                      "name": "Empty old City · 可点击",
+                      "gap": 5,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "lIIjF",
+                          "name": "Empty old City",
+                          "fill": "#A99790",
+                          "content": "Empty old City",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "d9kAHT",
+                      "name": "歌手分隔",
+                      "fill": "#8F7D77",
+                      "content": "·",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "idjdm",
+                      "name": "HoYoFair · 可点击",
+                      "gap": 5,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "wuWqF",
+                          "name": "HoYoFair",
+                          "fill": "#A99790",
+                          "content": "HoYoFair",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "D96Zg",
+          "name": "交互说明",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {
+              "type": "text",
+              "id": "TlLWV",
+              "name": "交互说明标题",
+              "fill": "#F0DED8",
+              "content": "交互约定",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "dAQ6l",
+              "name": "交互说明内容",
+              "fill": "#B7A49D",
+              "content": "歌手文字独立可点击，悬停 / 按下时提亮；移动端保留至少 44dp 点击区域。",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "hH9r5",
+              "name": "原始空库说明",
+              "fill": "#B7A49D",
+              "content": "两种空状态共用视觉样式；无歌曲引导添加媒体源，搜索无结果引导清除搜索。",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "p1axw",
+              "name": "操作入口状态对照",
+              "width": "fill_container",
+              "gap": 48,
+              "padding": [
+                16,
+                0
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "uZHme",
+                  "name": "默认",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "hcdYm",
+                      "name": "默认状态标签",
+                      "fill": "#95847D",
+                      "content": "默认",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "YvsFU",
+                      "name": "默认无背景点击区域",
+                      "height": 44,
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "zf7TI",
+                          "name": "默认操作文字",
+                          "fill": "#F0DED8",
+                          "content": "添加媒体源",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "bold"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "Vi36d",
+                          "name": "默认箭头",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "arrow-right",
+                          "library": "lucide",
+                          "fill": "#F0DED8"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ZSh33",
+                  "name": "悬停 / 按下",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "p3lViA",
+                      "name": "悬停 / 按下状态标签",
+                      "fill": "#95847D",
+                      "content": "悬停 / 按下",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "kgm7y",
+                      "name": "悬停 / 按下无背景点击区域",
+                      "height": 44,
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "nbLKt",
+                          "name": "悬停 / 按下操作文字",
+                          "fill": "#FFFFFF",
+                          "content": "添加媒体源",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "bold"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "doDY0",
+                          "name": "悬停 / 按下箭头",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "arrow-right",
+                          "library": "lucide",
+                          "fill": "#FFFFFF"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "s49DGF",
+              "name": "无胶囊反馈规范",
+              "fill": "#B7A49D",
+              "content": "点击仅提亮文字与箭头，无填充、无边框、无胶囊波纹；点击区域至少 44dp。",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "CIdVb",
+      "x": 1720,
+      "y": 0,
+      "name": "B · 紧凑信息行",
+      "clip": true,
+      "width": 800,
+      "height": 1520,
+      "fill": "#30241F",
+      "layout": "vertical",
+      "gap": 20,
+      "padding": 32,
+      "children": [
+        {
+          "type": "text",
+          "id": "W6OXo",
+          "name": "方案名称",
+          "fill": "#F0DED8",
+          "content": "B · 紧凑信息行",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 26,
+          "fontWeight": "bold"
+        },
+        {
+          "type": "text",
+          "id": "Z1Fg2q",
+          "name": "方案说明",
+          "fill": "#B7A49D",
+          "content": "空状态压缩为一行提示；歌手独立成行，点击目标更清楚。",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "vXSrf",
+          "name": "空状态对比说明",
+          "fill": "#B7A49D",
+          "content": "上：曲库完全没有歌曲     下：搜索无结果",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "j67563",
+          "name": "曲库完全没有歌曲 · 内容区",
+          "width": "fill_container",
+          "height": 345,
+          "fill": "#1B120D",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 28,
+          "children": [
+            {
+              "type": "text",
+              "id": "RDwOn",
+              "name": "页面标题",
+              "fill": "#F0DED8",
+              "content": "歌曲",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 28,
+              "fontWeight": "bold"
+            },
+            {
+              "type": "text",
+              "id": "OGhVo",
+              "name": "曲库数量",
+              "fill": "#8F7D77",
+              "content": "共 0 首歌曲",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "lF91W",
+              "name": "紧凑提示行",
+              "width": "fill_container",
+              "gap": 16,
+              "padding": [
+                36,
+                0,
+                24,
+                0
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "QnZnU",
+                  "name": "曲库图标",
+                  "width": 22,
+                  "height": 22,
+                  "icon": "library",
+                  "library": "lucide",
+                  "fill": "#B7A49D"
+                },
+                {
+                  "type": "frame",
+                  "id": "S2p5qj",
+                  "name": "提示信息",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 7,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "F5Sq1",
+                      "name": "空状态标题",
+                      "fill": "#F0DED8",
+                      "content": "还没有歌曲",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 17,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "htfvZ",
+                      "name": "空状态说明",
+                      "fill": "#B7A49D",
+                      "content": "添加媒体源后，你的歌曲会出现在这里",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "TYapA",
+              "name": "轻分隔线",
+              "fill": "#3D2F29",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "text",
+              "id": "avQAz",
+              "name": "添加媒体源",
+              "fill": "#F0DED8",
+              "content": "添加媒体源",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "FolxF",
+          "name": "搜索无结果 · 内容区",
+          "width": "fill_container",
+          "height": 345,
+          "fill": "#1B120D",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 28,
+          "children": [
+            {
+              "type": "text",
+              "id": "EJo5H",
+              "name": "页面标题",
+              "fill": "#F0DED8",
+              "content": "歌曲",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 28,
+              "fontWeight": "bold"
+            },
+            {
+              "type": "text",
+              "id": "TjNgj",
+              "name": "搜索摘要",
+              "fill": "#8F7D77",
+              "content": "搜索：找不到的歌曲 · 0 首",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "hahDb",
+              "name": "紧凑提示行",
+              "width": "fill_container",
+              "gap": 16,
+              "padding": [
+                36,
+                0,
+                24,
+                0
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "kyGh5",
+                  "name": "搜索图标",
+                  "width": 22,
+                  "height": 22,
+                  "icon": "search",
+                  "library": "lucide",
+                  "fill": "#B7A49D"
+                },
+                {
+                  "type": "frame",
+                  "id": "xwZNk",
+                  "name": "提示信息",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 7,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "l9OPvv",
+                      "name": "空状态标题",
+                      "fill": "#F0DED8",
+                      "content": "没有找到相关歌曲",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 17,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kVFqd",
+                      "name": "空状态说明",
+                      "fill": "#B7A49D",
+                      "content": "换个关键词试试，或清除当前搜索",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "xxMPk",
+              "name": "轻分隔线",
+              "fill": "#3D2F29",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "text",
+              "id": "G4M5y",
+              "name": "清除搜索",
+              "fill": "#F0DED8",
+              "content": "清除搜索",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "r5p0TK",
+          "name": "歌曲详情 · 歌手入口",
+          "clip": true,
+          "width": "fill_container",
+          "height": 430,
+          "fill": "#1B120D",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "rectangle",
+              "id": "ogse4",
+              "name": "原封面局部 · 保留现有封面设计",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "./song-detail-reference.png",
+                "mode": "cover",
+                "transform": [
+                  1.428571,
+                  0,
+                  0,
+                  1.428571,
+                  -0.428571,
+                  0
+                ]
+              },
+              "width": "fill_container",
+              "height": 170
+            },
+            {
+              "type": "frame",
+              "id": "pfbOV",
+              "name": "歌曲信息",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 18,
+              "padding": 28,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Ydt9Z",
+                  "name": "歌名",
+                  "fill": "#F0DED8",
+                  "content": "Pulse in Flora",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "bold"
+                },
+                {
+                  "type": "frame",
+                  "id": "NPBRP",
+                  "name": "歌手信息行",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "XDL4U",
+                      "name": "Empty old City · 整行可点击",
+                      "width": "fill_container",
+                      "gap": 12,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "uIYE1",
+                          "name": "Empty old City歌手标识",
+                          "width": 17,
+                          "height": 17,
+                          "icon": "mic-vocal",
+                          "library": "lucide",
+                          "fill": "#B7A49D"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "OiC0T",
+                          "name": "Empty old City名称容器",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "g9LCx",
+                              "name": "Empty old City",
+                              "fill": "#B7A49D",
+                              "content": "Empty old City",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 16,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "icon",
+                          "id": "hNDIK",
+                          "name": "Empty old City跳转",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "chevron-right",
+                          "library": "lucide",
+                          "fill": "#B7A49D"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "P64q01",
+                      "name": "轻分隔线",
+                      "fill": "#3D2F29",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "l2lSZ",
+                      "name": "HoYoFair · 整行可点击",
+                      "width": "fill_container",
+                      "gap": 12,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "WYx5h",
+                          "name": "HoYoFair歌手标识",
+                          "width": 17,
+                          "height": 17,
+                          "icon": "mic-vocal",
+                          "library": "lucide",
+                          "fill": "#B7A49D"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "YQslh",
+                          "name": "HoYoFair名称容器",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Vn6NZ",
+                              "name": "HoYoFair",
+                              "fill": "#B7A49D",
+                              "content": "HoYoFair",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 16,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "icon",
+                          "id": "cNT5B",
+                          "name": "HoYoFair跳转",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "chevron-right",
+                          "library": "lucide",
+                          "fill": "#B7A49D"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "IiJC9",
+                      "name": "轻分隔线",
+                      "fill": "#3D2F29",
+                      "width": "fill_container",
+                      "height": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Z197tj",
+          "name": "交互说明",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {
+              "type": "text",
+              "id": "Vqx3r",
+              "name": "交互说明标题",
+              "fill": "#F0DED8",
+              "content": "交互约定",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "EbJ8T",
+              "name": "交互说明内容",
+              "fill": "#B7A49D",
+              "content": "歌手独立点击跳转；悬停 / 按下时提亮。移动端保留至少 44dp 点击区域。",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "R9BEYN",
+              "name": "原始空库说明",
+              "fill": "#B7A49D",
+              "content": "两种空状态共用视觉样式；无歌曲引导添加媒体源，搜索无结果引导清除搜索。",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "d3y5c",
+      "x": 2580,
+      "y": 0,
+      "name": "C · 柔和居中",
+      "clip": true,
+      "width": 800,
+      "height": 1520,
+      "fill": "#30241F",
+      "layout": "vertical",
+      "gap": 20,
+      "padding": 32,
+      "children": [
+        {
+          "type": "text",
+          "id": "U8ZaX",
+          "name": "方案名称",
+          "fill": "#F0DED8",
+          "content": "C · 柔和居中",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 26,
+          "fontWeight": "bold"
+        },
+        {
+          "type": "text",
+          "id": "eeDko",
+          "name": "方案说明",
+          "fill": "#B7A49D",
+          "content": "空状态保留居中但减轻视觉重量；歌手用下划线表达可点击。",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "bON3S",
+          "name": "空状态对比说明",
+          "fill": "#B7A49D",
+          "content": "上：曲库完全没有歌曲     下：搜索无结果",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "qmkSM",
+          "name": "曲库完全没有歌曲 · 内容区",
+          "width": "fill_container",
+          "height": 345,
+          "fill": "#1B120D",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 28,
+          "children": [
+            {
+              "type": "text",
+              "id": "rXylf",
+              "name": "页面标题",
+              "fill": "#F0DED8",
+              "content": "歌曲",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 28,
+              "fontWeight": "bold"
+            },
+            {
+              "type": "text",
+              "id": "U7l0B",
+              "name": "曲库数量",
+              "fill": "#8F7D77",
+              "content": "共 0 首歌曲",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "rEvca",
+              "name": "柔和居中提示",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "padding": [
+                30,
+                0,
+                0,
+                0
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "gxgxO",
+                  "name": "曲库图标",
+                  "width": 28,
+                  "height": 28,
+                  "icon": "library",
+                  "library": "lucide",
+                  "fill": "#B7A49D"
+                },
+                {
+                  "type": "text",
+                  "id": "joyHz",
+                  "name": "空状态标题",
+                  "fill": "#F0DED8",
+                  "content": "还没有歌曲",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 17,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "Ftqfa",
+                  "name": "空状态说明",
+                  "fill": "#B7A49D",
+                  "content": "添加媒体源后，你的歌曲会出现在这里",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "MNzsb",
+                  "name": "添加媒体源",
+                  "fill": "#F0DED8",
+                  "content": "添加媒体源",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "mwZUM",
+          "name": "搜索无结果 · 内容区",
+          "width": "fill_container",
+          "height": 345,
+          "fill": "#1B120D",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 28,
+          "children": [
+            {
+              "type": "text",
+              "id": "H2BHYN",
+              "name": "页面标题",
+              "fill": "#F0DED8",
+              "content": "歌曲",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 28,
+              "fontWeight": "bold"
+            },
+            {
+              "type": "text",
+              "id": "f5czwB",
+              "name": "搜索摘要",
+              "fill": "#8F7D77",
+              "content": "搜索：找不到的歌曲 · 0 首",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "N9BRj",
+              "name": "柔和居中提示",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "padding": [
+                30,
+                0,
+                0,
+                0
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "qRVW0",
+                  "name": "搜索图标",
+                  "width": 28,
+                  "height": 28,
+                  "icon": "search-x",
+                  "library": "lucide",
+                  "fill": "#B7A49D"
+                },
+                {
+                  "type": "text",
+                  "id": "PfmVX",
+                  "name": "空状态标题",
+                  "fill": "#F0DED8",
+                  "content": "没有找到相关歌曲",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 17,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "y05ux",
+                  "name": "空状态说明",
+                  "fill": "#B7A49D",
+                  "content": "试试其他歌名、歌手或专辑关键词",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "Q1v0Yv",
+                  "name": "清除搜索",
+                  "fill": "#F0DED8",
+                  "content": "清除搜索",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "bAMdt",
+          "name": "歌曲详情 · 歌手入口",
+          "clip": true,
+          "width": "fill_container",
+          "height": 430,
+          "fill": "#1B120D",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "rectangle",
+              "id": "Ow3FO",
+              "name": "原封面局部 · 保留现有封面设计",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "./song-detail-reference.png",
+                "mode": "cover",
+                "transform": [
+                  1.428571,
+                  0,
+                  0,
+                  1.428571,
+                  -0.428571,
+                  0
+                ]
+              },
+              "width": "fill_container",
+              "height": 170
+            },
+            {
+              "type": "frame",
+              "id": "q02FWa",
+              "name": "歌曲信息",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 18,
+              "padding": 28,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "FKtsB",
+                  "name": "歌名",
+                  "fill": "#F0DED8",
+                  "content": "Pulse in Flora",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 28,
+                  "fontWeight": "bold"
+                },
+                {
+                  "type": "frame",
+                  "id": "YbnqY",
+                  "name": "歌手文字信息",
+                  "width": "fill_container",
+                  "gap": 18,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "P3m8U0",
+                      "name": "歌手字段",
+                      "fill": "#8F7D77",
+                      "content": "歌手",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "t0j6TA",
+                      "name": "Empty old City · 可点击",
+                      "fill": "#B7A49D",
+                      "content": "Empty old City",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kX4Fn",
+                      "name": "HoYoFair · 可点击",
+                      "fill": "#B7A49D",
+                      "content": "HoYoFair",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "x1hSU",
+          "name": "交互说明",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {
+              "type": "text",
+              "id": "XkRNM",
+              "name": "交互说明标题",
+              "fill": "#F0DED8",
+              "content": "交互约定",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 14,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "XvLpG",
+              "name": "交互说明内容",
+              "fill": "#B7A49D",
+              "content": "歌手独立点击跳转；悬停 / 按下时提亮。移动端保留至少 44dp 点击区域。",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "PgYh3",
+              "name": "原始空库说明",
+              "fill": "#B7A49D",
+              "content": "两种空状态共用视觉样式；无歌曲引导添加媒体源，搜索无结果引导清除搜索。",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fileToken": "3a1e88c5-7def-4cd1-bd75-72a13b61c4da"
+}

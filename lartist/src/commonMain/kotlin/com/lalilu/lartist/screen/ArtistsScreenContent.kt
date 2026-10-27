@@ -17,6 +17,8 @@ import com.lalilu.navigation.smartbar.NavigatorHeader
 internal fun ArtistsScreenContent(
     modifier: Modifier = Modifier,
     artists: SortResult<LArtist> = SortResult.empty(),
+    searchKeyword: String = "",
+    onClearSearch: () -> Unit = {},
     onClickArtist: (LArtist, SharedMap) -> Unit
 ) {
     val statusBar = WindowInsets.statusBars
@@ -37,9 +39,19 @@ internal fun ArtistsScreenContent(
         item {
             NavigatorHeader(
                 modifier = Modifier.fillMaxWidth(),
-                title = "Artists",
-                subTitle = "${artists.itemList.size} artists"
+                title = "歌手",
+                subTitle = if (searchKeyword.isBlank()) "共 ${artists.itemList.size} 位歌手" else "搜索：$searchKeyword"
             )
+        }
+
+        if (artists.itemList.isEmpty()) {
+            item { com.lalilu.component.LibraryEmptyState(
+                    title = if (searchKeyword.isBlank()) "还没有歌手" else "没有找到相关歌手",
+                    description = if (searchKeyword.isBlank()) "添加媒体源后，会根据歌曲信息整理歌手" else "试试其他歌手名称或清除搜索",
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 32.dp),
+                    actionLabel = if (searchKeyword.isBlank()) "添加媒体源" else "清除搜索",
+                    onAction = { if (searchKeyword.isBlank()) com.lalilu.navigation.AppRouter.route("/media_source").jump() else onClearSearch() },
+                ) }
         }
 
         items(

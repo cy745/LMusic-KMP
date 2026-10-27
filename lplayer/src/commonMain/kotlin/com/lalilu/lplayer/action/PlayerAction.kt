@@ -30,6 +30,8 @@ sealed class PlayerAction() : Action {
     /** IDs in player actions are source-qualified playback IDs, never raw source IDs. */
     data class AddToNext(val id: String) : PlayerAction()
     data class PlayById(val id: String) : PlayerAction()
+    /** Explicit transport button: toggle the selected song, otherwise select and play. */
+    data class PlayOrToggleById(val id: String) : PlayerAction()
     data class PlayByKey(val key: MediaKey) : PlayerAction()
     data class SeekTo(val positionMs: Long) : PlayerAction()
     data class SetPlayMode(val playMode: PlayMode) : PlayerAction()
@@ -69,6 +71,13 @@ fun defaultPlayerActionHandler(action: PlayerAction, persistModePreference: Bool
             is PlayerAction.PauseWhenCompletion -> LPlayer.instance.setPauseWhenCompletion(action.cancel)
             is PlayerAction.SkipToIndex -> LPlayer.instance.skipTo(action.index, true)
             is PlayerAction.SeekTo -> LPlayer.instance.seekTo(action.positionMs)
+            is PlayerAction.PlayOrToggleById -> {
+                LPlayer.instance.playOrToggleById(action.id) {
+                    val audioRepo: AudioRepository = KoinPlatform.getKoin().get()
+                    audioRepo.getAudioByPlaybackId(action.id).first()
+                }
+            }
+
             is PlayerAction.PlayById -> {
                 val audioRepo: AudioRepository = KoinPlatform.getKoin().get()
                 audioRepo.getAudioByPlaybackId(action.id).first()?.let { LPlayer.instance.playAudio(it) }
@@ -100,4 +109,19 @@ fun defaultPlayerActionHandler(action: PlayerAction, persistModePreference: Bool
 
         }
     }
+}
+
+/** Explicit transport action; ordinary song selection retains its separate semantics. */
+internal suspend fun com.lalilu.lplayer.playback.Playback.playOrToggleById(
+    id: String,
+    resolve: suspend () -> com.lalilu.lmedia.domain.model.LAudio?,
+) {
+    if (queue.currentItem()?.playbackId == id) {
+        togglePlayPause()
+        return
+    }
+    val audio = resolve() ?: return
+    // Selection can change while the repository is resolving this item.
+    if (queue.currentItem()?.playbackId == audio.playbackId) togglePlayPause()
+    else playAudio(audio)
 }
