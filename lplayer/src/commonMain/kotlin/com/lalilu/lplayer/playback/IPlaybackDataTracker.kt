@@ -16,7 +16,19 @@
 
 package com.lalilu.lplayer.playback
 
+/** Shared core observations, not native player/UI callbacks, own listening history. */
+data class ListeningObservation(
+    val mediaId: String?, val title: String, val epoch: Long,
+    val playing: Boolean, val durationMs: Long, val positionMs: Long,
+    val seeking: Boolean = false, val completed: Boolean = false,
+    val requested: Boolean = false,
+)
+
 interface IPlaybackDataTracker {
+    val diagnostics: String get() = "unavailable"
+    suspend fun inspect(): String = diagnostics
+    fun onObservation(observation: ListeningObservation) {}
+
 
     fun onMediaItemTransition(
         mediaId: String?,

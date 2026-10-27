@@ -8,6 +8,7 @@ import androidx.sqlite.executeSQL
 import androidx.sqlite.prepare
 import androidx.sqlite.step
 import com.lalilu.lhistory.entity.LHistory
+import com.lalilu.lhistory.entity.HistoryDay
 import com.lalilu.lhistory.repository.ILHistoryDatabase
 import com.lalilu.lhistory.repository.LHistoryDao
 import com.lalilu.lmedia.data.database.*
@@ -25,7 +26,7 @@ import org.koin.core.annotation.Single
 
 
 @Database(
-    version = 5,
+    version = 6,
     entities = [
         LAudioEntity::class,
         PlaybackFailureEntity::class,
@@ -34,6 +35,7 @@ import org.koin.core.annotation.Single
         LGenreEntity::class,
         LFolderEntity::class,
         LHistory::class,
+        HistoryDay::class,
         LPlaylist::class,
         CrossRefLAudioXLArtist::class,
         CrossRefLAudioXAlbum::class,
@@ -72,7 +74,7 @@ abstract class LMusicDatabase : RoomDatabase(),
 )
 fun provideDatabase(): LMusicDatabase {
     return requireDatabase<LMusicDatabase>(forceMemory = false) {
-        this.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        this.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .addCallback(ILPlaylistDatabase.CALLBACK)
     }
 }
@@ -195,3 +197,12 @@ expect inline fun <reified T : RoomDatabase> requireDatabase(
     forceMemory: Boolean = true,
     builder: RoomDatabase.Builder<T>.() -> RoomDatabase.Builder<T> = { this }
 ): T
+
+/** Preserve legacy history; only recover counts supported by its recorded duration. */
+internal val MIGRATION_5_6 = Migration(5, 6) { connection ->
+    connection.executeSQL("ALTER TABLE m_history ADD COLUMN playCount INTEGER NOT NULL DEFAULT 0")
+    connection.executeSQL("UPDATE m_history SET playCount = 1 WHERE duration >= 30000")
+    connection.executeSQL("CREATE TABLE IF NOT EXISTS history_day (historyId INTEGER NOT NULL, dayStart INTEGER NOT NULL, duration INTEGER NOT NULL, playCount INTEGER NOT NULL, PRIMARY KEY(historyId, dayStart))")
+    connection.executeSQL("CREATE INDEX IF NOT EXISTS index_history_day_dayStart ON history_day (dayStart)")
+    // Older records lack listening intervals. Retain them in the timeline without inventing daily statistics.
+}

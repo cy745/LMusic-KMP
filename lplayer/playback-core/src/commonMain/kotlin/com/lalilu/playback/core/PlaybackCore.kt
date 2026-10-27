@@ -20,6 +20,7 @@ class PlaybackCore(
     private val runtime: AudioRuntime,
     private val random: Random = Random.Default,
     initialMode: PlayMode = PlayMode.Sequential,
+    private val onHistoryState: (PlaybackSnapshot, Boolean) -> Unit = { _, _ -> },
 ) {
     private sealed interface Message {
         data class Command(val value: PlaybackCommand, val done: CompletableDeferred<Unit>) : Message
@@ -58,7 +59,14 @@ class PlaybackCore(
                 for (message in inbox) {
                     try {
                         when (message) {
-                            is Message.Command -> command(message.value)
+                            is Message.Command -> {
+                                command(message.value)
+                                if (message.value is PlaybackCommand.Select || message.value == PlaybackCommand.Next ||
+                                    message.value == PlaybackCommand.Previous || message.value == PlaybackCommand.Play ||
+                                    (message.value as? PlaybackCommand.ReplaceQueue)?.startPlayback == true) {
+                                    s = s.copy(historyRequested = s.selected != null)
+                                }
+                            }
                             is Message.Resolved -> if (message.ticket == s.ticket) runtime.prepare(message.ticket, message.resource)
                             is Message.CandidateResolved -> if (candidatePlan == message.plan) {
                                 try {
@@ -72,6 +80,7 @@ class PlaybackCore(
                             }
                             is Message.Event -> event(message.value)
                         }
+                        onHistoryState(s, false)
                         reconcileCandidate()
                         if (message is Message.Command) message.done.complete(Unit)
                     } catch (cancelled: CancellationException) {
@@ -79,6 +88,7 @@ class PlaybackCore(
                         throw cancelled
                     } catch (failure: Exception) {
                         s = s.copy(intent = PlayIntent.Pause, phase = Phase.Failed, error = failure.message ?: "Playback command failed")
+                        onHistoryState(s, false)
                         if (message is Message.Command) message.done.completeExceptionally(failure)
                     }
                 }
@@ -101,6 +111,7 @@ class PlaybackCore(
 
     /** Call on the host's runtime dispatcher; releases only this core's resources. */
     fun close() {
+        onHistoryState(s.copy(phase = Phase.ReadyPaused), false)
         runtime.onEvent = null
         inbox.close()
         scope.cancel()
@@ -151,7 +162,7 @@ class PlaybackCore(
                 resolving?.cancel()
                 runtime.silence(null)
                 s = s.copy(intent = PlayIntent.Pause, phase = if (s.selected == null) Phase.Empty else Phase.Ended,
-                    epoch = s.epoch + 1, pendingSeekId = null, positionMs = 0)
+                    epoch = s.epoch + 1, pendingSeekId = null, positionMs = 0, historyRequested = false)
             }
             PlaybackCommand.Play -> {
                 if (s.selected == null) return
@@ -221,7 +232,7 @@ class PlaybackCore(
         cancelCandidate()
         startTransition = if (natural) VolumeTransition.Immediate else VolumeTransition.TrackChange
         resolving?.cancel()
-        s = s.copy(index = index, epoch = s.epoch + 1, naturalTransition = natural, phase = Phase.Preparing,
+        s = s.copy(index = index, epoch = s.epoch + 1, naturalTransition = natural, historyRequested = natural || s.intent == PlayIntent.Play, phase = Phase.Preparing,
             positionMs = 0, durationMs = 0, bufferedPositionMs = 0, pendingSeekId = null, error = null)
         startedTicket = null
         endedTicket = null
@@ -301,6 +312,7 @@ class PlaybackCore(
                     command(PlaybackCommand.Seek(position))
                     return
                 }
+                if (endedTicket != s.ticket) onHistoryState(s, true)
                 (runtime as PreloadingAudioRuntime).confirmNext(event.plan)
                 val key = event.plan.next.key
                 val items = s.queue.toMutableList()
@@ -321,7 +333,7 @@ class PlaybackCore(
                 endedTicket = null
                 direction = 1
                 naturalTraversal = true
-                s = s.copy(queue = items, index = index, epoch = event.plan.next.epoch, naturalTransition = true,
+                s = s.copy(queue = items, index = index, epoch = event.plan.next.epoch, naturalTransition = true, historyRequested = true,
                     phase = if (s.intent == PlayIntent.Play) Phase.Starting else Phase.ReadyPaused,
                     positionMs = event.positionMs, durationMs = event.durationMs, bufferedPositionMs = event.positionMs,
                     pendingSeekId = null, error = null)
@@ -378,6 +390,7 @@ class PlaybackCore(
             is RuntimeEvent.Ended -> {
                 if (endedTicket == event.ticket || s.phase == Phase.Failed) return
                 endedTicket = event.ticket
+                onHistoryState(s, true)
                 if (s.pauseAtEnd) {
                     s = s.copy(intent = PlayIntent.Pause, phase = Phase.Ended, pauseAtEnd = false)
                     return

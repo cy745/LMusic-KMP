@@ -39,6 +39,42 @@ class PlaybackCoreTest {
     private fun TestScope.core(runtime: Runtime, resolver: ContentResolver = ContentResolver { PlayableResource(it.id) }) =
         PlaybackCore(backgroundScope, resolver, runtime, Random(7))
 
+    @Test fun onlyExplicitSelectionOrPlayMarksHistoryBeforeStarted() = runTest {
+        val runtime = Runtime()
+        val core = core(runtime)
+        core.dispatch(PlaybackCommand.ReplaceQueue(listOf(a,b), a))
+        assertFalse(core.state.value.historyRequested, "Silent queue restoration must not enter recent history")
+        core.dispatch(PlaybackCommand.Next)
+        assertEquals(b, core.state.value.selected)
+        assertTrue(core.state.value.historyRequested)
+        assertEquals(Phase.Preparing, core.state.value.phase)
+        core.dispatch(PlaybackCommand.Stop)
+        assertFalse(core.state.value.historyRequested)
+        core.dispatch(PlaybackCommand.Play)
+        assertTrue(core.state.value.historyRequested)
+    }
+
+    @Test fun historyObservesOnlyCommittedSelectionsAndAcceptedCompletions() = runTest {
+        val runtime = Runtime()
+        val observations = mutableListOf<Pair<PlaybackSnapshot, Boolean>>()
+        val core = PlaybackCore(backgroundScope, ContentResolver { PlayableResource(it.id) }, runtime,
+            onHistoryState = { state, completed -> observations += state to completed })
+        core.dispatch(PlaybackCommand.ReplaceQueue(listOf(a, b), a, true)); runCurrent()
+        val first = core.state.value.ticket!!
+        runtime.emit(RuntimeEvent.Prepared(first, 10000)); runCurrent()
+        runtime.emit(RuntimeEvent.Started(first)); runCurrent()
+        core.dispatch(PlaybackCommand.Select(b)); runCurrent()
+        assertFalse(observations.any { it.first.selected == b && it.first.phase == Phase.Playing })
+        runtime.emit(RuntimeEvent.Ended(first)); runCurrent()
+        assertTrue(observations.none { it.second })
+        val second = core.state.value.ticket!!
+        runtime.emit(RuntimeEvent.Prepared(second, 10000)); runCurrent()
+        runtime.emit(RuntimeEvent.Started(second)); runCurrent()
+        runtime.emit(RuntimeEvent.Ended(second)); runCurrent()
+        runtime.emit(RuntimeEvent.Ended(second)); runCurrent()
+        assertEquals(listOf(second), observations.filter { it.second }.map { it.first.ticket })
+    }
+
     @Test fun systemPauseUsesImmediateGainAndCancelsPlayIntent() = runTest {
         val runtime = Runtime()
         val core = core(runtime)

@@ -1,5 +1,7 @@
 package com.lalilu.lplayer.service
 
+import com.lalilu.lplayer.core.observeCore
+
 import com.lalilu.lplayer.core.withQueuePlaybackRequest
 import com.lalilu.lplayer.core.START_QUEUE_PLAYBACK
 import android.app.PendingIntent
@@ -56,7 +58,6 @@ import com.lalilu.lmedia.domain.model.MediaKey
 class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
     override val coroutineContext: CoroutineContext = Dispatchers.Main.immediate + SupervisorJob()
     private val dataTracker by inject<IPlaybackDataTracker>()
-    private val historyAnalyticsListener by lazy { HistoryAnalyticsListener(dataTracker) }
 
     private var player: Player? = null
     private var exoPlayer: ExoPlayer? = null
@@ -72,6 +73,14 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
             .setAllowedCapturePolicy(C.ALLOW_CAPTURE_BY_ALL)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
+    }
+
+    /** Read-only adb diagnostics; no titles, source credentials or playback controls are exposed. */
+    override fun dump(fd: java.io.FileDescriptor, writer: java.io.PrintWriter, args: Array<out String>?) {
+        super.dump(fd, writer, args)
+        writer.println("Listening history: " + kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.withTimeoutOrNull(2000) { dataTracker.inspect() } ?: "inspection timed out; ${dataTracker.diagnostics}"
+        })
     }
 
     override fun onCreate() {
@@ -99,10 +108,12 @@ class MService : MediaLibraryService(), CoroutineScope, KoinComponent {
             })
         }
         outputProbe = com.lalilu.lplayer.core.AndroidOutputProbe(this, runtime.player)
-        val core = PlaybackCore(this, ContentResolver { key -> access.resolve(MediaKey(key.source,key.id)) }, runtime)
+        val core = PlaybackCore(this, ContentResolver { key -> access.resolve(MediaKey(key.source,key.id)) }, runtime,
+            onHistoryState = { state, completed ->
+                dataTracker.observeCore(state, items[state.selected]?.mediaMetadata?.title?.toString(), completed)
+            })
         player = CoreSessionPlayer(core, runtime, this, items, access::close).apply {
             addListener(MPlayerListener(this))
-            addListener(historyAnalyticsListener)
         }
 
         (player as CoreSessionPlayer).setMode(PlayMode.from(LPlayerKV.playMode.value))

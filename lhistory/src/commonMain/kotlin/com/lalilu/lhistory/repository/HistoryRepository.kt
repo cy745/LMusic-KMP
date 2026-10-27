@@ -19,10 +19,11 @@ package com.lalilu.lhistory.repository
 import androidx.paging.PagingSource
 import com.lalilu.common.ext.io
 import com.lalilu.common.flow.toCachedFlow
-import com.lalilu.lhistory.entity.LHistory
+import com.lalilu.lhistory.entity.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.launch
@@ -31,11 +32,18 @@ import org.koin.core.annotation.Single
 import kotlin.coroutines.CoroutineContext
 
 interface HistoryRepository {
+    val revisions: StateFlow<Long>
+    suspend fun inspect(): String
+    suspend fun saveSession(history: LHistory, days: List<HistoryDay>): Long
+    fun dailyListening(from: Long, until: Long): Flow<List<DailyListening>>
+    fun statistics(from: Long, until: Long): Flow<ListeningStats>
+
     suspend fun getUnUsedPreSaveHistory(mediaId: String): LHistory?
     suspend fun preSaveHistory(history: LHistory): Long
     suspend fun updateHistory(id: Long, duration: Long, repeatCount: Int, startTime: Long)
-    fun clearHistories()
+    suspend fun clearHistories()
 
+    fun getRange(from: Long, until: Long): PagingSource<Int, LHistory>
     fun getAllData(): PagingSource<Int, LHistory>
     fun getHistoriesFlow(limit: Int): Flow<List<LHistory>>
     fun getHistoriesWithCount(limit: Int): Flow<Map<LHistory, Int>>
@@ -45,21 +53,34 @@ interface HistoryRepository {
     fun getHistoriesLastTimeByMediaId(mediaId: String): Long
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @Single
 class HistoryRepositoryImpl(
     private val database: ILHistoryDatabase
 ) : HistoryRepository, CoroutineScope {
     private val historyDao: LHistoryDao by lazy { database.historyDao() }
-    override val coroutineContext: CoroutineContext = Dispatchers.io
+    override val coroutineContext: CoroutineContext = Dispatchers.io + kotlinx.coroutines.SupervisorJob()
 
-    private val countMap = historyDao
-        .getFlowIdsMapWithCount(Int.MAX_VALUE)
+    private val revision = MutableStateFlow(0L)
+    override val revisions = revision.asStateFlow()
+    private val pages = MutableStateFlow<Set<PagingSource<Int, LHistory>>>(emptySet())
+    private fun changed() {
+        revision.update { it + 1 }
+        pages.value.forEach { it.invalidate() }
+    }
+    private fun track(source: PagingSource<Int, LHistory>): PagingSource<Int, LHistory> {
+        pages.update { it + source }
+        source.registerInvalidatedCallback { pages.update { it - source } }
+        return source
+    }
+    override suspend fun inspect() = "rows=${historyDao.recordCount()}, days=${historyDao.dayCount()}, revision=${revision.value}"
+
+    private val countMap = revision.flatMapLatest { historyDao.getFlowIdsMapWithCount(Int.MAX_VALUE) }
         .distinctUntilChanged()
         .toCachedFlow()
         .also { it.launchIn(this) }
 
-    private val lastTimeMap = historyDao
-        .getFlowIdsMapWithLastTime(Int.MAX_VALUE)
+    private val lastTimeMap = revision.flatMapLatest { historyDao.getFlowIdsMapWithLastTime(Int.MAX_VALUE) }
         .distinctUntilChanged()
         .toCachedFlow()
         .also { it.launchIn(this) }
@@ -88,23 +109,29 @@ class HistoryRepositoryImpl(
         )
     }
 
-    override fun clearHistories() {
-        launch { historyDao.clear() }
+    override suspend fun saveSession(history: LHistory, days: List<HistoryDay>): Long {
+        val id = historyDao.saveSession(history, days)
+        changed()
+        return id
     }
+    override fun dailyListening(from: Long, until: Long) = revision.flatMapLatest { historyDao.dailyListening(from, until) }
+    override fun statistics(from: Long, until: Long) = revision.flatMapLatest { historyDao.statistics(from, until) }
+
+    override suspend fun clearHistories() { historyDao.clear(); changed() }
+
+    override fun getRange(from: Long, until: Long) = track(historyDao.getRange(from, until))
 
     override fun getAllData(): PagingSource<Int, LHistory> {
-        return historyDao.getAllData()
+        return track(historyDao.getAllData())
     }
 
     override fun getHistoriesFlow(limit: Int): Flow<List<LHistory>> {
-        return historyDao
-            .getFlow(limit)
+        return revision.flatMapLatest { historyDao.getFlow(limit) }
             .distinctUntilChanged()
     }
 
     override fun getHistoriesWithCount(limit: Int): Flow<Map<LHistory, Int>> {
-        return historyDao
-            .getFlowWithCount(limit)
+        return revision.flatMapLatest { historyDao.getFlowWithCount(limit) }
             .distinctUntilChanged()
     }
 

@@ -18,6 +18,8 @@ data class PlaybackSnapshot(
     val epoch: Long = 0,
     /** Cause of this selection epoch, retained for platform timeline/history projections. */
     val naturalTransition: Boolean = false,
+    /** Actual selection intent, excluding silent restoration and speculative preparation. */
+    val historyRequested: Boolean = false,
     val positionMs: Long = 0,
     val durationMs: Long = 0,
     val bufferedPositionMs: Long = 0,

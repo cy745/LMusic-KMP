@@ -18,7 +18,7 @@ import io.ktor.client.plugins.HttpTimeout
 
 @Single(binds = [Playback::class])
 fun provideAVPlayerPlayback(history: PlaybackHistory, audioRepository: AudioRepository,
-    platformMediaSource: PlatformMediaSource, playbackFailureRepository: PlaybackFailureRepository): CorePlayback {
+    platformMediaSource: PlatformMediaSource, tracker: IPlaybackDataTracker, playbackFailureRepository: PlaybackFailureRepository): CorePlayback {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     val content = NativeContentAccess(scope, platformMediaSource, audioRepository,
         HttpClient(Darwin) { install(HttpTimeout) { connectTimeoutMillis = 15000; socketTimeoutMillis = 15000; requestTimeoutMillis = 30000 } },
@@ -29,7 +29,7 @@ fun provideAVPlayerPlayback(history: PlaybackHistory, audioRepository: AudioRepo
             is AVPlayerEngine -> engine.setVolume(value)
             is AVAudioPlayerEngine -> engine.setVolume(value)
         } }, canFade = { it !is MusicKitEngine }, contentAccess = content)
-    return CorePlayback(scope, runtime, platformMediaSource, audioRepository, history,
+    return CorePlayback(scope, runtime, platformMediaSource, audioRepository, history, tracker,
         failureRepository = playbackFailureRepository, classifyFailure = ::classifyIosLoadFailure).also { playback ->
         NowPlayingInfoNotification.bindPlayback(playback, platformMediaSource)
         RemoteCommandHandler.bindPlayback(playback)

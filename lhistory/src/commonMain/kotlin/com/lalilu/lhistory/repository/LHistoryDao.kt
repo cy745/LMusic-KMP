@@ -2,11 +2,16 @@ package com.lalilu.lhistory.repository
 
 import androidx.paging.PagingSource
 import androidx.room3.*
-import com.lalilu.lhistory.entity.LHistory
+import com.lalilu.lhistory.entity.*
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LHistoryDao {
+    @Query("SELECT COUNT(*) FROM m_history")
+    suspend fun recordCount(): Long
+    @Query("SELECT COUNT(*) FROM history_day")
+    suspend fun dayCount(): Long
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun save(history: LHistory): Long
 
@@ -17,13 +22,37 @@ interface LHistoryDao {
     suspend fun updateHistory(id: Long, duration: Long, repeatCount: Int, startTime: Long)
 
     @Query("DELETE FROM m_history;")
-    suspend fun clear()
+    suspend fun clearRecords()
+    @Query("DELETE FROM history_day;")
+    suspend fun clearDays()
+    @Transaction
+    suspend fun clear() { clearDays(); clearRecords() }
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveDays(days: List<HistoryDay>)
+
+    @Transaction
+    suspend fun saveSession(history: LHistory, days: List<HistoryDay>): Long {
+        val id = save(history)
+        saveDays(days.map { it.copy(historyId = id) })
+        return id
+    }
+
+    @Query("SELECT COALESCE(SUM(d.duration), 0) AS duration, COALESCE(SUM(d.playCount), 0) AS playCount, COUNT(DISTINCT h.contentId) AS songCount FROM history_day d JOIN m_history h ON h.id = d.historyId WHERE d.dayStart >= :from AND d.dayStart < :until")
+    fun statistics(from: Long, until: Long): Flow<ListeningStats>
+
+
+    @Query("SELECT d.dayStart AS dayStart, SUM(d.duration) AS duration FROM history_day d JOIN m_history h ON h.id = d.historyId WHERE d.dayStart >= :from AND d.dayStart < :until GROUP BY d.dayStart ORDER BY d.dayStart")
+    fun dailyListening(from: Long, until: Long): Flow<List<DailyListening>>
 
     @Delete(entity = LHistory::class)
     suspend fun delete(vararg history: LHistory)
 
-    @Query("SELECT * FROM m_history ORDER BY startTime DESC")
+    @Query("SELECT * FROM m_history WHERE duration >= 0 ORDER BY startTime DESC, id DESC")
     fun getAllData(): PagingSource<Int, LHistory>
+
+    @Query("SELECT * FROM m_history WHERE duration >= 0 AND startTime >= :from AND startTime < :until ORDER BY startTime DESC, id DESC")
+    fun getRange(from: Long, until: Long): PagingSource<Int, LHistory>
 
     @Query("SELECT * FROM m_history WHERE id = :id;")
     suspend fun getById(id: Long): LHistory?
@@ -36,7 +65,7 @@ interface LHistoryDao {
      */
     @Query(
         "SELECT * FROM " +
-                "(SELECT id, contentId, contentTitle, parentId, parentTitle, duration, repeatCount, max(startTime) as 'startTime' FROM m_history GROUP BY contentId) as A " +
+                "(SELECT id, contentId, contentTitle, parentId, parentTitle, duration, repeatCount, playCount, max(startTime) as 'startTime' FROM m_history WHERE duration >= 0 GROUP BY contentId) as A " +
                 "ORDER BY A.startTime DESC LIMIT :limit;"
     )
     fun getFlow(limit: Int): Flow<List<LHistory>>
@@ -46,19 +75,19 @@ interface LHistoryDao {
      */
     @Query(
         "SELECT * FROM " +
-                "(SELECT id, contentId, contentTitle, parentId, parentTitle, duration, repeatCount, (count(contentId) + repeatCount) as 'count', max(startTime) as 'startTime' FROM m_history GROUP BY contentId) as A " +
+                "(SELECT id, contentId, contentTitle, parentId, parentTitle, duration, repeatCount, SUM(playCount) as playCount, SUM(playCount) as 'count', max(startTime) as 'startTime' FROM m_history WHERE duration >= 0 GROUP BY contentId) as A " +
                 "ORDER BY A.startTime DESC LIMIT :limit;"
     )
     fun getFlowWithCount(limit: Int): Flow<Map<LHistory, @MapColumn(columnName = "count") Int>>
 
     @Query(
-        "SELECT contentId, (count(contentId) + repeatCount) as 'count' FROM m_history GROUP BY contentId " +
+        "SELECT contentId, SUM(playCount) as 'count' FROM m_history WHERE duration >= 0 GROUP BY contentId " +
                 "LIMIT :limit;"
     )
     fun getFlowIdsMapWithCount(limit: Int): Flow<Map<@MapColumn(columnName = "contentId") String, @MapColumn(columnName = "count") Int>>
 
     @Query(
-        "SELECT contentId, max(startTime) as 'startTime' FROM m_history GROUP BY contentId " +
+        "SELECT contentId, max(startTime) as 'startTime' FROM m_history WHERE duration >= 0 GROUP BY contentId " +
                 "LIMIT :limit;"
     )
     fun getFlowIdsMapWithLastTime(limit: Int): Flow<Map<@MapColumn(columnName = "contentId") String, @MapColumn(columnName = "startTime") Long>>

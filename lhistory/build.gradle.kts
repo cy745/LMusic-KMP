@@ -32,8 +32,13 @@ kotlin {
             implementation(libs.compose.preview)
             implementation(libs.paging.compose)
         }
+        jvmTest.dependencies {
+            implementation(libs.compose.ui.test)
+            runtimeOnly(compose.desktop.currentOs)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }

@@ -1,0 +1,1552 @@
+{
+  "version": "2.20",
+  "children": [
+    {
+      "type": "frame",
+      "id": "jiYS5",
+      "x": 0,
+      "y": 0,
+      "name": "历史记录 · 统计与日期分组",
+      "width": 1030,
+      "height": 1320,
+      "fill": "#30241F",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "children": [
+        {
+          "type": "text",
+          "id": "c8jpE",
+          "name": "方案标题",
+          "fill": "#F0DED8",
+          "content": "历史记录 · 沿用曲库的标题与列表节奏",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 24,
+          "fontWeight": "bold"
+        },
+        {
+          "type": "text",
+          "id": "ogZhj",
+          "name": "方案说明",
+          "fill": "#B7A49D",
+          "content": "统计周期联动每日收听柱状图；点选查看日期与时长。左侧为本周示例数据，右侧为首次使用状态。",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "vTg1z",
+          "name": "正常与空状态对比",
+          "width": "fill_container",
+          "height": 1130,
+          "gap": 28,
+          "children": [
+            {
+              "type": "frame",
+              "id": "fwW5E",
+              "name": "历史记录 · 有数据",
+              "width": 440,
+              "height": 1120,
+              "fill": "#1B120D",
+              "cornerRadius": 24,
+              "layout": "vertical",
+              "gap": 16,
+              "padding": [
+                32,
+                20,
+                20,
+                20
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "MAIxm",
+                  "name": "页面标题",
+                  "fill": "#F0DED8",
+                  "content": "历史记录",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 24,
+                  "fontWeight": "900"
+                },
+                {
+                  "type": "text",
+                  "id": "u8IbX6",
+                  "name": "页面副标题",
+                  "fill": "#95847D",
+                  "content": "听过的音乐，留下的时光",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "X0xuM",
+                  "name": "收听统计与周期切换",
+                  "width": "fill_container",
+                  "height": 40,
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "D5ZuI",
+                      "name": "统计区标题",
+                      "fill": "#F0DED8",
+                      "content": "收听统计",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 16,
+                      "fontWeight": "bold"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "NuLTI",
+                      "name": "统计周期",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "sASZi",
+                          "name": "本周选中",
+                          "fill": "#F0DED8",
+                          "content": "本周",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "bold"
+                        },
+                        {
+                          "type": "text",
+                          "id": "hmz7k",
+                          "name": "本月",
+                          "fill": "#95847D",
+                          "content": "本月",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "cWf4D",
+                  "name": "收听统计",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "rPYod",
+                      "name": "统计行",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "dYGEC",
+                          "name": "今日收听",
+                          "width": "fill_container",
+                          "height": 84,
+                          "fill": "#251B16",
+                          "cornerRadius": 8,
+                          "layout": "vertical",
+                          "gap": 6,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "cgevD",
+                              "name": "统计名称",
+                              "fill": "#B7A49D",
+                              "content": "今日收听",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "l28JF4",
+                              "name": "统计值",
+                              "fill": "#F0DED8",
+                              "content": "42 分钟",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 22,
+                              "fontWeight": "bold"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "dRkIS",
+                          "name": "本周收听",
+                          "width": "fill_container",
+                          "height": 84,
+                          "fill": "#251B16",
+                          "cornerRadius": 8,
+                          "layout": "vertical",
+                          "gap": 6,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "obL7k",
+                              "name": "统计名称",
+                              "fill": "#B7A49D",
+                              "content": "本周收听",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Yc8YU",
+                              "name": "统计值",
+                              "fill": "#F0DED8",
+                              "content": "3 小时 18 分",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 22,
+                              "fontWeight": "bold"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "PCgAl",
+                      "name": "统计行",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "vPc7R",
+                          "name": "本周播放",
+                          "width": "fill_container",
+                          "height": 84,
+                          "fill": "#251B16",
+                          "cornerRadius": 8,
+                          "layout": "vertical",
+                          "gap": 6,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "DOf9s",
+                              "name": "统计名称",
+                              "fill": "#B7A49D",
+                              "content": "本周播放",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "n2Cwg",
+                              "name": "统计值",
+                              "fill": "#F0DED8",
+                              "content": "56 次",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 22,
+                              "fontWeight": "bold"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "X7avo",
+                          "name": "本周歌曲",
+                          "width": "fill_container",
+                          "height": 84,
+                          "fill": "#251B16",
+                          "cornerRadius": 8,
+                          "layout": "vertical",
+                          "gap": 6,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "hnwm2",
+                              "name": "统计名称",
+                              "fill": "#B7A49D",
+                              "content": "本周不同歌曲",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "SHNeD",
+                              "name": "统计值",
+                              "fill": "#F0DED8",
+                              "content": "38 首",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 22,
+                              "fontWeight": "bold"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "soCna",
+                  "name": "每日收听时长 · 本周",
+                  "width": "fill_container",
+                  "height": 240,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "C5MvJx",
+                      "name": "图表标题及选中值",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "IrfQO",
+                          "name": "图表标题",
+                          "fill": "#B7A49D",
+                          "content": "每日收听",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 13,
+                          "fontWeight": "bold"
+                        },
+                        {
+                          "type": "text",
+                          "id": "AC5gM",
+                          "name": "选中日期时长",
+                          "fill": "#B7A49D",
+                          "content": "周二 · 42 分钟",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "WnvR3",
+                      "name": "柱状图绘图区",
+                      "width": "fill_container",
+                      "height": 170,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "T0aAa",
+                          "x": 38,
+                          "y": 14,
+                          "name": "淡色参考线",
+                          "fill": "#332720",
+                          "width": 362,
+                          "height": 1
+                        },
+                        {
+                          "type": "text",
+                          "id": "f6L2W0",
+                          "x": 0,
+                          "y": 8,
+                          "name": "纵轴时长",
+                          "fill": "#95847D",
+                          "content": "3 时",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "r16AXU",
+                          "x": 38,
+                          "y": 57,
+                          "name": "淡色参考线",
+                          "fill": "#332720",
+                          "width": 362,
+                          "height": 1
+                        },
+                        {
+                          "type": "text",
+                          "id": "pMz9H",
+                          "x": 0,
+                          "y": 51,
+                          "name": "纵轴时长",
+                          "fill": "#95847D",
+                          "content": "2 时",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "AHDEs",
+                          "x": 38,
+                          "y": 100,
+                          "name": "淡色参考线",
+                          "fill": "#332720",
+                          "width": 362,
+                          "height": 1
+                        },
+                        {
+                          "type": "text",
+                          "id": "ufCN7",
+                          "x": 0,
+                          "y": 94,
+                          "name": "纵轴时长",
+                          "fill": "#95847D",
+                          "content": "1 时",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "Ww4C6",
+                          "x": 38,
+                          "y": 143,
+                          "name": "淡色参考线",
+                          "fill": "#332720",
+                          "width": 362,
+                          "height": 1
+                        },
+                        {
+                          "type": "text",
+                          "id": "QU6NS",
+                          "x": 0,
+                          "y": 137,
+                          "name": "纵轴时长",
+                          "fill": "#95847D",
+                          "content": "0",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": [
+                            4,
+                            4,
+                            0,
+                            0
+                          ],
+                          "id": "NoS1Y",
+                          "x": 52,
+                          "y": 31.200000000000003,
+                          "name": "周一收听156分钟",
+                          "fill": "#80665A",
+                          "width": 24,
+                          "height": 111.8
+                        },
+                        {
+                          "type": "text",
+                          "id": "oyC4x",
+                          "x": 59,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "一",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": [
+                            4,
+                            4,
+                            0,
+                            0
+                          ],
+                          "id": "ffV9g",
+                          "x": 101,
+                          "y": 112.9,
+                          "name": "周二收听42分钟",
+                          "fill": "#C4A496",
+                          "width": 24,
+                          "height": 30.1
+                        },
+                        {
+                          "type": "text",
+                          "id": "TkL28",
+                          "x": 108,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#F0DED8",
+                          "content": "二",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "B7SkQ",
+                          "x": 157,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "三",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "dXJTe",
+                          "x": 206,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "四",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "F2n7nq",
+                          "x": 255,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "五",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Q6wkd",
+                          "x": 304,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "六",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Q65k1e",
+                          "x": 353,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "日",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "SJ3px",
+                      "name": "图表操作说明",
+                      "fill": "#95847D",
+                      "content": "点选柱子查看时长 · 暂停和缓冲不计入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "uwqnx",
+                  "name": "列表日期筛选",
+                  "width": "fill_container",
+                  "height": 48,
+                  "gap": 24,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "wUzCE",
+                      "name": "全部",
+                      "fill": "#F0DED8",
+                      "content": "全部",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "bold"
+                    },
+                    {
+                      "type": "text",
+                      "id": "qOlT1",
+                      "name": "今天",
+                      "fill": "#95847D",
+                      "content": "今天",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "mDFv8",
+                      "name": "本周",
+                      "fill": "#95847D",
+                      "content": "本周",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "T7fadY",
+                      "name": "本月",
+                      "fill": "#95847D",
+                      "content": "本月",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "F7jCq",
+                  "name": "今天日期",
+                  "fill": "#B7A49D",
+                  "content": "今天 · 10 月 27 日",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "bold"
+                },
+                {
+                  "type": "frame",
+                  "id": "eoGqe",
+                  "name": "Pulse in Flora",
+                  "width": "fill_container",
+                  "height": 60,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "qlEvM",
+                      "name": "封面占位",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "#486360",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Vo3PD",
+                          "name": "封面音符",
+                          "fill": "#D9C5BC",
+                          "content": "♪",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 22,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ph8wS",
+                      "name": "歌曲信息",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "vtJFv",
+                          "name": "歌名",
+                          "fill": "#F0DED8",
+                          "content": "Pulse in Flora",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "bold"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Pb4UV",
+                          "name": "歌手及收听",
+                          "fill": "#A99790",
+                          "content": "Empty old City · 听了 3 分 42 秒",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "nsg4S",
+                      "name": "开始时间",
+                      "fill": "#95847D",
+                      "content": "18:32",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "R38Mzt",
+                  "name": "Winter Sparkler",
+                  "width": "fill_container",
+                  "height": 60,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "L3Y7h",
+                      "name": "封面占位",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "#67463C",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "qcHck",
+                          "name": "封面音符",
+                          "fill": "#D9C5BC",
+                          "content": "♪",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 22,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "stWlW",
+                      "name": "歌曲信息",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "asyFV",
+                          "name": "歌名",
+                          "fill": "#F0DED8",
+                          "content": "Winter Sparkler",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "bold"
+                        },
+                        {
+                          "type": "text",
+                          "id": "WYnxY",
+                          "name": "歌手及收听",
+                          "fill": "#A99790",
+                          "content": "明透 · 听了 4 分 08 秒",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "lkcdV",
+                      "name": "开始时间",
+                      "fill": "#95847D",
+                      "content": "18:28",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "RSL8H",
+                  "name": "深海",
+                  "width": "fill_container",
+                  "height": 60,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "ESDG8",
+                      "name": "封面占位",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "#39464E",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "P7pzz",
+                          "name": "封面音符",
+                          "fill": "#D9C5BC",
+                          "content": "♪",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 22,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "UwzAs",
+                      "name": "歌曲信息",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "qPupm",
+                          "name": "歌名",
+                          "fill": "#F0DED8",
+                          "content": "深海",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "bold"
+                        },
+                        {
+                          "type": "text",
+                          "id": "rHZvf",
+                          "name": "歌手及收听",
+                          "fill": "#A99790",
+                          "content": "花譜 · 听了 12 秒",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "cEYIx",
+                      "name": "开始时间",
+                      "fill": "#95847D",
+                      "content": "18:27",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "e9n33",
+                  "name": "昨天日期",
+                  "fill": "#B7A49D",
+                  "content": "昨天 · 10 月 26 日",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "bold"
+                },
+                {
+                  "type": "frame",
+                  "id": "tjrjZ",
+                  "name": "いつか",
+                  "width": "fill_container",
+                  "height": 60,
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "T7cd6p",
+                      "name": "封面占位",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "#504347",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "AaeTf",
+                          "name": "封面音符",
+                          "fill": "#D9C5BC",
+                          "content": "♪",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 22,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "PzUIC",
+                      "name": "歌曲信息",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "WKPTS",
+                          "name": "歌名",
+                          "fill": "#F0DED8",
+                          "content": "いつか",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 15,
+                          "fontWeight": "bold"
+                        },
+                        {
+                          "type": "text",
+                          "id": "cWoYh",
+                          "name": "歌手及收听",
+                          "fill": "#A99790",
+                          "content": "明透 · 听了 3 分 16 秒",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "M2F7KR",
+                      "name": "开始时间",
+                      "fill": "#95847D",
+                      "content": "22:10",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "K88W7T",
+                  "name": "统计说明",
+                  "fill": "#95847D",
+                  "content": "播放满 30 秒计一次；短曲完整听完也计一次。",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "lknG0",
+              "name": "历史记录 · 首次使用",
+              "width": 440,
+              "height": 1120,
+              "fill": "#1B120D",
+              "cornerRadius": 24,
+              "layout": "vertical",
+              "gap": 16,
+              "padding": [
+                32,
+                20,
+                20,
+                20
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "V2083Q",
+                  "name": "页面标题",
+                  "fill": "#F0DED8",
+                  "content": "历史记录",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 24,
+                  "fontWeight": "900"
+                },
+                {
+                  "type": "text",
+                  "id": "YlaVf",
+                  "name": "页面副标题",
+                  "fill": "#95847D",
+                  "content": "听过的音乐，留下的时光",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "m320y",
+                  "name": "收听统计与周期切换",
+                  "width": "fill_container",
+                  "height": 40,
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oCL7e",
+                      "name": "统计区标题",
+                      "fill": "#F0DED8",
+                      "content": "收听统计",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 16,
+                      "fontWeight": "bold"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "D5XQOH",
+                      "name": "统计周期",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "sCBQT",
+                          "name": "本周选中",
+                          "fill": "#F0DED8",
+                          "content": "本周",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "bold"
+                        },
+                        {
+                          "type": "text",
+                          "id": "KFyKX",
+                          "name": "本月",
+                          "fill": "#95847D",
+                          "content": "本月",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Eg0sw",
+                  "name": "收听统计",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "pBPZ6",
+                      "name": "统计行",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "xBqPK",
+                          "name": "今日收听",
+                          "width": "fill_container",
+                          "height": 84,
+                          "fill": "#251B16",
+                          "cornerRadius": 8,
+                          "layout": "vertical",
+                          "gap": 6,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "L6bsK",
+                              "name": "统计名称",
+                              "fill": "#B7A49D",
+                              "content": "今日收听",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "FxFps",
+                              "name": "统计值",
+                              "fill": "#F0DED8",
+                              "content": "0 分钟",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 22,
+                              "fontWeight": "bold"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "hT8rb",
+                          "name": "本周收听",
+                          "width": "fill_container",
+                          "height": 84,
+                          "fill": "#251B16",
+                          "cornerRadius": 8,
+                          "layout": "vertical",
+                          "gap": 6,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "ZsotI",
+                              "name": "统计名称",
+                              "fill": "#B7A49D",
+                              "content": "本周收听",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "UPYw7",
+                              "name": "统计值",
+                              "fill": "#F0DED8",
+                              "content": "0 分钟",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 22,
+                              "fontWeight": "bold"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "BItSa",
+                      "name": "统计行",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "KIUJx",
+                          "name": "本周播放",
+                          "width": "fill_container",
+                          "height": 84,
+                          "fill": "#251B16",
+                          "cornerRadius": 8,
+                          "layout": "vertical",
+                          "gap": 6,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "AjfBu",
+                              "name": "统计名称",
+                              "fill": "#B7A49D",
+                              "content": "本周播放",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "a4gJnS",
+                              "name": "统计值",
+                              "fill": "#F0DED8",
+                              "content": "0 次",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 22,
+                              "fontWeight": "bold"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "aYug3",
+                          "name": "本周歌曲",
+                          "width": "fill_container",
+                          "height": 84,
+                          "fill": "#251B16",
+                          "cornerRadius": 8,
+                          "layout": "vertical",
+                          "gap": 6,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "ysNrN",
+                              "name": "统计名称",
+                              "fill": "#B7A49D",
+                              "content": "本周不同歌曲",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "gO2ep",
+                              "name": "统计值",
+                              "fill": "#F0DED8",
+                              "content": "0 首",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 22,
+                              "fontWeight": "bold"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "U4yzyt",
+                  "name": "每日收听时长 · 暂无数据",
+                  "width": "fill_container",
+                  "height": 240,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "fH0uc",
+                      "name": "图表标题及选中值",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "L3SGB",
+                          "name": "图表标题",
+                          "fill": "#B7A49D",
+                          "content": "每日收听",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 13,
+                          "fontWeight": "bold"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ztOYV",
+                          "name": "选中日期时长",
+                          "fill": "#B7A49D",
+                          "content": "暂无收听数据",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Bd0uZ",
+                      "name": "柱状图绘图区",
+                      "width": "fill_container",
+                      "height": 170,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "Sw1GP",
+                          "x": 38,
+                          "y": 14,
+                          "name": "淡色参考线",
+                          "fill": "#332720",
+                          "width": 362,
+                          "height": 1
+                        },
+                        {
+                          "type": "text",
+                          "id": "Tbkml",
+                          "x": 0,
+                          "y": 8,
+                          "name": "纵轴时长",
+                          "fill": "#95847D",
+                          "content": "3 时",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "x4FoR",
+                          "x": 38,
+                          "y": 57,
+                          "name": "淡色参考线",
+                          "fill": "#332720",
+                          "width": 362,
+                          "height": 1
+                        },
+                        {
+                          "type": "text",
+                          "id": "CpB4K",
+                          "x": 0,
+                          "y": 51,
+                          "name": "纵轴时长",
+                          "fill": "#95847D",
+                          "content": "2 时",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "huTnc",
+                          "x": 38,
+                          "y": 100,
+                          "name": "淡色参考线",
+                          "fill": "#332720",
+                          "width": 362,
+                          "height": 1
+                        },
+                        {
+                          "type": "text",
+                          "id": "o80OQ",
+                          "x": 0,
+                          "y": 94,
+                          "name": "纵轴时长",
+                          "fill": "#95847D",
+                          "content": "1 时",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "yENhe",
+                          "x": 38,
+                          "y": 143,
+                          "name": "淡色参考线",
+                          "fill": "#332720",
+                          "width": 362,
+                          "height": 1
+                        },
+                        {
+                          "type": "text",
+                          "id": "K7RODY",
+                          "x": 0,
+                          "y": 137,
+                          "name": "纵轴时长",
+                          "fill": "#95847D",
+                          "content": "0",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "KGTHI",
+                          "x": 59,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "一",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "coKSH",
+                          "x": 108,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "二",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "v48gzD",
+                          "x": 157,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "三",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "NvR6S",
+                          "x": 206,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "四",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "PXAfb",
+                          "x": 255,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "五",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "cnXvp",
+                          "x": 304,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "六",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "I6DO9",
+                          "x": 353,
+                          "y": 151,
+                          "name": "星期",
+                          "fill": "#95847D",
+                          "content": "日",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "jX3n2",
+                      "name": "图表操作说明",
+                      "fill": "#95847D",
+                      "content": "开始播放后，这里会逐日积累收听时长。",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "WSwdl",
+                  "name": "列表日期筛选",
+                  "width": "fill_container",
+                  "height": 48,
+                  "gap": 24,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "GyIRY",
+                      "name": "全部",
+                      "fill": "#F0DED8",
+                      "content": "全部",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "bold"
+                    },
+                    {
+                      "type": "text",
+                      "id": "B7SgQF",
+                      "name": "今天",
+                      "fill": "#95847D",
+                      "content": "今天",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "nE1PM",
+                      "name": "本周",
+                      "fill": "#95847D",
+                      "content": "本周",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SjBxj",
+                      "name": "本月",
+                      "fill": "#95847D",
+                      "content": "本月",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "LhLMo",
+                  "name": "轻量空状态",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": [
+                    48,
+                    0,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "utjjR",
+                      "name": "空状态标题",
+                      "fill": "#F0DED8",
+                      "content": "还没有收听记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "bold"
+                    },
+                    {
+                      "type": "text",
+                      "id": "BRU3r",
+                      "name": "空状态说明",
+                      "fill": "#95847D",
+                      "content": "播放一首喜欢的歌，让音乐留下足迹。",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "t0szYN",
+                      "name": "空状态入口",
+                      "fill": "#F0DED8",
+                      "content": "去曲库听歌",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 14,
+                      "fontWeight": "bold"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

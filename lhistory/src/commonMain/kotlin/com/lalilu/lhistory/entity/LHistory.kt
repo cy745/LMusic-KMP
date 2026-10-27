@@ -16,6 +16,7 @@
 
 package com.lalilu.lhistory.entity
 
+import androidx.room3.ColumnInfo
 import androidx.room3.Entity
 import androidx.room3.PrimaryKey
 
@@ -45,4 +46,5 @@ data class LHistory(
     val duration: Long = -1L,
     val repeatCount: Int = 0,
     val startTime: Long = 0L,
+    @ColumnInfo(defaultValue = "0") val playCount: Int = 0,
 )

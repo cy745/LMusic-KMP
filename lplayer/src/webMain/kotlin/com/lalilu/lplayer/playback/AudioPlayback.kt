@@ -16,7 +16,7 @@ import org.w3c.files.BlobPropertyBag
 
 @Single(binds = [Playback::class])
 fun provideAudioPlayback(audioRepository: AudioRepository, history: PlaybackHistory,
-    platformMediaSource: PlatformMediaSource): CorePlayback {
+    platformMediaSource: PlatformMediaSource, tracker: IPlaybackDataTracker): CorePlayback {
     val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     PlaybackOutput.report(com.lalilu.playback.core.OutputCapabilities(
         backend = "HTMLAudioElement / 浏览器", original = com.lalilu.playback.core.Support.Unsupported,
@@ -25,7 +25,7 @@ fun provideAudioPlayback(audioRepository: AudioRepository, history: PlaybackHist
     val engine = BrowserAudioEngine(scope)
     return CorePlayback(scope, EngineAudioRuntime(scope, listOf(engine),
         volume = { _, value -> engine.setVolume(value) }, canFade = { true }),
-        platformMediaSource, audioRepository, history).also {
+        platformMediaSource, audioRepository, history, tracker).also {
         BrowserMediaSessionHelper.bindPlayback(it)
         it.startHistoryPlayback()
     }

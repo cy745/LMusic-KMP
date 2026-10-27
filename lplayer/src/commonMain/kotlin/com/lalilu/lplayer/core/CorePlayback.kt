@@ -42,7 +42,8 @@ open class CorePlayback(
         catch (error: Exception) { recordFailure(audio, classifyFailure(error)); throw error }
         currentCoroutineContext().ensureActive()
         runtime.resource(data, audio)
-    }, runtime, initialMode = history.historyStorage.savedPlaybackMode().toCore())
+    }, runtime, initialMode = history.historyStorage.savedPlaybackMode().toCore(),
+        onHistoryState = { state, completed -> tracker?.observeCore(state, items[state.selected]?.title, completed) })
     private val queueState = MutableStateFlow(QueueState())
     private val loading = MutableStateFlow(false)
     override val isLoading = loading.asStateFlow()
@@ -57,8 +58,6 @@ open class CorePlayback(
     private var historyRestorer: HistoryQueueRestorer? = null
     private var historyStarted = false
     private var lastError: Pair<Long, String>? = null
-    private var lastEpoch = -1L
-    private var lastPlaying = false
     private var controlRevision = 0L
     data class InterruptionToken(val revision: Long, val ticket: LoadTicket)
     override val isPlaying = playing.asStateFlow()
@@ -282,13 +281,6 @@ open class CorePlayback(
             if (stamp != lastError) { failures.tryEmit(IllegalStateException(error)); lastError = stamp }
         }
         if (state.error == null) lastError = null
-        if (lastEpoch != state.epoch && state.selected != null) {
-            val audio = items[state.selected]
-            tracker?.onMediaItemTransition(audio?.playbackId, audio?.title,
-                isRepeating = !changed, isNormalTransition = changed)
-            lastEpoch = state.epoch
-        }
-        if (lastPlaying != playing.value) { lastPlaying = playing.value; tracker?.onIsPlayingChanged(lastPlaying) }
         items.keys.retainAll(state.queue.toSet() + listOfNotNull(state.explicitNext))
     }
 }
