@@ -26,6 +26,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.painter.Painter
+import com.lalilu.extensions.LocalSharedCoverHandoff
+import com.lalilu.extensions.rememberSharedCoverRequest
 import coil3.compose.AsyncImagePainter
 import coil3.compose.LocalPlatformContext
 import coil3.compose.rememberAsyncImagePainter
@@ -34,7 +36,7 @@ import coil3.request.crossfade
 import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
-import com.lalilu.extensions.buildSharedMap
+import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.preview.PreviewPresets
 import com.lalilu.preview.preview
 
@@ -52,7 +54,7 @@ fun SongCard(
     onClick: () -> Unit = {},
     onLongClick: ((SharedMap) -> Unit)? = null,
 ) = SharedContext(
-    sharedMap = buildSharedMap(
+    sharedMap = rememberSharedMap(
         id = id,
         keys = listOf(
             "BOUND",
@@ -175,9 +177,12 @@ private fun RetainedSongCover(modifier: Modifier, model: Any?, identity: String)
     val request = remember(context, model, pixels) {
         ImageRequest.Builder(context).data(model).size(pixels).crossfade(false).build()
     }
-    val loader = rememberAsyncImagePainter(request)
+    val handoff = LocalSharedCoverHandoff.current
+    val loader = rememberAsyncImagePainter(rememberSharedCoverRequest(request))
     val result by loader.state.collectAsState()
-    RetainedSongCoverImage((result as? AsyncImagePainter.State.Success)?.painter, modifier)
+    val success = result as? AsyncImagePainter.State.Success
+    SideEffect { if (success != null) handoff?.displayed = success.result.memoryCacheKey }
+    RetainedSongCoverImage(success?.painter, modifier)
 }
 
 @Composable

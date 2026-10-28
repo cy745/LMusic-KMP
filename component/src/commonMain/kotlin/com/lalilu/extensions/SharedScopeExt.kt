@@ -66,11 +66,14 @@ fun buildSharedMap(
 }
 
 class SharedContextScope(
-    val sharedMap: SharedMap,
+    sharedMap: SharedMap,
     val sharedTransitionScope: SharedTransitionScope? = null,
     val defaultAnimationScope: AnimatedVisibilityScope? = null,
     val defaultConfig: SharedContentConfig? = null
 ) {
+    private val elementMap = sharedMap
+    val coverHandoff = SharedCoverHandoff(sharedMap.coverKey())
+    val sharedMap: SharedMap get() = elementMap.withCoverKey(coverHandoff.displayed)
     companion object {
         internal val PREVIEW_SCOPE by lazy {
             SharedContextScope(
@@ -270,7 +273,10 @@ fun SharedContext(
         )
     }
 
-    CompositionLocalProvider(LocalSharedMap provides sharedMap) {
+    CompositionLocalProvider(
+        LocalSharedMap provides sharedMap,
+        LocalSharedCoverHandoff provides scope.coverHandoff,
+    ) {
         scope.block()
     }
 }

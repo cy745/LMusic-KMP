@@ -88,25 +88,27 @@ object PlaylistScreen : Screen, ScreenInfoFactory, ScreenBarFactory {
             )
         )
 
-        PlaylistScreenContent(
-            searchKeyword = state.searchKeyWord,
-            onClearSearch = { vm.intent(PlaylistsAction.SearchFor("")) },
-            isSearching = { state.searchKeyWord.isNotBlank() && !state.showSearcherPanel },
-            onStartSearch = { vm.intent(PlaylistsAction.ShowSearcherPanel) },
-            isSelected = { vm.selector.isSelected(it) },
-            isSelecting = { vm.selector.isSelecting.value },
-            playlists = { vm.playlists.value },
-            onUpdatePlaylist = { vm.intent(PlaylistsAction.UpdatePlaylist(it)) },
-            onLongClickPlaylist = { vm.selector.onSelect(it) },
-            onClickPlaylist = {
-                if (vm.selector.isSelecting.value) {
-                    vm.selector.onSelect(it)
-                } else {
-                    AppRouter.route("/pages/playlist/detail")
-                        .with("playlistId", it.id)
-                        .push()
+        com.lalilu.component.LibraryQueryContent(vm.playlists, searching = state.searchKeyWord.isNotBlank()) {
+            PlaylistScreenContent(
+                searchKeyword = state.searchKeyWord,
+                onClearSearch = { vm.intent(PlaylistsAction.SearchFor("")) },
+                isSearching = { state.searchKeyWord.isNotBlank() && !state.showSearcherPanel },
+                onStartSearch = { vm.intent(PlaylistsAction.ShowSearcherPanel) },
+                isSelected = { vm.selector.isSelected(it) },
+                isSelecting = { vm.selector.isSelecting.value },
+                playlists = { vm.playlists.value },
+                onUpdatePlaylist = { vm.intent(PlaylistsAction.UpdatePlaylist(it)) },
+                onLongClickPlaylist = { vm.selector.onSelect(it) },
+                onClickPlaylist = {
+                    if (vm.selector.isSelecting.value) {
+                        vm.selector.onSelect(it)
+                    } else {
+                        AppRouter.route("/pages/playlist/detail")
+                            .with("playlistId", it.id)
+                            .push()
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 }

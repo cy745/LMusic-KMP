@@ -24,14 +24,11 @@ import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowSizeClass
-import coil3.compose.LocalPlatformContext
-import coil3.request.ImageRequest
 import com.lalilu.adaptive
 import com.lalilu.adaptiveValue
 import com.lalilu.animated
 import com.lalilu.extensions.PassThroughHelper
 import com.lalilu.extensions.SharedContext
-import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lhome.component.SongAlbumInfoCard
 import com.lalilu.lhome.screen.detail.MetadataInfos
@@ -52,6 +49,10 @@ import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.model.LAudioExtraKeys
 import com.lalilu.lmedia.domain.model.albumArtist
 import com.lalilu.lmedia.domain.model.albumName
+import com.lalilu.lmedia.domain.model.artistNames
+import com.lalilu.lmedia.domain.model.libraryArtistIds
+import com.lalilu.lmedia.domain.model.libraryAlbumId
+import com.lalilu.lmedia.domain.model.normalizeLibraryName
 import com.lalilu.lmedia.domain.model.artistName
 import com.lalilu.lmedia.domain.model.duration
 import com.lalilu.lmedia.domain.model.genre
@@ -66,7 +67,6 @@ import org.koin.core.parameter.parametersOf
 data class SongDetailScreen(
     val mediaId: String,
     val song: LAudio? = null,
-    val coverCacheKey: String? = null,
     val sharedMap: Map<String, String> = emptyMap(),
 ) : Screen, ScreenActionFactory {
     override val key: String = "${super.key}:$mediaId"
@@ -94,7 +94,6 @@ data class SongDetailScreen(
             song = song,
             albums = albumsList.orEmpty(),
             artists = artistsList.orEmpty(),
-            coverCacheKey = coverCacheKey,
             sharedMap = sharedMap
         )
     }
@@ -145,17 +144,30 @@ fun SongDetailScreenContent(
     song: LAudio? = null,
     albums: List<LAlbum> = emptyList(),
     artists: List<LArtist> = emptyList(),
-    coverCacheKey: String? = null,
     sharedMap: Map<String, String> = emptyMap(),
 ) = SharedContext(sharedMap = sharedMap) {
-    val context = LocalPlatformContext.current
-    val coverModel = rememberMediaCoverRequest(song)
-    val coverData = remember(coverModel, coverCacheKey) {
-        ImageRequest.Builder(context)
-            .placeholderMemoryCacheKey(coverCacheKey)
-            .data(coverModel)
-            .build()
+    // Navigation already carries the song metadata. Keep the same rows present while
+    // repository subscriptions start, instead of inserting them during the transition.
+    val displayedAlbums = remember(song, albums) {
+        albums.ifEmpty {
+            song?.let { listOf(LAlbum(
+                id = it.libraryAlbumId(),
+                title = normalizeLibraryName(it.albumName ?: "Unknown"),
+                subtitle = it.albumArtist?.let(::normalizeLibraryName).orEmpty(),
+            )) }.orEmpty()
+        }
     }
+    val displayedArtists = remember(song, artists) {
+        artists.ifEmpty {
+            song?.let { audio ->
+                audio.libraryArtistIds().zip(audio.artistNames()).map { (id, name) ->
+                    LArtist(id = id, title = name)
+                }
+            }.orEmpty()
+        }
+    }
+    val coverModel = rememberMediaCoverRequest(song)
+    val coverData = coverModel
     val songsInfo = remember(song) {
         val baseInfo = buildMap {
             song?.extra?.let(::putAll)
@@ -188,16 +200,16 @@ fun SongDetailScreenContent(
                 title = song?.title ?: "Unknown",
                 subtitle = song?.subtitle,
                 subtitleContent = { modifier ->
-                    if (artists.isNotEmpty()) {
+                    if (displayedArtists.isNotEmpty()) {
                         FlowRow(
                             modifier = modifier,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            artists.forEachIndexed { index, artist ->
+                            displayedArtists.forEachIndexed { index, artist ->
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (index > 0) {
-                                        Text("·", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 4.dp),
+                                        Text("·", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(end = 4.dp),
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
                                     }
                                     val interaction = remember(artist.id) { MutableInteractionSource() }
@@ -205,7 +217,7 @@ fun SongDetailScreenContent(
                                     val pressed by interaction.collectIsPressedAsState()
                                     Text(
                                         text = artist.title,
-                                        style = MaterialTheme.typography.bodySmall,
+                                        style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface.copy(
                                             alpha = if (hovered || pressed) 1f else 0.65f),
                                         modifier = Modifier.clickable(
@@ -217,14 +229,14 @@ fun SongDetailScreenContent(
                                                 .with("artistId", artist.id)
                                                 .with("artist", artist)
                                                 .push()
-                                        }.heightIn(min = 44.dp).wrapContentHeight(),
+                                        }.heightIn(min = 36.dp).wrapContentHeight(),
                                     )
                                 }
                             }
                         }
                     } else {
                         Text(song?.artistName.orEmpty(), modifier = modifier,
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
@@ -251,7 +263,7 @@ fun SongDetailScreenContent(
         }
 
         items(
-            items = albums,
+            items = displayedAlbums,
             key = { it.id }
         ) { album ->
             val paddingHorizontal = adaptiveValue(
@@ -274,14 +286,12 @@ fun SongDetailScreenContent(
                     .padding(top = 24.dp)
                     .padding(horizontal = paddingHorizontal.value),
                 album = album,
-                onClick = {
-                    val coverCacheKey = context.retrieveCacheKey(album)
+                onClick = { albumSharedMap ->
 
                     AppRouter.route("/pages/albums/detail")
                         .with("albumId", album.id)
                         .with("album", album)
-                        .with("sharedMap", sharedMap)
-                        .with("coverCacheKey", coverCacheKey)
+                        .with("sharedMap", albumSharedMap)
                         .push()
                 }
             )

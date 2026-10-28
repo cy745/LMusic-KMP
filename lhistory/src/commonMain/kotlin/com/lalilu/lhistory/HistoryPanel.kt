@@ -16,11 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil3.compose.LocalPlatformContext
 import com.lalilu.Slot
 import com.lalilu.adaptiveValue
 import com.lalilu.component.LazyGridContent
-import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lhistory.viewmodel.HistoryVM
 import com.lalilu.lmedia.component.AudioItemCard
 import com.lalilu.lmedia.isAudioPlayable
@@ -39,7 +37,6 @@ class HistoryPanel : LazyGridContent {
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
         val scope = rememberCoroutineScope()
-        val context = LocalPlatformContext.current
         val vm = koinViewModel<HistoryVM>()
 
         return fun LazyGridScope.() {
@@ -72,7 +69,9 @@ class HistoryPanel : LazyGridContent {
                 val items by vm.historyState
 
                 if (items.isEmpty()) {
-                    com.lalilu.component.LibraryEmptyState("还没有播放记录", "播放一首喜欢的歌，从这里继续聆听")
+                    com.lalilu.component.LibraryQueryContent(vm.historyState) {
+                        com.lalilu.component.LibraryEmptyState("还没有播放记录", "播放一首喜欢的歌，从这里继续聆听")
+                    }
                     return@item
                 }
 
@@ -111,12 +110,10 @@ class HistoryPanel : LazyGridContent {
                                         }
                                     },
                                     onNavigateToDetail = { sharedMap ->
-                                        val coverMemoryKey = context.retrieveCacheKey(audio)
 
                                         AppRouter.route("/song/detail")
                                             .with("mediaId", audio.playbackId)
                                             .with("song", audio)
-                                            .with("coverCacheKey", coverMemoryKey)
                                             .with("sharedMap", sharedMap)
                                             .jump()
                                     }

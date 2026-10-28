@@ -166,18 +166,20 @@ data class PlaylistDetailScreen(
             )
         )
 
-        PlaylistDetailScreenContent(
-            searchKeyword = state.searchKeyWord,
-            onClearSearch = { vm.intent(PlaylistDetailAction.SearchFor("")) },
-            songs = songs,
-            playlist = playlist,
-            enableDraggable = sortAction.value is SortRuleNormal,
-            keys = { vm.recorder.list().filterNotNull() },
-            recorder = { vm.recorder },
-            eventFlow = vm.eventFlow(),
-            selector = { vm.selector },
-            onClickGroup = { vm.intent(PlaylistDetailAction.ToggleJumperDialog) },
-            onUpdatePlaylist = { vm.intent(PlaylistDetailAction.UpdatePlaylist(it)) }
-        )
+        com.lalilu.component.LibraryQueryContent(vm.songs, searching = state.searchKeyWord.isNotBlank()) {
+            PlaylistDetailScreenContent(
+                searchKeyword = state.searchKeyWord,
+                onClearSearch = { vm.intent(PlaylistDetailAction.SearchFor("")) },
+                songs = songs,
+                playlist = playlist,
+                enableDraggable = sortAction.value is SortRuleNormal,
+                keys = { vm.recorder.list().filterNotNull() },
+                recorder = { vm.recorder },
+                eventFlow = vm.eventFlow(),
+                selector = { vm.selector },
+                onClickGroup = { vm.intent(PlaylistDetailAction.ToggleJumperDialog) },
+                onUpdatePlaylist = { vm.intent(PlaylistDetailAction.UpdatePlaylist(it)) }
+            )
+        }
     }
 }

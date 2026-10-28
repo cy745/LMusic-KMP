@@ -1,5 +1,7 @@
 package com.lalilu.lhome.viewmodel
 
+import com.lalilu.extensions.toQueryState
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lalilu.lhome.LHomeKV
@@ -24,20 +26,12 @@ class HomeScreenModel(
     lHomeKV: LHomeKV
 ) : ViewModel() {
 
-    val recentlyAdded: StateFlow<List<LAudio>> = audioRepository.getAudios()
+    val recentlyAdded = audioRepository.getAudios()
         .mapLatest { it.take(15) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Lazily,
-            initialValue = emptyList()
-        )
+        .toQueryState(emptyList(), viewModelScope)
 
-    val dailyRecommends: StateFlow<List<RecommendItem>> = dailyRecommendsUseCase.get()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Lazily,
-            initialValue = emptyList()
-        )
+    val dailyRecommends = dailyRecommendsUseCase.get()
+        .toQueryState(emptyList(), viewModelScope)
 
     init {
         dailyRecommendsUseCase.needsRefresh()

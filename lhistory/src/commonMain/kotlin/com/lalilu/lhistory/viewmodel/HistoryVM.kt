@@ -1,6 +1,8 @@
 @file:OptIn(kotlin.time.ExperimentalTime::class)
 package com.lalilu.lhistory.viewmodel
 
+import com.lalilu.extensions.toQueryState
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
@@ -38,7 +40,7 @@ class HistoryVM(
                 .map { it.first }.take(6)
             audioRepository.getPlaybackSlots(ids).map { it.filterNotNull() }
         }
-        .toState(emptyList(), viewModelScope)
+        .toQueryState(emptyList(), viewModelScope)
 
     val period = MutableStateFlow(StatsPeriod.Week)
     val filter = MutableStateFlow(HistoryFilter.All)

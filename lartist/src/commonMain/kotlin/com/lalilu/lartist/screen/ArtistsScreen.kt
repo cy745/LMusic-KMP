@@ -5,9 +5,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import coil3.compose.LocalPlatformContext
 import com.lalilu.RemixIcon
-import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lartist.lartist.generated.resources.Res
 import com.lalilu.lartist.lartist.generated.resources.artist_screen_title
@@ -84,7 +82,6 @@ data class ArtistsScreen(
         val artists by vm.artists
         val sortAction = vm.sorter.selectedAction.collectAsState()
         val sortConfig = vm.sorter.sortConfig.collectAsState()
-        val context = LocalPlatformContext.current
 
         SortPanelDialog(
             isVisible = { state.showSortPanel },
@@ -103,20 +100,20 @@ data class ArtistsScreen(
             onUpdateKeyword = { vm.intent(ArtistsAction.SearchFor(it)) }
         )
 
-        ArtistsScreenContent(
-            searchKeyword = state.searchKeyWord,
-            onClearSearch = { vm.intent(ArtistsAction.SearchFor("")) },
-            artists = artists,
-            onClickArtist = { artist, sharedMap ->
-                val coverCacheKey = context.retrieveCacheKey(artist)
+        com.lalilu.component.LibraryQueryContent(vm.artists, searching = state.searchKeyWord.isNotBlank()) {
+            ArtistsScreenContent(
+                searchKeyword = state.searchKeyWord,
+                onClearSearch = { vm.intent(ArtistsAction.SearchFor("")) },
+                artists = artists,
+                onClickArtist = { artist, sharedMap ->
 
-                AppRouter.route("/pages/artists/detail")
-                    .with("artistId", artist.id)
-                    .with("artist", artist)
-                    .with("sharedMap", sharedMap)
-                    .with("coverCacheKey", coverCacheKey)
-                    .push()
-            }
-        )
+                    AppRouter.route("/pages/artists/detail")
+                        .with("artistId", artist.id)
+                        .with("artist", artist)
+                        .with("sharedMap", sharedMap)
+                        .push()
+                }
+            )
+        }
     }
 }

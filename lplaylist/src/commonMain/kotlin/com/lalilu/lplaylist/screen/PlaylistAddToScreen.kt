@@ -17,6 +17,9 @@
 package com.lalilu.lplaylist.screen
 
 
+import com.lalilu.extensions.toQueryState
+import androidx.compose.runtime.rememberCoroutineScope
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
@@ -88,13 +91,15 @@ data class PlaylistAddToScreen(
         val playlistRepo = koinInject<PlaylistRepository>()
         val selector = remember { ItemSelector<LPlaylist>() }
             .also { this.selector = it }
-        val playlists = remember { playlistRepo.getPlaylistsFlow() }
-            .collectAsState(emptyList())
+        val scope = rememberCoroutineScope()
+        val playlists = remember(playlistRepo, scope) { playlistRepo.getPlaylistsFlow().toQueryState(emptyList(), scope) }
 
-        PlaylistAddToScreenContent(
-            mediaIds = mediaIds,
-            selector = selector,
-            playlists = { playlists.value }
-        )
+        com.lalilu.component.LibraryQueryContent(playlists) {
+            PlaylistAddToScreenContent(
+                mediaIds = mediaIds,
+                selector = selector,
+                playlists = { playlists.value }
+            )
+        }
     }
 }

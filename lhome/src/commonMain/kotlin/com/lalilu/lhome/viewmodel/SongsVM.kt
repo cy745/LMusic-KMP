@@ -1,5 +1,7 @@
 package com.lalilu.lhome.viewmodel
 
+import com.lalilu.extensions.queryState
+
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
@@ -83,8 +85,8 @@ class SongsVM(
     )
 
     val songs = stateFlow()
-        .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { state ->
+        .distinctUntilChangedBy { it.mediaIds to it.searchKeyWord }
+        .queryState(SortResult.empty(), viewModelScope) { state ->
             val keywords = when {
                 state.searchKeyWord.isBlank() -> emptyList()
                 state.searchKeyWord.contains(' ') -> state.searchKeyWord.split(' ')
@@ -93,10 +95,9 @@ class SongsVM(
             searchAudiosUseCase(
                 ids = state.mediaIds.ifEmpty { null },
                 keywords = keywords
-            )
+            ).doSort(sorter)
         }
-        .map { list -> list.map { it } }
-        .doSortState(sorter, viewModelScope)
+
     val state = stateFlow().toState(
         SongsState(mediaIds = mediaIds, searchKeyWord = initialKeyword),
         viewModelScope

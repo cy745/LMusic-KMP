@@ -1,5 +1,7 @@
 package com.lalilu.lalbum.viewmodel
 
+import com.lalilu.extensions.queryState
+
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
@@ -106,19 +108,13 @@ class AlbumDetailVM(
         .flatMapLatest { it.getAlbumFlow(albumRepository) }
         .toState(viewModelScope)
 
-    val songs = albumRepository.getAudiosByAlbum(albumId)
-        .flatMapLatest { audios ->
-            stateFlow().distinctUntilChangedBy { it.distinctKey }
-                .map { state ->
-                    if (state.searchKeyWord.isBlank()) return@map audios
-                    val keywords = if (state.searchKeyWord.contains(' '))
-                        state.searchKeyWord.split(' ') else listOf(state.searchKeyWord)
-                    audios.filter { audio ->
-                        keywords.all { "${audio.title}_${audio.subtitle}".contains(it, ignoreCase = true) }
-                    }
-                }
+    val songs = stateFlow().distinctUntilChangedBy { it.searchKeyWord }
+        .queryState(SortResult.empty(), viewModelScope) { state ->
+            albumRepository.getAudiosByAlbum(albumId).map { audios ->
+                val keywords = state.searchKeyWord.split(' ').filter { it.isNotBlank() }
+                audios.filter { audio -> keywords.all { "${audio.title}_${audio.subtitle}".contains(it, ignoreCase = true) } }
+            }.doSort(sorter)
         }
-        .doSortState(sorter, viewModelScope)
     val state = stateFlow()
         .toState(AlbumDetailState(albumId), viewModelScope)
 

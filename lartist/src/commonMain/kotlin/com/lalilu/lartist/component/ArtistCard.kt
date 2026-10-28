@@ -26,13 +26,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
+import com.lalilu.extensions.SharedCoverImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
-import com.lalilu.extensions.buildSharedMap
+import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.lmedia.domain.model.LArtist
 import com.lalilu.lmedia.domain.model.LAudio
 
@@ -43,7 +43,7 @@ fun ArtistCard(
     sharedMapPrefix: String = "",
     onClick: (SharedMap) -> Unit = {}
 ) = SharedContext(
-    sharedMap = buildSharedMap(
+    sharedMap = rememberSharedMap(
         id = artist.id,
         keys = listOf("TITLE", "SUBTITLE"),
         prefix = sharedMapPrefix
@@ -97,7 +97,7 @@ fun ArtistCard(
             )
 
             subTitle.takeIf { it.isNotBlank() }?.let { subtitle ->
-                val annotatedSubtitle = remember {
+                val annotatedSubtitle = remember(subtitle, title, primaryColor) {
                     buildAnnotatedString {
                         append(subtitle.substringBefore(title))
                         withStyle(SpanStyle(color = primaryColor)) { append(title) }
@@ -145,7 +145,7 @@ fun ArtistCard(
             ) {
                 val textColor = MaterialTheme.colorScheme.background
 
-                AsyncImage(
+                SharedCoverImage(
                     modifier = Modifier
                         .height(64.dp)
                         .drawWithContent {
@@ -153,7 +153,7 @@ fun ArtistCard(
                             drawRect(color = textColor, alpha = 0.5f)
                         }
                         .aspectRatio(2f / 1f),
-                    model = remember {
+                    model = remember(artist, context) {
                         ImageRequest.Builder(context)
                             .data(artist)
                             .crossfade(true)

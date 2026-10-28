@@ -20,7 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import com.lalilu.extensions.SharedCoverImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.rememberSharedMap
@@ -72,7 +72,7 @@ fun RecommendCard(
                     onClick = { onClick(sharedMap) }
                 )
         ) {
-            AsyncImage(
+            SharedCoverImage(
                 modifier = Modifier
                     .sharedElementV2("COVER")
                     .fillMaxWidth()
@@ -86,6 +86,7 @@ fun RecommendCard(
                     .clickable(
                         enabled = canInteract,
                         interactionSource = interactionSource,
+                        indication = null,
                         onClick = { onClick(sharedMap) }
                     )
                     .background(MaterialTheme.colorScheme.onBackground.copy(0.15f)),

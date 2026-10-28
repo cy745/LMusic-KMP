@@ -20,7 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import com.lalilu.extensions.SharedCoverImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
 import com.lalilu.extensions.rememberSharedMap
@@ -59,7 +59,12 @@ fun RecommendGroupCard(
 
     SharedContext(
         sharedMap = rememberSharedMap(
-            id = title,
+            id = when (group) {
+                is LAudio -> "audio:${group.playbackId}"
+                is LAlbum -> "album:${group.id}"
+                is LArtist -> "artist:${group.id}"
+                else -> title
+            },
             keys = listOf("TITLE", "SUBTITLE")
         )
     ) {
@@ -99,7 +104,7 @@ fun RecommendGroupCard(
                     )
                 }
 
-                AsyncImage(
+                SharedCoverImage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .fillMaxHeight(0.55f),

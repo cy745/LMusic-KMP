@@ -21,9 +21,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
+import com.lalilu.extensions.SharedCoverImage
 import com.lalilu.extensions.SharedContext
-import com.lalilu.extensions.buildSharedMap
+import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.lmedia.rememberMediaCoverRequest
 import com.lalilu.lmedia.audioPlaybackStatus
 import com.lalilu.lmedia.domain.model.LAudio
@@ -48,7 +48,7 @@ fun AudioItemCard(
     onPlay: () -> Unit = {},
     onNavigateToDetail: (sharedMap: Map<String, String>) -> Unit = {}
 ) = SharedContext(
-    sharedMap = buildSharedMap(
+    sharedMap = rememberSharedMap(
         id = id,
         keys = listOf("COVER", "TITLE", "SUBTITLE"),
         prefix = sharedMapPrefix
@@ -113,7 +113,7 @@ fun AudioItemCard(
             }
         }
 
-        AsyncImage(
+        SharedCoverImage(
             modifier = coverModifier
                 .sharedElementV2("COVER")
                 .size(64.dp)

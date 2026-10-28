@@ -14,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lalilu.component.LazyGridContent
 import com.lalilu.extensions.SharedMap
 import com.lalilu.lhome.component.RecommendCard
@@ -32,7 +31,7 @@ object DailyRecommend : LazyGridContent {
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
         val homeVM = koinViewModel<HomeScreenModel>()
-        val dailyRecommends = homeVM.dailyRecommends.collectAsStateWithLifecycle()
+        val dailyRecommends = homeVM.dailyRecommends
 
         return fun LazyGridScope.() {
             item(
@@ -57,19 +56,16 @@ object DailyRecommend : LazyGridContent {
 
             dailyRecommendForSideCompat(
                 items = { dailyRecommends.value },
+                queryState = dailyRecommends,
                 onClick = { item, sharedMap ->
-                    val id = when (item) {
-                        is RecommendItem.Audio -> item.audio.playbackId
-                        is RecommendItem.Album -> item.album.id
-                        is RecommendItem.Artist -> item.artist.id
-                    }
-
-                    AppRouter.route("/song/detail")
-                        .with("mediaId", id)
-                        .with("sharedMap", sharedMap)
-                        .with("song", (item as? RecommendItem.Audio)?.audio)
-                        .with("coverCacheKey", "")
-                        .jump()
+                    when (item) {
+                        is RecommendItem.Audio -> AppRouter.route("/song/detail")
+                            .with("mediaId", item.audio.playbackId).with("song", item.audio)
+                        is RecommendItem.Album -> AppRouter.route("/pages/albums/detail")
+                            .with("albumId", item.album.id).with("album", item.album)
+                        is RecommendItem.Artist -> AppRouter.route("/pages/artists/detail")
+                            .with("artistId", item.artist.id).with("artist", item.artist)
+                    }.with("sharedMap", sharedMap).jump()
                 }
             )
         }
@@ -79,6 +75,7 @@ object DailyRecommend : LazyGridContent {
 @OptIn(ExperimentalSharedTransitionApi::class)
 fun LazyGridScope.dailyRecommendForSideCompat(
     items: () -> List<RecommendItem>,
+    queryState: com.lalilu.extensions.LibraryQueryState<*>? = null,
     onClick: (RecommendItem, SharedMap) -> Unit = { _, _ -> }
 ) {
     item(
@@ -88,7 +85,11 @@ fun LazyGridScope.dailyRecommendForSideCompat(
     ) {
         val list = items()
         if (list.isEmpty()) {
-            com.lalilu.component.LibraryEmptyState("等待发现你的音乐", "曲库准备好后，来这里发现想听的歌曲")
+            val empty: @Composable () -> Unit = {
+                com.lalilu.component.LibraryEmptyState("等待发现你的音乐", "曲库准备好后，来这里发现想听的歌曲")
+            }
+            if (queryState != null) com.lalilu.component.LibraryQueryContent(queryState, content = empty)
+            else empty()
             return@item
         }
 

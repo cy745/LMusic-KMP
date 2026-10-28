@@ -93,6 +93,9 @@ data object HistoryScreen : Screen, ScreenInfoFactory, ScreenActionFactory {
                     HistoryFilter.entries.forEach { QuietChoice(it.label, filter == it, { vm.filter.value = it }) }
                 }
             }
+            if (entries.itemCount == 0 && entries.loadState.refresh is LoadState.Loading) {
+                item("loading") { com.lalilu.component.LibraryLoadingState() }
+            }
             if (entries.itemCount == 0 && entries.loadState.refresh is LoadState.NotLoading) {
                 item("empty") {
                     LibraryEmptyState(

@@ -46,6 +46,32 @@ class LibraryPresentationTest {
         onNodeWithText("第二位歌手").assertIsDisplayed().assertHasClickAction()
     }
 
+    @Test fun albumAndArtistLayoutIsStableWhileRepositoryStarts() = runDesktopComposeUiTest(width = 1000, height = 1200) {
+        val song = LAudio(id = "snapshot", title = "歌曲", mediaSourceName = "local",
+            extra = mapOf(
+                com.lalilu.lmedia.domain.model.LAudioExtraKeys.AlbumName to "首帧专辑",
+                com.lalilu.lmedia.domain.model.LAudioExtraKeys.ArtistName to "第一歌手 / 第二歌手",
+            ))
+        val albums = mutableStateOf(emptyList<com.lalilu.lmedia.domain.model.LAlbum>())
+        val artists = mutableStateOf(emptyList<LArtist>())
+        setContent { preview { SongDetailScreenContent(song, albums.value, artists.value) } }
+        onNode(hasText("首帧专辑") and hasContentDescription("Recommend Card Cover Image")).assertIsDisplayed()
+        onNodeWithText("第一歌手").assertHasClickAction()
+        val albumBounds = onNode(hasText("首帧专辑") and hasContentDescription("Recommend Card Cover Image")).fetchSemanticsNode().boundsInRoot
+        val artistBounds = onNodeWithText("第一歌手").fetchSemanticsNode().boundsInRoot
+        runOnIdle {
+            albums.value = listOf(com.lalilu.lmedia.domain.model.LAlbum(
+                id = "album_首帧专辑", title = "首帧专辑", extra = emptyMap()))
+            artists.value = song.libraryArtistIds().zip(song.artistNames()).map { (id, name) ->
+                LArtist(id = id, title = name, extra = emptyMap())
+            }
+        }
+        kotlin.test.assertEquals(albumBounds, onNode(hasText("首帧专辑") and hasContentDescription("Recommend Card Cover Image")).fetchSemanticsNode().boundsInRoot)
+        kotlin.test.assertEquals(artistBounds, onNodeWithText("第一歌手").fetchSemanticsNode().boundsInRoot)
+        runOnIdle { albums.value = albums.value.map { it.copy(title = "更新专辑") } }
+        onNodeWithText("更新专辑").assertIsDisplayed()
+    }
+
     @Test fun emptyStateRetainsReadableHeaderOnPhone() = runDesktopComposeUiTest(width = 390, height = 700) {
         setContent {
             preview {

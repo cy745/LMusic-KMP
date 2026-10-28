@@ -1,5 +1,7 @@
 package com.lalilu.lplaylist.viewmodel
 
+import com.lalilu.extensions.queryState
+
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
@@ -108,21 +110,20 @@ class PlaylistDetailVM(
     )
 
     val songs = combine(
-        stateFlow().distinctUntilChangedBy { it.distinctKey },
+        stateFlow().distinctUntilChangedBy { it.searchKeyWord },
         playlistRepo.getPlaylistsFlow().mapLatest { list ->
             list.firstOrNull { it.id == playlistId }?.mediaIds
         }
     ) { state, mediaIds -> state to mediaIds }
-        .flatMapLatest { (state, mediaIds) ->
+        .queryState(SortResult.empty(), viewModelScope) { (state, mediaIds) ->
             val keywords = when {
                 state.searchKeyWord.isBlank() -> emptyList()
                 state.searchKeyWord.contains(' ') -> state.searchKeyWord.split(' ')
                 else -> listOf(state.searchKeyWord)
             }
-            searchAudiosUseCase(playbackIds = mediaIds.orEmpty().distinct(), keywords = keywords)
+            searchAudiosUseCase(playbackIds = mediaIds.orEmpty().distinct(), keywords = keywords).doSort(sorter)
         }
-        .map { list -> list.map { it } }
-        .doSortState(sorter, viewModelScope)
+
     val playlist = stateFlow()
         .flatMapLatest { it.getPlaylistFlow(playlistRepo) }
         .toState(viewModelScope)

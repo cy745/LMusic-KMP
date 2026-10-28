@@ -18,6 +18,7 @@ package com.lalilu.navigation.smartbar
 
 
 import androidx.compose.foundation.layout.*
+import com.lalilu.component.LocalLibraryQuery
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,9 +51,11 @@ fun NavigatorHeader(
     rowExtraContent = extraContent,
     paddingValues = paddingValues,
     columnExtraContent = {
-        if (subTitle.isNotBlank()) {
+        val waitingForFirstResult = LocalLibraryQuery.current?.hasResult == false
+        if (subTitle.isNotBlank() || waitingForFirstResult) {
             Text(
-                text = subTitle,
+                // Use the same text metrics (including font scaling), without announcing a false zero.
+                text = if (waitingForFirstResult) " " else subTitle,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onBackground

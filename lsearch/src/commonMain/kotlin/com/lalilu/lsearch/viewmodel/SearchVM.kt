@@ -1,5 +1,7 @@
 package com.lalilu.lsearch.viewmodel
 
+import com.lalilu.extensions.queryState
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
@@ -29,7 +31,7 @@ import org.koin.core.annotation.Factory
  * single keyword. Each UseCase is re-driven whenever [SearchState.keyword]
  * changes. The UI always renders limited previews of all three result types.
  *
- * 三类结果都由 ViewModel 持有为热 StateFlow。这样页面跳转后返回时可以立即拿到上一次结果，
+ * 三类结果由 ViewModel 按关键词统一查询并持有最后成功快照。这样页面跳转后返回时可以立即拿到上一次结果，
  * 避免 LazyGrid 在冷 Flow 重新发射前短暂收到空列表、进而把已经恢复的滚动位置钳制到顶部。
  * 空关键词不会触发仓库搜索，也不会向 UI 暴露全量媒体数据。
  */
@@ -66,32 +68,19 @@ class SearchVM(
         initialValue = SearchRecommendationCandidates.Empty,
     )
 
-    /** Song results, reactively filtered by the current keyword. */
-    val audios: StateFlow<List<LAudio>> = stateFlow()
-        .distinctUntilChangedBy { it.keyword }
-        .flatMapLatest {
-            if (it.keyword.isBlank()) flowOf(emptyList())
-            else searchAudiosUseCase(keywords = splitKeywords(it.keyword))
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    data class Results(val audios: List<LAudio> = emptyList(), val albums: List<LAlbum> = emptyList(),
+        val artists: List<LArtist> = emptyList())
 
-    /** Album results, reactively filtered by the current keyword. */
-    val albums: StateFlow<List<LAlbum>> = stateFlow()
-        .distinctUntilChangedBy { it.keyword }
-        .flatMapLatest {
-            if (it.keyword.isBlank()) flowOf(emptyList())
-            else searchAlbumsUseCase(keywords = splitKeywords(it.keyword))
+    // Publish all three result types together for the same keyword.
+    val results = stateFlow().distinctUntilChangedBy { it.keyword }
+        .queryState(Results(), viewModelScope) { state ->
+            if (state.keyword.isBlank()) flowOf(Results())
+            else combine(
+                searchAudiosUseCase(keywords = splitKeywords(state.keyword)),
+                searchAlbumsUseCase(keywords = splitKeywords(state.keyword)),
+                searchArtistsUseCase(keywords = splitKeywords(state.keyword)),
+            ) { audios, albums, artists -> Results(audios, albums, artists) }
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    /** Artist results, reactively filtered by the current keyword. */
-    val artists: StateFlow<List<LArtist>> = stateFlow()
-        .distinctUntilChangedBy { it.keyword }
-        .flatMapLatest {
-            if (it.keyword.isBlank()) flowOf(emptyList())
-            else searchArtistsUseCase(keywords = splitKeywords(it.keyword))
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val state = stateFlow()
         .stateIn(

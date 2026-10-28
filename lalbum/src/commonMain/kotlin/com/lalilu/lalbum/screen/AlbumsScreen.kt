@@ -5,9 +5,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import coil3.compose.LocalPlatformContext
 import com.lalilu.RemixIcon
-import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.krouter.annotation.Destination
 import com.lalilu.lalbum.lalbum.generated.resources.Res
 import com.lalilu.lalbum.lalbum.generated.resources.album_screen_title
@@ -92,7 +90,6 @@ data class AlbumsScreen(
         val albums by vm.albums
         val sortAction = vm.sorter.selectedAction.collectAsState()
         val sortConfig = vm.sorter.sortConfig.collectAsState()
-        val context = LocalPlatformContext.current
 
         SortPanelDialog(
             isVisible = { state.showSortPanel },
@@ -111,21 +108,21 @@ data class AlbumsScreen(
             onUpdateKeyword = { vm.intent(AlbumsAction.SearchFor(it)) }
         )
 
-        AlbumsScreenContent(
-            searchKeyword = state.searchKeyWord,
-            onClearSearch = { vm.intent(AlbumsAction.SearchFor("")) },
-            albums = albums,
-            showText = { state.showText },
-            onClickAlbum = { album, sharedMap ->
-                val coverCacheKey = context.retrieveCacheKey(album)
+        com.lalilu.component.LibraryQueryContent(vm.albums, searching = state.searchKeyWord.isNotBlank()) {
+            AlbumsScreenContent(
+                searchKeyword = state.searchKeyWord,
+                onClearSearch = { vm.intent(AlbumsAction.SearchFor("")) },
+                albums = albums,
+                showText = { state.showText },
+                onClickAlbum = { album, sharedMap ->
 
-                AppRouter.route("/pages/albums/detail")
-                    .with("albumId", album.id)
-                    .with("album", album)
-                    .with("sharedMap", sharedMap)
-                    .with("coverCacheKey", coverCacheKey)
-                    .push()
-            }
-        )
+                    AppRouter.route("/pages/albums/detail")
+                        .with("albumId", album.id)
+                        .with("album", album)
+                        .with("sharedMap", sharedMap)
+                        .push()
+                }
+            )
+        }
     }
 }

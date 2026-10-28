@@ -25,8 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.LocalPlatformContext
-import coil3.request.ImageRequest
 import com.lalilu.common.ext.md5
 import com.lalilu.extensions.*
 import com.lalilu.lartist.component.ArtistCard
@@ -57,7 +55,6 @@ internal fun ArtistDetailScreenContent(
     searchKeyword: String = "",
     onClearSearch: () -> Unit = {},
     sharedMap: SharedMap = emptyMap(),
-    coverCacheKey: String? = null,
     eventFlow: Flow<ArtistDetailEvent> = emptyFlow(),
     keys: () -> Collection<Any> = { emptyList() },
     recorder: () -> ItemRecorder,
@@ -67,7 +64,6 @@ internal fun ArtistDetailScreenContent(
     onClickPlayAll: () -> Unit = {},
 ) = SharedContext(sharedMap) {
     val sharedMapPrefix = remember { "${artist?.id?.md5()}:" }
-    val context = LocalPlatformContext.current
     val density = LocalDensity.current
     val listState: LazyListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -112,12 +108,7 @@ internal fun ArtistDetailScreenContent(
         }
     }
 
-    val coverData = remember(artist) {
-        ImageRequest.Builder(context)
-            .placeholderMemoryCacheKey(coverCacheKey)
-            .data(artist)
-            .build()
-    }
+    val coverData = artist
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -129,12 +120,13 @@ internal fun ArtistDetailScreenContent(
         startRecord(recorder()) {
             item {
                 val primaryColor = MaterialTheme.colorScheme.primary
-                val annotatedSubtitle = remember(artist, songs.itemList.size, primaryColor) {
+                val hasResult = com.lalilu.component.libraryQueryHasResult()
+                val annotatedSubtitle = remember(artist, songs.itemList.size, primaryColor, hasResult) {
                     val title = artist?.title ?: "Unknown"
                     val subtitle = artist?.subtitle?.takeIf { it.isNotBlank() }
                     buildAnnotatedString {
                         if (subtitle == null) {
-                            append("${songs.itemList.size} 首歌曲")
+                            if (hasResult) append("${songs.itemList.size} 首歌曲")
                             return@buildAnnotatedString
                         }
 
@@ -255,12 +247,10 @@ internal fun ArtistDetailScreenContent(
                             }
                         },
                         onNavigateToDetail = { sharedMap ->
-                            val coverMemoryKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/song/detail")
                                 .with("mediaId", item.playbackId)
                                 .with("song", item)
-                                .with("coverCacheKey", coverMemoryKey)
                                 .with("sharedMap", sharedMap)
                                 .jump()
                         }
@@ -293,13 +283,11 @@ internal fun ArtistDetailScreenContent(
                         artist = item,
                         sharedMapPrefix = "detail",
                         onClick = { sharedMap ->
-                            val coverCacheKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/pages/artists/detail")
                                 .with("artistId", item.id)
                                 .with("artist", item)
                                 .with("sharedMap", sharedMap)
-                                .with("coverCacheKey", coverCacheKey)
                                 .push()
                         }
                     )

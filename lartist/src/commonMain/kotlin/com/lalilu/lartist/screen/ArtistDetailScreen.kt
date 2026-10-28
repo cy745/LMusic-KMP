@@ -30,7 +30,6 @@ import org.koin.core.qualifier.named
 data class ArtistDetailScreen(
     val artistId: String,
     val artist: LArtist? = null,
-    val coverCacheKey: String? = null,
     val sharedMap: Map<String, String> = emptyMap(),
 ) : Screen, ScreenInfoFactory, ScreenActionFactory, ScreenBarFactory {
     override val key: String = "${super.key}:$artistId"
@@ -167,37 +166,38 @@ data class ArtistDetailScreen(
         )
 
         val scope = rememberCoroutineScope()
-        ArtistDetailScreenContent(
-            songs = songs,
-            searchKeyword = state.searchKeyWord,
-            onClearSearch = { vm.intent(ArtistDetailAction.SearchFor("")) },
-            artist = currentArtist,
-            relatedArtists = state.relatedArtists,
-            sharedMap = sharedMap,
-            coverCacheKey = coverCacheKey,
-            keys = { vm.recorder.list().filterNotNull() },
-            recorder = { vm.recorder },
-            eventFlow = vm.eventFlow(),
-            selector = { vm.selector },
-            onClickGroup = { vm.intent(ArtistDetailAction.ToggleJumperDialog) },
-            onClickAddToPlaylist = {
-                currentArtist?.let {
+        com.lalilu.component.LibraryQueryContent(vm.songs, searching = state.searchKeyWord.isNotBlank()) {
+            ArtistDetailScreenContent(
+                songs = songs,
+                searchKeyword = state.searchKeyWord,
+                onClearSearch = { vm.intent(ArtistDetailAction.SearchFor("")) },
+                artist = currentArtist,
+                relatedArtists = state.relatedArtists,
+                sharedMap = sharedMap,
+                keys = { vm.recorder.list().filterNotNull() },
+                recorder = { vm.recorder },
+                eventFlow = vm.eventFlow(),
+                selector = { vm.selector },
+                onClickGroup = { vm.intent(ArtistDetailAction.ToggleJumperDialog) },
+                onClickAddToPlaylist = {
+                    currentArtist?.let {
+                        scope.launch {
+                            PlayerAction.UpdateList(
+                                ids = songs.itemList.map { it.playbackId },
+                                start = false
+                            ).action()
+                        }
+                    }
+                },
+                onClickPlayAll = {
                     scope.launch {
                         PlayerAction.UpdateList(
                             ids = songs.itemList.map { it.playbackId },
-                            start = false
+                            start = true
                         ).action()
                     }
                 }
-            },
-            onClickPlayAll = {
-                scope.launch {
-                    PlayerAction.UpdateList(
-                        ids = songs.itemList.map { it.playbackId },
-                        start = true
-                    ).action()
-                }
-            }
-        )
+            )
+        }
     }
 }

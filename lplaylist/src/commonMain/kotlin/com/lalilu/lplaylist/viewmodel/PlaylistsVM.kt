@@ -16,6 +16,8 @@
 
 package com.lalilu.lplaylist.viewmodel
 
+import com.lalilu.extensions.queryState
+
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
@@ -84,9 +86,8 @@ class PlaylistsVM(private val playlistRepo: PlaylistRepository) : ViewModel(),
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val playlists = stateFlow()
-        .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { it.getPlaylistsFlow(playlistRepo) }
-        .toState(emptyList(), viewModelScope)
+        .distinctUntilChangedBy { it.searchKeyWord }
+        .queryState(emptyList(), viewModelScope) { it.getPlaylistsFlow(playlistRepo) }
 
     val state = stateFlow().toState(PlaylistsState(), viewModelScope)
 

@@ -20,8 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import coil3.compose.LocalPlatformContext
-import coil3.request.ImageRequest
 import com.lalilu.common.ext.md5
 import com.lalilu.extensions.*
 import com.lalilu.lalbum.viewmodel.AlbumDetailEvent
@@ -50,7 +48,6 @@ internal fun AlbumDetailScreenContent(
     searchKeyword: String = "",
     onClearSearch: () -> Unit = {},
     sharedMap: SharedMap = emptyMap(),
-    coverCacheKey: String? = null,
     eventFlow: Flow<AlbumDetailEvent> = emptyFlow(),
     keys: () -> Collection<Any> = { emptyList() },
     recorder: () -> ItemRecorder,
@@ -60,7 +57,6 @@ internal fun AlbumDetailScreenContent(
     onClickPlayAll: () -> Unit = {},
 ) = SharedContext(sharedMap) {
     val sharedMapPrefix = remember { "${album?.id?.md5()}:" }
-    val context = LocalPlatformContext.current
     val density = LocalDensity.current
     val listState: LazyListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -107,12 +103,7 @@ internal fun AlbumDetailScreenContent(
         }
     }
 
-    val coverData = remember(album) {
-        ImageRequest.Builder(context)
-            .placeholderMemoryCacheKey(coverCacheKey)
-            .data(album)
-            .build()
-    }
+    val coverData = album
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -226,12 +217,10 @@ internal fun AlbumDetailScreenContent(
                             }
                         },
                         onNavigateToDetail = { sharedMap ->
-                            val coverMemoryKey = context.retrieveCacheKey(item)
 
                             AppRouter.route("/song/detail")
                                 .with("mediaId", item.playbackId)
                                 .with("song", item)
-                                .with("coverCacheKey", coverMemoryKey)
                                 .with("sharedMap", sharedMap)
                                 .jump()
                         }

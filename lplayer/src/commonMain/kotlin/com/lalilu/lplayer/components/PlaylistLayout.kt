@@ -15,9 +15,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import coil3.compose.LocalPlatformContext
 import com.lalilu.extensions.Item
-import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.extensions.rotationalDiff
 import com.lalilu.lmedia.audioPlaybackStatus
 import com.lalilu.lmedia.domain.model.AudioPlaybackPresentation
@@ -52,7 +50,6 @@ fun PlaylistLayout(
     contentPadding: PaddingValues = PaddingValues(bottom = 200.dp),
     items: Flow<PlaylistItems>
 ) {
-    val context = LocalPlatformContext.current
     var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
     val pendingNext by LPlayer.instance.pendingNext.collectAsState()
@@ -160,13 +157,11 @@ fun PlaylistLayout(
                     subtitle = data.subtitle,
                     onClick = { PlayerAction.PlayByKey(data.mediaKey).action() },
                     onLongClick = { sharedMap ->
-                        val coverMemoryKey = context.retrieveCacheKey(item)
 
                         AppRouter.route("/song/detail")
                             .with("mediaId", data.playbackId)
                             .with("song", data)
                             .with("sharedMap", sharedMap)
-                            .with("coverCacheKey", coverMemoryKey)
                             .jump()
                         // 展开播放页底栏由 AppRouter 末尾的 SheetExpandInterceptor 统一处理，
                         // 无需在此手动 bottomSheetState.show()

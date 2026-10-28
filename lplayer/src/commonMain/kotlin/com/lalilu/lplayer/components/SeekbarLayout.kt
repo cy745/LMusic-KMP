@@ -172,8 +172,8 @@ fun SeekbarLayout(
             if (old == next) return
 
             seekbarState.value = next
-            // 拖动进度条本身不振动：只有"切到别的交互状态"（取消、切换播放模式）才给一次反馈
-            if (next != SeekbarState.ProgressBar) {
+            // 普通拖动及松手复位不振动；进入取消、模式切换等交互状态才反馈。
+            if (next != SeekbarState.ProgressBar && next != SeekbarState.Idle) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             }
 

@@ -20,6 +20,10 @@ import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.lalilu.extensions.SharedContext
+import com.lalilu.extensions.SharedMap
+import com.lalilu.extensions.rememberSharedMap
+import com.lalilu.extensions.SharedCoverImage
 import com.lalilu.component.WrapBox
 import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.domain.model.LAudio
@@ -30,16 +34,17 @@ import com.lalilu.preview.preview
 fun SongAlbumInfoCard(
     modifier: Modifier = Modifier,
     album: LAlbum,
-    onClick: () -> Unit = {}
-) {
+    onClick: (SharedMap) -> Unit = {}
+) = SharedContext(rememberSharedMap(album.id, listOf("COVER"), prefix = "song-album:")) {
     val imageData = remember(album) { album }
 
     SongAlbumInfoCard(
         modifier = modifier,
         imageData = imageData,
+        coverModifier = Modifier.sharedElementV2("COVER"),
         title = album.title,
         subTitle = album.subtitle,
-        onClick = onClick
+        onClick = { onClick(sharedMap) }
     )
 }
 
@@ -47,6 +52,7 @@ fun SongAlbumInfoCard(
 fun SongAlbumInfoCard(
     modifier: Modifier = Modifier,
     imageData: Any,
+    coverModifier: Modifier = Modifier,
     title: String,
     subTitle: String? = null,
     onClick: () -> Unit = {}
@@ -82,8 +88,8 @@ fun SongAlbumInfoCard(
                     .padding(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                AsyncImage(
-                    modifier = Modifier
+                SharedCoverImage(
+                    modifier = coverModifier
                         .size(72.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .border(

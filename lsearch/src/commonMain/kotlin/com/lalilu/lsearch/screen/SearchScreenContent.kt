@@ -15,11 +15,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.LocalPlatformContext
 import com.lalilu.adaptiveValue
 import com.lalilu.component.MultiLayout
 import com.lalilu.extensions.PassThroughHelper
-import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lalbum.component.AlbumCard
 import com.lalilu.lartist.component.ArtistCard
 import com.lalilu.lmedia.component.AudioItemCard
@@ -93,9 +91,10 @@ fun SearchScreenContent(
 ) {
     val state by vm.state.collectAsState()
 
-    val audios by remember(vm) { vm.audios }.collectAsState()
-    val albums by remember(vm) { vm.albums }.collectAsState()
-    val artists by remember(vm) { vm.artists }.collectAsState()
+    val results by vm.results
+    val audios = results.audios
+    val albums = results.albums
+    val artists = results.artists
     val listState = rememberLazyGridState()
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -125,6 +124,7 @@ fun SearchScreenContent(
     SearchResultList(
         modifier = modifier,
         keyword = state.keyword,
+        queryState = vm.results,
         spanRule = spanRule,
         audios = audios,
         albums = albums,
@@ -148,6 +148,7 @@ fun SearchScreenContent(
 private fun SearchResultList(
     modifier: Modifier = Modifier,
     keyword: String,
+    queryState: com.lalilu.extensions.LibraryQueryState<*>,
     spanRule: GridSpanRule,
     audios: List<LAudio>,
     albums: List<LAlbum>,
@@ -205,10 +206,12 @@ private fun SearchResultList(
                         span = GRID_COLUMNS,
                         paddingValues = pageHorizontalPadding
                     ) {
-                        EmptyHint(
-                            modifier = Modifier.height(emptyStateHeight),
-                            text = stringResource(Res.string.search_empty_no_results)
-                        )
+                        com.lalilu.component.LibraryQueryContent(queryState, searching = true) {
+                            com.lalilu.component.LibraryEmptyState(
+                                "没有找到相关内容", "试试其他歌名、歌手或专辑关键词",
+                                contentPadding = PaddingValues(start = 4.dp, end = 4.dp, top = 56.dp, bottom = 32.dp),
+                            )
+                        }
                     }
                     return@gap
                 }
@@ -304,9 +307,7 @@ private fun navigateToResultList(route: String, keyword: String) {
 
 @Composable
 private fun AudioCardItem(audio: LAudio, allAudios: List<LAudio>) {
-    val context = LocalPlatformContext.current
     val scope = rememberCoroutineScope()
-    val coverCacheKey = remember(audio) { context.retrieveCacheKey(audio) }
 
     AudioItemCard(
         modifier = Modifier
@@ -330,7 +331,6 @@ private fun AudioCardItem(audio: LAudio, allAudios: List<LAudio>) {
             AppRouter.route("/song/detail")
                 .with("mediaId", audio.playbackId)
                 .with("song", audio)
-                .with("coverCacheKey", coverCacheKey)
                 .with("sharedMap", sharedMap)
                 .jump()
         }
@@ -339,8 +339,6 @@ private fun AudioCardItem(audio: LAudio, allAudios: List<LAudio>) {
 
 @Composable
 private fun AlbumCardItem(album: LAlbum) {
-    val context = LocalPlatformContext.current
-    val coverCacheKey = remember(album) { context.retrieveCacheKey(album) }
 
     AlbumCard(
         modifier = Modifier
@@ -351,7 +349,6 @@ private fun AlbumCardItem(album: LAlbum) {
             AppRouter.route("/pages/albums/detail")
                 .with("albumId", album.id)
                 .with("album", album)
-                .with("coverCacheKey", coverCacheKey)
                 .with("sharedMap", sharedMap)
                 .push()
         }
@@ -360,8 +357,6 @@ private fun AlbumCardItem(album: LAlbum) {
 
 @Composable
 private fun ArtistCardItem(artist: LArtist) {
-    val context = LocalPlatformContext.current
-    val coverCacheKey = remember(artist) { context.retrieveCacheKey(artist) }
 
     ArtistCard(
         modifier = Modifier
@@ -373,7 +368,6 @@ private fun ArtistCardItem(artist: LArtist) {
             AppRouter.route("/pages/artists/detail")
                 .with("artistId", artist.id)
                 .with("artist", artist)
-                .with("coverCacheKey", coverCacheKey)
                 .with("sharedMap", sharedMap)
                 .push()
         }

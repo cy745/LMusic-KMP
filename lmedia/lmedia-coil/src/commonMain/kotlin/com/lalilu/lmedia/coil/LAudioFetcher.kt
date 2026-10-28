@@ -88,12 +88,12 @@ class LAudioFetcherFactory : Fetcher.Factory<LAudio>, KoinComponent {
 
 class LAudioKeyer : Keyer<LAudio>, KoinComponent {
     private val platformMediaSource by inject<PlatformMediaSource>()
-    private val sourceMap by lazy { platformMediaSource.sources.associateBy { it.name } }
 
     override fun key(data: LAudio, options: Options): String? {
-        val generation = sourceMap[data.mediaSourceName]
+        val generation = platformMediaSource.findSource(data.mediaSourceName)
             ?.contentState
             ?.value
+            ?.forItem(data.id)
             ?.generation
             ?: 0L
         return mediaCoverCacheKey(data, generation)

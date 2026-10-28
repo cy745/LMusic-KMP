@@ -27,10 +27,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
+import com.lalilu.extensions.SharedCoverImage
 import com.lalilu.extensions.SharedContext
 import com.lalilu.extensions.SharedMap
-import com.lalilu.extensions.buildSharedMap
+import com.lalilu.extensions.rememberSharedMap
 import com.lalilu.lmedia.domain.model.LAlbum
 
 @Composable
@@ -40,7 +40,7 @@ fun AlbumCard(
     showTitle: () -> Boolean = { true },
     onClick: (SharedMap) -> Unit = {}
 ) {
-    val item = remember { album() }
+    val item = album()
 
     AlbumCard(
         modifier = modifier,
@@ -61,7 +61,7 @@ fun AlbumCard(
     showTitle: () -> Boolean = { true },
     onClick: (SharedMap) -> Unit = {}
 ) = SharedContext(
-    sharedMap = buildSharedMap(
+    sharedMap = rememberSharedMap(
         id = id,
         keys = listOf(
             "BOUND",
@@ -163,7 +163,7 @@ fun AlbumCoverCard(
             )
             .alpha(pressedAlpha)
     ) {
-        AsyncImage(
+        SharedCoverImage(
             modifier = Modifier.fillMaxWidth(),
             model = imageData(),
             contentScale = ContentScale.Crop,

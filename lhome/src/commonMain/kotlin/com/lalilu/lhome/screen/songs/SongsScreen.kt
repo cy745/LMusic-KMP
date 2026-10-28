@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import coil3.compose.LocalPlatformContext
 import com.lalilu.RemixIcon
 import com.lalilu.common.ext.requestFor
 import com.lalilu.extensions.*
@@ -185,16 +184,18 @@ data class SongsScreen(
             )
         )
 
-        SongsScreenContent(
-            audioRepo = audioRepo,
-            recorder = { vm.recorder },
-            selector = { vm.selector },
-            state = { state },
-            songs = { songs },
-            eventFlow = { vm.eventFlow() },
-            onClickGroup = { vm.intent(SongsAction.ToggleJumperDialog) },
-            onClearSearch = { vm.intent(SongsAction.SearchFor("")) }
-        )
+        com.lalilu.component.LibraryQueryContent(vm.songs, searching = state.searchKeyWord.isNotBlank()) {
+            SongsScreenContent(
+                audioRepo = audioRepo,
+                recorder = { vm.recorder },
+                selector = { vm.selector },
+                state = { state },
+                songs = { songs },
+                eventFlow = { vm.eventFlow() },
+                onClickGroup = { vm.intent(SongsAction.ToggleJumperDialog) },
+                onClearSearch = { vm.intent(SongsAction.SearchFor("")) }
+            )
+        }
     }
 }
 
@@ -213,7 +214,6 @@ fun SongsScreenContent(
     val songs: SortResult<LAudio> = songs()
     val state: SongsState = state()
     val scope = rememberCoroutineScope()
-    val context = LocalPlatformContext.current
     val density = LocalDensity.current
 
     val statusBar = WindowInsets.statusBars
@@ -331,11 +331,9 @@ fun SongsScreenContent(
                             }
                         },
                         onNavigateToDetail = { sharedMap ->
-                            val coverMemoryKey = context.retrieveCacheKey(item)
                             AppRouter.route("/song/detail")
                                 .with("mediaId", item.playbackId)
                                 .with("song", item)
-                                .with("coverCacheKey", coverMemoryKey)
                                 .with("sharedMap", sharedMap)
                                 .jump()
                         },

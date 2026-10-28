@@ -12,7 +12,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
-import coil3.compose.LocalPlatformContext
 import com.lalilu.RemixIcon
 import org.jetbrains.compose.resources.vectorResource
 import com.lalilu.extensions.*
@@ -52,7 +51,6 @@ internal fun PlaylistDetailScreenContent(
     onUpdatePlaylist: (List<String>) -> Unit = {}
 ) {
     val hapticFeedback = LocalHapticFeedback.current
-    val context = LocalPlatformContext.current
     val density = LocalDensity.current
     val statusBar = WindowInsets.statusBars
     val listState: LazyListState = rememberLazyListState()
@@ -187,12 +185,10 @@ internal fun PlaylistDetailScreenContent(
                                 }
                             },
                             onNavigateToDetail = { sharedMap ->
-                                val coverMemoryKey = context.retrieveCacheKey(item)
 
                                 AppRouter.route("/song/detail")
                                     .with("mediaId", item.playbackId)
                                     .with("song", item)
-                                    .with("coverCacheKey", coverMemoryKey)
                                     .with("sharedMap", sharedMap)
                                     .jump()
                             }
@@ -251,12 +247,10 @@ internal fun PlaylistDetailScreenContent(
                                 }
                             },
                             onNavigateToDetail = { sharedMap ->
-                                val coverMemoryKey = context.retrieveCacheKey(item)
 
                                 AppRouter.route("/song/detail")
                                     .with("mediaId", item.playbackId)
                                     .with("song", item)
-                                    .with("coverCacheKey", coverMemoryKey)
                                     .with("sharedMap", sharedMap)
                                     .jump()
                             }

@@ -29,6 +29,17 @@ fun LibraryEmptyState(
     actionLabel: String? = null,
     onAction: () -> Unit = {},
 ) {
+    val query = LocalLibraryQuery.current
+    if (query?.loading == true) {
+        LibraryLoadingState(modifier, query.searching, contentPadding)
+        return
+    }
+    if (query?.failed == true) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalLibraryQuery provides null) {
+            LibraryEmptyState("暂时无法读取", "请稍后重试", modifier, contentPadding, "重试", query.retry)
+        }
+        return
+    }
     Column(
         modifier = modifier.fillMaxWidth().padding(contentPadding),
         horizontalAlignment = Alignment.Start,

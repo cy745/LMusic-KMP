@@ -10,13 +10,10 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil3.compose.LocalPlatformContext
 import com.lalilu.component.LazyGridContent
-import com.lalilu.extensions.retrieveCacheKey
 import com.lalilu.lhome.component.RecommendCard
 import com.lalilu.lhome.component.RecommendRow
 import com.lalilu.lhome.component.RecommendTitle
@@ -31,7 +28,7 @@ object LatestPanel : LazyGridContent {
     @Composable
     override fun register(): LazyGridScope.() -> Unit {
         val vm = koinViewModel<HomeScreenModel>()
-        val items = vm.recentlyAdded.collectAsState().value
+        val items = vm.recentlyAdded.value
 
         return fun LazyGridScope.() {
             item(
@@ -63,11 +60,13 @@ object LatestPanel : LazyGridContent {
                 span = { GridItemSpan(maxLineSpan) }
             ) {
                 if (items.isEmpty()) {
-                    com.lalilu.component.LibraryEmptyState(
-                        "还没有歌曲", "添加媒体源后，你的歌曲会出现在这里",
-                        actionLabel = "添加媒体源",
-                        onAction = { AppRouter.route("/media_source").jump() },
-                    )
+                    com.lalilu.component.LibraryQueryContent(vm.recentlyAdded) {
+                        com.lalilu.component.LibraryEmptyState(
+                            "还没有歌曲", "添加媒体源后，你的歌曲会出现在这里",
+                            actionLabel = "添加媒体源",
+                            onAction = { AppRouter.route("/media_source").jump() },
+                        )
+                    }
                     return@item
                 }
 
@@ -80,7 +79,6 @@ object LatestPanel : LazyGridContent {
 
 @Composable
 internal fun RecentlyAddedRow(items: List<LAudio>) {
-    val context = LocalPlatformContext.current
     RecommendRow(
         items = { items },
         // 系统音乐库与 MusicKit 可以提供相同的原始 ID，需要包含来源才能作为列表键。
@@ -94,13 +92,11 @@ internal fun RecentlyAddedRow(items: List<LAudio>) {
             imageData = item,
             enabled = isAudioPlayable(item),
             onClick = { sharedMap ->
-                val coverMemoryKey = context.retrieveCacheKey(item)
 
                 AppRouter.route("/song/detail")
                     .with("mediaId", item.playbackId)
                     .with("song", item)
                     .with("sharedMap", sharedMap)
-                    .with("coverCacheKey", coverMemoryKey)
                     .jump()
             }
         )

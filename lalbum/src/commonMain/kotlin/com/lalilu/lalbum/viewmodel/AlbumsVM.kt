@@ -1,5 +1,9 @@
 package com.lalilu.lalbum.viewmodel
 
+import com.lalilu.extensions.queryState
+import com.lalilu.lmedia.sortable.SortResult
+import com.lalilu.lmedia.sortable.doSort
+
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
@@ -12,7 +16,6 @@ import com.lalilu.lmedia.domain.model.LAlbum
 import com.lalilu.lmedia.sortable.SortAction
 import com.lalilu.lmedia.sortable.SortConfig
 import com.lalilu.lmedia.sortable.SortManager
-import com.lalilu.lmedia.sortable.doSortState
 import com.lalilu.mviImplWithIntent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -91,9 +94,8 @@ class AlbumsVM(
     }
 
     val albums = stateFlow()
-        .distinctUntilChangedBy { it.distinctKey }
-        .flatMapLatest { it.getAlbumsFlow(albumRepository) }
-        .doSortState(sorter, viewModelScope)
+        .distinctUntilChangedBy { it.searchKeyWord }
+        .queryState(SortResult.empty(), viewModelScope) { it.getAlbumsFlow(albumRepository).doSort(sorter) }
     val state = stateFlow()
         .toState(AlbumsState(searchKeyWord = initialKeyword), viewModelScope)
 

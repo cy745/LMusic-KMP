@@ -2,6 +2,10 @@ package com.lalilu.lplayer.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
@@ -46,21 +50,29 @@ class SeekbarLayoutGestureTest {
         val timeline = timeline()
         val commits = mutableListOf<Long>()
 
+        val feedback = mutableListOf<HapticFeedbackType>()
+        val haptic = object : HapticFeedback {
+            override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+                feedback += hapticFeedbackType
+            }
+        }
         setContent {
-            Box(modifier = Modifier.size(width = 300.dp, height = 56.dp)) {
-                SeekbarLayout(
-                    modifier = Modifier.testTag("seekbar"),
-                    positionMs = { timeline.positionMs },
-                    durationMs = { timeline.durationMs },
-                    progress = { timeline.progress },
-                    onSeekStart = timeline::onDragStart,
-                    onSeekDrag = timeline::onDrag,
-                    onSeekCancel = timeline::onDragCancel,
-                    onSeek = {
-                        commits += it
-                        timeline.onSeek(it)
-                    },
-                )
+            CompositionLocalProvider(LocalHapticFeedback provides haptic) {
+                Box(modifier = Modifier.size(width = 300.dp, height = 56.dp)) {
+                    SeekbarLayout(
+                        modifier = Modifier.testTag("seekbar"),
+                        positionMs = { timeline.positionMs },
+                        durationMs = { timeline.durationMs },
+                        progress = { timeline.progress },
+                        onSeekStart = timeline::onDragStart,
+                        onSeekDrag = timeline::onDrag,
+                        onSeekCancel = timeline::onDragCancel,
+                        onSeek = {
+                            commits += it
+                            timeline.onSeek(it)
+                        },
+                    )
+                }
             }
         }
 
@@ -80,6 +92,7 @@ class SeekbarLayoutGestureTest {
             "提交位置应约等于拖动距离换算出的时间，实际为 ${commits.single()}",
         )
         assertFalse(timeline.isDragging)
+        assertEquals(emptyList(), feedback, "普通拖动和松手都不应触发振动")
     }
 
     @Test

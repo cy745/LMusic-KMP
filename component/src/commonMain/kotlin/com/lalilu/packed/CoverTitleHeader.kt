@@ -17,7 +17,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowSizeClass
-import coil3.compose.AsyncImage
+import com.lalilu.extensions.SharedCoverImage
 import com.lalilu.adaptive
 import com.lalilu.adaptiveValue
 import com.lalilu.animated
@@ -106,7 +106,7 @@ fun SharedContextScope.CoverTitleHeader(
                 .padding(horizontal = paddingHorizontal.value),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
+            SharedCoverImage(
                 modifier = Modifier
                     .width(width = adaptiveWidth.value)
                     .adaptive(
