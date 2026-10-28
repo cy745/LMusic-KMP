@@ -109,3 +109,15 @@ Pencil 第三版：`history-design.pen`；预览：`history-design-v3.png`。已
 - Android 真机已验收；iOS/Web/桌面使用统一记录入口，但本轮没有宣称这些平台完成相同的设备端验收。跨时区旅行后的历史日期重新归属不在本轮实现范围。
 
 收尾验证：lhistory 14 项、playback-core 40 项、composeApp 专项 4 项（迁移、统计查询、通知缺失刷新、生命周期注册），共 58 项通过，零失败；git diff --check 通过。运行时代码与用户已验收的 16:36 Release 保持一致，本次收尾仅补充实施记录。
+
+
+## iOS / Desktop 补充验证（2026-10-27）
+
+- macOS：重新构建 createDistributable，运行正式打包的 .app；在 /tmp/lmusic-history-desktop/db 使用原库的独立副本（测试前清空副本历史），未清除原数据库。
+- 实际播放 Winter Sparkler，5 秒已显示 1 次/1 首；暂停后固定在 24 秒。退出/重进历史页仍正常；长按清除后统计和历史归零，首页最近播放也为空。随后播放 sparkle，重新出现 1 次/1 首并持续累计时长；本周/本月切换正常。验证后关闭测试进程，并从正常工作目录启动应用，原历史 8 条保留。
+- iOS：Xcode Debug iphonesimulator 构建成功，覆盖安装到 iPhone 17 / iOS 26.5 模拟器。实际播放本地“夏の魔法”，5 秒显示 1 次/1 首，最近播放同步出现；暂停后时长稳定为 47 秒。多次退出/重进正常；长按清除后 UI 与数据库 m_history/history_day 均为零；再次播放并暂停，显示新记录 13 秒/1 次/1 首。
+- iOS 原生模拟器普通 simctl spawn 执行历史/日期测试 12 项，零失败。macOS 共享历史 JVM 测试 14 项通过。
+- 发现并修正小屏月图两位日期被裁切：禁止标签换行并允许文字完整绘制；月末 31 日不再与 30 日连续挤在一起。此改动不改变记录和统计口径。
+- 验证范围为 iOS 模拟器与 macOS。未包含实体 iPhone、Windows/Linux、长时间后台挂起、进程强杀恢复或特殊音频输出；不把构建/单测结果等同于这些场景的实机验证。
+
+最终标签修正包重新构建成功并覆盖安装 iOS 模拟器，截图确认 10/15/20/25/30 完整显示；重启后 13 秒/1 次记录仍在。截图：ios-statistics-verified.png、macos-statistics-verified.png。macOS 更新包已构建，正常数据目录应用已重新打开。

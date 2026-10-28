@@ -17,6 +17,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lalilu.lhistory.viewmodel.*
@@ -109,9 +110,10 @@ internal fun ListeningChart(bars: List<ListeningBar>, period: StatsPeriod, today
                                     .background(foreground.copy(alpha = if (bar.date == selected) .75f else .35f)))
                             }
                             val label = if (period == StatsPeriod.Week) listOf("一", "二", "三", "四", "五", "六", "日")[bar.date.dayOfWeek.ordinal]
-                                else if (bar.date.dayOfMonth == 1 || bar.date.dayOfMonth % 5 == 0 || index == bars.lastIndex) "${bar.date.dayOfMonth}" else ""
+                                else if (bar.date.dayOfMonth == 1 || bar.date.dayOfMonth % 5 == 0 || (index == bars.lastIndex && bar.date.dayOfMonth % 5 >= 3)) "${bar.date.dayOfMonth}" else ""
                             Text(label, Modifier.padding(top = 8.dp), fontSize = 10.sp,
-                                color = foreground.copy(alpha = if (bar.date == selected) 1f else .5f), maxLines = 1)
+                                color = foreground.copy(alpha = if (bar.date == selected) 1f else .5f),
+                                maxLines = 1, softWrap = false, overflow = TextOverflow.Visible)
                         }
                     }
                 }
