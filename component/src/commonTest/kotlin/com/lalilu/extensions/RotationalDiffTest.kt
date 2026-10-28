@@ -20,6 +20,16 @@ import kotlin.test.assertEquals
  * 用例名即效果描述，review 用例名就等于 review 效果。
  */
 class RotationalDiffTest {
+    @Test
+    fun explicitSelectionOfLastRowKeepsItsCoverIdentityAndRemovesPrecedingRows() {
+        val result = oldList(*ids.toTypedArray()).rotationalDiff(
+            rotate(ids.lastIndex), getId = { it.id }, isSameItem = sameId,
+            preferForwardRotation = true,
+        )
+        assertEquals("old:${ids.last()}", result.first().key)
+        assertFreshIsHeadSegment(ids.lastIndex, result)
+    }
+
 
     private data class Row(val id: String, val title: String = id)
 

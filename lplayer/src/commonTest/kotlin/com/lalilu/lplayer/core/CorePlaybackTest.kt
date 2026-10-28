@@ -1,6 +1,7 @@
 package com.lalilu.lplayer.core
 
 import com.lalilu.lplayer.action.playOrToggleById
+import com.lalilu.lplayer.action.QueueAction
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.repository.AudioRepository
 import com.lalilu.lmedia.domain.source.*
@@ -14,6 +15,27 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CorePlaybackTest {
+    @Test fun swipeQueueActionsRespectModeAndRemoveExternalPendingIntent() = runTest {
+        val f = fixture()
+        f.playback.updatePlaylist(f.songs, 0, false); runCurrent()
+        f.playback.seekTo(400); runCurrent()
+        QueueAction.AddToNext(f.songs[2]).execute(f.playback)
+        assertEquals(listOf(f.songs[0], f.songs[2], f.songs[1]), f.playback.queue.stateSnapshot().list)
+        assertEquals(400, f.playback.currentPosition())
+        f.playback.setPlaybackMode(PlaybackMode.SHUFFLE)
+        val external = f.songs[1].copy(id = "outside")
+        QueueAction.AddToNext(f.songs[1]).execute(f.playback)
+        QueueAction.AddToNext(external).execute(f.playback)
+        assertEquals(external, f.playback.pendingNext.value)
+        QueueAction.Remove(external).execute(f.playback)
+        assertNull(f.playback.pendingNext.value)
+        assertEquals(400, f.playback.currentPosition())
+        assertEquals(PlayIntent.Pause, f.playback.core.state.value.intent)
+        QueueAction.Remove(f.songs[0]).execute(f.playback); runCurrent()
+        assertEquals(f.songs[2], f.playback.queue.currentItem())
+        assertEquals(PlayIntent.Pause, f.playback.core.state.value.intent)
+    }
+
     @Test fun detailTransportTogglesCurrentWithoutSeekingAndPlaysAnotherSelection() = runTest {
         val f = fixture()
         f.playback.updatePlaylist(f.songs, 0, false); runCurrent()

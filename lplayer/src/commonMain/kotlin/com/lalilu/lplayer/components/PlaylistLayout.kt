@@ -25,12 +25,13 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.model.mediaKey
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.action.PlayerAction
+import com.lalilu.lplayer.action.QueueAction
+import com.lalilu.lplayer.playback.PlaybackMode
 import com.lalilu.navigation.AppRouter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
-
 
 /**
  * 播放列表的输入：列表数据 + 这次变化的成因。
@@ -55,6 +56,7 @@ fun PlaylistLayout(
     var actualItems by remember { mutableStateOf(emptyList<Item<LAudio>>()) }
     val isPlaying = LPlayer.instance.isPlaying.collectAsState(false)
     val pendingNext by LPlayer.instance.pendingNext.collectAsState()
+    val mode by LPlayer.instance.playbackMode.collectAsState()
 
     LaunchedEffect(Unit) {
         items.flowOn(Dispatchers.Default)
@@ -64,6 +66,7 @@ fun PlaylistLayout(
                 // 这里固定采用「切点之前的整块搬到末尾」的语义，避免大幅跳跃时动画方向反转
                 val newList = oldList.rotationalDiff(
                     items = snapshot.items,
+                    preferForwardRotation = snapshot.pickedByUser,
                     getId = { it.mediaKey.stableKey },
                     isSameItem = { a, b -> a.mediaKey == b.mediaKey },
                     isSameContent = { a, b ->
@@ -95,17 +98,12 @@ fun PlaylistLayout(
                         // 新旧队首都不在屏幕上：不需要滚动
                         PlaylistScrollPlan.KeepScroll -> actualItems = newList
 
-                        // 新队首在屏幕上、旧队首不在：先清空再恢复，才能稳定触发元素动画
-                        PlaylistScrollPlan.RebuildAtTop -> {
-                            actualItems = emptyList()
-                            waitAFrame()
-                            actualItems = newList
-                            listState.scrollToItem(0)
-                        }
-
+                        // 不插入空列表帧：保留差分留下的行及其已加载封面。
                         PlaylistScrollPlan.JumpToTop -> {
-                            actualItems = newList
-                            listState.scrollToItem(0)
+                            updatePlaylistAtTop(
+                                oldList, newList, listState,
+                                leadingItemCount = { if (pendingNext != null) 1 else 0 },
+                            ) { actualItems = it }
                         }
                     }
                 }
@@ -120,13 +118,19 @@ fun PlaylistLayout(
         overscrollEffect = null
     ) {
         pendingNext?.let { pending ->
-            item(key = "pending-next-intent") {
-                SongCard(
-                    modifier = Modifier.animateItem(), id = "pending:${pending.playbackId}", imageData = pending,
-                    title = pending.title, subtitle = "待播放 · ${pending.subtitle}",
-                    onClick = { PlayerAction.PlayById(pending.playbackId).action() },
-                    onLongClick = {},
-                )
+            item(key = "pending-next-intent:${pending.playbackId}") {
+                SwipeableQueueItem(
+                    modifier = Modifier.animateItem(), random = mode == PlaybackMode.SHUFFLE,
+                    onPlayNext = { QueueAction.AddToNext(pending).action() },
+                    onRemove = { QueueAction.Remove(pending).action() },
+                ) {
+                    SongCard(
+                        id = "pending:${pending.playbackId}", imageData = pending,
+                        title = pending.title, subtitle = "待播放 · ${pending.subtitle}",
+                        onClick = { PlayerAction.PlayById(pending.playbackId).action() },
+                        onLongClick = {},
+                    )
+                }
             }
         }
         itemsIndexed(
@@ -141,37 +145,34 @@ fun PlaylistLayout(
             val playbackStatus = audioPlaybackStatus(data)
             val failure = playbackStatus as? AudioPlaybackPresentation.Failed
 
-            SongCard(
-                modifier = Modifier
-                    .animateItem()
-                    .drawBehind { drawRect(color = bgColor.value) },
-                id = data.playbackId,
-                imageData = data,
-                enabled = playbackStatus != AudioPlaybackPresentation.SourceNotReady,
-                failureReason = failure?.reason?.displayMessage,
-                title = data.title,
-                subtitle = data.subtitle,
-                onClick = { PlayerAction.PlayByKey(data.mediaKey).action() },
-                onLongClick = { sharedMap ->
-                    val coverMemoryKey = context.retrieveCacheKey(item)
+            SwipeableQueueItem(
+                modifier = Modifier.animateItem(), random = mode == PlaybackMode.SHUFFLE,
+                onPlayNext = { QueueAction.AddToNext(data).action() },
+                onRemove = { QueueAction.Remove(data).action() },
+            ) {
+                SongCard(
+                    modifier = Modifier.drawBehind { drawRect(color = bgColor.value) },
+                    id = data.playbackId,
+                    imageData = data,
+                    enabled = playbackStatus != AudioPlaybackPresentation.SourceNotReady,
+                    failureReason = failure?.reason?.displayMessage,
+                    title = data.title,
+                    subtitle = data.subtitle,
+                    onClick = { PlayerAction.PlayByKey(data.mediaKey).action() },
+                    onLongClick = { sharedMap ->
+                        val coverMemoryKey = context.retrieveCacheKey(item)
 
-                    AppRouter.route("/song/detail")
-                        .with("mediaId", data.playbackId)
-                        .with("song", data)
-                        .with("sharedMap", sharedMap)
-                        .with("coverCacheKey", coverMemoryKey)
-                        .jump()
-                    // 展开播放页底栏由 AppRouter 末尾的 SheetExpandInterceptor 统一处理，
-                    // 无需在此手动 bottomSheetState.show()
-                }
-            )
+                        AppRouter.route("/song/detail")
+                            .with("mediaId", data.playbackId)
+                            .with("song", data)
+                            .with("sharedMap", sharedMap)
+                            .with("coverCacheKey", coverMemoryKey)
+                            .jump()
+                        // 展开播放页底栏由 AppRouter 末尾的 SheetExpandInterceptor 统一处理，
+                        // 无需在此手动 bottomSheetState.show()
+                    }
+                )
+            }
         }
     }
-}
-
-/**
- * 等待经过一帧
- */
-suspend fun waitAFrame() {
-    withFrameNanos { }
 }

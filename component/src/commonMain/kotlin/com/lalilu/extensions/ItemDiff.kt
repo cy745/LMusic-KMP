@@ -131,9 +131,8 @@ fun <T : Any> List<Item<T>>.diff(
  * 只让新队首自己换新 key、其余整体下移（表现为「顶部淡入一行」）；若照搬常规规则，会退化成
  * 「几乎整表淡出再淡入」。
  *
- * 因此本方法是「两个列表的纯函数」，不猜成因、也不需要调用方提供任何额外信息。点击最后一行时
- * 出现的「列表没回到顶部、被点中的那行从视野里消失」并不是本方法的问题：那时新队首其实一直在
- * 屏幕上，只是换了 key，调用方按「元素身份」而不是「key」判断可见性即可正确处理。
+ * 调用方明确知道这是点击选曲时，可设置 [preferForwardRotation]，让最后一行也保留 key，
+ * 前面的行离场。未提供成因时仍维持默认的「上一首」行为。
  *
  * @param items 新的数据列表
  * @param getId 生成新 key 用的稳定 id
@@ -144,7 +143,8 @@ fun <T : Any> List<Item<T>>.rotationalDiff(
     items: List<T>,
     getId: (T) -> String,
     isSameItem: (T, T) -> Boolean = { a, b -> a == b },
-    isSameContent: (T, T) -> Boolean = { a, b -> a == b }
+    isSameContent: (T, T) -> Boolean = { a, b -> a == b },
+    preferForwardRotation: Boolean = false
 ): List<Item<T>> {
     /** 不构成旋转时统一走原有实现，保证增删 / 同步等场景行为不变 */
     fun fallback(): List<Item<T>> = diff(items, getId, isSameItem, isSameContent)
@@ -164,7 +164,7 @@ fun <T : Any> List<Item<T>>.rotationalDiff(
     }
 
     // 「上一首」：新队首原本在队尾，只让它自己换新 key
-    val singleHeadStep = pivot == n - 1 && n > 1
+    val singleHeadStep = pivot == n - 1 && n > 1 && !preferForwardRotation
 
     val generation = Random.nextLong().toString()
     return List(n) { i ->

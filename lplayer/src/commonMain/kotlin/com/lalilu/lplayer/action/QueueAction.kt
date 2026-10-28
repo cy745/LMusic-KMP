@@ -1,6 +1,8 @@
 package com.lalilu.lplayer.action
 
 import com.lalilu.lmedia.domain.model.LAudio
+import com.lalilu.lmedia.domain.model.mediaKey
+import com.lalilu.lplayer.playback.QueueUpdateReason
 import com.lalilu.common.ext.io
 import com.lalilu.lplayer.LPlayer
 import com.lalilu.lplayer.playback.Playback
@@ -34,7 +36,14 @@ sealed class QueueAction : Action {
                 is AddToNext -> addToNext(listOf(action.item))
                 is AddToStart -> addToStart(listOf(action.item))
                 is AddToEnd -> addToEnd(listOf(action.item))
-                is Remove -> remove(action.item)
+                is Remove -> {
+                    remove(action.item)
+                    // A random next intent can refer to a song outside the actual queue.
+                    // Force a structural submission to revoke it even when no list row changed.
+                    if (player.pendingNext.value?.mediaKey == action.item.mediaKey) {
+                        replaceAll(build(QueueUpdateReason.Inner).list)
+                    }
+                }
                 is RemoveById -> removeLegacyId(action.id)
                 is RemoveByIndex -> removeAt(action.index)
                 is Replace -> replace(action.index, action.item)
