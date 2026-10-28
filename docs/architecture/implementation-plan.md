@@ -673,3 +673,12 @@ iOS 模拟器和 macOS 打包应用完成实际播放、最近播放反馈、计
 - macOS 公证任务在序列化配置缓存时访问了 Compose 插件不再支持的 ascProvider 属性。仅公证命令关闭配置缓存，保留已有签名与 teamID 配置。
 - 移除三个桌面打包步骤的 continue-on-error，产物上传设置 if-no-files-found: error；后续以实际安装包存在且任务成功为准。
 - 本地使用修复后的 JDK 21 完整运行 `:composeApp:proguardReleaseJars` 成功（3m3s），标准库从 0 恢复为 28040 个类，优化、预校验与输出均完成。
+
+### 2026-10-29 dev 合并与 CI 收尾结果
+
+- UI 与查询状态 review 修复提交 `c03bee07`，快进合并到 dev 并推送；桌面打包与严格产物检查修复提交 `afa0d74d`，已推送 dev。
+- 最终代码验证运行：[Snapshot Build 40778214046](https://github.com/cy745/LMusic-KMP/actions/runs/40778214046)，构建提交 `afa0d74d4ac3a1df6ddd78d8506d36edf4537946`。Android、iOS + TestFlight、macOS、Windows、Linux 五个任务全部成功。
+- 已核对所有实际安装包均存在，Snapshot Release 发布成功：APK、IPA、DMG、MSI、DEB；[下载页](https://github.com/cy745/LMusic-KMP/releases/tag/snapshot)。macOS 签名/公证与 iOS TestFlight 步骤通过。
+- 整轮工作流仍显示 failure，唯一失败任务是独立的 Deploy Snapshot Page：Vercel CLI 报 `You do not have access to the specified account` / `scope-not-accessible`。该账号访问问题在此前运行也存在，不影响以上打包、安装包下载及 TestFlight。
+- Vercel 已连接账号可读取现有 `lmusic-snapshot` 项目；这不能证明 GitHub Actions 使用的独立 token 有相同权限。需核对仓库 Actions 的 VERCEL_TOKEN、VERCEL_ORG_ID、VERCEL_SNAPSHOT_PROJECT_ID 是否对应同一项目所属账号并具有部署权限，再仅重跑失败的下载页任务。未读取或输出密钥，也未通过忽略失败来改变 CI 结果。
+- 本节为文档补记，不改变已验证代码；工作流忽略纯文档推送，无需重复整套打包。
