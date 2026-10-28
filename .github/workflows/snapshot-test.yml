@@ -124,12 +124,12 @@ jobs:
       - name: Build Release MSI
         shell: bash
         run: ./gradlew composeApp:packageReleaseMsi -Plalilu.disable.ios.targets=true
-        continue-on-error: true
 
       # 上传 MSI 产物
       - uses: actions/upload-artifact@v4
         with:
           name: LMusic-snapshot-windows
+          if-no-files-found: error
           path: ${{ github.workspace }}\composeApp\build\compose\binaries\main-release\msi\*.msi
 
   build-macos:
@@ -157,8 +157,7 @@ jobs:
           p12-password: ${{ secrets.MACOS_CERT_PASSWORD }}
 
       - name: Build, Sign and Notarize DMG
-        run: ./gradlew composeApp:notarizeReleaseDmg
-        continue-on-error: true
+        run: ./gradlew composeApp:notarizeReleaseDmg --no-configuration-cache
         env:
           APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -169,6 +168,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: LMusic-snapshot-macos
+          if-no-files-found: error
           path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/dmg/*.dmg
 
   build-linux:
@@ -191,12 +191,12 @@ jobs:
 
       - name: Build Release DEB
         run: ./gradlew composeApp:packageReleaseDeb -Plalilu.disable.ios.targets=true
-        continue-on-error: true
 
       # 上传 DEB 产物
       - uses: actions/upload-artifact@v4
         with:
           name: LMusic-snapshot-linux
+          if-no-files-found: error
           path: ${{ github.workspace }}/composeApp/build/compose/binaries/main-release/deb/*.deb
 
   # ──────────────────────────────────────────────

@@ -1,6 +1,8 @@
 import com.lalilu.gradle.kspDependenciesForAllTargets
 import com.lalilu.gradle.setupKoin
 import com.lalilu.gradle.setupMultiplatform
+import org.gradle.jvm.toolchain.JavaToolchainService
+import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
 
@@ -141,9 +143,16 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// Packaging must use the same full JDK as the JVM target, not the Gradle daemon's JDK.
+// ProGuard needs its jmods; the daemon runtime on CI may not contain them.
+val desktopJavaHome = extensions.getByType<JavaToolchainService>().launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(21))
+}.map { it.metadata.installationPath.asFile.absolutePath }
+
 compose.desktop {
     application {
         mainClass = "com.lalilu.lmusic.MainKt"
+        javaHome = desktopJavaHome.get()
 
         buildTypes.release.proguard {
             configurationFiles.from("proguard-desktop.pro")

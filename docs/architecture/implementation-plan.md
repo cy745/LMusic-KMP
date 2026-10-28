@@ -665,3 +665,11 @@ iOS 模拟器和 macOS 打包应用完成实际播放、最近播放反馈、计
 - 修复查询状态错误边界：查询构造失败与上游参数流失败现在均可重试完整链路，并新增回归。
 - 最终验证：component 37、lhome 13、lsearch 4、lplayer 手势与队列 12，共 66 项测试零失败；Desktop 与 iOS Simulator 全应用编译通过；git diff --check 通过。
 - 合并方式：当前分支包含 dev 的全部提交，使用快进合并，保留原有提交历史；推送后检查同一提交 SHA 的 Snapshot Build。
+
+### 2026-10-29 Snapshot CI 实际产物核查
+
+- 首次 dev CI：`40775673504`（`c03bee07`）。Android 真实打包成功；桌面 job 的 success 不能作为打包证据，旧工作流 `continue-on-error` 加缺少产物只警告掩盖了失败。
+- Linux ProGuard 实际读取到的 JDK 标准库数量为 0，使用的是 Gradle 守护进程 JDK 25。桌面打包改为显式使用与 JVM 目标一致的 JDK 21 工具链，让 ProGuard/jlink/jpackage 使用完整的同一 JDK。
+- macOS 公证任务在序列化配置缓存时访问了 Compose 插件不再支持的 ascProvider 属性。仅公证命令关闭配置缓存，保留已有签名与 teamID 配置。
+- 移除三个桌面打包步骤的 continue-on-error，产物上传设置 if-no-files-found: error；后续以实际安装包存在且任务成功为准。
+- 本地使用修复后的 JDK 21 完整运行 `:composeApp:proguardReleaseJars` 成功（3m3s），标准库从 0 恢复为 28040 个类，优化、预校验与输出均完成。
