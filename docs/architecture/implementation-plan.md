@@ -718,3 +718,13 @@ iOS 模拟器和 macOS 打包应用完成实际播放、最近播放反馈、计
 #### 2026-10-29 Vercel 下载页权限排查
 
 浏览器登录核实 `lmusic-snapshot` 属于 `cy745's projects`，将 GitHub Actions 的 VERCEL_ORG_ID 与 VERCEL_SNAPSHOT_PROJECT_ID 更新为控制台实际值（旧值不可读，不能断言其此前错误）。项目当前 Node.js 24，无需因其他项目的旧版本提示修改运行时。保留原令牌后，独立只读检查 run 40829261740 仍返回 HTTP 403，确认当前 CI 凭据不能访问正确目标项目。新增 Verify Vercel Access 工作流（0c283253），不部署、不输出令牌，与客户端打包独立。浏览器已准备仅限 lmusic-snapshot、90 天有效期的令牌创建表单和 GitHub VERCEL_TOKEN 更新页；认证凭据替换需用户自行提交。待更新后重跑权限检查并验证实际下载页部署。
+
+#### 2026-10-29 Vercel 项目级令牌部署恢复
+
+- 用户更新 VERCEL_TOKEN 后，只读验证 40829261740 通过。旧 Snapshot 部署重试仍失败，错误变为 CLI 65.7.0 查询用户资料时 `User not found (404)`，并非项目读取权限不足。
+- 修复提交 `228a9490`：使用官方 `/v13/deployments` API 上传明确列出的六个网站源文件，部署前核实项目 ID、团队 ID 与项目名，等待 READY 且生产域名分配完成才成功。不上传环境文件、凭据或本地构建目录，不扩大令牌权限。
+- 下载页工作流独立支持手动运行和网站变更触发；完整 Snapshot 工作流复用它。客户端安装包与 TestFlight 本次未重新构建。
+- [独立生产部署 40842305120](https://github.com/cy745/LMusic-KMP/actions/runs/40842305120) 成功；生产地址 https://snapshot.lalilu.cn/，部署地址 https://lmusic-snapshot-ho1ns39r5-cy745s-projects.vercel.app 。API 部署至 READY 约 38 秒。
+- 验证：脚本语法、模拟部署请求契约与 git diff --check 通过；浏览器刷新生产页面正常；`/api/snapshot` 返回 200 和 5 个产物，APK、DMG、MSI、DEB、IPA 下载地址 HEAD 均返回 200。发布内容仍为客户端提交 da7a0304。
+- 历史 Snapshot run 40828032476 保留旧 CLI 失败记录；新工作流已真实部署成功，不通过忽略错误伪装旧记录为成功。
+- 网站既有展示待办：Windows 被页面显式过滤（MSI 本身可下载），顶部 COMMIT 使用 tag_name 显示为 snapsho，TestFlight 入口仍为占位交互。本轮仅修复部署链路，未擅自改变上述产品展示规则。未进行生产运行日志扫描。
