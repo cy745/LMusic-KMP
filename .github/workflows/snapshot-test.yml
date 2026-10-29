@@ -398,30 +398,8 @@ jobs:
   deploy-page:
     name: Deploy Snapshot Page
     needs: publish-snapshot
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install dependencies
-        run: npm ci
-        working-directory: ./release-page
-
-      - name: Build Next.js
-        run: npm run build
-        working-directory: ./release-page
-
-      - name: Deploy to Vercel
-        run: npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID"
-        working-directory: ./release-page
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_SNAPSHOT_PROJECT_ID }}
+    uses: ./.github/workflows/deploy-snapshot-page.yml
+    secrets: inherit
 
   # ──────────────────────────────────────────────
   # 通知 QQ 群

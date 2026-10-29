@@ -1,0 +1,40 @@
+name: Deploy Snapshot Page
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    secrets:
+      VERCEL_TOKEN:
+        required: true
+      VERCEL_ORG_ID:
+        required: true
+      VERCEL_SNAPSHOT_PROJECT_ID:
+        required: true
+  push:
+    branches: [dev]
+    paths: ['release-page/**', '.github/workflows/deploy-snapshot-page.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snapshot-page-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Deploy reviewed source and wait for production readiness
+        run: node release-page/scripts/deploy.mjs
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_SNAPSHOT_PROJECT_ID }}
