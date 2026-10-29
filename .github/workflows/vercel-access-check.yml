@@ -1,0 +1,42 @@
+name: Verify Vercel Access
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths: ['.github/workflows/vercel-access-check.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify snapshot project access without deploying
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_SNAPSHOT_PROJECT_ID }}
+        shell: bash
+        run: |
+          node <<'NODE'
+          async function main() {
+            const { VERCEL_TOKEN: token, VERCEL_ORG_ID: team, VERCEL_PROJECT_ID: project } = process.env;
+            if (!token || !team || !project) throw new Error('Missing Vercel deployment configuration');
+            const url = new URL(`https://api.vercel.com/v9/projects/${encodeURIComponent(project)}`);
+            url.searchParams.set('teamId', team);
+            const response = await fetch(url, {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: AbortSignal.timeout(30000),
+            });
+            if (!response.ok) throw new Error(`Vercel project access check failed: HTTP ${response.status}`);
+            const result = await response.json();
+            if (result.id !== project || result.accountId !== team || result.name !== 'lmusic-snapshot') {
+              throw new Error('Configured Vercel team/project does not match lmusic-snapshot');
+            }
+            console.log('Verified: current CI token can read lmusic-snapshot in the configured team. Deployment permission still requires an actual deployment.');
+          }
+          main().catch(error => { console.error(error.message); process.exitCode = 1; });
+          NODE
