@@ -24,7 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.layout.LookaheadScope
+import com.lalilu.component.AdaptiveLookaheadScope
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,7 +68,7 @@ fun MetadataInfos(
         medium = { 16.dp }
     )
 
-    LookaheadScope lookaheadScope@{
+    AdaptiveLookaheadScope lookaheadScope@{
         Grid(
             modifier = modifier.fillMaxWidth()
                 .padding(containerPadding.value)

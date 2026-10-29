@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
@@ -33,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import com.lalilu.atLeastMedium
+import com.lalilu.component.LocalAdaptiveLayoutParent
 import com.lalilu.component.BottomSheetValue
 import com.lalilu.component.ModalBottomSheetValue
 import com.lalilu.component.rememberBottomSheetState
@@ -125,7 +127,11 @@ fun BottomBarApplier(
     val padPlayerScreen = remember { AppRouter.route("/player_pad").get() ?: ExceptionScreen.SCREEN_NOT_FOUND }
 
     val mainContent = remember(content) {
-        movableContentOf<() -> Boolean> { content(it) }
+        movableContentOf<Boolean, () -> Boolean> { padLayout, visible ->
+            CompositionLocalProvider(LocalAdaptiveLayoutParent provides padLayout) {
+                content(visible)
+            }
+        }
     }
     val smartBarContent = remember {
         movableContentOf<Modifier, Modifier, Boolean> { modifier, barModifier, hideTabBar ->
@@ -165,7 +171,7 @@ fun BottomBarApplier(
                     smartBarContent.invoke(modifier, barModifier, true)
                 },
                 playerContent = { padPlayerContent.invoke() },
-                mainContent = { mainContent.invoke { !bottomSheetStateForPad.isExpanded } }
+                mainContent = { mainContent.invoke(usePadLayout) { !bottomSheetStateForPad.isExpanded } }
             )
         } else {
             ScaleBottomSheetLayout(
@@ -173,7 +179,7 @@ fun BottomBarApplier(
                 bottomBarModifier = bottomBarModifier,
                 bottomSheetState = bottomSheetState,
                 playerContent = { playerContent.invoke(it) },
-                mainContent = { mainContent.invoke { bottomSheetState.isVisible } },
+                mainContent = { mainContent.invoke(usePadLayout) { bottomSheetState.isVisible } },
                 smartBarContent = { modifier ->
                     smartBarContent.invoke(modifier, Modifier, false)
                 }

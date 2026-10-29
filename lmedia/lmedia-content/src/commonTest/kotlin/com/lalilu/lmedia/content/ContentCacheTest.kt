@@ -21,6 +21,41 @@ class ContentCacheTest {
     private val d = ContentDescriptor(MediaKey("source", "song"), "account-root", "version-1", 200000)
     private fun bytes(offset: Long, count: Int) = ByteArray(count) { ((offset + it) % 251).toByte() }
 
+    @Test fun batchEvictionSnapshotsEntriesAndPreservesPinnedContent() = runTest {
+        val storage = MemoryStorage()
+        val io = StandardTestDispatcher(testScheduler)
+        val evicted = mutableListOf<ContentDescriptor>()
+        val cache = RangeContentCache(storage, RangeReader { _, s, n -> bytes(s, n) }, io = io,
+            onCoverageChanged = { descriptor, complete -> if (!complete) evicted += descriptor })
+        val songs = (0..3).map { d.copy(key = MediaKey("source", "song-$it"), size = 100) }
+        songs.take(3).forEach { cache.open(it).apply { read(0, 100); close() } }
+        val playing = cache.open(songs.last()).apply { read(0, 100) }
+        cache.updateQuota(0)
+        assertEquals(songs.take(3), evicted)
+        assertContentEquals(bytes(0, 100), playing.readCached(0, 100))
+        assertEquals(1, storage.names().count { it.endsWith(".index") })
+        playing.close()
+        assertEquals(songs, evicted)
+        assertTrue(storage.names().isEmpty())
+    }
+
+    @Test fun coldStartCanEvictSeveralOldSongsBeforeOpeningCurrentSong() = runTest {
+        val storage = MemoryStorage()
+        val io = StandardTestDispatcher(testScheduler)
+        val reader = RangeReader { _, s, n -> bytes(s, n) }
+        val cache = RangeContentCache(storage, reader, io = io)
+        (0..3).forEach { index ->
+            cache.open(d.copy(key = MediaKey("source", "old-$index"), size = 100))
+                .apply { read(0, 100); close() }
+        }
+        val reopened = RangeContentCache(storage, reader, quotaBytes = 0, io = io)
+        val current = reopened.open(d)
+        assertTrue(storage.names().isEmpty())
+        assertContentEquals(bytes(0, 100), current.read(0, 100))
+        current.close()
+        assertTrue(storage.names().isEmpty())
+    }
+
     @Test fun cacheOnlyReadsDoNotFetchHolesOrTrustCorruptFragments() = runTest {
         val storage = MemoryStorage()
         var fetches = 0

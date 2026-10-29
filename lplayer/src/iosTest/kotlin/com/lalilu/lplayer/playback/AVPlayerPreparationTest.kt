@@ -1,5 +1,9 @@
 package com.lalilu.lplayer.playback
 
+import platform.AVFoundation.*
+import platform.Foundation.*
+import platform.darwin.*
+import kotlinx.cinterop.useContents
 import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lmedia.domain.repository.AudioRepository
@@ -25,13 +29,8 @@ import io.github.vinceglb.filekit.sink
 import io.github.vinceglb.filekit.delete
 import io.github.vinceglb.filekit.path
 import kotlinx.io.buffered
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
 import kotlin.math.abs
-import platform.Foundation.NSDate
-import platform.Foundation.NSRunLoop
-import platform.Foundation.dateWithTimeIntervalSinceNow
-import platform.Foundation.runUntilDate
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -45,6 +44,20 @@ import io.ktor.client.engine.mock.respond
 
 @OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 class AVPlayerPreparationTest {
+    @Test fun preciseFlacAssetOptionsAreHonored() = runNativeMainTest {
+        val file = PlatformFile(NSTemporaryDirectory() + "precise-flac-${Random.nextLong()}.flac")
+        file.sink().buffered().use { it.write(silentFlacWithPartialLastFrame()) }
+        val asset = com.lalilu.lplayer.core.preciseAudioAsset(NSURL.fileURLWithPath(file.path))
+        val item = AVPlayerItem(asset)
+        val player = AVPlayer(item)
+        try {
+            withTimeout(5000) { while (item.status == AVPlayerItemStatusUnknown) delay(20) }
+            assertEquals(AVPlayerItemStatusReadyToPlay, item.status)
+            assertTrue(asset.providesPreciseDurationAndTiming, "AVFoundation must actually honor precise timing")
+            assertEquals(20_015.375, item.duration.useContents { toMilliseconds() }, 0.001)
+        } finally { player.replaceCurrentItemWithPlayerItem(null); file.delete() }
+    }
+
     @Test fun authorizedNativeSuccessorAdvancesWithoutReloadAndCanBeRevoked() = runNativeMainTest {
         val file = PlatformFile(NSTemporaryDirectory() + "native-next-${Random.nextLong()}.wav")
         val engine = AVPlayerEngine()
@@ -77,8 +90,12 @@ class AVPlayerPreparationTest {
         } finally { engine.release(); file.delete() }
     }
 
-    @Test fun cachedAssetSupportsSeekAndOfflineReopen() = runNativeMainTest {
-        val bytes = silentWave()
+    @Test fun cachedAssetSupportsSeekAndOfflineReopen() = assertCachedReopen(silentWave(), 20_000)
+
+    @Test fun cachedFlacPreservesPreciseTimingAfterOfflineReopen() =
+        assertCachedReopen(silentFlacWithPartialLastFrame(), 20_015)
+
+    private fun assertCachedReopen(bytes: ByteArray, durationMs: Long) = runNativeMainTest {
         val song = LAudio(id = "cached", mediaSourceName = "cached-test")
         val store = com.lalilu.lmedia.domain.source.MediaSourceStateStore().apply { content.ready() }
         val source = object : com.lalilu.lmedia.domain.source.MediaSource {
@@ -121,7 +138,7 @@ class AVPlayerPreparationTest {
             content.selectCurrent(media)
             engine.load(media, song)
             engine.awaitPreparation()
-            assertEquals(20_000, engine.state.value.duration)
+            assertEquals(durationMs, engine.state.value.duration)
             engine.seekTo(12_000)
             assertTrue(abs(engine.currentPosition() - 12_000) < 200)
             withTimeout(10_000) { while (!content.canPreloadAfter(media)) delay(20) }
@@ -131,10 +148,36 @@ class AVPlayerPreparationTest {
             store.content.unavailable("offline")
             content = access()
             engine = AVPlayerEngine(content)
-            engine.load(content.resolve(song), song)
+            val offlineMedia = content.resolve(song)
+            val cachedAsset = com.lalilu.lplayer.core.IosCachedAsset(content, (offlineMedia as MediaData.Url).url)
+            try {
+                val prepared = dispatch_semaphore_create(0)
+                cachedAsset.asset.loadValuesAsynchronouslyForKeys(listOf("duration")) {
+                    dispatch_semaphore_signal(prepared)
+                }
+                // Model AVFoundation's synchronous main-thread wait: byte loading must
+                // finish even when the UI queue cannot drain its own callbacks.
+                val result = dispatch_semaphore_wait(prepared,
+                    dispatch_time(DISPATCH_TIME_NOW, 5_000_000_000))
+                assertEquals(0L, result, "Cached resource loading must not depend on the main queue")
+                assertEquals(AVKeyValueStatusLoaded, cachedAsset.asset.statusOfValueForKey("duration", null))
+            } finally { cachedAsset.close() }
+            engine.load(offlineMedia, song)
             engine.awaitPreparation()
-            engine.seekTo(15_000)
-            assertTrue(abs(engine.currentPosition() - 15_000) < 200)
+            // Repeated backward/forward seeks after a complete, offline cache reopen.
+            // Non-round targets also exercise subsecond timeline precision.
+            for (target in listOf(15_137L, 3_271L, 17_843L, 0L)) {
+                engine.seekTo(target)
+                assertTrue(abs(engine.currentPosition() - target) <= 10,
+                    "Offline seek to $target landed at ${engine.currentPosition()}")
+                assertFalse(engine.state.value.isPlaying)
+            }
+            engine.play()
+            withTimeout(5_000) { while (engine.currentPosition() < 300) delay(20) }
+            engine.pause()
+            val pausedAt = engine.currentPosition()
+            delay(200)
+            assertTrue(abs(engine.currentPosition() - pausedAt) <= 10)
             assertEquals(before, requests)
         } finally {
             engine.release(); content.close(); scope.cancel()

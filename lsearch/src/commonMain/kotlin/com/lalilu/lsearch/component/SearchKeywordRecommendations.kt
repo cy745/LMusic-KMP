@@ -16,7 +16,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.LookaheadScope
+import com.lalilu.component.AdaptiveLookaheadScope
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -111,7 +111,7 @@ internal fun SearchKeywordRecommendations(
                 ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                LookaheadScope lookaheadScope@{
+                AdaptiveLookaheadScope lookaheadScope@{
                     recommendations.forEachIndexed { index, recommendation ->
                         key(index) {
                             SearchKeywordChip(

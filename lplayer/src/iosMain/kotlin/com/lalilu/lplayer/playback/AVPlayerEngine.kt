@@ -4,6 +4,7 @@ import com.lalilu.lmedia.domain.model.LAudio
 import com.lalilu.lmedia.domain.source.MediaData
 import com.lalilu.lplayer.core.IosCachedAsset
 import com.lalilu.lplayer.core.NativeContentAccess
+import com.lalilu.lplayer.core.preciseAudioAsset
 import com.lalilu.lplayer.helper.AudioSessionHelper
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
@@ -37,7 +38,7 @@ class AVPlayerEngine(private val contentAccess: NativeContentAccess? = null) : C
         val uri = (data as MediaData.Url).url
         val cached = contentAccess?.takeIf { it.descriptor(uri) != null }?.let { IosCachedAsset(it, uri) }
         val item = cached?.let { AVPlayerItem(it.asset) }
-            ?: AVPlayerItem(NSURL.URLWithString(uri) ?: error("Invalid media URL"))
+            ?: AVPlayerItem(preciseAudioAsset(NSURL.URLWithString(uri) ?: error("Invalid media URL")))
         item.preferredForwardBufferDuration = 5.0
         return Entry(item, cached, data)
     }
@@ -152,7 +153,9 @@ class AVPlayerEngine(private val contentAccess: NativeContentAccess? = null) : C
     override suspend fun seekTo(positionMs: Long) {
         val entry = current ?: return
         suspendCancellableCoroutine<Unit> { continuation ->
-            player.seekToTime(CMTimeMake(positionMs, 1000), completionHandler = { finished ->
+            // Lyrics require the decoded audio to land on the requested time, not a nearby packet.
+            player.seekToTime(CMTimeMake(positionMs, 1000),
+                toleranceBefore = CMTimeMake(0, 1), toleranceAfter = CMTimeMake(0, 1), completionHandler = { finished ->
                 if (continuation.isActive) {
                     if (finished && current === entry) continuation.resume(Unit)
                     else continuation.cancel(CancellationException("Native seek replaced"))

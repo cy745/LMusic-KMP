@@ -129,6 +129,6 @@ class MediaCoverRequestKeyer : Keyer<MediaCoverRequest> {
 private fun mediaCoverCacheKey(audio: LAudio, generation: Long): String =
     "${audio.mediaSourceName}_${audio.id}_$generation"
 
-/** 等待窗口内都没取到封面：明确报出来，而不是让 Coil 报"没有 fetcher 支持"。 */
-internal class CoverUnavailableException(sourceName: String, audioId: String) :
+/** 封面暂不可用：让 Coil 正常结束请求；日志端可省略这类预期错误的昂贵原生堆栈。 */
+class CoverUnavailableException(sourceName: String, audioId: String) :
     IllegalStateException("封面暂时取不到：$sourceName/$audioId")

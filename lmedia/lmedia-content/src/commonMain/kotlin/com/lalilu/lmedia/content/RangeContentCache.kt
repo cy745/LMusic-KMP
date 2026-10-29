@@ -78,7 +78,12 @@ class RangeContentCache(
     }
     private fun evict() {
         var size = entries.values.sumOf { it.index.fragments.sumOf { fragment -> fragment.length.toLong() } }
-        entries.entries.filter { it.value.pins == 0 }.sortedBy { it.value.index.used }.forEach { (key, entry) ->
+        // Map.Entry is a live reference on Kotlin/Native, even after filter/sortedBy.
+        // Removing one key invalidates the remaining EntryRefs. Snapshot key/value pairs
+        // while holding mutex, before mutating the map (also used during cold startup).
+        val candidates = entries.map { (key, entry) -> key to entry }
+            .filter { it.second.pins == 0 }.sortedBy { it.second.index.used }
+        candidates.forEach { (key, entry) ->
             if (size > quotaBytes) {
                 storage.delete("$key.index")
                 entry.index.fragments.forEach { storage.delete(it.file) }

@@ -5,16 +5,26 @@ import kotlinx.coroutines.*
 import platform.AVFoundation.*
 import platform.Foundation.*
 import platform.darwin.NSObject
-import platform.darwin.dispatch_get_main_queue
+import platform.darwin.dispatch_queue_create
+import platform.darwin.dispatch_async
+import kotlin.coroutines.CoroutineContext
 
 /** AVFoundation's asynchronous byte bridge; cache, credentials and fill policy stay shared. */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 internal class IosCachedAsset(private val access: NativeContentAccess, private val uri: String) :
     NSObject(), AVAssetResourceLoaderDelegateProtocol {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // AVFoundation can synchronously wait for resource bytes while notifying the UI.
+    // Serve them on an independent serial queue, including coroutine resumptions.
+    private val queue = dispatch_queue_create("com.lalilu.lmusic.asset-resource", null)
+    private val dispatcher = object : CoroutineDispatcher() {
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            dispatch_async(queue) { block.run() }
+        }
+    }
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val requests = mutableMapOf<AVAssetResourceLoadingRequest, Job>()
-    val asset = AVURLAsset(NSURL.URLWithString(uri)!!, null).also {
-        it.resourceLoader.setDelegate(this, dispatch_get_main_queue())
+    val asset = preciseAudioAsset(NSURL.URLWithString(uri)!!).also {
+        it.resourceLoader.setDelegate(this, queue)
     }
 
     @ObjCSignatureOverride
@@ -70,5 +80,9 @@ internal class IosCachedAsset(private val access: NativeContentAccess, private v
         requests.remove(didCancelLoadingRequest)?.cancel()
     }
 
-    fun close() { asset.resourceLoader.setDelegate(null, null); scope.cancel(); requests.clear() }
+    fun close() {
+        asset.resourceLoader.setDelegate(null, null)
+        scope.cancel()
+        dispatch_async(queue) { requests.clear() }
+    }
 }

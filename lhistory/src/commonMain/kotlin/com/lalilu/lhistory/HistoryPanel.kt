@@ -13,7 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.LookaheadScope
+import com.lalilu.component.AdaptiveLookaheadScope
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lalilu.Slot
@@ -81,7 +81,7 @@ class HistoryPanel : LazyGridContent {
                     expanded = { 3 }
                 )
 
-                LookaheadScope lookaheadScope@{
+                AdaptiveLookaheadScope lookaheadScope@{
                     Grid(
                         modifier = Modifier.fillMaxWidth()
                             .animateBounds(this@lookaheadScope),
